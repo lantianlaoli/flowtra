@@ -42,6 +42,7 @@ export type CloneDraftShot = {
 export type CloneDraftScene = {
   sceneIndex: number;
   imagePrompt: string;
+  isContinuation?: boolean;
   videoPrompt: string | { shots: CloneDraftShot[] };
   sourceSummary?: string | null;
 };
@@ -617,7 +618,7 @@ export default function ClonePromptDraftStep({
                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                                           <div className="min-w-0 lg:col-span-2">
                                             <PromptFieldLabel icon={User}>Subject</PromptFieldLabel>
-                                            <PromptMentionTextarea value={shot.subject} onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { subject: next })} rows={2} className={promptUi.fieldInput} {...mentionPropsForAllFields} />
+                                            <PromptMentionTextarea value={shot.subject} onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { subject: next })} rows={2} resizable="vertical" className={promptUi.shotFieldInput} {...mentionPropsForAllFields} />
                                           </div>
                                           {CLONE_PROMPT_SHOT_FIELDS.filter((field) => field.key !== 'subject').map((field) => (
                                             <div key={`${scene.sceneIndex}-${shotIndex}-${field.key}`} className="min-w-0">
@@ -626,7 +627,8 @@ export default function ClonePromptDraftStep({
                                                 value={String(shot[field.key] ?? '')}
                                                 onChange={(next) => updateShot(scene.sceneIndex, shotIndex, { [field.key]: next })}
                                                 rows={2}
-                                                className={promptUi.fieldInput}
+                                                resizable="vertical"
+                                                className={promptUi.shotFieldInput}
                                                 {...mentionPropsForAllFields}
                                               />
                                             </div>

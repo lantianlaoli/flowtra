@@ -50,7 +50,8 @@ export const promptUi = {
   block: 'rounded-2xl border border-[#e6e6e4] bg-white p-3',
   shotCard: 'rounded-2xl border border-[#ececea] bg-[#fcfcfb] p-3 space-y-3',
   fieldBase: 'text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6f6f6d] mb-1 inline-flex items-center gap-1.5',
-  fieldInput: 'resize-none overflow-y-auto rounded-2xl'
+  fieldInput: 'overflow-y-auto rounded-2xl',
+  shotFieldInput: 'overflow-y-auto rounded-2xl min-h-[5.5rem]'
 } as const;
 
 export const PromptFieldLabel = ({

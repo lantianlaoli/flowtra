@@ -478,7 +478,8 @@ export default function CloneSceneReviewStep({
                                           <PromptMentionTextarea
                                             value={String(shot[field.key] ?? '')}
                                             rows={2}
-                                            className={promptUi.fieldInput}
+                                            resizable="vertical"
+                                            className={promptUi.shotFieldInput}
                                             onChange={(next) => updatePrompt(segment.segmentIndex, (current) => ({
                                               ...current,
                                               shots: current.shots.map((item, index) => (

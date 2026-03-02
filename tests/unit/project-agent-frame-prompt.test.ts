@@ -23,3 +23,49 @@ test('cleanSegmentText removes orphan possessive fragments', () => {
     'A close-up of hand holding the device.'
   );
 });
+
+test('continuation scenes wait for previous first frame before starting', () => {
+  assert.equal(
+    __test__.shouldWaitForContinuationFrame({
+      segmentIndex: 1,
+      isContinuationFromPrev: true
+    }),
+    true
+  );
+  assert.equal(
+    __test__.shouldWaitForContinuationFrame({
+      segmentIndex: 1,
+      isContinuationFromPrev: false
+    }),
+    false
+  );
+  assert.equal(
+    __test__.shouldWaitForContinuationFrame({
+      segmentIndex: 0,
+      isContinuationFromPrev: true
+    }),
+    false
+  );
+});
+
+test('structured video prompt payload keeps only shot content', () => {
+  const payload = __test__.buildStructuredVideoPromptPayload({
+    normalizedShots: [{
+      time_range: '00:00 - 00:06',
+      subject: 'Default Male in frame',
+      context_environment: 'Bathroom interior',
+      action: 'Continues the massaging motion',
+      style: 'Vertical video, close-up detail shot',
+      camera_motion_positioning: 'Static framing',
+      composition: 'Tight focus on the device and skin',
+      ambiance_colour_lighting: 'Bright bathroom lighting',
+      audio: 'Low mechanical hum',
+      dialogue: '',
+      language: 'en'
+    }]
+  });
+
+  assert.deepEqual(Object.keys(payload), ['shots']);
+  assert.equal(payload.shots.length, 1);
+  assert.equal(payload.shots[0].action, 'Continues the massaging motion');
+});

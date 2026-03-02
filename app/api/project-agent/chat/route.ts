@@ -14,6 +14,7 @@ import {
   isMergeConfirmationCommand,
   isMergeIntentCommand,
   isRegenerateVideoCommand,
+  isStartVideoGenerationCommand,
   mapClonePhaseFromStatusPayload as mapClonePhaseFromPayload
 } from '@/lib/project-agent/clone-workflow-control';
 
@@ -68,6 +69,7 @@ type SessionState = {
     scenes: Array<{
       sceneIndex: number;
       imagePrompt: string;
+      isContinuation?: boolean;
       videoPrompt: {
         shots: Array<{
           id: number;
@@ -161,6 +163,8 @@ const cloneDraftSceneToSegmentPrompt = (
     first_frame_description: scene.imagePrompt || '',
     shots,
     is_continuation_from_prev: (scene.sceneIndex ?? 1) > 1
+      ? (typeof scene.isContinuation === 'boolean' ? scene.isContinuation : true)
+      : false
   };
 };
 
@@ -210,16 +214,10 @@ const parseSceneIndexFromUserTurn = (text: string): number | undefined => {
   return undefined;
 };
 
-const isStartVideoGenerationCommand = (text: string) => {
+const isSceneScopedVideoStartCommand = (text: string) => {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
-  return (
-    /^start\s+(video|videos?)\s+generation/.test(normalized) ||
-    /^start\s+(generate|generating)\s+(video|videos?)/.test(normalized) ||
-    /^generate\s+(video|videos?)/.test(normalized) ||
-    /^start\s+video\b/.test(normalized) ||
-    /^begin\s+(video|videos?)/.test(normalized)
-  );
+  return /\b(start|begin|run|generate|render)\b[\s\w-]{0,18}\b(scene|shot|segment)\s*#?\s*\d+[\s\w-]{0,12}\bvideo\b/.test(normalized);
 };
 
 const isStartFrameGenerationCommand = (text: string) => {
@@ -257,6 +255,13 @@ const hasVideoGenerationSignal = (state: SessionState) => {
 const buildWorkflowFallbackReply = (latestUserTurnText: string, state: SessionState) => {
   const raw = latestUserTurnText.trim();
   if (!raw) return null;
+
+  if (isSceneScopedVideoStartCommand(raw)) {
+    if (hasVideoGenerationSignal(state)) {
+      return 'Video generation has started for the clone project. Flowtra currently renders scene videos as part of the project-level video pass, and you can still ask me to regenerate a specific scene video afterward.';
+    }
+    return 'I understood this as a scene-video request. Flowtra currently starts video generation for the whole clone project, or regenerates one specific scene video after review. Say "start video generation" to render all scenes, or "regenerate scene 1 video" to redo one scene.';
+  }
 
   if (isStartVideoGenerationCommand(raw)) {
     if (hasVideoGenerationSignal(state)) {
@@ -332,12 +337,7 @@ const classifyToolIntent = async (input: {
 
   const normalized = userText.toLowerCase();
   // Deterministic routing for explicit workflow commands to avoid LLM-confidence misses.
-  if (
-    /\b(start|begin|run|generate|render)\b[\s\w-]{0,24}\b(video|videos)\b/.test(normalized) ||
-    /start\s+generate\s+video/.test(normalized) ||
-    /start\s+video\s+generation/.test(normalized) ||
-    /开始.*视频|生成.*视频|开始视频生成/.test(userText)
-  ) {
+  if (isStartVideoGenerationCommand(userText)) {
     return { type: 'tool', toolName: 'startCloneVideoGeneration' };
   }
   if (isRegenerateVideoCommand(userText)) {

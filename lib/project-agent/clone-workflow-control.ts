@@ -30,6 +30,20 @@ export const isRegenerateVideoCommand = (text: string) => {
   );
 };
 
+export const isStartVideoGenerationCommand = (text: string) => {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    /^start\s+(video|videos?)\s+generation/.test(normalized) ||
+    /^start\s+(generate|generating)\s+(video|videos?)/.test(normalized) ||
+    /^generate\s+(video|videos?)/.test(normalized) ||
+    /^start\s+video\b/.test(normalized) ||
+    /^begin\s+(video|videos?)/.test(normalized) ||
+    /\b(start|begin|run|generate|render)\b[\s\w-]{0,24}\b(video|videos)\b/.test(normalized) ||
+    /开始.*视频|生成.*视频|开始视频生成/.test(text)
+  );
+};
+
 type ClonePhase = 'idle' | 'generating_frames' | 'reviewing_frames' | 'generating_videos' | 'awaiting_merge' | 'merging' | 'completed' | 'failed';
 
 export const mapClonePhaseFromStatusPayload = (payload: Record<string, unknown>): ClonePhase => {

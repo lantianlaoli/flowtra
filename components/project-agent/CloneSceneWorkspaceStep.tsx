@@ -101,7 +101,8 @@ const normalizeScene = (scene: WorkspaceScene): WorkspaceScene => ({
   videoUrl: scene.videoUrl ?? null,
   frameError: scene.frameError ?? null,
   videoError: scene.videoError ?? null,
-  segmentStatus: scene.segmentStatus ?? null
+  segmentStatus: scene.segmentStatus ?? null,
+  isContinuation: scene.sceneIndex > 1 ? Boolean(scene.isContinuation) : false
 });
 
 const mergeIncomingWithRecentLocalEdits = (prev: WorkspaceScene[], incoming: WorkspaceScene[]): WorkspaceScene[] => {
@@ -133,7 +134,8 @@ const mergeIncomingWithRecentLocalEdits = (prev: WorkspaceScene[], incoming: Wor
     return {
       ...incomingScene,
       imagePrompt: prevScene.imagePrompt,
-      shots: mergedShots
+      shots: mergedShots,
+      isContinuation: prevScene.isContinuation
     };
   });
 };
@@ -493,7 +495,50 @@ export default function CloneSceneWorkspaceStep({
 
                         <div className="flex min-h-[420px] flex-col gap-3 lg:min-h-0 lg:h-full">
                           <div>
-                            <PromptFieldLabel icon={ImageIcon}>Image Prompt</PromptFieldLabel>
+                            <div className="mb-1 flex items-center justify-between gap-3">
+                              <PromptFieldLabel icon={ImageIcon}>Image Prompt</PromptFieldLabel>
+                              {scene.sceneIndex > 1 ? (
+                                <div className="inline-flex items-center gap-2 text-[10px] leading-none text-[#7a7a77]">
+                                  <span className="whitespace-nowrap">
+                                    {scene.isContinuation ? 'Linked to previous frame' : 'Independent frame'}
+                                  </span>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <button
+                                        type="button"
+                                        aria-pressed={Boolean(scene.isContinuation)}
+                                        aria-label="Link this scene to the previous frame"
+                                        onClick={() => updateLocalScenes((current) => (
+                                          current.map((item) => (
+                                            item.sceneIndex === scene.sceneIndex
+                                              ? { ...item, isContinuation: !item.isContinuation }
+                                              : item
+                                          ))
+                                        ))}
+                                        className={`inline-flex h-4 w-8 shrink-0 items-center rounded-full border px-0.5 transition ${
+                                          scene.isContinuation
+                                            ? 'border-black bg-black'
+                                            : 'border-[#d7d7d4] bg-white hover:border-[#222222]'
+                                        }`}
+                                      >
+                                        <span
+                                          className={`h-3 w-3 rounded-full transition-transform ${
+                                            scene.isContinuation
+                                              ? 'translate-x-4 bg-white'
+                                              : 'translate-x-0 bg-[#a8a8a4]'
+                                          }`}
+                                        />
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="left" sideOffset={8}>
+                                      {scene.isContinuation
+                                        ? 'Use the previous scene first frame as reference'
+                                        : 'Generate this scene without using the previous frame'}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </div>
+                              ) : null}
+                            </div>
                             <PromptMentionTextarea
                               value={scene.imagePrompt}
                               rows={3}
@@ -545,7 +590,8 @@ export default function CloneSceneWorkspaceStep({
                                               <PromptMentionTextarea
                                                 value={String(shot[field.key] ?? '')}
                                                 rows={2}
-                                                className={promptUi.fieldInput}
+                                                resizable="vertical"
+                                                className={promptUi.shotFieldInput}
                                                 onChange={(next) => updateLocalScenes((current) => (
                                                   current.map((item) => {
                                                     if (item.sceneIndex !== scene.sceneIndex) return item;

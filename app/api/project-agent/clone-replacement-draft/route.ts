@@ -27,6 +27,7 @@ type ShotPrompt = {
 type ScenePrompt = {
   sceneIndex: number;
   imagePrompt: string;
+  isContinuation?: boolean;
   videoPrompt: {
     shots: ShotPrompt[];
   };
@@ -242,6 +243,7 @@ const parseModelScenes = (raw: unknown): ScenePrompt[] => {
   return scenes.map((scene, index) => ({
     sceneIndex: Number.isFinite(scene.sceneIndex) && scene.sceneIndex > 0 ? scene.sceneIndex : index + 1,
     imagePrompt: typeof scene.imagePrompt === 'string' ? scene.imagePrompt : '',
+    isContinuation: index > 0,
     sourceSummary: typeof scene.sourceSummary === 'string' ? scene.sourceSummary : null,
     videoPrompt: {
       shots: Array.isArray(scene.videoPrompt?.shots)
@@ -442,6 +444,7 @@ const generateReplacementDraft = async (input: {
     return {
       sceneIndex: scene.sceneIndex,
       imagePrompt,
+      isContinuation: typeof scene.isContinuation === 'boolean' ? scene.isContinuation : index > 0,
       videoPrompt: { shots },
       sourceSummary: scene.sourceSummary || input.scenes[index]?.sourceSummary || null
     } satisfies ScenePrompt;

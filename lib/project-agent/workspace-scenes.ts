@@ -18,6 +18,7 @@ type DraftVideoShotLike = {
 type DraftSceneLike = {
   sceneIndex: number;
   imagePrompt?: string;
+  isContinuation?: boolean;
   sourceSummary?: string | null;
   videoPrompt?: string | { shots?: DraftVideoShotLike[] };
 };
@@ -131,7 +132,13 @@ export const buildWorkspaceScenes = (input: {
           ? (segment?.errorMessage ?? null)
           : null,
         segmentStatus: segment?.status ?? null,
-        isContinuation: Boolean(promptFromSegment?.is_continuation_from_prev) || sceneIndex > 1
+        isContinuation: sceneIndex === 1
+          ? false
+          : typeof draftScene?.isContinuation === 'boolean'
+            ? draftScene.isContinuation
+            : typeof promptFromSegment?.is_continuation_from_prev === 'boolean'
+              ? promptFromSegment.is_continuation_from_prev
+              : sceneIndex > 1
       };
     });
 };

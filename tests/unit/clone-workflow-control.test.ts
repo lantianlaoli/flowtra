@@ -5,6 +5,7 @@ import {
   MERGE_CONFIRMATION_TOKEN,
   isMergeConfirmationCommand,
   isMergeIntentCommand,
+  isStartVideoGenerationCommand,
   isRegenerateVideoCommand,
   mapClonePhaseFromStatusPayload
 } from '@/lib/project-agent/clone-workflow-control';
@@ -25,6 +26,13 @@ test('detects scene video regeneration command', () => {
   assert.equal(isRegenerateVideoCommand('regenerate scene 2 video'), true);
   assert.equal(isRegenerateVideoCommand('重生成第2个视频'), true);
   assert.equal(isRegenerateVideoCommand('regenerate scene 2 frame'), false);
+});
+
+test('detects flexible start video generation commands', () => {
+  assert.equal(isStartVideoGenerationCommand('start video generation'), true);
+  assert.equal(isStartVideoGenerationCommand('start scene 1 video generation'), true);
+  assert.equal(isStartVideoGenerationCommand('开始视频生成'), true);
+  assert.equal(isStartVideoGenerationCommand('regenerate scene 2 video'), false);
 });
 
 test('maps awaiting_merge status to awaiting_merge phase', () => {

@@ -21,6 +21,7 @@ type PromptMentionTextareaProps = {
   onChange: (value: string) => void;
   placeholder?: string;
   rows?: number;
+  resizable?: 'none' | 'vertical';
   disabled?: boolean;
   readOnly?: boolean;
   hasError?: boolean;
@@ -42,6 +43,7 @@ export default function PromptMentionTextarea({
   onChange,
   placeholder,
   rows = 6,
+  resizable = 'none',
   disabled,
   readOnly,
   hasError,
@@ -518,7 +520,8 @@ export default function PromptMentionTextarea({
           readOnly={readOnly}
           spellCheck={false}
           className={clsx(
-            'prompt-mention-textarea block relative z-0 w-full border-0 bg-transparent px-3 py-2 text-sm leading-6 caret-black selection:bg-[#11111122] focus:outline-none focus:ring-0 focus:border-0 overflow-x-hidden overflow-y-auto resize-none',
+            'prompt-mention-textarea block relative z-0 w-full border-0 bg-transparent px-3 py-2 text-sm leading-6 caret-black selection:bg-[#11111122] focus:outline-none focus:ring-0 focus:border-0 overflow-x-hidden overflow-y-auto',
+            resizable === 'vertical' ? 'resize-y' : 'resize-none',
             isFocused ? 'text-[#1f1f1e] selection:text-[#1f1f1e]' : 'text-transparent selection:text-transparent',
             readOnly || disabled ? 'cursor-not-allowed bg-gray-50' : '',
             'placeholder:text-gray-400',

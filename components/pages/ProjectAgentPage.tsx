@@ -30,6 +30,7 @@ import {
   getPrimaryCloneSelection,
   normalizeCloneSelections
 } from '@/lib/project-agent/clone-selection';
+import { isStartVideoGenerationCommand } from '@/lib/project-agent/clone-workflow-control';
 import { buildWorkspaceScenes } from '@/lib/project-agent/workspace-scenes';
 
 interface SessionState {
@@ -120,6 +121,7 @@ const THINKING_MESSAGES = [
   'Refining visuals and logic together...'
 ];
 const START_VIDEO_FALLBACK_REPLY = 'Video generation has started. I am now rendering each scene video and will keep this workflow moving.';
+const GENERIC_INTERRUPTION_REPLY = 'I hit a connection issue before I could finish replying. Your last request may still be processing. If nothing changes in a moment, tap Retry and I will continue from the same point.';
 
 const createSessionId = () => {
   if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
@@ -212,16 +214,10 @@ const findLatestCloneIntentIndex = (messages: UIMessage[]) => {
   return -1;
 };
 
-const isStartVideoGenerationCommand = (text: string) => {
+const isSceneScopedVideoStartCommand = (text: string) => {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
-  return (
-    /^start\s+(video|videos?)\s+generation/.test(normalized) ||
-    /^start\s+(generate|generating)\s+(video|videos?)/.test(normalized) ||
-    /^generate\s+(video|videos?)/.test(normalized) ||
-    /^start\s+video\b/.test(normalized) ||
-    /^begin\s+(video|videos?)/.test(normalized)
-  );
+  return /\b(start|begin|run|generate|render)\b[\s\w-]{0,18}\b(scene|shot|segment)\s*#?\s*\d+[\s\w-]{0,12}\bvideo\b/.test(normalized);
 };
 
 const extractRegenerateSceneIndex = (text: string): number | null => {
@@ -235,6 +231,50 @@ const extractRegenerateSceneIndex = (text: string): number | null => {
   const value = Number(match[1] || match[2]);
   if (!Number.isFinite(value) || value < 1) return null;
   return value;
+};
+
+const hasCloneVideoGenerationSignal = (execution: SessionState['cloneExecution'] | null | undefined) => {
+  if (!execution) return false;
+  if (execution.phase === 'generating_videos' || execution.phase === 'merging' || execution.phase === 'completed') {
+    return true;
+  }
+  return Boolean(
+    execution.segments?.some((segment) => (
+      segment.status === 'generating_video' ||
+      segment.status === 'video_ready' ||
+      Boolean(segment.videoUrl)
+    ))
+  );
+};
+
+const buildInterruptedAssistantReply = (latestUserText: string, state: SessionState | null): string => {
+  const raw = latestUserText.trim();
+  if (!raw) return GENERIC_INTERRUPTION_REPLY;
+
+  const hasVideoSignal = hasCloneVideoGenerationSignal(state?.cloneExecution);
+
+  if (isSceneScopedVideoStartCommand(raw)) {
+    if (hasVideoSignal) {
+      return 'Video generation has already started for this clone project. Flowtra currently renders scene videos through the project-level video pass, and you can still ask me to regenerate a specific scene video afterward.';
+    }
+    return 'I understood this as a scene-video request. Flowtra currently starts video generation for the whole clone project, or regenerates one specific scene video after review. Say "start video generation" to render all scenes, or "regenerate scene 1 video" to redo one scene.';
+  }
+
+  if (isStartVideoGenerationCommand(raw)) {
+    return hasVideoSignal
+      ? START_VIDEO_FALLBACK_REPLY
+      : 'I received your video-generation request. If all scene frames are ready, I will start rendering the videos now. If not, I will wait for the remaining frames first.';
+  }
+
+  if (isWorkflowCommandMessage(raw)) {
+    const sceneIndex = extractRegenerateSceneIndex(raw);
+    if (sceneIndex) {
+      return `I received the request for Scene ${sceneIndex}. If the workflow does not move in a moment, tap Retry and I will rerun it from the latest project state.`;
+    }
+    return 'I received your workflow command. The connection dropped before I could finish replying, but your latest project state is still preserved. If nothing changes in a moment, tap Retry and I will continue from here.';
+  }
+
+  return GENERIC_INTERRUPTION_REPLY;
 };
 
 const dedupeConversationMessages = (messages: UIMessage[]) => {
@@ -419,6 +459,7 @@ const normalizeVideoModel = (raw: unknown): VideoModel => {
 const workspacePromptToDraftScene = (scene: WorkspaceScene): CloneDraftScene => ({
   sceneIndex: scene.sceneIndex,
   imagePrompt: scene.imagePrompt,
+  isContinuation: scene.sceneIndex > 1 ? Boolean(scene.isContinuation) : false,
   sourceSummary: scene.sourceSummary ?? null,
   videoPrompt: {
     shots: scene.shots.map((shot, index) => ({
@@ -829,15 +870,12 @@ export default function ProjectAgentPage() {
       setPendingBaselineCount(0);
       const lastUser = [...messages].reverse().find((message) => message.role === 'user');
       const lastUserText = lastUser ? renderUIMessageText(lastUser).trim() : '';
-      const isWorkflowCommand = lastUserText ? isWorkflowCommandMessage(lastUserText) : false;
       if (lastUser?.id) {
+        const fallbackReply = buildInterruptedAssistantReply(lastUserText, sessionState ?? null);
+        appendSyntheticAssistantMessage(fallbackReply, { afterUserMessageId: lastUser.id });
         setRetryableUserMessageId(lastUser.id);
       }
-      setStatusNote(
-        isWorkflowCommand
-          ? 'Command was sent, but the assistant message stream was interrupted. If status does not update shortly, tap Retry.'
-          : 'Network issue interrupted assistant reply. Use the retry icon below your latest message.'
-      );
+      setStatusNote('');
     }
   });
 
@@ -1730,15 +1768,35 @@ export default function ProjectAgentPage() {
       .slice(cloneIntentIndex + 1)
       .some((message) => message.role === 'assistant' && renderUIMessageText(message).trim().length > 0);
   }, [displayMessages]);
-  const appendSyntheticAssistantMessage = useCallback((text: string) => {
+  const appendSyntheticAssistantMessage = useCallback((text: string, options?: { afterUserMessageId?: string }) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    const message: UIMessage = {
-      id: `assistant-fallback-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      role: 'assistant',
-      parts: [{ type: 'text', text: trimmed }]
-    };
-    setMessages((prev) => dedupeConversationMessages([...prev, message]));
+    setMessages((prev) => {
+      const deduped = dedupeConversationMessages(prev);
+      if (options?.afterUserMessageId) {
+        const targetIndex = deduped.findIndex((message) => message.id === options.afterUserMessageId);
+        if (targetIndex >= 0) {
+          const hasAssistantAfter = deduped
+            .slice(targetIndex + 1)
+            .some((message) => message.role === 'assistant' && renderUIMessageText(message).trim().length > 0);
+          if (hasAssistantAfter) {
+            return deduped;
+          }
+        }
+      }
+
+      const previous = deduped[deduped.length - 1];
+      if (previous?.role === 'assistant' && renderUIMessageText(previous).trim() === trimmed) {
+        return deduped;
+      }
+
+      const message: UIMessage = {
+        id: `assistant-fallback-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        role: 'assistant',
+        parts: [{ type: 'text', text: trimmed }]
+      };
+      return dedupeConversationMessages([...deduped, message]);
+    });
   }, [setMessages]);
   const preferredRegeneratingSceneIndex = useMemo(() => {
     const latestRegenerateCommand = [...displayMessages]
@@ -1766,8 +1824,12 @@ export default function ProjectAgentPage() {
       lastAutoRetryRef.current.text === normalizedLastUserText &&
       now - lastAutoRetryRef.current.at < 8000
     ) {
+      appendSyntheticAssistantMessage(
+        buildInterruptedAssistantReply(lastUserText, sessionState ?? null),
+        { afterUserMessageId: lastUser.id }
+      );
       setRetryableUserMessageId(lastUser.id);
-      setStatusNote('Assistant reply was interrupted. Tap the retry icon below your latest message.');
+      setStatusNote('');
       return false;
     }
 
@@ -1796,8 +1858,12 @@ export default function ProjectAgentPage() {
     }
 
     if (isSyntheticWorkflowMessage(lastUserText) || isWorkflowCommandMessage(lastUserText) || isCloneKickoffIntent) {
+      appendSyntheticAssistantMessage(
+        buildInterruptedAssistantReply(lastUserText, sessionState ?? null),
+        { afterUserMessageId: lastUser.id }
+      );
       setRetryableUserMessageId(lastUser.id);
-      setStatusNote('Assistant reply was interrupted. Tap the retry icon below your latest message.');
+      setStatusNote('');
       return false;
     }
 
@@ -1807,9 +1873,13 @@ export default function ProjectAgentPage() {
       lastAutoRetryRef.current = { text: normalizedLastUserText, at: now };
     }
     setRetryableUserMessageId(lastUser.id);
-    setStatusNote('Assistant reply was interrupted. Tap the retry icon below your latest message.');
+    appendSyntheticAssistantMessage(
+      buildInterruptedAssistantReply(lastUserText, sessionState ?? null),
+      { afterUserMessageId: lastUser.id }
+    );
+    setStatusNote('');
     return false;
-  }, [appendSyntheticAssistantMessage, autoRetriedUserMessageIds, displayMessages, sessionState?.cloneExecution?.phase, sessionState?.cloneExecution?.segments, sessionState?.cloneReferenceVideo?.id]);
+  }, [appendSyntheticAssistantMessage, autoRetriedUserMessageIds, displayMessages, sessionState, sessionState?.cloneReferenceVideo?.id]);
 
   useEffect(() => {
     if (!isCloneIntentTurn) return;

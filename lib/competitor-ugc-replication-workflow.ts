@@ -3043,15 +3043,13 @@ async function startSegmentedWorkflow(
     })
     .eq('id', projectId);
 
-  const shouldStartAllAgentFramesImmediately = request.requestSource === 'project_agent_clone';
-
   for (const segment of segments) {
     const promptData = normalizedSegments[segment.segment_index];
     const aspectRatio = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
-    const shouldWaitForContinuation = Boolean(
-      !shouldStartAllAgentFramesImmediately &&
-      promptData.is_continuation_from_prev && segment.segment_index > 0
-    );
+    const shouldWaitForContinuation = shouldWaitForContinuationFrame({
+      segmentIndex: segment.segment_index,
+      isContinuationFromPrev: promptData.is_continuation_from_prev
+    });
 
     if (shouldWaitForContinuation) {
       await supabase
@@ -3492,6 +3490,21 @@ function resolveAgentFrameModelKey(
     return overrides.imageModelOverride;
   }
   return overrides?.workflowSourceOverride === 'project_agent_clone' ? 'nano_banana_2' : 'nano_banana_pro';
+}
+
+function shouldWaitForContinuationFrame(input: {
+  segmentIndex: number;
+  isContinuationFromPrev?: boolean;
+}) {
+  return Boolean(input.segmentIndex > 0 && input.isContinuationFromPrev);
+}
+
+function buildStructuredVideoPromptPayload(input: {
+  normalizedShots: NormalizedVideoShot[];
+}) {
+  return {
+    shots: input.normalizedShots
+  };
 }
 
 async function createFrameFromImage(
@@ -3969,17 +3982,9 @@ export async function startSegmentVideoTask(
     );
   }
 
-  const voiceDescriptor = 'Calm professional narrator';
-  const voiceToneDescriptor = 'warm and confident';
-  const structuredPromptPayload = {
-    is_continuation_from_prev: Boolean(compiledSegmentPrompt.is_continuation_from_prev && segmentIndex > 0),
-    first_frame_description: compiledSegmentPrompt.first_frame_description,
-    narrator: {
-      descriptor: voiceDescriptor,
-      tone: voiceToneDescriptor
-    },
-    shots: normalizedShots
-  };
+  const structuredPromptPayload = buildStructuredVideoPromptPayload({
+    normalizedShots
+  });
 
   // Determine imageUrls based on whether a closing frame exists
   const hasClosingFrame = !!closingFrameUrl && closingFrameUrl !== firstFrameUrl;
@@ -4858,5 +4863,7 @@ async function startSegmentVideoTaskSeedance(
 
 export const __test__ = {
   cleanSegmentText,
-  buildProjectAgentFramePrompt
+  buildProjectAgentFramePrompt,
+  shouldWaitForContinuationFrame,
+  buildStructuredVideoPromptPayload
 };
