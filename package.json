@@ -17,6 +17,7 @@
     "@fal-ai/client": "^1.9.4",
     "@heroicons/react": "^2.2.0",
     "@lobehub/icons": "^4.0.3",
+    "@openrouter/sdk": "^0.9.11",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-separator": "^1.1.8",

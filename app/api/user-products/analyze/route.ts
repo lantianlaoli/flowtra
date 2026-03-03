@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { uploadProductPhotoToStorage, deleteProductPhotoFromStorage } from '@/lib/supabase';
-import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { validateImageFormat } from '@/lib/image-validation';
+import { extractOpenRouterJsonContent, sendOpenRouterChat } from '@/lib/openrouter';
 
 const MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-lite';
 
@@ -92,27 +92,11 @@ async function analyzeProductImage(imageUrl: string): Promise<{ productName: str
     ]
   };
 
-  const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  }, 3, 20000);
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`Metadata generation failed: ${response.status} ${text}`);
-  }
-
-  const data = await response.json();
+  const data = await sendOpenRouterChat(payload, {
+    maxRetries: 3,
+    timeoutMs: 20000
+  });
   const content = data?.choices?.[0]?.message?.content;
-
-  interface OutputEntry {
-    type?: string;
-    text?: string;
-  }
 
   interface ProductMetadataSchema {
     product_name: string;
@@ -125,18 +109,7 @@ async function analyzeProductImage(imageUrl: string): Promise<{ productName: str
     );
   };
 
-  let parsed: unknown;
-  try {
-    if (typeof content === 'string') {
-      parsed = JSON.parse(content);
-    } else if (Array.isArray(content)) {
-      const jsonEntry = content.find((entry: OutputEntry) => entry.type === 'output_text');
-      parsed = jsonEntry?.text ? JSON.parse(jsonEntry.text) : undefined;
-    }
-  } catch (error) {
-    console.error('Failed to parse product metadata JSON:', error);
-    parsed = undefined;
-  }
+  const parsed = extractOpenRouterJsonContent<ProductMetadataSchema>(content);
 
   if (!isProductMetadata(parsed)) {
     console.error('Unexpected AI response for product metadata:', data);

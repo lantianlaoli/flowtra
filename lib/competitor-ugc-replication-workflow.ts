@@ -1,5 +1,6 @@
 import { getSupabaseAdmin, type CompetitorUgcReplicationSegment, type SingleVideoProject } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
+import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 import {
   GENERATION_COSTS,
   NON_AGENT_IMAGE_MODEL,
@@ -2359,26 +2360,20 @@ export async function analyzeCompetitorAdWithLanguage(
     }
   };
 
-  const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: options?.model || process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
-      response_format: responseFormat,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'video_url' as const,
-              video_url: { url: processedFileUrl }
-            },
-            {
-              type: 'text',
-              text: `📺 COMPETITOR AD MULTI-SHOT ANALYSIS
+  const data = await sendOpenRouterChat({
+    model: options?.model || process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+    response_format: responseFormat,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'video_url' as const,
+            video_url: { url: processedFileUrl }
+          },
+          {
+            type: 'text',
+            text: `📺 COMPETITOR AD MULTI-SHOT ANALYSIS
 
 You are analyzing a competitor advertisement video${competitorAdContext.competitor_name ? ` from "${competitorAdContext.competitor_name}"` : ''}.
 
@@ -2452,33 +2447,21 @@ EXAMPLE OUTPUT STRUCTURE:
   ],
   "detected_language": "en"
 }`
-            }
-          ]
-        }
-      ]
-    })
+          }
+        ]
+      }
+    ]
+  }, {
+    maxRetries: 10,
+    timeoutMs: 120000
   });
-
-  let data: unknown;
-  let responseText = '';
-  try {
-    responseText = await response.text();
-    data = JSON.parse(responseText);
-  } catch (error) {
-    console.error('[analyzeCompetitorAdWithLanguage] JSON parse error:', error);
-    if (typeof responseText === 'string' && responseText.includes('Request En')) {
-      throw new Error(`Failed to parse competitor analysis response: Possible request body too large. OpenRouter returned: ${responseText.substring(0, 100)}...`);
-    }
-    throw new Error('Failed to parse competitor analysis response');
-  }
 
   const apiResponse = data as { choices?: Array<{ message?: { content?: unknown } }> };
   const rawContent = apiResponse.choices?.[0]?.message?.content;
-  const normalizedContent = extractStructuredContent(rawContent);
+  const normalizedContent = extractOpenRouterTextContent(rawContent);
 
   if (!normalizedContent) {
     console.error('[analyzeCompetitorAdWithLanguage] Invalid API response structure:', data);
-    console.error('[analyzeCompetitorAdWithLanguage] Raw response text preview:', responseText.substring(0, 400));
     throw new Error('Invalid competitor analysis response format');
   }
 
@@ -2824,45 +2807,15 @@ ${strictSegmentFormat}`
     try {
       console.log(`[generateImageBasedPrompts] Attempt ${attempt}/${MAX_PROMPT_GENERATION_ATTEMPTS}`);
 
-      const response = await fetchWithRetry(
-        'https://openrouter.ai/api/v1/chat/completions',
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: requestPayload
-        },
-        10,     // Increased from 3 to 10 retries (match analyzeCompetitorAdWithLanguage)
-        120000  // Increased from 30s to 120s timeout for complex prompts (production has higher latency)
-      );
-
-      const responseText = await response.text();
-
-      if (!response.ok) {
-        console.error('❌ OpenRouter API error:', {
-          status: response.status,
-          statusText: response.statusText,
-          responseText: responseText.substring(0, 500)
-        });
-        throw new Error(`Prompt generation failed: ${response.status} - ${responseText}`);
-      }
-
+      const data = await sendOpenRouterChat(JSON.parse(requestPayload) as Record<string, unknown>, {
+        maxRetries: 10,
+        timeoutMs: 120000
+      });
+      const responseText = JSON.stringify(data);
       console.log('✅ OpenRouter API response received:', {
-        status: response.status,
         responseLength: responseText.length,
         preview: responseText.substring(0, 200)
       });
-
-      let data: unknown;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('❌ Failed to parse OpenRouter response as JSON:', parseError);
-        console.error('Response text:', responseText.substring(0, 1000));
-        throw new Error(`OpenRouter returned invalid JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
-      }
 
       const apiResponse = data as { choices?: Array<{ message?: { content?: string } }> };
       if (!apiResponse.choices || !apiResponse.choices[0] || !apiResponse.choices[0].message || !apiResponse.choices[0].message.content) {

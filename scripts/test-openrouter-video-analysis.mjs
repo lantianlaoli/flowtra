@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { OpenRouter } from '@openrouter/sdk';
+
 /**
  * OpenRouter video_url analysis smoke test.
  *
@@ -117,6 +119,8 @@ const body = {
   ]
 };
 
+const client = new OpenRouter({ apiKey });
+
 const summarize = (value, max = 600) => {
   const text = typeof value === 'string' ? value : JSON.stringify(value);
   if (text.length <= max) return text;
@@ -206,34 +210,17 @@ async function main() {
     console.log('[Test] provider.ignore:', ignoreProviders.join(', '));
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 90000);
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
+  const json = await client.chat.send({
+    chatGenerationParams: body
+  }, {
+    timeoutMs: 90000,
     headers: {
-      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(body),
-    signal: controller.signal
+    }
   });
-  clearTimeout(timeoutId);
 
-  const text = await res.text();
-  let json = null;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    // Keep null; print raw text preview below.
-  }
-
-  console.log('[Test] status:', res.status);
-  console.log('[Test] content-type:', res.headers.get('content-type'));
-
-  if (!json) {
-    console.log('[Test] non-JSON body preview:', summarize(text));
-    process.exit(2);
-  }
+  console.log('[Test] response-object:', json.object);
+  console.log('[Test] model:', json.model);
 
   if (json.error) {
     console.log('[Test] API returned error object:');

@@ -8,6 +8,7 @@ import {
   normalizeSelectedIds
 } from '@/lib/project-agent/clone-selection';
 import { injectMentionsInline, stripMentionTokens } from '@/lib/project-agent/clone-prompt-mentions';
+import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 
 type ShotPrompt = {
   id: number;
@@ -283,129 +284,118 @@ const generateReplacementDraft = async (input: {
     productName: input.productName
   };
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: modelName,
-      response_format: {
-        type: 'json_schema',
-        json_schema: {
-          name: 'clone_replacement_draft',
-          strict: true,
-          schema: {
-            type: 'object',
-            properties: {
-              scenes: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    sceneIndex: { type: 'integer' },
-                    imagePrompt: { type: 'string' },
-                    sourceSummary: { type: 'string' },
-                    videoPrompt: {
-                      type: 'object',
-                      properties: {
-                        shots: {
-                          type: 'array',
-                          items: {
-                            type: 'object',
-                            properties: {
-                              id: { type: 'integer' },
-                              time_range: { type: 'string' },
-                              subject: { type: 'string' },
-                              context_environment: { type: 'string' },
-                              action: { type: 'string' },
-                              style: { type: 'string' },
-                              camera_motion_positioning: { type: 'string' },
-                              composition: { type: 'string' },
-                              ambiance_colour_lighting: { type: 'string' },
-                              audio: { type: 'string' },
-                              dialogue: { type: 'string' },
-                              language: { type: 'string' }
-                            },
-                            required: [
-                              'id',
-                              'time_range',
-                              'subject',
-                              'context_environment',
-                              'action',
-                              'style',
-                              'camera_motion_positioning',
-                              'composition',
-                              'ambiance_colour_lighting',
-                              'audio',
-                              'dialogue'
-                            ],
-                            additionalProperties: false
-                          }
+  const payload = await sendOpenRouterChat({
+    model: modelName,
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'clone_replacement_draft',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: {
+            scenes: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  sceneIndex: { type: 'integer' },
+                  imagePrompt: { type: 'string' },
+                  sourceSummary: { type: 'string' },
+                  videoPrompt: {
+                    type: 'object',
+                    properties: {
+                      shots: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            id: { type: 'integer' },
+                            time_range: { type: 'string' },
+                            subject: { type: 'string' },
+                            context_environment: { type: 'string' },
+                            action: { type: 'string' },
+                            style: { type: 'string' },
+                            camera_motion_positioning: { type: 'string' },
+                            composition: { type: 'string' },
+                            ambiance_colour_lighting: { type: 'string' },
+                            audio: { type: 'string' },
+                            dialogue: { type: 'string' },
+                            language: { type: 'string' }
+                          },
+                          required: [
+                            'id',
+                            'time_range',
+                            'subject',
+                            'context_environment',
+                            'action',
+                            'style',
+                            'camera_motion_positioning',
+                            'composition',
+                            'ambiance_colour_lighting',
+                            'audio',
+                            'dialogue'
+                          ],
+                          additionalProperties: false
                         }
-                      },
-                      required: ['shots'],
-                      additionalProperties: false
-                    }
-                  },
-                  required: ['sceneIndex', 'imagePrompt', 'videoPrompt', 'sourceSummary'],
-                  additionalProperties: false
-                }
+                      }
+                    },
+                    required: ['shots'],
+                    additionalProperties: false
+                  }
+                },
+                required: ['sceneIndex', 'imagePrompt', 'videoPrompt', 'sourceSummary'],
+                additionalProperties: false
               }
-            },
-            required: ['scenes'],
-            additionalProperties: false
-          }
-        }
-      },
-      messages: [
-        {
-          role: 'system',
-          content: [
-            'You are rewriting clone prompts while preserving original shot structure.',
-            'Output must preserve scene order and source intent.',
-            avatarToken
-              ? `Character replacement must explicitly use token in imagePrompt and shot fields: ${avatarToken}.`
-              : 'Do not use any @character(...) token.',
-            productToken
-              ? `Product replacement must explicitly use token in imagePrompt and shot fields: ${productToken}.`
-              : 'Do not use any @product(...) token.',
-            'For each scene output imagePrompt and videoPrompt.shots.',
-            'imagePrompt must stay scene-specific (subject + environment + action) and must not repeat the same boilerplate sentence across scenes.',
-            'Do not use trailing templates like ", featuring @character(...) interacting with @product(...)".',
-            'Write a normal fluent prompt first, then embed mention tokens only at the noun phrase positions.',
-            'Each shot must include: subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_colour_lighting, audio, dialogue, time_range.',
-            'Apply avatar/product replacement inside video shot fields too. Do not leave original role words (e.g. woman/man) when replacement is selected.',
-            'Keep fields concise but specific.'
-          ].join(' ')
-        },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            referenceSummary: input.referenceSummary,
-            scenes: input.scenes,
-            replacement: {
-              avatarToken,
-              productToken
             }
-          })
+          },
+          required: ['scenes'],
+          additionalProperties: false
         }
-      ]
-    })
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Draft generation failed: ${response.status} ${errorText}`);
-  }
-
-  const payload = await response.json() as {
-    choices?: Array<{ message?: { content?: string } }>;
+      }
+    },
+    messages: [
+      {
+        role: 'system',
+        content: [
+          'You are rewriting clone prompts while preserving original shot structure.',
+          'Output must preserve scene order and source intent.',
+          avatarToken
+            ? `Character replacement must explicitly use token in imagePrompt and shot fields: ${avatarToken}.`
+            : 'Do not use any @character(...) token.',
+          productToken
+            ? `Product replacement must explicitly use token in imagePrompt and shot fields: ${productToken}.`
+            : 'Do not use any @product(...) token.',
+          'For each scene output imagePrompt and videoPrompt.shots.',
+          'imagePrompt must stay scene-specific (subject + environment + action) and must not repeat the same boilerplate sentence across scenes.',
+          'Do not use trailing templates like ", featuring @character(...) interacting with @product(...)".',
+          'Write a normal fluent prompt first, then embed mention tokens only at the noun phrase positions.',
+          'Each shot must include: subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_colour_lighting, audio, dialogue, time_range.',
+          'Apply avatar/product replacement inside video shot fields too. Do not leave original role words (e.g. woman/man) when replacement is selected.',
+          'Keep fields concise but specific.'
+        ].join(' ')
+      },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          referenceSummary: input.referenceSummary,
+          scenes: input.scenes,
+          replacement: {
+            avatarToken,
+            productToken
+          }
+        })
+      }
+    ]
+  }, {
+    timeoutMs: 45000,
+    maxRetries: 3
+  }) as {
+    choices?: Array<{ message?: { content?: unknown } }>;
   };
 
-  const content = payload.choices?.[0]?.message?.content;
-  if (!content || typeof content !== 'string') {
+  const content = extractOpenRouterTextContent(payload.choices?.[0]?.message?.content);
+  if (!content) {
     throw new Error('Model returned empty draft content.');
   }
 
