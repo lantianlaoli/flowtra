@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Link, Upload, Users, Loader2, ArrowLeft, Info, Sparkles, Shuffle } from 'lucide-react';
+import { X, Link, Upload, Users, Loader2, ArrowLeft, Info, Sparkles, Shuffle, RotateCcw } from 'lucide-react';
 import { SiTiktok } from 'react-icons/si';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -84,6 +84,9 @@ export default function VideoImportModal({
   const [isFirstFrameUploading, setIsFirstFrameUploading] = useState(false);
   const [firstFrameUploadError, setFirstFrameUploadError] = useState<string | null>(null);
   const [analysisLoadingMessageIndex, setAnalysisLoadingMessageIndex] = useState(0);
+  const [videoName, setVideoName] = useState('');
+  const [isSavingVideoName, setIsSavingVideoName] = useState(false);
+  const [isRetryingAnalysis, setIsRetryingAnalysis] = useState(false);
   const closeTimerRef = useRef<number | null>(null);
   const router = useRouter();
 
@@ -104,6 +107,9 @@ export default function VideoImportModal({
     setIsFirstFrameUploading(false);
     setFirstFrameUploadError(null);
     setAnalysisLoadingMessageIndex(0);
+    setVideoName('');
+    setIsSavingVideoName(false);
+    setIsRetryingAnalysis(false);
   }, [isOpen]);
 
   useEffect(() => {
@@ -223,6 +229,23 @@ export default function VideoImportModal({
     processingVideo?.id &&
     (!requiresFirstFrameForMotionSwap || hasFirstFrameImage)
   );
+
+  const analysisName = useMemo(() => {
+    if (!processingVideo?.analysis_result || typeof processingVideo.analysis_result !== 'object') {
+      return '';
+    }
+
+    const name = (processingVideo.analysis_result as { name?: unknown }).name;
+    return typeof name === 'string' ? name.trim() : '';
+  }, [processingVideo?.analysis_result]);
+
+  useEffect(() => {
+    const nextName = processingVideo?.description?.trim()
+      || analysisName
+      || processingVideo?.source_name?.trim()
+      || '';
+    setVideoName(nextName);
+  }, [analysisName, processingVideo?.description, processingVideo?.id, processingVideo?.source_name]);
 
   const handleBackToChoose = () => {
     setStep('choose');
@@ -501,6 +524,90 @@ export default function VideoImportModal({
   const handleUseInMotionSwap = () => {
     onClose();
     router.push(`/dashboard/motion-swap?videoId=${processingVideo?.id}`);
+  };
+
+  const handleSaveVideoName = async () => {
+    if (!processingVideo?.id) {
+      return;
+    }
+
+    const trimmedName = videoName.trim();
+    if (!trimmedName) {
+      setError('Name is required.');
+      return;
+    }
+
+    if (trimmedName === (processingVideo.description || '').trim()) {
+      return;
+    }
+
+    setIsSavingVideoName(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/creator-videos/${processingVideo.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: trimmedName })
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiErrorMessage(response, 'Failed to update video name.'));
+      }
+
+      const data = await response.json() as { video?: ImportedVideo };
+      if (!data.video) {
+        throw new Error('Failed to update video name.');
+      }
+
+      setProcessingVideo(prev => prev ? { ...prev, description: data.video?.description || trimmedName } : prev);
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Failed to update video name.';
+      setError(message);
+      onError?.(message);
+    } finally {
+      setIsSavingVideoName(false);
+    }
+  };
+
+  const handleRetryAnalysis = async () => {
+    if (!processingVideo?.id) {
+      return;
+    }
+
+    setIsRetryingAnalysis(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/creator-videos/${processingVideo.id}/retry-analysis`, {
+        method: 'POST'
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiErrorMessage(response, 'Failed to retry analysis.'));
+      }
+
+      const data = await response.json() as { video?: ImportedVideo };
+      const nextVideo = data.video || null;
+      if (!nextVideo) {
+        throw new Error('Failed to retry analysis.');
+      }
+
+      setProcessingVideo(prev => prev ? {
+        ...prev,
+        ...nextVideo,
+        analysis_result: null,
+        analysis_error: null,
+        analysis_status: 'analyzing'
+      } : nextVideo);
+      setProcessingMessage('Video added. Analysis is running.');
+    } catch (retryError) {
+      const message = retryError instanceof Error ? retryError.message : 'Failed to retry analysis.';
+      setError(message);
+      onError?.(message);
+    } finally {
+      setIsRetryingAnalysis(false);
+    }
   };
 
   const handleUploadFirstFrame = async (file: File | null) => {
@@ -882,6 +989,37 @@ export default function VideoImportModal({
                 </div>
                 <div className="assets-video-import-panel flex flex-col gap-4 min-h-0 h-full overflow-hidden">
                   <div className="space-y-2">
+                    <div className="space-y-2">
+                      <label htmlFor="import-video-name" className="assets-video-import-label text-xs uppercase tracking-wide text-gray-500">
+                        Name
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          id="import-video-name"
+                          type="text"
+                          value={videoName}
+                          onChange={(event) => setVideoName(event.target.value)}
+                          onBlur={() => {
+                            if (!isSavingVideoName && videoName.trim() && videoName.trim() !== (processingVideo?.description || '').trim()) {
+                              void handleSaveVideoName();
+                            }
+                          }}
+                          maxLength={120}
+                          placeholder="Name this video"
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 transition-all focus:border-black focus:outline-none focus:ring-2 focus:ring-black/5"
+                          disabled={!processingVideo?.id || isSavingVideoName}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handleSaveVideoName()}
+                          disabled={!processingVideo?.id || !videoName.trim() || isSavingVideoName || videoName.trim() === (processingVideo?.description || '').trim()}
+                          className="min-h-[40px] rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isSavingVideoName ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                    </div>
+
                     <p className="assets-video-import-label text-xs uppercase tracking-wide text-gray-500">Overview</p>
                     <div className="flex items-center justify-between text-sm text-gray-700">
                       <span>Language</span>
@@ -896,11 +1034,24 @@ export default function VideoImportModal({
                   <div className="flex-1 flex flex-col gap-3 min-h-0">
                     <p className="assets-video-import-label text-xs uppercase tracking-wide text-gray-500">Structure Analysis</p>
                     {processingVideo?.analysis_status === 'failed' ? (
-                      <div className="assets-video-import-alert rounded-lg border border-dashed border-red-200 bg-red-50 p-4 text-sm text-red-600 space-y-2">
-                        <p>Analysis failed. Please refresh and try again later.</p>
+                      <div className="assets-video-import-alert rounded-lg border border-dashed border-red-200 bg-red-50 p-4 text-sm text-red-600 space-y-3">
+                        <p>Analysis failed. Retry the analysis to continue.</p>
                         {processingVideo.analysis_error && (
                           <p className="text-xs text-red-500">{processingVideo.analysis_error}</p>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => void handleRetryAnalysis()}
+                          disabled={isRetryingAnalysis}
+                          className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isRetryingAnalysis ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <RotateCcw className="w-4 h-4" />
+                          )}
+                          {isRetryingAnalysis ? 'Retrying...' : 'Retry Analysis'}
+                        </button>
                       </div>
                     ) : processingVideo?.analysis_result ? (
                       <>

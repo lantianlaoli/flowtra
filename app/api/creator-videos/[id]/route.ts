@@ -40,6 +40,55 @@ export async function GET(
   }
 }
 
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const body = await request.json().catch(() => ({}));
+    const description = typeof body?.description === 'string' ? body.description.trim() : '';
+
+    if (!description) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+
+    if (description.length > 120) {
+      return NextResponse.json({ error: 'Name must be 120 characters or fewer' }, { status: 400 });
+    }
+
+    const supabase = getSupabaseAdmin();
+
+    // Schema verified via Supabase MCP (2026-03-03): creator_source_videos has id, user_id, description, updated_at columns.
+    const { data, error } = await supabase
+      .from('creator_source_videos')
+      .update({
+        description,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select('*')
+      .single();
+
+    if (error || !data) {
+      console.error('[Creator Videos PUT] Error:', error);
+      return NextResponse.json({ error: 'Failed to update video name' }, { status: 500 });
+    }
+
+    return NextResponse.json({ video: data });
+  } catch (error) {
+    console.error('[Creator Videos PUT] Unexpected error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

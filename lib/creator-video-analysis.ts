@@ -56,6 +56,17 @@ const truncateForLog = (value: string, max = 800): string => {
   return `${value.slice(0, max)}...`;
 };
 
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const isTransientProviderError = (message: string) => {
+  const normalized = message.toLowerCase();
+  return normalized.includes('provider_code=500')
+    || normalized.includes('status=500')
+    || normalized.includes('internal server error');
+};
+
+const MAX_ANALYSIS_RETRIES = 2;
+
 const extractJsonObjectFromText = (text: string): string | null => {
   const trimmed = text.trim();
   if (!trimmed) return null;
@@ -518,10 +529,42 @@ export const analyzeCreatorVideoAndUpdate = async ({
   }
 
   try {
-    const { analysis, language } = await analyzeCreatorVideoByUrl({
-      videoUrl,
-      sourceName
-    });
+    let analysisResult: { analysis: Record<string, unknown>; language: LanguageCode } | null = null;
+    let analysisError: Error | null = null;
+
+    for (let attempt = 1; attempt <= MAX_ANALYSIS_RETRIES; attempt += 1) {
+      try {
+        analysisResult = await analyzeCreatorVideoByUrl({
+          videoUrl,
+          sourceName
+        });
+        analysisError = null;
+        break;
+      } catch (error) {
+        analysisError = error instanceof Error ? error : new Error('Analysis failed');
+        const shouldRetry = attempt < MAX_ANALYSIS_RETRIES && isTransientProviderError(analysisError.message);
+
+        console.warn('[CreatorVideoAnalysis] Analysis attempt failed:', {
+          videoId,
+          attempt,
+          maxAttempts: MAX_ANALYSIS_RETRIES,
+          shouldRetry,
+          message: analysisError.message
+        });
+
+        if (!shouldRetry) {
+          throw analysisError;
+        }
+
+        await wait(1200 * attempt);
+      }
+    }
+
+    if (!analysisResult) {
+      throw analysisError || new Error('Analysis failed');
+    }
+
+    const { analysis, language } = analysisResult;
 
     const rawDuration = (analysis as Record<string, unknown>)?.video_duration_seconds;
     const detectedDuration = typeof rawDuration === 'number' && Number.isFinite(rawDuration)

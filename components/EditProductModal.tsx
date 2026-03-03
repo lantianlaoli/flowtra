@@ -8,6 +8,7 @@ import { UserProduct, UserProductPhoto } from '@/lib/supabase';
 import ConfirmDialog from './ConfirmDialog';
 import { cn } from '@/lib/utils';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
+import ReferenceImageGrid, { PRODUCT_REFERENCE_SLOTS } from './ReferenceImageGrid';
 
 interface EditProductModalProps {
   isOpen: boolean;
@@ -343,6 +344,12 @@ export default function EditProductModal({
     productName.trim() && !isSaving && !isUploadingPhotos && !isGeneratingReferences
   );
 
+  const referenceGridItems = referencePhotos.map((photo, index) => ({
+    alt: `Reference ${index + 1}`,
+    key: photo.id,
+    src: photo.photo_url
+  }));
+
   return (
     <>
       <AnimatePresence>
@@ -502,7 +509,6 @@ export default function EditProductModal({
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500">{referencePhotos.length}/3</span>
                         <button
                           type="button"
                           onClick={handleGenerateReferences}
@@ -519,49 +525,16 @@ export default function EditProductModal({
                       </div>
                     </div>
 
-                    <div className="grid flex-1 min-h-0 grid-cols-2 grid-rows-[auto_minmax(0,1fr)] gap-3">
-                      {referencePhotos.map((photo, index) => (
-                        <div
-                          key={photo.id}
-                          className={cn(
-                            'relative overflow-hidden rounded-xl border border-gray-200 bg-gray-50',
-                            referencePhotos.length === 3 && index === 2
-                              ? 'col-span-2 h-full min-h-[220px]'
-                              : 'aspect-square'
-                          )}
-                        >
-                          <Image
-                            src={photo.photo_url}
-                            alt={`Reference ${index + 1}`}
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 1024px) 45vw, 220px"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              void handleDeletePhoto(photo.id);
-                            }}
-                            className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white hover:bg-black"
-                            disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
-
-                      {referencePhotos.length < 3 && (
-                        <button
-                          type="button"
-                          onClick={() => referenceInputRef.current?.click()}
-                          className="flex aspect-square flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-[#FAFAFA] text-gray-500 transition hover:border-gray-400"
-                          disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
-                        >
-                          <Upload className="mb-2 h-5 w-5" />
-                          <span className="text-xs font-medium">Add reference</span>
-                        </button>
-                      )}
-                    </div>
+                    <ReferenceImageGrid
+                      items={referenceGridItems}
+                      isGenerating={isGeneratingReferences}
+                      onAdd={referencePhotos.length < 3 ? () => referenceInputRef.current?.click() : undefined}
+                      onRemove={(index) => {
+                        void handleDeletePhoto(referencePhotos[index].id);
+                      }}
+                      removeDisabled={isSaving || isUploadingPhotos || isGeneratingReferences}
+                      slots={PRODUCT_REFERENCE_SLOTS}
+                    />
 
                     <input
                       ref={referenceInputRef}
