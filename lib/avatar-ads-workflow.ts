@@ -1,7 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import {
   GENERATION_COSTS,
-  IMAGE_MODELS,
   NON_AGENT_IMAGE_MODEL,
   NON_AGENT_IMAGE_OUTPUT_FORMAT,
   NON_AGENT_IMAGE_RESOLUTION,
@@ -443,7 +442,7 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
   }
 }
 
-function getImageModelParameters(model: string, customImageSize?: string, videoAspectRatio?: string): Record<string, unknown> {
+function getImageModelParameters(customImageSize?: string, videoAspectRatio?: string): Record<string, unknown> {
   // Map UI-friendly sizes to ratio strings.
   const mapUiToRatio = (val?: string, fallbackAspect?: string) => {
     switch (val) {
@@ -490,83 +489,30 @@ function getImageModelParameters(model: string, customImageSize?: string, videoA
     }
   };
 
-  if (model === IMAGE_MODELS.nano_banana_2 || model === 'nano_banana_2') {
-    const ratio = mapUiToRatio(customImageSize, videoAspectRatio) || '1:1';
-    return {
-      aspect_ratio: ratio,
-      resolution: '1K',
-      output_format: 'png',
-      google_search: false
-    };
-  }
-  if (model === 'nano-banana-pro' || model === 'nano_banana_pro') {
-    const ratio = mapUiToRatio(customImageSize, videoAspectRatio);
-    return {
-      output_format: "png",
-      resolution: "1K",
-      ...(ratio ? { aspect_ratio: ratio } : { aspect_ratio: "1:1" })
-    };
-  }
-  if (model === IMAGE_MODELS.nano_banana || model === 'nano_banana' || model.includes('nano-banana')) {
-    const imageSize = customImageSize;
-    const ratio = mapUiToRatio(imageSize as string | undefined, videoAspectRatio);
-    return {
-      output_format: "png",
-      ...(ratio ? { image_size: ratio } : {})
-    };
-  }
-  if (model === IMAGE_MODELS.seedream_5_lite || model === 'seedream_5_lite') {
-    const ratio = mapUiToRatio(customImageSize, videoAspectRatio) || '1:1';
-    return {
-      aspect_ratio: ratio,
-      quality: 'basic'
-    };
-  }
-  if (model === IMAGE_MODELS.seedream || model === 'seedream' || model.includes('seedream')) {
-    let imageSize = customImageSize;
-    if (!imageSize || imageSize === 'auto') {
-      if (videoAspectRatio === '9:16') {
-        imageSize = 'portrait_16_9';
-      } else {
-        imageSize = 'landscape_16_9';
-      }
-    }
-    return {
-      image_size: imageSize,
-      image_resolution: "1K",
-      max_images: 1
-    };
-  }
-
+  const ratio = mapUiToRatio(customImageSize, videoAspectRatio) || '1:1';
   return {
-    output_format: "png"
+    aspect_ratio: ratio,
+    resolution: '1K',
+    output_format: 'png',
+    google_search: false
   };
 }
 
 // KIE Platform API integration
 async function generateImageWithKIE(
   prompt: Record<string, unknown>,
-  imageModel: string,
   referenceImages: string[],
   customImageSize?: string,
   videoAspectRatio?: string
 ): Promise<{ taskId: string }> {
   const limitedReferenceImages = referenceImages.slice(0, 8);
-  const modelParams = getImageModelParameters(imageModel, customImageSize, videoAspectRatio);
-
-  const isNanoBanana2 = imageModel === IMAGE_MODELS.nano_banana_2 || imageModel === 'nano_banana_2';
-  const isNanoBananaPro = imageModel === 'nano-banana-pro' || imageModel === 'nano_banana_pro';
-  const isSeedream5Lite = imageModel === IMAGE_MODELS.seedream_5_lite || imageModel === 'seedream_5_lite';
+  const modelParams = getImageModelParameters(customImageSize, videoAspectRatio);
 
   let promptValue: string;
-  if (isNanoBanana2 || isNanoBananaPro || isSeedream5Lite) {
-    if (prompt && typeof prompt.image_prompt === 'string') {
-       promptValue = prompt.image_prompt;
-    } else if (prompt && typeof prompt.prompt === 'string') {
-       promptValue = prompt.prompt;
-    } else {
-       promptValue = JSON.stringify(prompt);
-    }
+  if (prompt && typeof prompt.image_prompt === 'string') {
+    promptValue = prompt.image_prompt;
+  } else if (prompt && typeof prompt.prompt === 'string') {
+    promptValue = prompt.prompt;
   } else {
     promptValue = JSON.stringify(prompt);
   }
@@ -576,10 +522,10 @@ async function generateImageWithKIE(
   const callBackUrl = siteUrl ? `${siteUrl}/api/avatar-ads/webhooks/image` : undefined;
 
   const payload = {
-    model: imageModel,
+    model: NON_AGENT_IMAGE_MODEL,
     input: {
       prompt: promptValue,
-      ...((isNanoBanana2 || isNanoBananaPro) ? { image_input: limitedReferenceImages } : { image_urls: limitedReferenceImages }),
+      image_input: limitedReferenceImages,
       ...modelParams
     },
     ...(callBackUrl && { callBackUrl }) // Add callBackUrl only if NEXT_PUBLIC_SITE_URL is set
@@ -1122,7 +1068,6 @@ export async function processAvatarAdsProject(
         // Use project-level image_prompt instead of scene 0 prompt
         const { taskId } = await generateImageWithKIE(
           { prompt: project.image_prompt } as Record<string, unknown>,
-          project.image_model || NON_AGENT_IMAGE_MODEL,
           referenceImages,
           project.image_size,
           project.video_aspect_ratio

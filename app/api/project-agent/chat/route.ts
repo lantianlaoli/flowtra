@@ -110,7 +110,6 @@ type SessionState = {
   language?: string;
   videoDurationSeconds?: number;
   videoAspectRatio?: '16:9' | '9:16';
-  imageModel?: 'auto' | 'nano_banana' | 'nano_banana_2' | 'seedream' | 'nano_banana_pro' | 'seedream_5_lite';
   videoModel?: 'veo3_fast';
   projectId?: string;
   generatedPrompts?: Record<string, unknown> | null;
@@ -130,7 +129,6 @@ const DEFAULT_STATE: SessionState = {
   language: 'en',
   videoDurationSeconds: 16,
   videoAspectRatio: '9:16',
-  imageModel: 'nano_banana_2',
   videoModel: 'veo3_fast'
 };
 
@@ -1282,7 +1280,6 @@ export async function POST(request: Request) {
             const formData = new FormData();
             formData.set('user_id', userId);
             formData.set('video_duration_seconds', duration.toString());
-            formData.set('image_model', sessionState.imageModel ?? 'nano_banana_2');
             formData.set('image_size', imageSize);
             formData.set('video_model', sessionState.videoModel ?? 'veo3_fast');
             formData.set('video_aspect_ratio', aspect);
