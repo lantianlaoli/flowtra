@@ -2,6 +2,48 @@ import { PricingButton } from "@/components/pages/landing/PricingButton";
 import { Check, Zap, TrendingUp, Crown } from "lucide-react";
 import Link from "next/link";
 
+type PlanFeatureItem = {
+  label: string;
+  bold?: boolean;
+  badges?: string[];
+};
+
+const planFeatureItems = {
+  lite: [
+    { label: "1,930 Credits", bold: true },
+    { label: "AI Agent", bold: true, badges: ["Free"] },
+    { label: "Avatar Ads" },
+    { label: "Clone viral videos" },
+    { label: "Motion Swap" },
+    { label: "12.8 minutes of video", bold: true },
+    { label: "10+ languages" },
+    { label: "Latest video models" },
+    { label: "TikTok publishing support" },
+  ],
+  basic: [
+    { label: "3,930 Credits", bold: true },
+    { label: "AI Agent", bold: true, badges: ["Free"] },
+    { label: "Avatar Ads" },
+    { label: "Clone viral videos" },
+    { label: "Motion Swap" },
+    { label: "26.2 minutes of video", bold: true },
+    { label: "10+ languages" },
+    { label: "Latest video models" },
+    { label: "TikTok publishing support" },
+  ],
+  pro: [
+    { label: "6,600 Credits", bold: true },
+    { label: "AI Agent", bold: true, badges: ["Free"] },
+    { label: "Avatar Ads" },
+    { label: "Clone viral videos" },
+    { label: "Motion Swap" },
+    { label: "44.0 minutes of video", bold: true },
+    { label: "10+ languages" },
+    { label: "Latest video models" },
+    { label: "TikTok publishing support" },
+  ],
+} satisfies Record<"lite" | "basic" | "pro", PlanFeatureItem[]>;
+
 export default function PricingSection({
   showTitle = true,
   showWelcomeBonusCard = false,
@@ -49,6 +91,7 @@ export default function PricingSection({
 
             <ul className="space-y-4 mb-10 flex-grow">
               {[
+                "AI Agent · Free access",
                 "Avatar Ads",
                 "Clone viral video",
                 "Motion Swap",
@@ -119,35 +162,31 @@ export default function PricingSection({
           </div>
 
           <ul className="space-y-4 mb-10 flex-grow">
-            {[
-              { label: "1,930 Credits", bold: true },
-
-              { label: "Avatar Ads" },
-
-              { label: "Clone viral videos" },
-
-              { label: "Motion Swap" },
-
-              { label: "12.8 minutes of video", bold: true },
-
-              { label: "10+ languages" },
-
-              { label: "Latest video models" },
-
-              { label: "TikTok publishing support" },
-            ].map((item, idx) => (
+            {planFeatureItems.lite.map((item, idx) => (
               <li
                 key={idx}
                 className="flex items-center gap-3 text-[14px] text-[#666666]"
               >
                 <Check className="w-4 h-4 text-black flex-shrink-0" />
-
-                <span className={item.bold ? "font-semibold text-black" : ""}>
-                  {item.label}
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className={item.bold ? "font-semibold text-black" : ""}>
+                    {item.label}
+                  </span>
+                  {(item.badges ?? []).map((badge: string) => (
+                    <span
+                      key={badge}
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${
+                        badge === "Free"
+                          ? "border border-[#16A34A] bg-[#F0FDF4] text-[#15803D]"
+                          : "text-black/55"
+                      }`}
+                    >
+                      {badge}
+                    </span>
+                  ))}
                 </span>
               </li>
             ))}
-
           </ul>
 
           <PricingButton packageName="lite" />
@@ -190,31 +229,28 @@ export default function PricingSection({
           </div>
 
           <ul className="space-y-4 mb-10 flex-grow">
-            {[
-              { label: "3,930 Credits", bold: true },
-
-              { label: "Avatar Ads" },
-
-              { label: "Clone viral videos" },
-
-              { label: "Motion Swap" },
-
-              { label: "26.2 minutes of video", bold: true },
-
-              { label: "10+ languages" },
-
-              { label: "Latest video models" },
-
-              { label: "TikTok publishing support" },
-            ].map((item, idx) => (
+            {planFeatureItems.basic.map((item, idx) => (
               <li
                 key={idx}
                 className="flex items-center gap-3 text-[14px] text-[#666666]"
               >
                 <Check className="w-4 h-4 text-black flex-shrink-0" />
-
-                <span className={item.bold ? "font-semibold text-black" : ""}>
-                  {item.label}
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className={item.bold ? "font-semibold text-black" : ""}>
+                    {item.label}
+                  </span>
+                  {(item.badges ?? []).map((badge: string) => (
+                    <span
+                      key={badge}
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${
+                        badge === "Free"
+                          ? "border border-[#16A34A] bg-[#F0FDF4] text-[#15803D]"
+                          : "text-black/55"
+                      }`}
+                    >
+                      {badge}
+                    </span>
+                  ))}
                 </span>
               </li>
             ))}
@@ -254,31 +290,28 @@ export default function PricingSection({
           </div>
 
           <ul className="space-y-4 mb-10 flex-grow">
-            {[
-              { label: "6,600 Credits", bold: true },
-
-              { label: "Avatar Ads" },
-
-              { label: "Clone viral videos" },
-
-              { label: "Motion Swap" },
-
-              { label: "44.0 minutes of video", bold: true },
-
-              { label: "10+ languages" },
-
-              { label: "Latest video models" },
-
-              { label: "TikTok publishing support" },
-            ].map((item, idx) => (
+            {planFeatureItems.pro.map((item, idx) => (
               <li
                 key={idx}
                 className="flex items-center gap-3 text-[14px] text-[#666666]"
               >
                 <Check className="w-4 h-4 text-black flex-shrink-0" />
-
-                <span className={item.bold ? "font-semibold text-black" : ""}>
-                  {item.label}
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className={item.bold ? "font-semibold text-black" : ""}>
+                    {item.label}
+                  </span>
+                  {(item.badges ?? []).map((badge: string) => (
+                    <span
+                      key={badge}
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${
+                        badge === "Free"
+                          ? "border border-[#16A34A] bg-[#F0FDF4] text-[#15803D]"
+                          : "text-black/55"
+                      }`}
+                    >
+                      {badge}
+                    </span>
+                  ))}
                 </span>
               </li>
             ))}

@@ -49,6 +49,15 @@ export default function ComparisonSection() {
                         <span>{item}</span>
                       </li>
                     ))}
+                    <li className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-black flex-shrink-0" />
+                      <span className="flex flex-1 flex-wrap items-center gap-2">
+                        <span className="font-semibold text-black">AI Agent</span>
+                        <span className="inline-flex items-center rounded-full border border-[#16A34A] bg-[#F0FDF4] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#15803D]">
+                          Free
+                        </span>
+                      </span>
+                    </li>
                   </ul>
                 </td>
               </tr>
@@ -116,6 +125,15 @@ export default function ComparisonSection() {
                       <span>{item}</span>
                     </li>
                   ))}
+                  <li className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-black flex-shrink-0" />
+                    <span className="flex flex-1 flex-wrap items-center gap-2">
+                      <span className="font-semibold text-black">AI Agent</span>
+                      <span className="inline-flex items-center rounded-full border border-[#16A34A] bg-[#F0FDF4] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#15803D]">
+                        Free
+                      </span>
+                    </span>
+                  </li>
                 </ul>
               </div>
            </div>

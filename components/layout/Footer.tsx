@@ -2,8 +2,16 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { getSocialMediaLinks } from '@/lib/social-links';
 
+const footerFeatures = [
+  { href: '/features/ai-agent', label: 'AI Agent', isNew: true },
+  { href: '/features/avatar-ads', label: 'Avatar Ads' },
+  { href: '/features/viral-clone', label: 'Viral Clone' },
+  { href: '/features/motion-swap', label: 'Motion Swap' },
+];
+
 export default function Footer() {
   const socialLinks = getSocialMediaLinks();
+  const currentYear = new Date().getFullYear();
 
   return (
     <footer className="bg-white border-t border-[#E5E5E5] py-14 md:py-20">
@@ -25,7 +33,7 @@ export default function Footer() {
               AI ads for Shopify, dropshipping, content creator, and local stores.
             </p>
             <p className="text-[12px] text-[#666666] uppercase tracking-wider">
-              &copy; 2025 Flowtra. All rights reserved.
+              &copy; {currentYear} Flowtra. All rights reserved.
             </p>
           </section>
 
@@ -33,26 +41,25 @@ export default function Footer() {
           <nav aria-labelledby="footer-features">
             <h3 id="footer-features" className="text-[13px] font-bold text-black mb-5 uppercase tracking-wider">Features</h3>
             <ul className="space-y-4">
-              <li>
-                <Link href="/features/avatar-ads" className="text-[14px] text-[#666666] hover:text-black transition-colors">
-                  Avatar Ads
-                </Link>
-              </li>
-              <li>
-                <Link href="/features/viral-clone" className="text-[14px] text-[#666666] hover:text-black transition-colors">
-                  Viral Clone
-                </Link>
-              </li>
-              <li>
-                <Link href="/features/ai-agent" className="text-[14px] text-[#666666] hover:text-black transition-colors">
-                  AI Agent
-                </Link>
-              </li>
-              <li>
-                <Link href="/features/motion-swap" className="text-[14px] text-[#666666] hover:text-black transition-colors">
-                  Motion Swap
-                </Link>
-              </li>
+              {footerFeatures.map((feature) => (
+                <li key={feature.href}>
+                  <Link
+                    href={feature.href}
+                    className={`group inline-flex items-center gap-2 text-[14px] transition-colors ${
+                      feature.isNew
+                        ? 'font-semibold text-black'
+                        : 'text-[#666666] hover:text-black'
+                    }`}
+                  >
+                    <span>{feature.label}</span>
+                    {feature.isNew ? (
+                      <span className="inline-flex items-center rounded-full border border-black bg-black px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-white transition-transform duration-200 group-hover:-translate-y-0.5">
+                        New
+                      </span>
+                    ) : null}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </nav>
 

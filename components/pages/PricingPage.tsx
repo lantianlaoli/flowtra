@@ -7,6 +7,73 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { CREDIT_COSTS } from '@/lib/constants';
 import { handleCreemCheckout } from '@/lib/payment';
+import type { ReactNode } from 'react';
+
+const agentBadges = (
+  <>
+    <span className="inline-flex items-center rounded-full border border-[#16A34A] bg-[#F0FDF4] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#15803D]">
+      Free
+    </span>
+  </>
+);
+
+const pricingPlanItems = {
+  lite: [
+    { key: 'credits', content: (videos: number) => <><span className="font-bold text-gray-900">1,930</span> credits/month</> },
+    { key: 'videos', content: (videos: number) => <>≈ <span className="font-bold text-gray-900">{videos}</span> Veo3 Fast videos</> },
+    {
+      key: 'agent',
+      content: () => (
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="font-bold text-gray-900">AI Agent</span>
+          {agentBadges}
+        </span>
+      ),
+    },
+    { key: 'images', content: () => 'Always free image generation' },
+    { key: 'viral', content: () => 'Viral Clone' },
+    { key: 'avatar', content: () => 'Avatar Ads' },
+    { key: 'motion', content: () => 'Motion Swap' },
+    { key: 'tiktok', content: () => 'TikTok publishing support' },
+  ],
+  basic: [
+    { key: 'credits', content: () => <><span className="font-bold text-gray-900">3,930</span> credits/month</> },
+    { key: 'videos', content: (videos: number) => <>≈ <span className="font-bold text-gray-900">{videos}</span> Veo3 Fast videos</> },
+    {
+      key: 'agent',
+      content: () => (
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="font-bold text-gray-900">AI Agent</span>
+          {agentBadges}
+        </span>
+      ),
+    },
+    { key: 'images', content: () => 'Free image generation' },
+    { key: 'viral', content: () => 'Viral Clone' },
+    { key: 'avatar', content: () => 'Avatar Ads' },
+    { key: 'motion', content: () => 'Motion Swap' },
+    { key: 'tiktok', content: () => 'TikTok publishing support' },
+  ],
+  pro: [
+    { key: 'credits', content: () => <><span className="font-bold text-gray-900">6,600</span> credits/month</> },
+    { key: 'videos', content: (videos: number) => <>≈ <span className="font-bold text-gray-900">{videos}</span> Veo3 Fast videos</> },
+    {
+      key: 'agent',
+      content: () => (
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="font-bold text-gray-900">AI Agent</span>
+          {agentBadges}
+        </span>
+      ),
+    },
+    { key: 'images', content: () => 'Always free image generation' },
+    { key: 'viral', content: () => 'Viral Clone' },
+    { key: 'avatar', content: () => 'Avatar Ads' },
+    { key: 'motion', content: () => 'Motion Swap' },
+    { key: 'tiktok', content: () => 'TikTok publishing support' },
+    { key: 'priority', content: () => 'Priority processing' },
+  ],
+} satisfies Record<'lite' | 'basic' | 'pro', { key: string; content: (videos: number) => ReactNode }[]>;
 
 const FAQ = dynamic(() => import('@/components/sections/FAQ'), {
   loading: () => <div className="py-12 flex justify-center"><div className="text-gray-400">Loading...</div></div>
@@ -119,30 +186,12 @@ export default function PricingPage() {
                 </span>
               </div>
               <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600"><span className="font-bold text-gray-900">1,930</span> credits/month</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">≈ <span className="font-bold text-gray-900">{liteVideos}</span> Veo3 Fast videos</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Always free image generation</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Viral Clone</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Avatar Ads</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">TikTok publishing support</span>
-                </li>
+                {pricingPlanItems.lite.map((item) => (
+                  <li key={item.key} className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                    <span className="flex-1 text-gray-600">{item.content(liteVideos)}</span>
+                  </li>
+                ))}
               </ul>
               <PricingButton packageName="lite" />
             </div>
@@ -162,30 +211,12 @@ export default function PricingPage() {
                 </span>
               </div>
               <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600"><span className="font-bold text-gray-900">3,930</span> credits/month</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">≈ <span className="font-bold text-gray-900">{basicVideos}</span> Veo3 Fast videos</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">Free image generation</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">Viral Clone</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">Avatar Ads</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
-                  <span className="text-gray-600">TikTok publishing support</span>
-                </li>
+                {pricingPlanItems.basic.map((item) => (
+                  <li key={item.key} className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-gray-900 rounded-full"></div>
+                    <span className="flex-1 text-gray-600">{item.content(basicVideos)}</span>
+                  </li>
+                ))}
               </ul>
               <PricingButton packageName="basic" />
             </div>
@@ -200,34 +231,12 @@ export default function PricingPage() {
                 </span>
               </div>
               <ul className="space-y-2.5 mb-6 md:mb-8 flex-grow">
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600"><span className="font-bold text-gray-900">6,600</span> credits/month</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">≈ <span className="font-bold text-gray-900">{proVideos}</span> Veo3 Fast videos</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Always free image generation</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Viral Clone</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Avatar Ads</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">TikTok publishing support</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                  <span className="text-gray-600">Priority processing</span>
-                </li>
+                {pricingPlanItems.pro.map((item) => (
+                  <li key={item.key} className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                    <span className="flex-1 text-gray-600">{item.content(proVideos)}</span>
+                  </li>
+                ))}
               </ul>
               <PricingButton packageName="pro" />
             </div>
