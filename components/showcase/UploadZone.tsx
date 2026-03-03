@@ -139,7 +139,7 @@ export function UploadZone({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
-                  <span>1 free analysis per session</span>
+                  <span>Sign in to analyze unlimited videos</span>
                 </div>
               </div>
             </>

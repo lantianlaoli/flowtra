@@ -15,7 +15,6 @@ import {
   KLING_MAX_PROJECT_DURATION_SECONDS,
   KLING_MIN_TASK_DURATION_SECONDS,
   snapDurationToModel,
-  MAX_BASE64_VIDEO_SIZE_BYTES,
   type LanguageCode,
   type VideoDuration,
   type VideoModel
@@ -2167,49 +2166,6 @@ async function generateReplicaPhoto({
   return data.data.taskId as string;
 }
 
-async function fetchVideoAsBase64(videoUrl: string): Promise<string> {
-  try {
-    console.log(`[fetchVideoAsBase64] Starting download: ${videoUrl}`);
-    const startTime = Date.now();
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
-
-    const response = await fetch(videoUrl, { signal: controller.signal });
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch video: ${response.status} ${response.statusText}`);
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-    const downloadTime = Date.now() - startTime;
-    const sizeInMB = (arrayBuffer.byteLength / (1024 * 1024)).toFixed(2);
-    console.log(`[fetchVideoAsBase64] Downloaded ${sizeInMB}MB in ${downloadTime}ms`);
-
-    const buffer = Buffer.from(arrayBuffer);
-    const base64 = buffer.toString('base64');
-
-    let mimeType = 'video/mp4';
-    if (videoUrl.endsWith('.webm')) mimeType = 'video/webm';
-    else if (videoUrl.endsWith('.mov')) mimeType = 'video/mov';
-    else if (videoUrl.endsWith('.mpeg')) mimeType = 'video/mpeg';
-
-    const base64Url = `data:${mimeType};base64,${base64}`;
-    const base64SizeInMB = (base64Url.length / (1024 * 1024)).toFixed(2);
-    console.log(`[fetchVideoAsBase64] Base64 size: ${base64SizeInMB}MB`);
-
-    return base64Url;
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('[fetchVideoAsBase64] Download timeout after 60 seconds');
-      throw new Error('Video download timeout (60s limit exceeded)');
-    }
-    console.error('[fetchVideoAsBase64] Error fetching video:', error);
-    throw error;
-  }
-}
-
 /**
  * Analyze a competitor ad with automatic language detection.
  *
@@ -2223,30 +2179,6 @@ export async function analyzeCompetitorAdWithLanguage(
   console.log('[analyzeCompetitorAdWithLanguage] 🔍 Starting competitor analysis with language detection...');
   console.log('[analyzeCompetitorAdWithLanguage] File type: video (video-only mode)');
   console.log('[analyzeCompetitorAdWithLanguage] File URL:', competitorAdContext.file_url);
-
-  let processedFileUrl: string;
-
-  try {
-    processedFileUrl = await fetchVideoAsBase64(competitorAdContext.file_url);
-    console.log('[analyzeCompetitorAdWithLanguage] Video converted to base64');
-
-    const base64SizeInMB = processedFileUrl.length / (1024 * 1024);
-    const maxBase64SizeMB = MAX_BASE64_VIDEO_SIZE_BYTES / (1024 * 1024);
-
-    if (base64SizeInMB > maxBase64SizeMB) {
-      console.error(`[analyzeCompetitorAdWithLanguage] Base64 size too large: ${base64SizeInMB.toFixed(2)}MB (max: ${maxBase64SizeMB}MB)`);
-      throw new Error(
-        `Video file too large for AI analysis (${base64SizeInMB.toFixed(1)} MB after encoding). ` +
-        `Please trim or compress your video and try again.`
-      );
-    }
-  } catch (error) {
-    console.error('[analyzeCompetitorAdWithLanguage] Video processing failed:', error);
-    if (error instanceof Error && error.message.includes('too large')) {
-      throw error;
-    }
-    throw new Error('Failed to process competitor video');
-  }
 
   // Extended JSON schema with language detection + shot breakdown
   const responseFormat = {
@@ -2369,7 +2301,7 @@ export async function analyzeCompetitorAdWithLanguage(
         content: [
           {
             type: 'video_url' as const,
-            video_url: { url: processedFileUrl }
+            video_url: { url: competitorAdContext.file_url }
           },
           {
             type: 'text',

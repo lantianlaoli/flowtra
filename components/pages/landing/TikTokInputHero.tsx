@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useToast } from '@/contexts/ToastContext';
 import { TikTokAnalysisModal } from '@/components/showcase/TikTokAnalysisModal';
@@ -24,15 +24,6 @@ export default function TikTokInputHero() {
   };
 
   const isUrlValid = tiktokUrl.trim() !== '' && !validationError && isValidTikTokUrl(tiktokUrl);
-
-  // Check if user has already used free analysis
-  useEffect(() => {
-    const analysisUsed = sessionStorage.getItem('tiktok_analysis_used');
-    if (analysisUsed) {
-      return;
-    }
-  }, []);
-
   const validateUrl = (url: string) => {
     if (!url) {
       setValidationError(null);
@@ -54,10 +45,9 @@ export default function TikTokInputHero() {
   };
 
   const handleAnalyzeTikTok = () => {
-    // Check session rate limit
-    const analysisUsed = sessionStorage.getItem('tiktok_analysis_used');
-    if (analysisUsed) {
-      showError('You have already used your free analysis. Sign up to continue!');
+    if (!isSignedIn) {
+      showError('Sign in to analyze TikTok videos.');
+      window.location.href = '/sign-up?redirect_url=/';
       return;
     }
 
@@ -145,16 +135,6 @@ export default function TikTokInputHero() {
         isOpen={isAnalysisModalOpen}
         onClose={() => setIsAnalysisModalOpen(false)}
         tiktokUrl={selectedTikTokUrl}
-        onComplete={(result) => {
-          sessionStorage.setItem('tiktok_analysis_used', JSON.stringify({
-            used: true,
-            timestamp: Date.now()
-          }));
-          sessionStorage.setItem('showcase_tiktok_analysis', JSON.stringify({
-            ...result,
-            tiktokUrl: selectedTikTokUrl
-          }));
-        }}
       />
     </>
   );

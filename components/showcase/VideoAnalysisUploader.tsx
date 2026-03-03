@@ -2,9 +2,8 @@
 
 import { useUser } from '@clerk/nextjs';
 import Link from 'next/link';
-import { AlertTriangle, XCircle, PartyPopper, Upload, Play, Mic, CheckCircle, ArrowRight, Mail } from 'lucide-react';
+import { AlertTriangle, XCircle, Upload, Play, Mic, CheckCircle, ArrowRight, Mail, Lock } from 'lucide-react';
 import { useVideoAnalysis } from '@/hooks/useVideoAnalysis';
-import { hasUsedFreeAnalysis } from '@/lib/rate-limit';
 import { FeatureInterestReward } from '@/components/lead/FeatureInterestReward';
 import { useEffect, useState } from 'react';
 
@@ -93,7 +92,7 @@ function UploadZoneRefined({ onFileSelect, disabled = false }: { onFileSelect: (
             </div>
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              <span className="font-medium">1 free analysis per session</span>
+              <span className="font-medium">Sign in to analyze unlimited videos</span>
             </div>
           </div>
         </div>
@@ -233,24 +232,16 @@ export function VideoAnalysisUploader({ initialFile }: { initialFile?: File | nu
     reset,
   } = useVideoAnalysis();
 
-  const [isRateLimited, setIsRateLimited] = useState(false);
-
-  useEffect(() => {
-    if (isSignedIn) {
-      setIsRateLimited(hasUsedFreeAnalysis());
-    }
-  }, [isSignedIn]);
-
   // Auto-upload when initialFile is provided
   useEffect(() => {
-    if (initialFile && state === 'idle' && !isRateLimited) {
+    if (initialFile && state === 'idle' && isSignedIn) {
       handleFileSelect(initialFile);
     }
-  }, [initialFile]);
+  }, [initialFile, isSignedIn, state]);
 
   const handleFileSelect = (file: File) => {
-    if (hasUsedFreeAnalysis()) {
-      setIsRateLimited(true);
+    if (!isSignedIn) {
+      window.location.href = '/sign-up?redirect_url=/';
       return;
     }
     uploadVideo(file);
@@ -262,29 +253,28 @@ export function VideoAnalysisUploader({ initialFile }: { initialFile?: File | nu
   
 
   // FULL-WIDTH STATES (no video preview)
-  // Rate Limited State
-  if (isRateLimited || state === 'rate_limited') {
+  if (!isSignedIn && state === 'idle') {
     return (
       <div className="min-h-[400px] flex items-center justify-center">
         <div className="space-y-6 text-center max-w-md">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-black mx-auto">
-            <PartyPopper className="w-8 h-8 text-white" strokeWidth={1.5} />
+            <Lock className="w-8 h-8 text-white" strokeWidth={1.5} />
           </div>
           <div>
             <h3 className="text-3xl font-bold text-black mb-3 tracking-tight" style={{ letterSpacing: '-0.02em' }}>
-              Free Analysis Used
+              Sign In to Analyze
             </h3>
             <p className="text-gray-600 mb-8">
-              Want to analyze more videos? Sign up for unlimited analyses and start cloning viral ads.
+              Sign in to unlock unlimited video analyses and start breaking down viral ads shot by shot.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
-              href="/#pricing"
+              href="/sign-up?redirect_url=/"
               className="inline-flex items-center justify-center px-6 py-3 bg-black text-white font-medium hover:bg-gray-900 transition-colors"
               style={{ borderRadius: '8px' }}
             >
-              View Pricing
+              Sign Up to Continue
             </Link>
             <FeatureInterestReward
               variant="buttonTrigger"
@@ -293,7 +283,7 @@ export function VideoAnalysisUploader({ initialFile }: { initialFile?: File | nu
             />
           </div>
           <p className="text-sm text-gray-500 mt-4">
-            Starting at $29/month
+            Unlimited analyses after sign-in
           </p>
         </div>
       </div>
@@ -476,7 +466,7 @@ export function VideoAnalysisUploader({ initialFile }: { initialFile?: File | nu
 
         {/* Idle - Upload Zone */}
         {state === 'idle' && (
-          <UploadZoneRefined onFileSelect={handleFileSelect} />
+          <UploadZoneRefined onFileSelect={handleFileSelect} disabled={!isSignedIn} />
         )}
       </div>
 

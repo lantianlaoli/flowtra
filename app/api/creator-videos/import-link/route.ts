@@ -33,6 +33,11 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const url = typeof body.url === 'string' ? body.url.trim() : '';
+    const providedAnalysisResult =
+      body.analysisResult && typeof body.analysisResult === 'object'
+        ? body.analysisResult as Record<string, unknown>
+        : null;
+    const providedLanguage = typeof body.language === 'string' ? body.language.trim() : '';
 
     if (!url) {
       return NextResponse.json({ error: 'TikTok video link is required' }, { status: 400 });
@@ -104,21 +109,43 @@ export async function POST(request: NextRequest) {
     }
 
     const platformVideoId = videoId || crypto.randomUUID();
+    const analysisDurationSeconds =
+      typeof providedAnalysisResult?.video_duration_seconds === 'number'
+        ? providedAnalysisResult.video_duration_seconds
+        : null;
+    const analysisLanguage =
+      providedLanguage
+      || (typeof providedAnalysisResult?.detected_language === 'string'
+        ? providedAnalysisResult.detected_language
+        : null);
 
-    // Schema verified via Supabase MCP (2026-02-26): creator_source_videos includes analysis_status
+    const creatorVideoUpsertPayload: Record<string, unknown> = {
+      user_id: userId,
+      source_id: source.id,
+      platform: 'tiktok',
+      platform_video_id: platformVideoId,
+      video_url: url,
+      video_cdn_url: cdnUrl,
+      cover_url: null,
+      analysis_error: null
+    };
+
+    if (providedAnalysisResult) {
+      creatorVideoUpsertPayload.analysis_status = 'completed';
+      creatorVideoUpsertPayload.analysis_result = providedAnalysisResult;
+      creatorVideoUpsertPayload.analysis_language = analysisLanguage;
+      creatorVideoUpsertPayload.analyzed_at = new Date().toISOString();
+      creatorVideoUpsertPayload.duration_seconds = analysisDurationSeconds;
+    } else {
+      creatorVideoUpsertPayload.analysis_status = 'pending';
+    }
+
+    // Schema verified via Supabase MCP (2026-03-03): creator_source_videos includes
+    // analysis_status, analysis_result, analysis_language, analyzed_at, duration_seconds,
+    // storage_bucket, storage_path, cover_storage_bucket, cover_storage_path.
     const { data: storedVideo, error: videoError } = await supabase
       .from('creator_source_videos')
-      .upsert({
-        user_id: userId,
-        source_id: source.id,
-        platform: 'tiktok',
-        platform_video_id: platformVideoId,
-        video_url: url,
-        video_cdn_url: cdnUrl,
-        cover_url: null,
-        analysis_status: 'pending',
-        analysis_error: null
-      }, { onConflict: 'source_id,platform,platform_video_id' })
+      .upsert(creatorVideoUpsertPayload, { onConflict: 'source_id,platform,platform_video_id' })
       .select()
       .single();
 
@@ -188,16 +215,18 @@ export async function POST(request: NextRequest) {
         console.warn('[Creator Videos Import Link] Cover download failed:', fallbackError);
       }
 
-      try {
-        await analyzeCreatorVideoAndUpdate({
-          supabase: bgSupabase,
-          videoId: storedVideoId,
-          videoUrl: analysisVideoUrl,
-          sourceName: sourceNameForAnalysis,
-          durationSeconds: storedVideo.duration_seconds
-        });
-      } catch (analysisError) {
-        console.error('[Creator Videos Import Link] Background analysis failed:', analysisError);
+      if (!providedAnalysisResult) {
+        try {
+          await analyzeCreatorVideoAndUpdate({
+            supabase: bgSupabase,
+            videoId: storedVideoId,
+            videoUrl: analysisVideoUrl,
+            sourceName: sourceNameForAnalysis,
+            durationSeconds: storedVideo.duration_seconds
+          });
+        } catch (analysisError) {
+          console.error('[Creator Videos Import Link] Background analysis failed:', analysisError);
+        }
       }
     });
 

@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import { uploadFileToSupabase } from '@/lib/upload-to-supabase';
-import { setFreeAnalysisUsed } from '@/lib/rate-limit';
 import { STORAGE_BUCKETS } from '@/lib/storage/types';
 
 export type AnalysisState =
@@ -9,7 +8,6 @@ export type AnalysisState =
   | 'uploading'
   | 'analyzing'
   | 'completed'
-  | 'rate_limited'
   | 'error_duration'
   | 'error_upload'
   | 'error_analysis';
@@ -189,9 +187,6 @@ export function useVideoAnalysis(): UseVideoAnalysisReturn {
             language: data.language,
             videoUrl: publicUrl,
           });
-
-          // Mark free analysis as used
-          setFreeAnalysisUsed();
 
           setState('completed');
         } catch (analysisError) {
