@@ -1,13 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { StorageBucket, StorageObjectRef } from './types'
 
-export const LEGACY_STORAGE_BUCKETS = ['images', 'competitor_videos', 'temp'] as const
-
 const PUBLIC_URL_PATTERN = /\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/
 
 export const getPublicStorageUrl = (
   supabase: SupabaseClient,
-  bucket: StorageBucket | (typeof LEGACY_STORAGE_BUCKETS)[number],
+  bucket: StorageBucket,
   path: string
 ) => supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl
 

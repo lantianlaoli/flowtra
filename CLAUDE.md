@@ -206,9 +206,9 @@ Product video generation with dual-mode system: Traditional (original creative) 
 ### Support Tables (6)
 - `articles` - Blog and help documentation
 - `user_tiktok_connections` - TikTok integration for direct posting
-- `images` - Supabase Storage bucket for all media
+- `site-assets` - Canonical bucket for landing, blog, and shared static assets
 - `subscription_events` - Subscription lifecycle events
-- `competitor_videos` - Temporary storage for competitor video uploads
+- `temp-uploads` - Canonical temporary upload bucket for analysis and draft flows
 
 ## Design System & UI Guidelines
 

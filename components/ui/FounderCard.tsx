@@ -11,12 +11,14 @@ interface FounderCardProps {
   className?: string;
 }
 
+const SITE_ASSET_BASE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets';
+
 export default function FounderCard({
   variant = 'compact',
   showGreeting = true,
   className = ''
 }: FounderCardProps) {
-  const founderImageUrl = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/other/founder.png';
+  const founderImageUrl = `${SITE_ASSET_BASE_URL}/showcase/other/founder.png`;
   const tiktokUrl = 'https://www.tiktok.com/@laolilantian';
   const tiktokUsername = '@laolilantian';
 

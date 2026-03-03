@@ -113,9 +113,9 @@ This document provides essential context for AI agents working on the Flowtra co
 ### Support (6)
 - `articles` - Blog content
 - `user_tiktok_connections` - TikTok integration
-- `images` - Supabase Storage
+- `site-assets` - Canonical bucket for landing, blog, and shared static assets
 - `subscription_events` - Billing events
-- `competitor_videos` - Temporary storage
+- `temp-uploads` - Canonical temporary upload bucket
 
 ## Technology Stack
 

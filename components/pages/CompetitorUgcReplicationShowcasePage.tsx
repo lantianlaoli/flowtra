@@ -16,6 +16,8 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
 
+const SITE_ASSET_BASE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets';
+
 // Helper function to convert credits to USD
 const creditsToUSD = (credits: number | string): string => {
   if (typeof credits === 'string') {
@@ -39,13 +41,13 @@ export default function CompetitorUgcReplicationShowcasePage() {
   const examples = [
     {
       id: 1,
-      productImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/competitor_ugc_replication_1_product.jpg',
-      videoUrl: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_source.mp4',
+      productImage: `${SITE_ASSET_BASE_URL}/showcase/shared/images/competitor_ugc_replication_1_product.jpg`,
+      videoUrl: `${SITE_ASSET_BASE_URL}/showcase/shared/videos/clone_competitor_source.mp4`,
     },
     {
       id: 2,
-      productImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/features_images/competitor_ugc_replication_2_product.png',
-      videoUrl: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_result.mp4',
+      productImage: `${SITE_ASSET_BASE_URL}/showcase/shared/images/competitor_ugc_replication_2_product.png`,
+      videoUrl: `${SITE_ASSET_BASE_URL}/showcase/shared/videos/clone_competitor_result.mp4`,
     },
   ];
 

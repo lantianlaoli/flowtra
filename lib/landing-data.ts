@@ -5,6 +5,8 @@
  * and improve code maintainability.
  */
 
+const SITE_ASSET_BASE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets';
+
 export interface SuccessCaseContent {
   inputImage?: string;
   characterImage?: string;
@@ -33,8 +35,8 @@ export const successCases: SuccessCase[] = [
     tiktokText: 'See the Tutorial',
     layout: 'input-to-output',
     content: {
-      inputImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_standard_product_1.jpg',
-      videoUrl: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_standard_case_1.mp4'
+      inputImage: `${SITE_ASSET_BASE_URL}/landing/user_standard_product_1.jpg`,
+      videoUrl: `${SITE_ASSET_BASE_URL}/landing/user_standard_case_1.mp4`
     }
   },
   {
@@ -46,9 +48,9 @@ export const successCases: SuccessCase[] = [
     tiktokText: 'See the Tutorial',
     layout: 'multi-input-to-output',
     content: {
-      characterImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_character_human_case_1.png',
-      productImage: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_character_product_case_1.jpg',
-      videoUrl: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/user_character_video_case_1.mp4'
+      characterImage: `${SITE_ASSET_BASE_URL}/landing/user_character_human_case_1.png`,
+      productImage: `${SITE_ASSET_BASE_URL}/landing/user_character_product_case_1.jpg`,
+      videoUrl: `${SITE_ASSET_BASE_URL}/landing/user_character_video_case_1.mp4`
     }
   }
 ];

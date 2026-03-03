@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { uploadFileToSupabase } from '@/lib/upload-to-supabase';
 import { setFreeAnalysisUsed } from '@/lib/rate-limit';
+import { STORAGE_BUCKETS } from '@/lib/storage/types';
 
 export type AnalysisState =
   | 'initial'
@@ -127,7 +128,7 @@ export function useVideoAnalysis(): UseVideoAnalysisReturn {
         // Upload to Supabase Storage
         const { publicUrl } = await uploadFileToSupabase(
           file,
-          'competitor_videos',
+          STORAGE_BUCKETS.tempUploads,
           path
         );
 
