@@ -2,8 +2,15 @@
 type FalClient = (typeof import('@fal-ai/client'))['fal'];
 
 type FalAspectRatio = '16:9' | '9:16';
+type FalMergeResolution =
+  | 'square'
+  | 'square_hd'
+  | 'portrait_4_3'
+  | 'portrait_16_9'
+  | 'landscape_4_3'
+  | 'landscape_16_9';
 
-const RESOLUTION_MAP: Record<FalAspectRatio, string> = {
+const RESOLUTION_MAP: Record<FalAspectRatio, FalMergeResolution> = {
   '16:9': 'landscape_16_9',
   '9:16': 'portrait_16_9'
 };
