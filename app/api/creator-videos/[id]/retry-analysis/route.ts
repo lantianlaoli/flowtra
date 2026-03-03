@@ -9,7 +9,7 @@ export const maxDuration = 300;
 
 export async function POST(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<unknown> }
 ) {
   try {
     const { userId } = await auth();
@@ -18,7 +18,10 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = await params;
+    const { id } = (await params) as { id?: string };
+    if (!id) {
+      return NextResponse.json({ error: 'Missing video id' }, { status: 400 });
+    }
     const supabase = getSupabaseAdmin();
 
     // Schema verified via Supabase MCP (2026-03-03): creator_source_videos has id, user_id, source_id, video_url, video_cdn_url, duration_seconds, analysis_status.
