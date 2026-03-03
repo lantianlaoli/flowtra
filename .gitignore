@@ -40,7 +40,6 @@ next-env.d.ts
 .vscode/
 .idea/
 .cursor/
-.agents/
 .claude/
 
 # OS
@@ -61,7 +60,6 @@ opencode.json
 
 # OpenCode
 .opencode/
-AGENTS.md
 
 .codex/
 
