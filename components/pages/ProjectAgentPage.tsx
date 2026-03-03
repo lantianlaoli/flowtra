@@ -2303,6 +2303,53 @@ export default function ProjectAgentPage() {
     };
   }, []);
 
+  const syncCloneExecutionState = useCallback(async (
+    projectId: string,
+    options?: { cancelled?: () => boolean }
+  ) => {
+    try {
+      const nextExecution = await fetchCloneExecutionStatus(projectId);
+      if (options?.cancelled?.()) return;
+
+      setSessionState((prev) => {
+        if (!prev) return prev;
+        const localExecution = prev.cloneExecution;
+        const shouldPreserveLocal = shouldKeepLocalCloneExecution(localExecution, nextExecution);
+
+        const mergedExecution = shouldPreserveLocal
+          ? localExecution
+          : (mergeCloneExecutionWithLocal(localExecution, nextExecution) ?? nextExecution);
+
+        const hasVideoSignal = Boolean(
+          mergedExecution?.segments?.some((segment) => (
+            segment.status === 'generating_video' ||
+            segment.status === 'video_ready' ||
+            Boolean(segment.videoUrl)
+          ))
+        );
+
+        const shouldPinGeneratingVideos = (
+          localExecution?.phase === 'generating_videos' &&
+          mergedExecution &&
+          (mergedExecution.phase === 'generating_frames' || mergedExecution.phase === 'reviewing_frames') &&
+          !hasVideoSignal
+        );
+
+        return {
+          ...prev,
+          cloneExecution: shouldPinGeneratingVideos
+            ? {
+                ...mergedExecution,
+                phase: 'generating_videos'
+              }
+            : mergedExecution
+        };
+      });
+    } catch {
+      // Ignore intermittent sync failures.
+    }
+  }, [fetchCloneExecutionStatus]);
+
   const persistCloneState = useCallback(async (statePatch: Record<string, unknown>) => {
     if (!sessionId) return;
     await fetch('/api/project-agent/session', {
@@ -2361,56 +2408,43 @@ export default function ProjectAgentPage() {
     if (phase === 'completed' || phase === 'failed') return;
 
     let cancelled = false;
-    const sync = async () => {
-      try {
-        const nextExecution = await fetchCloneExecutionStatus(projectId);
-        if (cancelled) return;
-        setSessionState((prev) => {
-          if (!prev) return prev;
-          const localExecution = prev.cloneExecution;
-          const shouldPreserveLocal = shouldKeepLocalCloneExecution(localExecution, nextExecution);
+    const isCancelled = () => cancelled;
+    void syncCloneExecutionState(projectId, { cancelled: isCancelled });
 
-          const mergedExecution = shouldPreserveLocal
-            ? localExecution
-            : (mergeCloneExecutionWithLocal(localExecution, nextExecution) ?? nextExecution);
+    const supabase = createClient();
+    const channel: RealtimeChannel = supabase
+      .channel(`project-agent-clone-${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'competitor_ugc_replication_projects',
+          filter: `id=eq.${projectId}`
+        },
+        () => {
+          void syncCloneExecutionState(projectId, { cancelled: isCancelled });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'competitor_ugc_replication_segments',
+          filter: `project_id=eq.${projectId}`
+        },
+        () => {
+          void syncCloneExecutionState(projectId, { cancelled: isCancelled });
+        }
+      )
+      .subscribe();
 
-          const hasVideoSignal = Boolean(
-            mergedExecution?.segments?.some((segment) => (
-              segment.status === 'generating_video' ||
-              segment.status === 'video_ready' ||
-              Boolean(segment.videoUrl)
-            ))
-          );
-
-          const shouldPinGeneratingVideos = (
-            localExecution?.phase === 'generating_videos' &&
-            mergedExecution &&
-            (mergedExecution.phase === 'generating_frames' || mergedExecution.phase === 'reviewing_frames') &&
-            !hasVideoSignal
-          );
-
-          return {
-            ...prev,
-            cloneExecution: shouldPinGeneratingVideos
-              ? {
-                  ...mergedExecution,
-                  phase: 'generating_videos'
-                }
-              : mergedExecution
-          };
-        });
-      } catch {
-        // Ignore intermittent polling failures.
-      }
-    };
-
-    void sync();
-    const timer = window.setInterval(sync, 4000);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      supabase.removeChannel(channel);
     };
-  }, [fetchCloneExecutionStatus, sessionState?.cloneExecution?.phase, sessionState?.cloneExecution?.projectId]);
+  }, [sessionState?.cloneExecution?.phase, sessionState?.cloneExecution?.projectId, syncCloneExecutionState]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     chatBottomRef.current?.scrollIntoView({ behavior, block: 'end' });
