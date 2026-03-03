@@ -65,3 +65,6 @@ opencode.json
 
 # Supabase local dev artifacts
 supabase/
+
+CLAUDE.md
+GEMINI.md

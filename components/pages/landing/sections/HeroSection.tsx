@@ -15,6 +15,9 @@ import TikTokInputHero from "@/components/pages/landing/TikTokInputHero";
 import { LazyVideoPlayer } from "@/components/pages/landing/LazyVideoPlayer";
 import BlackFridayBadge from "@/components/landing/BlackFridayBadge";
 
+const SITE_ASSET_BASE_URL =
+  "https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets";
+
 interface HeroSectionProps {
   activatedUserCount: number;
 }
@@ -172,13 +175,13 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
               </div>
             </div>
             <div className="relative aspect-[9/16] bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.05)] border border-[#E5E5E5]">
-              <LazyVideoPlayer
-                wrapperClassName="w-full h-full"
-                className="w-full h-full object-cover"
-                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/clone_reference.mp4"
-                ariaLabel="Competitor viral video reference"
-                autoPlay
-                loop
+                <LazyVideoPlayer
+                  wrapperClassName="w-full h-full"
+                  className="w-full h-full object-cover"
+                  src={`${SITE_ASSET_BASE_URL}/landing/clone_reference.mp4`}
+                  ariaLabel="Competitor viral video reference"
+                  autoPlay
+                  loop
                 playsInline
               />
 
@@ -231,7 +234,7 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
               <LazyVideoPlayer
                 wrapperClassName="w-full h-full"
                 className="w-full h-full object-cover"
-                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/images/landing_page/clone_result.mp4"
+                src={`${SITE_ASSET_BASE_URL}/landing/clone_result.mp4`}
                 ariaLabel="AI Generated result video"
                 autoPlay
                 loop

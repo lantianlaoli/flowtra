@@ -276,9 +276,9 @@ opencode mcp logout github
 
 - `articles` - Blog and help documentation content
 - `user_tiktok_connections` - TikTok authentication for direct posting
-- `images` - Supabase Storage bucket for all media files
+- `site-assets` - Canonical bucket for landing, blog, and shared static assets
 - `subscription_events` - Subscription lifecycle events (created, updated, cancelled)
-- `competitor_videos` - Temporary storage for competitor video uploads during analysis
+- `temp-uploads` - Canonical temporary upload bucket for analysis and draft flows
 
 ## Design System (design_guide.md)
 
