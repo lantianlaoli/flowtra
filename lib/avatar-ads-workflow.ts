@@ -12,6 +12,7 @@ import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { generateDialogueLengthGuidance, validateSceneDurations } from '@/lib/dialogue-duration-estimator';
+import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 // Events table removed: no tracking imports
 
 // Avatar Ads fixed configuration - only supports veo3_fast
@@ -83,28 +84,19 @@ Provide a concise product name (max 80 characters).`;
 
   const requestedModel = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
 
-  const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-      'X-Title': 'Flowtra'
-    },
-    body: JSON.stringify({
-      model: requestedModel,
-      messages,
-      max_tokens: 200,
-      temperature: 0.2
-    })
-  }, 5, 60000); // Increased: 5 retries, 60 second timeout for better reliability
+  const data = await sendOpenRouterChat({
+    model: requestedModel,
+    messages,
+    max_tokens: 200,
+    temperature: 0.2
+  }, {
+    maxRetries: 5,
+    timeoutMs: 60000,
+    httpReferer: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+    xTitle: 'Flowtra'
+  });
 
-  if (!response.ok) {
-    throw new Error(`Product analysis failed: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content || 'Product name unavailable';
+  return extractOpenRouterTextContent(data.choices?.[0]?.message?.content) || 'Product name unavailable';
 }
 
 // Generate prompts without retry logic
@@ -382,36 +374,26 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
     }
   ];
 
-  const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-      'X-Title': 'Flowtra'
-    },
-    body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
-      messages,
-      response_format: { type: 'json_object' },
-      max_tokens: 2000,
-      temperature: 0.3
-    })
-  }, 5, 60000); // Increased: 5 retries, 60 second timeout for better reliability
-
-  if (!response.ok) {
-    throw new Error(`Gemini prompt generation failed: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
+  const data = await sendOpenRouterChat({
+    model: 'google/gemini-2.5-flash',
+    messages,
+    response_format: { type: 'json_object' },
+    max_tokens: 2000,
+    temperature: 0.3
+  }, {
+    maxRetries: 5,
+    timeoutMs: 60000,
+    httpReferer: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+    xTitle: 'Flowtra'
+  });
+  const content = extractOpenRouterTextContent(data.choices?.[0]?.message?.content);
 
   try {
     const parsed: {
       image_prompt?: string;
       scenes?: Array<{ scene?: number | string; prompt?: Record<string, unknown> }>;
       language?: string;
-    } = JSON.parse(content);
+    } = JSON.parse(content || '');
 
     // Validate structure
     if (!parsed.image_prompt) {

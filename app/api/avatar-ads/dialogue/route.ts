@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
+import { getNetworkErrorResponse } from '@/lib/fetchWithRetry';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 import { clampDialogueToWordLimit, getAvatarAdsDialogueWordLimit } from '@/lib/avatar-ads-dialogue';
+import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 
 interface DialogueRequestPayload {
   productName?: string;
@@ -57,41 +58,22 @@ Requirements:\n- Return exactly one spoken line capped at ${dialogueWordLimit} w
       });
     }
 
-    const response = await fetchWithRetry(
-      'https://openrouter.ai/api/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-          'X-Title': 'Flowtra'
-        },
-        body: JSON.stringify({
-          model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
-          messages: [
-            { role: 'system', content: [{ type: 'text', text: systemPrompt }] },
-            { role: 'user', content: userContent }
-          ],
-          max_tokens: 140,
-          temperature: 0.65,
-        })
-      },
-      3,
-      45000
-    );
+    const data = await sendOpenRouterChat({
+      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+      messages: [
+        { role: 'system', content: [{ type: 'text', text: systemPrompt }] },
+        { role: 'user', content: userContent }
+      ],
+      max_tokens: 140,
+      temperature: 0.65,
+    }, {
+      maxRetries: 3,
+      timeoutMs: 45000,
+      httpReferer: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      xTitle: 'Flowtra'
+    });
 
-    if (!response.ok) {
-      const errorPayload = await response.json().catch(() => ({}));
-      const message = errorPayload?.error || response.statusText || 'Failed to generate dialogue.';
-      return NextResponse.json(
-        { error: message },
-        { status: response.status || 500 }
-      );
-    }
-
-    const data = await response.json();
-    const rawContent: string | undefined = data?.choices?.[0]?.message?.content;
+    const rawContent = extractOpenRouterTextContent(data?.choices?.[0]?.message?.content) ?? undefined;
 
     if (!rawContent) {
       return NextResponse.json(

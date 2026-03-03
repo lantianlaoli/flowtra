@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchWithRetry, getNetworkErrorResponse } from '@/lib/fetchWithRetry';
+import { getNetworkErrorResponse } from '@/lib/fetchWithRetry';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
+import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 
 interface AdCopyRequestPayload {
   productName?: string;
@@ -55,51 +56,22 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const response = await fetchWithRetry(
-      'https://openrouter.ai/api/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-          'X-Title': 'Flowtra'
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userContent }
-          ],
-          max_tokens: 120,
-          temperature: 0.6
-        })
-      },
-      3,
-      45000
-    );
+    const data = await sendOpenRouterChat({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent }
+      ],
+      max_tokens: 120,
+      temperature: 0.6
+    }, {
+      maxRetries: 3,
+      timeoutMs: 45000,
+      httpReferer: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      xTitle: 'Flowtra'
+    });
 
-    if (!response.ok) {
-      const errorPayload = await response.json().catch(() => ({}));
-      const message = errorPayload?.error || response.statusText || 'Failed to generate ad copy.';
-      return NextResponse.json(
-        { error: message },
-        { status: response.status || 500 }
-      );
-    }
-
-    const data = await response.json();
-    const messageContent = data?.choices?.[0]?.message?.content;
-
-    let rawContent: string | undefined;
-    if (Array.isArray(messageContent)) {
-      const textItem = messageContent.find((item) => item?.type === 'text' && typeof item.text === 'string');
-      rawContent = textItem?.text;
-    } else if (typeof messageContent === 'string') {
-      rawContent = messageContent;
-    } else if (messageContent && typeof messageContent === 'object' && 'text' in messageContent && typeof messageContent.text === 'string') {
-      rawContent = messageContent.text;
-    }
+    const rawContent = extractOpenRouterTextContent(data?.choices?.[0]?.message?.content) ?? undefined;
 
     if (!rawContent) {
       return NextResponse.json(

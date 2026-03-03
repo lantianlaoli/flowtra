@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import type { LanguageCode } from '@/lib/constants';
+import { sendOpenRouterChat } from '@/lib/openrouter';
 
 type StructuredContentChunk =
   | string
@@ -185,26 +185,20 @@ const callOpenRouterForCreatorVideo = async (params: {
   relaxedMode?: boolean;
   providerIgnore?: string[];
 }) => {
-  return fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: params.model,
-      ...(params.responseFormat ? { response_format: params.responseFormat } : {}),
-      ...(params.providerIgnore && params.providerIgnore.length > 0
-        ? { provider: { ignore: params.providerIgnore } }
-        : {}),
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: params.relaxedMode
-                ? `Analyze this creator reference video${params.sourceName ? ` from "${params.sourceName}"` : ''} and return ONLY one valid JSON object.
+  return sendOpenRouterChat({
+    model: params.model,
+    ...(params.responseFormat ? { response_format: params.responseFormat } : {}),
+    ...(params.providerIgnore && params.providerIgnore.length > 0
+      ? { provider: { ignore: params.providerIgnore } }
+      : {}),
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: params.relaxedMode
+              ? `Analyze this creator reference video${params.sourceName ? ` from "${params.sourceName}"` : ''} and return ONLY one valid JSON object.
 You MUST return complete shot objects. Every shot must include ALL required fields below and none may be empty:
 - shot_id
 - start_time
@@ -230,7 +224,7 @@ Rules:
 - Do not include markdown or explanations.
 - shots must be an ordered array with complete timeline coverage.
 - If language is unclear, set detected_language to "en".`
-                : `Analyze this creator reference video${params.sourceName ? ` from "${params.sourceName}"` : ''} and output a strict JSON shot breakdown.
+              : `Analyze this creator reference video${params.sourceName ? ` from "${params.sourceName}"` : ''} and output a strict JSON shot breakdown.
 Requirements:
 - Return JSON only, matching the schema.
 - Cover the full video timeline with ordered shots.
@@ -238,17 +232,19 @@ Requirements:
 - Detect primary language and output it in detected_language.
 - If language is unclear, default to "en".
 - Every shot MUST include non-empty: first_frame_description, subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_colour_lighting, audio.`
-            },
-            {
-              type: 'video_url',
-              video_url: {
-                url: params.videoUrl
-              }
+          },
+          {
+            type: 'video_url',
+            video_url: {
+              url: params.videoUrl
             }
-          ]
-        }
-      ]
-    })
+          }
+        ]
+      }
+    ]
+  }, {
+    maxRetries: 10,
+    timeoutMs: 45000
   });
 };
 
@@ -371,36 +367,26 @@ const analyzeCreatorVideoByUrl = async (input: {
   };
 
   const executeAttempt = async (opts: { relaxedMode: boolean; includeResponseFormat: boolean }) => {
-    const response = await callOpenRouterForCreatorVideo({
-      model,
-      videoUrl: input.videoUrl,
-      sourceName: input.sourceName,
-      responseFormat: opts.includeResponseFormat ? (responseFormat as Record<string, unknown>) : undefined,
-      relaxedMode: opts.relaxedMode,
-      providerIgnore
-    });
-
-    let responseText = '';
     let data: unknown;
     try {
-      responseText = await response.text();
+      data = await callOpenRouterForCreatorVideo({
+        model,
+        videoUrl: input.videoUrl,
+        sourceName: input.sourceName,
+        responseFormat: opts.includeResponseFormat ? (responseFormat as Record<string, unknown>) : undefined,
+        relaxedMode: opts.relaxedMode,
+        providerIgnore
+      });
       console.log('[CreatorVideoAnalysis] OpenRouter response received:', {
-        status: response.status,
-        ok: response.ok,
-        contentType: response.headers.get('content-type'),
-        requestId: response.headers.get('x-request-id') || response.headers.get('request-id') || undefined,
-        bodyPreview: truncateForLog(responseText, 600)
-      });
-      data = JSON.parse(responseText);
-    } catch {
-      console.error('[CreatorVideoAnalysis] Failed to parse response JSON:', {
         ...debugContext,
-        status: response.status,
-        bodyPreview: truncateForLog(responseText || '<empty-response>', 600)
+        bodyPreview: truncateForLog(JSON.stringify(data), 600)
       });
-      throw new Error(
-        `Failed to parse creator video analysis response. status=${response.status}; preview=${truncateForLog(responseText || '<empty-response>', 220)}`
-      );
+    } catch (error) {
+      console.error('[CreatorVideoAnalysis] OpenRouter request failed:', {
+        ...debugContext,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      throw error;
     }
 
     const apiError = data as {
@@ -410,16 +396,6 @@ const analyzeCreatorVideoByUrl = async (input: {
         metadata?: { provider_name?: string };
       };
     };
-    if (!response.ok) {
-      const providerMessage = apiError?.error?.message || `OpenRouter analysis failed (${response.status}).`;
-      console.error('[CreatorVideoAnalysis] OpenRouter non-2xx response:', {
-        ...debugContext,
-        status: response.status,
-        providerMessage,
-        bodyPreview: truncateForLog(responseText, 600)
-      });
-      throw new Error(`${providerMessage} [status=${response.status}]`);
-    }
 
     // OpenRouter docs: some upstream/provider failures can surface as HTTP 200 with { error: {...} } in body.
     if (apiError?.error?.message) {
@@ -444,7 +420,7 @@ const analyzeCreatorVideoByUrl = async (input: {
       );
     }
 
-    return { responseText, data };
+    return { responseText: JSON.stringify(data), data };
   };
 
   // Attempt 1: strict schema response_format
