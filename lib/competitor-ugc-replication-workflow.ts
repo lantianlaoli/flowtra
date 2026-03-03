@@ -1770,12 +1770,20 @@ async function initializeCloneProjectForManualEditing({
 
   const segments = insertedSegments as CompetitorUgcReplicationSegment[];
   const segmentStatus = buildSegmentStatusPayload(segments);
+  const resolvedSegmentDurationSeconds = resolvePerSegmentDurationSeconds(
+    request.resolvedVideoModel,
+    request.videoDuration,
+    normalizedSegments.length
+  );
 
   const { error: projectUpdateError } = await supabase
     .from('competitor_ugc_replication_projects')
     .update({
       video_prompts: storedVideoPrompts,
       segment_plan: serializedPlan,
+      is_segmented: normalizedSegments.length > 1,
+      segment_count: normalizedSegments.length,
+      segment_duration_seconds: normalizedSegments.length > 0 ? resolvedSegmentDurationSeconds : null,
       current_step: 'ready_for_video',
       status: 'processing',
       progress_percentage: 60,
@@ -1896,21 +1904,23 @@ async function startAIWorkflow(
         ? getSegmentCountFromDuration(request.videoDuration, request.resolvedVideoModel)
         : 1);
     const segmentCount = hasSegmentPromptOverrides ? overrideSegmentCount : calculatedSegmentCount;
+    const effectiveSegmentedFlow = segmentCount > 1 || request.resolvedVideoModel === 'kling_3';
     const resolvedSegmentDurationSeconds = resolvePerSegmentDurationSeconds(
       request.resolvedVideoModel,
       request.videoDuration,
       segmentCount
     );
 
-    // BUG FIX: Do NOT update is_segmented here, as it was already set correctly during project creation
-    // Updating it here can cause data inconsistency if videoDuration was modified (line 1046)
-    // between initial creation and this update, leading to is_segmented=false but having segment records
+    // Schema alignment for agent clone/manual segment overrides:
+    // when segmentPrompts are provided, segmentCount may differ from duration-derived
+    // segmentedFlow. Persist the effective multi-segment shape so webhooks can
+    // correctly chain continuation frames.
     const { error: projectConfigUpdateError } = await supabase
       .from('competitor_ugc_replication_projects')
       .update({
         video_duration: request.videoDuration || null,
-        // is_segmented: segmentedFlow, // REMOVED: Do not overwrite is_segmented
-        segment_count: segmentedFlow ? segmentCount : 1,
+        is_segmented: effectiveSegmentedFlow,
+        segment_count: Math.max(1, segmentCount),
         segment_duration_seconds: resolvedSegmentDurationSeconds
       })
       .eq('id', projectId);
@@ -3041,9 +3051,14 @@ async function startSegmentedWorkflow(
     })
     .eq('id', projectId);
 
+  const segmentsToStart: CompetitorUgcReplicationSegment[] = [];
+
+  // Mark continuation dependencies before starting any KIE task.
+  // This prevents a race where segment 0 returns fast and its webhook arrives
+  // before later segments have been flipped from pending_first_frame to
+  // awaiting_prev_first_frame.
   for (const segment of segments) {
     const promptData = normalizedSegments[segment.segment_index];
-    const aspectRatio = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
     const shouldWaitForContinuation = shouldWaitForContinuationFrame({
       segmentIndex: segment.segment_index,
       isContinuationFromPrev: promptData.is_continuation_from_prev
@@ -3061,6 +3076,13 @@ async function startSegmentedWorkflow(
       segment.status = 'awaiting_prev_first_frame';
       continue;
     }
+
+    segmentsToStart.push(segment);
+  }
+
+  for (const segment of segmentsToStart) {
+    const promptData = normalizedSegments[segment.segment_index];
+    const aspectRatio = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
 
     // Use smart frame generation with automatic routing
     const firstFrameTaskId = await createSmartSegmentFrame(

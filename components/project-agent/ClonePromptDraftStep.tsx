@@ -544,7 +544,8 @@ export default function ClonePromptDraftStep({
                           <PromptMentionTextarea
                             value={scene.imagePrompt}
                             onChange={(next) => updateSceneImage(scene.sceneIndex, next)}
-                            rows={3}
+                            rows={5}
+                            resizable="vertical"
                             className={promptUi.fieldInput}
                             characterMentions={characterMentions}
                             productMentions={productMentions}

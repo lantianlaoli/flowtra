@@ -47,6 +47,7 @@ export type WorkspaceScene = {
   imagePrompt: string;
   shots: WorkspaceShot[];
   sourceSummary?: string | null;
+  firstFrameTaskId?: string | null;
   frameUrl?: string | null;
   videoUrl?: string | null;
   frameError?: string | null;
@@ -315,11 +316,31 @@ export default function CloneSceneWorkspaceStep({
       </div>
 
       <div className="space-y-3">
-        {localScenes.map((scene) => {
+        {localScenes.map((scene, sceneArrayIndex) => {
+          const previousScene = sceneArrayIndex > 0 ? localScenes[sceneArrayIndex - 1] : null;
           const showFrameOverlay = phase !== 'generating_videos' && frameOverlayVisible[scene.sceneIndex] === true;
+          const isWaitingForContinuationKickoff = Boolean(
+            scene.isContinuation &&
+            !scene.frameUrl &&
+            !scene.videoUrl &&
+            (
+              scene.segmentStatus === 'awaiting_prev_first_frame' ||
+              scene.segmentStatus === 'queued' ||
+              scene.segmentStatus === null
+            ) &&
+            previousScene?.frameUrl
+          );
+          const hasSubmittedFrameTask = typeof scene.firstFrameTaskId === 'string' && scene.firstFrameTaskId.trim().length > 0;
           const shouldShowFrameGenerating = (
-            phase === 'generating_frames' &&
-            scene.segmentStatus === 'generating_first_frame'
+            (
+              phase === 'generating_frames' &&
+              scene.segmentStatus === 'generating_first_frame' &&
+              hasSubmittedFrameTask
+            ) ||
+            (
+              isWaitingForContinuationKickoff &&
+              hasSubmittedFrameTask
+            )
           );
           const shouldShowVideoGenerating = (
             phase === 'generating_videos' &&
@@ -453,12 +474,16 @@ export default function CloneSceneWorkspaceStep({
                                 {shouldShowFrameGenerating ? (
                                   <>
                                     <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                                    Frame is generating...
+                                    {isWaitingForContinuationKickoff && hasSubmittedFrameTask
+                                      ? 'Frame generation is starting from the previous frame...'
+                                      : 'Frame is generating...'}
                                   </>
                                 ) : (
                                   <>
                                     <ImageIcon className="h-4 w-4 mr-1" />
-                                    Frame preview will appear after frame generation starts.
+                                    {isWaitingForContinuationKickoff
+                                      ? 'Frame preview will appear once the continuation task is submitted.'
+                                      : 'Frame preview will appear after frame generation starts.'}
                                   </>
                                 )}
                               </div>
@@ -541,7 +566,8 @@ export default function CloneSceneWorkspaceStep({
                             </div>
                             <PromptMentionTextarea
                               value={scene.imagePrompt}
-                              rows={3}
+                              rows={5}
+                              resizable="vertical"
                               className={promptUi.fieldInput}
                               onChange={(next) => updateLocalScenes((current) => (
                                 current.map((item) => (

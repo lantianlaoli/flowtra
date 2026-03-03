@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import { DefaultChatTransport } from 'ai';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { AlertTriangle, ArrowUp, Clapperboard, History, Loader2, MessageCircle, Plus, RefreshCw, Search, Sparkles, User } from 'lucide-react';
+import { AlertTriangle, ArrowUp, Clapperboard, History, Loader2, MessageCircle, Package, Plus, RefreshCw, Search, Sparkles, User } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import VideoAssetCard from '@/components/VideoAssetCard';
@@ -128,13 +128,6 @@ const createSessionId = () => {
     return globalThis.crypto.randomUUID();
   }
   return `agent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-};
-
-const formatSelectionSummary = (items: Array<{ name: string }>) => {
-  if (items.length === 0) return 'none';
-  const names = items.map((item) => item.name);
-  if (names.length <= 2) return names.join(', ');
-  return `${names.slice(0, 2).join(', ')} +${names.length - 2} more`;
 };
 
 const extractMessageText = (message: { parts?: Array<{ type?: string; text?: string }>; content?: string }) => {
@@ -663,6 +656,8 @@ const mergeCloneExecutionWithLocal = (
 
     return {
       ...incomingSegment,
+      firstFrameTaskId: incomingSegment.firstFrameTaskId
+        ?? (localSegment.firstFrameTaskId ?? null),
       // Keep previous media URLs when server snapshot is transient/incomplete.
       // This avoids frame-card flicker during regeneration polling.
       firstFrameUrl: incomingSegment.firstFrameUrl
@@ -2285,6 +2280,7 @@ export default function ProjectAgentPage() {
     const segments = segmentsRaw.map((segment) => ({
       segmentIndex: Number(segment.index ?? 0),
       status: typeof segment.status === 'string' ? segment.status : 'queued',
+      firstFrameTaskId: typeof segment.firstFrameTaskId === 'string' ? segment.firstFrameTaskId : null,
       firstFrameUrl: typeof segment.firstFrameUrl === 'string' ? segment.firstFrameUrl : null,
       videoUrl: typeof segment.videoUrl === 'string' ? segment.videoUrl : null,
       errorMessage: typeof segment.errorMessage === 'string' ? segment.errorMessage : null,
@@ -2644,33 +2640,30 @@ export default function ProjectAgentPage() {
                         <>
                           <div className="space-y-2">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="text-xs font-semibold text-[#1f1f1e] uppercase tracking-wide">Choose Avatars</p>
-                              <p className="text-[11px] text-[#6d6d6a]">
-                                {selectedCloneAvatarIds.length === 0
-                                  ? `0/${MAX_CLONE_MULTI_SELECT} selected`
-                                  : `${selectedCloneAvatarIds.length}/${MAX_CLONE_MULTI_SELECT} selected`}
+                              <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1f1f1e] uppercase tracking-wide">
+                                <User className="h-3.5 w-3.5" />
+                                <span>Choose Avatars</span>
                               </p>
                             </div>
-                            {selectedCloneAvatars.length > 0 ? (
-                              <p className="text-xs text-[#6d6d6a]">
-                                {formatSelectionSummary(selectedCloneAvatars)}
-                              </p>
-                            ) : null}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
                               {cloneAvatarOptions.map((avatar) => (
                                 <button
                                   key={avatar.id}
                                   type="button"
                                   onClick={() => handleManualAvatarSelection(avatar.id)}
-                                  className={`rounded-xl border p-2 text-left transition-colors ${selectedCloneAvatarIds.includes(avatar.id) ? 'border-[#0f0f0f] bg-[#f3f3f2]' : 'border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                  className={`rounded-xl p-1.5 text-left transition-colors ${selectedCloneAvatarIds.includes(avatar.id) ? 'border-2 border-[#0f0f0f] bg-white shadow-[0_1px_0_rgba(15,15,15,0.04)]' : 'border border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
                                 >
-                                  <div className="w-full aspect-square rounded-xl overflow-hidden bg-[#efefed] mb-1.5">
+                                  <div className="w-full aspect-square rounded-[10px] overflow-hidden bg-[#efefed] mb-1">
                                     {avatar.photoUrl ? (
                                       // eslint-disable-next-line @next/next/no-img-element
                                       <img src={avatar.photoUrl} alt={avatar.name} className="w-full h-full object-cover" />
                                     ) : null}
                                   </div>
-                                  <p className="text-[11px] font-medium text-[#1f1f1e] truncate">{avatar.name}</p>
+                                  <span
+                                    className={`inline-flex max-w-full rounded-md px-2 py-1 text-[11px] font-medium ${selectedCloneAvatarIds.includes(avatar.id) ? 'bg-[#0f0f0f] text-white' : 'bg-[#f3f3f2] text-[#1f1f1e]'}`}
+                                  >
+                                    <span className="truncate">{avatar.name}</span>
+                                  </span>
                                 </button>
                               ))}
                             </div>
@@ -2678,33 +2671,30 @@ export default function ProjectAgentPage() {
 
                           <div className="space-y-2">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="text-xs font-semibold text-[#1f1f1e] uppercase tracking-wide">Choose Products</p>
-                              <p className="text-[11px] text-[#6d6d6a]">
-                                {selectedCloneProductIds.length === 0
-                                  ? `0/${MAX_CLONE_MULTI_SELECT} selected`
-                                  : `${selectedCloneProductIds.length}/${MAX_CLONE_MULTI_SELECT} selected`}
+                              <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1f1f1e] uppercase tracking-wide">
+                                <Package className="h-3.5 w-3.5" />
+                                <span>Choose Products</span>
                               </p>
                             </div>
-                            {selectedCloneProducts.length > 0 ? (
-                              <p className="text-xs text-[#6d6d6a]">
-                                {formatSelectionSummary(selectedCloneProducts)}
-                              </p>
-                            ) : null}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
                               {cloneProductOptions.map((product) => (
                                 <button
                                   key={product.id}
                                   type="button"
                                   onClick={() => handleManualProductSelection(product.id)}
-                                  className={`rounded-xl border p-2 text-left transition-colors ${selectedCloneProductIds.includes(product.id) ? 'border-[#0f0f0f] bg-[#f3f3f2]' : 'border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                  className={`rounded-xl p-1.5 text-left transition-colors ${selectedCloneProductIds.includes(product.id) ? 'border-2 border-[#0f0f0f] bg-white shadow-[0_1px_0_rgba(15,15,15,0.04)]' : 'border border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
                                 >
-                                  <div className="w-full aspect-square rounded-xl overflow-hidden bg-[#efefed] mb-1.5">
+                                  <div className="w-full aspect-square rounded-[10px] overflow-hidden bg-[#efefed] mb-1">
                                     {product.photoUrl ? (
                                       // eslint-disable-next-line @next/next/no-img-element
                                       <img src={product.photoUrl} alt={product.name} className="w-full h-full object-cover" />
                                     ) : null}
                                   </div>
-                                  <p className="text-[11px] font-medium text-[#1f1f1e] truncate">{product.name}</p>
+                                  <span
+                                    className={`inline-flex max-w-full rounded-md px-2 py-1 text-[11px] font-medium ${selectedCloneProductIds.includes(product.id) ? 'bg-[#0f0f0f] text-white' : 'bg-[#f3f3f2] text-[#1f1f1e]'}`}
+                                  >
+                                    <span className="truncate">{product.name}</span>
+                                  </span>
                                 </button>
                               ))}
                             </div>

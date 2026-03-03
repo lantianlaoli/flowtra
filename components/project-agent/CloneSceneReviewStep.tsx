@@ -48,6 +48,7 @@ export type CloneExecutionSegmentPrompt = {
 export type CloneExecutionSegment = {
   segmentIndex: number;
   status: string;
+  firstFrameTaskId?: string | null;
   firstFrameUrl?: string | null;
   videoUrl?: string | null;
   errorMessage?: string | null;
@@ -433,7 +434,8 @@ export default function CloneSceneReviewStep({
                     <PromptFieldLabel icon={ImageIcon}>Image Prompt</PromptFieldLabel>
                     <PromptMentionTextarea
                       value={prompt.first_frame_description}
-                      rows={3}
+                      rows={5}
+                      resizable="vertical"
                       className={promptUi.fieldInput}
                       onChange={(next) => updatePrompt(segment.segmentIndex, (current) => ({ ...current, first_frame_description: next }))}
                       characterMentions={characterMentions}
