@@ -19,6 +19,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 })
 
 const publicPrefix = `${supabaseUrl}/storage/v1/object/public/`
+const storageObjectPrefix = `${supabaseUrl}/storage/v1/object/`
 
 const hardcodedAssets = [
   'images/features_videos/character-ad-case-1.mp4',
@@ -56,6 +57,44 @@ const hardcodedAssets = [
   'competitor_videos/user-photos/character_ad_bad.png',
   'images/other/founder.png',
 ] as const
+
+const listAllStorageObjects = async (bucket: string, prefix: string) => {
+  const results: string[] = []
+  let offset = 0
+  const pageSize = 100
+
+  while (true) {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .list(prefix, {
+        limit: pageSize,
+        offset,
+        sortBy: { column: 'name', order: 'asc' }
+      })
+
+    if (error) {
+      throw new Error(`Failed to list ${bucket}/${prefix}: ${error.message}`)
+    }
+
+    if (!data || data.length === 0) {
+      break
+    }
+
+    for (const item of data) {
+      if (item.name) {
+        results.push(`${prefix}/${item.name}`)
+      }
+    }
+
+    if (data.length < pageSize) {
+      break
+    }
+
+    offset += data.length
+  }
+
+  return results
+}
 
 const parseRef = (value: string) => {
   const normalized = value.startsWith(publicPrefix) ? value.slice(publicPrefix.length) : value
@@ -106,19 +145,91 @@ const fetchDistinctArticleAssets = async () => {
 
   const assets = new Set<string>()
   for (const row of data || []) {
-    if (typeof row.cover === 'string' && row.cover.includes('/storage/v1/object/public/images/')) {
-      assets.add(row.cover)
-    }
-    if (typeof row.og_image === 'string' && row.og_image.includes('/storage/v1/object/public/images/')) {
-      assets.add(row.og_image)
+    for (const value of [row.cover, row.og_image]) {
+      if (typeof value !== 'string') {
+        continue
+      }
+
+      if (value.includes('/storage/v1/object/public/images/')) {
+        assets.add(value)
+        continue
+      }
+
+      if (value.includes('/storage/v1/object/public/site-assets/blog/covers/')) {
+        assets.add(value.replace('/storage/v1/object/public/site-assets/blog/covers/', '/storage/v1/object/public/images/blog_covers/'))
+        continue
+      }
+
+      if (value.includes('/storage/v1/object/public/site-assets/blog/media/legacy/')) {
+        assets.add(value.replace('/storage/v1/object/public/site-assets/blog/media/legacy/', '/storage/v1/object/public/images/blog_images/'))
+      }
     }
   }
 
   return [...assets]
 }
 
+const fetchActiveArticleCoverPaths = async () => {
+  const { data, error } = await supabase
+    .from('articles')
+    .select('cover,og_image')
+
+  if (error) {
+    throw new Error(`Failed to load article cover references: ${error.message}`)
+  }
+
+  const activeSiteAssetCovers = new Set<string>()
+  const activeLegacyImageCovers = new Set<string>()
+
+  for (const row of data || []) {
+    for (const value of [row.cover, row.og_image]) {
+      if (typeof value !== 'string') {
+        continue
+      }
+
+      const ref = parseRef(value)
+      if (!ref.bucket || !ref.path) {
+        continue
+      }
+
+      if (ref.bucket === STORAGE_BUCKETS.siteAssets && ref.path.startsWith('blog/covers/')) {
+        activeSiteAssetCovers.add(ref.path)
+      }
+
+      if (ref.bucket === 'images' && ref.path.startsWith('blog_covers/')) {
+        activeLegacyImageCovers.add(ref.path)
+      }
+    }
+  }
+
+  return {
+    activeSiteAssetCovers,
+    activeLegacyImageCovers,
+  }
+}
+
+const fetchLegacyBlogAssets = async () => {
+  const [imageBlogCovers, imageBlogMedia, imageBlogVideos, competitorBlogCovers] = await Promise.all([
+    listAllStorageObjects('images', 'blog_covers'),
+    listAllStorageObjects('images', 'blog_images'),
+    listAllStorageObjects('images', 'blog_videos'),
+    listAllStorageObjects('competitor_videos', 'blog_covers'),
+  ])
+
+  return [
+    ...imageBlogCovers.map(path => `images/${path}`),
+    ...imageBlogMedia.map(path => `images/${path}`),
+    ...imageBlogVideos.map(path => `images/${path}`),
+    ...competitorBlogCovers.map(path => `competitor_videos/${path}`),
+  ]
+}
+
 const copyObject = async (bucket: string, path: string, destinationPath: string) => {
-  const response = await fetch(`${publicPrefix}${bucket}/${path}`, {
+  const response = await fetch(`${storageObjectPrefix}${bucket}/${path}`, {
+    headers: {
+      Authorization: `Bearer ${supabaseServiceKey}`,
+      apikey: supabaseServiceKey,
+    },
     signal: AbortSignal.timeout(30000)
   })
 
@@ -130,7 +241,7 @@ const copyObject = async (bucket: string, path: string, destinationPath: string)
   const arrayBuffer = await response.arrayBuffer()
   const contentType = response.headers.get('content-type') || undefined
 
-  const { error } = await supabase.storage
+  const { error: uploadError } = await supabase.storage
     .from(STORAGE_BUCKETS.siteAssets)
     .upload(destinationPath, arrayBuffer, {
       upsert: true,
@@ -138,16 +249,76 @@ const copyObject = async (bucket: string, path: string, destinationPath: string)
       cacheControl: '3600'
     })
 
-  if (error) {
-    throw new Error(`Failed to upload site asset ${destinationPath}: ${error.message}`)
+  if (uploadError) {
+    throw new Error(`Failed to upload site asset ${destinationPath}: ${uploadError.message}`)
   }
 
   return true
 }
 
+const removeObjects = async (bucket: string, paths: string[]) => {
+  if (paths.length === 0) {
+    return 0
+  }
+
+  let removed = 0
+
+  for (let index = 0; index < paths.length; index += 100) {
+    const chunk = paths.slice(index, index + 100)
+    const { error } = await supabase.storage.from(bucket).remove(chunk)
+
+    if (error) {
+      throw new Error(`Failed to remove ${bucket} objects: ${error.message}`)
+    }
+
+    removed += chunk.length
+  }
+
+  return removed
+}
+
+const pruneOrphanedArticleCovers = async () => {
+  const { activeSiteAssetCovers, activeLegacyImageCovers } = await fetchActiveArticleCoverPaths()
+  const [siteAssetCovers, legacyImageCovers] = await Promise.all([
+    listAllStorageObjects(STORAGE_BUCKETS.siteAssets, 'blog/covers'),
+    listAllStorageObjects('images', 'blog_covers'),
+  ])
+
+  const orphanedSiteAssetCovers = siteAssetCovers.filter(path => !activeSiteAssetCovers.has(path))
+  const orphanedLegacyImageCovers = legacyImageCovers.filter(path => !activeLegacyImageCovers.has(path))
+
+  const [removedSiteAssetCovers, removedLegacyImageCovers] = await Promise.all([
+    removeObjects(STORAGE_BUCKETS.siteAssets, orphanedSiteAssetCovers),
+    removeObjects('images', orphanedLegacyImageCovers),
+  ])
+
+  console.table({
+    activeSiteAssetCovers: activeSiteAssetCovers.size,
+    activeLegacyImageCovers: activeLegacyImageCovers.size,
+    removedSiteAssetCovers,
+    removedLegacyImageCovers,
+  })
+}
+
 async function main() {
-  const articleAssets = await fetchDistinctArticleAssets()
-  const candidates = [...new Set([...hardcodedAssets, ...articleAssets])]
+  const blogOnly = process.argv.includes('--blog-only')
+  const articleAssetsOnly = process.argv.includes('--article-assets-only')
+  const pruneOrphanedCovers = process.argv.includes('--prune-orphaned-covers')
+
+  if (pruneOrphanedCovers) {
+    await pruneOrphanedArticleCovers()
+    return
+  }
+
+  const [articleAssets, legacyBlogAssets] = await Promise.all([
+    fetchDistinctArticleAssets(),
+    fetchLegacyBlogAssets()
+  ])
+  const candidates = articleAssetsOnly
+    ? [...new Set(articleAssets)]
+    : blogOnly
+    ? [...new Set([...articleAssets, ...legacyBlogAssets])]
+    : [...new Set([...hardcodedAssets, ...articleAssets, ...legacyBlogAssets])]
 
   let migrated = 0
   let skipped = 0
@@ -166,6 +337,10 @@ async function main() {
   console.table({
     migrated,
     skipped,
+    blogOnly,
+    articleAssetsOnly,
+    articleAssets: articleAssets.length,
+    legacyBlogAssets: legacyBlogAssets.length,
     bucket: STORAGE_BUCKETS.siteAssets
   })
 }

@@ -441,7 +441,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         productImageUrls.length ? productImageUrls : null,
         cloneMode.mediaType,
         {
-          imageModelOverride: workflowSource === 'project_agent_clone' ? 'nano_banana_2' : 'nano_banana_pro',
           imageSizeOverride: frameImageSize,
           aspectRatioOverride: frameImageSize,
           resolutionOverride: '1K',

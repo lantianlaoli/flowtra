@@ -2,7 +2,6 @@ import { getSupabaseAdmin, type CompetitorUgcReplicationSegment, type SingleVide
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import {
   GENERATION_COSTS,
-  IMAGE_MODELS,
   NON_AGENT_IMAGE_MODEL,
   NON_AGENT_IMAGE_OUTPUT_FORMAT,
   NON_AGENT_IMAGE_RESOLUTION,
@@ -83,7 +82,6 @@ export interface StartWorkflowRequest {
   selectedProductIds?: string[];
   userId: string;
   videoModel: VideoModel;
-  imageModel?: 'auto' | 'nano_banana' | 'nano_banana_2' | 'seedream' | 'nano_banana_pro';
   imageSize?: string;
   elementsCount?: number;
   photoOnly?: boolean;
@@ -3475,22 +3473,12 @@ Technical Requirements:
  */
 type FrameGenerationOverrides = {
   aspectRatioOverride?: string;
-  imageModelOverride?: 'nano_banana' | 'nano_banana_2' | 'seedream' | 'nano_banana_pro';
   imageSizeOverride?: string;
   resolutionOverride?: '1K' | '2K' | '4K';
   characterPhotoUrls?: string[] | null;
   workflowSourceOverride?: 'project_agent_clone' | 'default';
   usePromptAsIs?: boolean;
 };
-
-function resolveAgentFrameModelKey(
-  overrides?: FrameGenerationOverrides
-): 'nano_banana' | 'nano_banana_2' | 'seedream' | 'nano_banana_pro' {
-  if (overrides?.imageModelOverride) {
-    return overrides.imageModelOverride;
-  }
-  return overrides?.workflowSourceOverride === 'project_agent_clone' ? 'nano_banana_2' : 'nano_banana_pro';
-}
 
 function shouldWaitForContinuationFrame(input: {
   segmentIndex: number;
@@ -3506,7 +3494,6 @@ function buildStructuredVideoPromptPayload(input: {
     shots: input.normalizedShots
   };
 }
-
 async function createFrameFromImage(
   referenceImageUrls: string[],
   segmentPrompt: SegmentPrompt,
@@ -3524,17 +3511,9 @@ async function createFrameFromImage(
 
   const frameLabel = frameType === 'first' ? 'opening' : 'closing';
   const derived = deriveSegmentDetails(segmentPrompt);
-
-  const imageModelKey = resolveAgentFrameModelKey(overrides);
   const isProjectAgentClone = overrides?.workflowSourceOverride === 'project_agent_clone';
-  if (!overrides?.imageModelOverride) {
-    console.log(
-      imageModelKey === 'nano_banana_2'
-        ? '🎨 Project Agent clone detected: using nano_banana_2 keyframes (docs/kie/nano_banana_2.md)'
-        : '🎨 Using default nano_banana_pro keyframes (docs/kie/nano_banana_pro.md)'
-    );
-  }
-  const imageModel = IMAGE_MODELS[imageModelKey];
+  console.log('🎨 Using nano_banana_2 keyframes for clone frame generation (docs/kie/nano_banana_2.md)');
+  const imageModel = NON_AGENT_IMAGE_MODEL;
   const resolvedAspectRatio = overrides?.imageSizeOverride || overrides?.aspectRatioOverride || aspectRatio;
   const resolvedResolution = overrides?.resolutionOverride || '1K';
 
@@ -3569,12 +3548,8 @@ Render Instructions:
     google_search: false
   };
 
-  if (imageModelKey === 'nano_banana_pro' || imageModelKey === 'nano_banana_2') {
-    inputPayload.aspect_ratio = resolvedAspectRatio;
-    inputPayload.resolution = resolvedResolution || '1K';
-  } else {
-    inputPayload.image_size = resolvedAspectRatio;
-  }
+  inputPayload.aspect_ratio = resolvedAspectRatio;
+  inputPayload.resolution = resolvedResolution || '1K';
 
   console.log(`📤 [createFrameFromImage] Sending to KIE API:`, {
     imageModel,
@@ -3670,8 +3645,7 @@ export async function createSmartSegmentFrame(
 
   if (usePromptAsIs) {
     const frameDescription = resolveFrameDescription(promptForProvider, frameType);
-    const imageModelKey = resolveAgentFrameModelKey(overrides);
-    const imageModel = IMAGE_MODELS[imageModelKey];
+    const imageModel = NON_AGENT_IMAGE_MODEL;
     const resolvedAspectRatio = overrides?.imageSizeOverride || overrides?.aspectRatioOverride || aspectRatio;
     const characterPhotos = Array.isArray(overrides?.characterPhotoUrls)
       ? overrides.characterPhotoUrls.filter(url => typeof url === 'string' && url.length > 0)
@@ -3713,12 +3687,8 @@ export async function createSmartSegmentFrame(
       google_search: false
     };
 
-    if (imageModelKey === 'nano_banana_pro' || imageModelKey === 'nano_banana_2') {
-      requestInput.aspect_ratio = resolvedAspectRatio;
-      requestInput.resolution = overrides?.resolutionOverride || NON_AGENT_IMAGE_RESOLUTION;
-    } else {
-      requestInput.image_size = resolvedAspectRatio;
-    }
+    requestInput.aspect_ratio = resolvedAspectRatio;
+    requestInput.resolution = overrides?.resolutionOverride || NON_AGENT_IMAGE_RESOLUTION;
 
     const requestPayload = {
       model: imageModel,
@@ -3757,8 +3727,7 @@ export async function createSmartSegmentFrame(
     console.log(`   - Segment ${segmentIndex + 1} ${frameType} frame`);
 
     const frameDescription = resolveFrameDescription(promptForProvider, frameType);
-    const imageModelKey = resolveAgentFrameModelKey(overrides);
-    const imageModel = IMAGE_MODELS[imageModelKey];
+    const imageModel = NON_AGENT_IMAGE_MODEL;
     const isProjectAgentClone = overrides?.workflowSourceOverride === 'project_agent_clone';
     const resolvedAspectRatio = overrides?.imageSizeOverride || overrides?.aspectRatioOverride || aspectRatio;
 
@@ -3820,12 +3789,8 @@ export async function createSmartSegmentFrame(
           output_format: 'png',
           google_search: false
         };
-        if (imageModelKey === 'nano_banana_pro' || imageModelKey === 'nano_banana_2') {
-          input.aspect_ratio = resolvedAspectRatio;
-          input.resolution = overrides?.resolutionOverride || NON_AGENT_IMAGE_RESOLUTION;
-        } else {
-          input.image_size = resolvedAspectRatio;
-        }
+        input.aspect_ratio = resolvedAspectRatio;
+        input.resolution = overrides?.resolutionOverride || NON_AGENT_IMAGE_RESOLUTION;
         return input;
       })(),
       callBackUrl: FRAME_WEBHOOK_URL // Event-driven: Register callback for instant status updates

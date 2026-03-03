@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { uploadImageToStorage } from '@/lib/supabase';
-import { CREDIT_COSTS, IMAGE_MODELS, NON_AGENT_IMAGE_MODEL, getActualImageModel } from '@/lib/constants';
+import { CREDIT_COSTS, NON_AGENT_IMAGE_MODEL } from '@/lib/constants';
 import { validateKieCredits } from '@/lib/kie-credits-check';
 import { deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { AVATAR_ADS_DURATION_OPTIONS } from '@/lib/avatar-ads-dialogue';
@@ -23,7 +23,6 @@ export async function POST(request: NextRequest) {
     // Extract form data
     const userId = formData.get('user_id') as string;
     const videoDurationSeconds = parseInt(formData.get('video_duration_seconds') as string);
-    const imageModel = (formData.get('image_model') as string | null)?.trim() || 'nano_banana_2';
     const imageSize = (formData.get('image_size') as string | null)?.trim() || null;
     const videoModel = formData.get('video_model') as string;
     const customDialogue = (formData.get('custom_dialogue') as string) || '';
@@ -39,7 +38,6 @@ export async function POST(request: NextRequest) {
     console.log('Extracted form data:', {
       userId,
       videoDurationSeconds,
-      imageModel,
       imageSize,
       videoModel,
       videoAspectRatio,
@@ -82,15 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate models
-    const validImageModels = ['auto', 'nano_banana', 'nano_banana_2', 'seedream', 'nano_banana_pro', 'seedream_5_lite'];
     const validVideoModels = ['veo3_fast'];
-
-    if (!validImageModels.includes(imageModel)) {
-      return NextResponse.json(
-        { error: 'Invalid image model' },
-        { status: 400 }
-      );
-    }
 
     if (!validVideoModels.includes(videoModel)) {
       return NextResponse.json(
@@ -227,10 +217,7 @@ export async function POST(request: NextRequest) {
       productImageUrls.push(uploadResult.publicUrl);
     }
 
-    const actualImageModelKey = getActualImageModel(
-      imageModel as 'auto' | 'nano_banana' | 'nano_banana_2' | 'seedream' | 'nano_banana_pro' | 'seedream_5_lite'
-    );
-    const resolvedImageModel = IMAGE_MODELS[actualImageModelKey] ?? NON_AGENT_IMAGE_MODEL;
+    const resolvedImageModel = NON_AGENT_IMAGE_MODEL;
     const resolvedVideoModel = 'veo3_fast' as const;
 
     const sceneUnitSeconds = 8;
