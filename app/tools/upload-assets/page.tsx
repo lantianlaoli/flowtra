@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useClerk, useUser } from "@clerk/nextjs";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Check, Copy, ExternalLink, Image as ImageIcon, Upload, Video } from "lucide-react";
@@ -14,6 +15,8 @@ type UploadResult = {
 };
 
 export default function ToolsPage() {
+  const { isLoaded, isSignedIn } = useUser();
+  const { openSignIn } = useClerk();
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<UploadResult | null>(null);
@@ -24,6 +27,11 @@ export default function ToolsPage() {
   const [imageResult, setImageResult] = useState<UploadResult | null>(null);
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
   const [imageCopied, setImageCopied] = useState(false);
+  const SIGN_IN_REQUIRED_ERROR = "__SIGN_IN_REQUIRED__";
+
+  const promptSignIn = () => {
+    openSignIn({ forceRedirectUrl: "/tools/upload-assets" });
+  };
 
   const uploadToSupabase = async (file: File) => {
     const response = await fetch("/api/tools/upload-url", {
@@ -39,6 +47,10 @@ export default function ToolsPage() {
     });
 
     const data = await response.json();
+    if (response.status === 401) {
+      promptSignIn();
+      throw new Error(SIGN_IN_REQUIRED_ERROR);
+    }
     if (!response.ok) {
       throw new Error(data?.error || "Failed to get upload URL");
     }
@@ -73,6 +85,10 @@ export default function ToolsPage() {
     });
 
     const data = await response.json();
+    if (response.status === 401) {
+      promptSignIn();
+      throw new Error(SIGN_IN_REQUIRED_ERROR);
+    }
     if (!response.ok) {
       throw new Error(data?.error || "Failed to get upload URL");
     }
@@ -110,6 +126,10 @@ export default function ToolsPage() {
       });
 
       const data = await response.json();
+      if (response.status === 401) {
+        promptSignIn();
+        return;
+      }
       if (!response.ok) {
         throw new Error(data?.error || "Upload failed");
       }
@@ -123,6 +143,9 @@ export default function ToolsPage() {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed";
+      if (message === SIGN_IN_REQUIRED_ERROR) {
+        return;
+      }
       setError(message);
     } finally {
       setIsUploading(false);
@@ -132,6 +155,12 @@ export default function ToolsPage() {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      if (!isLoaded || !isSignedIn) {
+        setError(null);
+        promptSignIn();
+        event.target.value = "";
+        return;
+      }
       handleUpload(file);
     }
   };
@@ -160,6 +189,10 @@ export default function ToolsPage() {
       });
 
       const data = await response.json();
+      if (response.status === 401) {
+        promptSignIn();
+        return;
+      }
       if (!response.ok) {
         throw new Error(data?.error || "Upload failed");
       }
@@ -173,6 +206,9 @@ export default function ToolsPage() {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed";
+      if (message === SIGN_IN_REQUIRED_ERROR) {
+        return;
+      }
       setImageError(message);
     } finally {
       setIsImageUploading(false);
@@ -182,6 +218,12 @@ export default function ToolsPage() {
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      if (!isLoaded || !isSignedIn) {
+        setImageError(null);
+        promptSignIn();
+        event.target.value = "";
+        return;
+      }
       handleImageUpload(file);
     }
   };
