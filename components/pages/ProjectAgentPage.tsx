@@ -486,22 +486,41 @@ const mapStatusToClonePhase = (payload: Record<string, unknown>): 'idle' | 'gene
   const segmentStatus = (data.segmentStatus && typeof data.segmentStatus === 'object')
     ? data.segmentStatus as Record<string, unknown>
     : null;
+  const segmentList = Array.isArray(segmentStatus?.segments)
+    ? segmentStatus.segments as Array<Record<string, unknown>>
+    : [];
+  const hasFailedSegment = segmentList.some((segment) => (
+    typeof segment?.status === 'string' && segment.status === 'failed'
+  ));
+  if (hasFailedSegment) return 'failed';
+
   const total = Number(segmentStatus?.total ?? 0);
   const framesReady = Number(segmentStatus?.framesReady ?? 0);
   const videosReady = Number(segmentStatus?.videosReady ?? 0);
-  const videoGenerationRequested = Boolean(data.videoGenerationRequested);
+  const hasInFlightVideoGeneration = segmentList.some((segment) => (
+    typeof segment?.status === 'string' && segment.status === 'generating_video'
+  ));
 
   if (
-    step === 'generating_segment_videos' ||
-    step === 'ready_for_video' ||
     step === 'generating_video' ||
-    videosReady > 0 ||
-    videoGenerationRequested
+    hasInFlightVideoGeneration
   ) {
     return 'generating_videos';
   }
 
+  if (step === 'generating_segment_videos') {
+    // If no segment-level in-flight video status exists, prefer the actual segment snapshot
+    // instead of keeping a stale project-level "generating" step.
+    if (hasInFlightVideoGeneration || total === 0) {
+      return 'generating_videos';
+    }
+  }
+
   if (total > 0 && framesReady === total && videosReady < total) {
+    return 'reviewing_frames';
+  }
+
+  if (step === 'ready_for_video' && total > 0) {
     return 'reviewing_frames';
   }
 
@@ -588,6 +607,26 @@ const shouldKeepLocalCloneExecution = (
     return false;
   }
 
+  // If server reports an explicit failure for a segment that was previously pending/in-progress
+  // locally, always accept incoming so the UI surfaces the real error immediately.
+  const incomingHasExplicitFailure = (incomingExecution.segments || []).some((segment) => {
+    const incomingStatus = segment.status || '';
+    if (incomingStatus !== 'failed') return false;
+    const localSegment = localByIndex.get(segment.segmentIndex);
+    if (!localSegment) return true;
+    const localStatus = localSegment.status || '';
+    return (
+      localStatus === 'queued' ||
+      localStatus === 'pending_first_frame' ||
+      localStatus === 'awaiting_prev_first_frame' ||
+      localStatus === 'generating_first_frame' ||
+      localStatus === 'generating_video'
+    );
+  });
+  if (incomingHasExplicitFailure) {
+    return false;
+  }
+
   const localPhase = clonePhaseRank(localExecution.phase);
   const incomingPhase = clonePhaseRank(incomingExecution.phase);
 
@@ -604,7 +643,9 @@ const shouldKeepLocalCloneExecution = (
         Boolean(segment.videoUrl)
       ))
     );
-    if (!incomingHasVideoSignal) {
+    // Only keep local state if the incoming snapshot is clearly incomplete.
+    const incomingHasSegments = (incomingExecution.segments?.length ?? 0) > 0;
+    if (!incomingHasVideoSignal && !incomingHasSegments) {
       return true;
     }
   }
@@ -2332,7 +2373,8 @@ export default function ProjectAgentPage() {
           localExecution?.phase === 'generating_videos' &&
           mergedExecution &&
           (mergedExecution.phase === 'generating_frames' || mergedExecution.phase === 'reviewing_frames') &&
-          !hasVideoSignal
+          !hasVideoSignal &&
+          (mergedExecution.segments?.length ?? 0) === 0
         );
 
         return {

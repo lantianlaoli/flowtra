@@ -72,6 +72,13 @@ const WEBHOOK_BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://flowtra.ai
 const FRAME_WEBHOOK_URL = `${WEBHOOK_BASE_URL}/api/competitor-ugc-replication/webhooks/frame`;
 const VIDEO_WEBHOOK_URL = `${WEBHOOK_BASE_URL}/api/competitor-ugc-replication/webhooks/video`;
 
+function buildSegmentVideoWebhookUrl(projectId: string, segmentIndex: number): string {
+  const url = new URL(VIDEO_WEBHOOK_URL);
+  url.searchParams.set('projectId', projectId);
+  url.searchParams.set('segmentIndex', String(segmentIndex));
+  return url.toString();
+}
+
 export interface StartWorkflowRequest {
   imageUrl?: string;
   competitorAdId?: string; // NEW: Competitor ad reference for creative direction
@@ -3990,7 +3997,7 @@ export async function startSegmentVideoTask(
     generateVoiceover: true,
     includeDialogue: true,
     enableTranslation: false,
-    callBackUrl: VIDEO_WEBHOOK_URL
+    callBackUrl: buildSegmentVideoWebhookUrl(project.id, segmentIndex)
   };
 
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/veo/generate', {
@@ -4624,7 +4631,7 @@ async function startSegmentVideoTaskKling(
 
   const requestBody: Record<string, unknown> = {
     model: 'kling-3.0/video',
-    callBackUrl: VIDEO_WEBHOOK_URL,
+    callBackUrl: buildSegmentVideoWebhookUrl(project.id, segmentIndex),
     input: {
       mode: 'pro',
       image_urls: imageUrls,
@@ -4821,7 +4828,7 @@ async function startSegmentVideoTaskSeedance(
       fixed_lens: false, // Allow dynamic camera movement
       generate_audio: true // Enable audio generation
     },
-    callBackUrl: VIDEO_WEBHOOK_URL
+    callBackUrl: buildSegmentVideoWebhookUrl(project.id, segmentIndex)
   };
 
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {

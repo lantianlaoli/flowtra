@@ -568,6 +568,8 @@ export default function CloneSceneWorkspaceStep({
                               value={scene.imagePrompt}
                               rows={5}
                               resizable="vertical"
+                              allowWrappedMentions
+                              preventHorizontalScroll
                               className={promptUi.fieldInput}
                               onChange={(next) => updateLocalScenes((current) => (
                                 current.map((item) => (
@@ -611,12 +613,14 @@ export default function CloneSceneWorkspaceStep({
                                       >
                                         <div className="grid gap-2 md:grid-cols-2">
                                           {CLONE_PROMPT_SHOT_FIELDS.map((field) => (
-                                            <div key={`${scene.sceneIndex}-${shot.id}-${field.key}`}>
+                                            <div key={`${scene.sceneIndex}-${shot.id}-${field.key}`} className="min-w-0">
                                               <PromptFieldLabel icon={field.icon}>{field.label}</PromptFieldLabel>
                                               <PromptMentionTextarea
                                                 value={String(shot[field.key] ?? '')}
                                                 rows={2}
                                                 resizable="vertical"
+                                                allowWrappedMentions
+                                                preventHorizontalScroll
                                                 className={promptUi.shotFieldInput}
                                                 onChange={(next) => updateLocalScenes((current) => (
                                                   current.map((item) => {

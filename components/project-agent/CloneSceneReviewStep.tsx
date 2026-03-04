@@ -436,6 +436,8 @@ export default function CloneSceneReviewStep({
                       value={prompt.first_frame_description}
                       rows={5}
                       resizable="vertical"
+                      allowWrappedMentions
+                      preventHorizontalScroll
                       className={promptUi.fieldInput}
                       onChange={(next) => updatePrompt(segment.segmentIndex, (current) => ({ ...current, first_frame_description: next }))}
                       characterMentions={characterMentions}
@@ -475,12 +477,14 @@ export default function CloneSceneReviewStep({
                                   >
                                     <div className="grid gap-2 md:grid-cols-2">
                                       {CLONE_PROMPT_SHOT_FIELDS.map((field) => (
-                                        <div key={`${segment.segmentIndex}-${shot.id}-${field.key}`}>
+                                        <div key={`${segment.segmentIndex}-${shot.id}-${field.key}`} className="min-w-0">
                                           <PromptFieldLabel icon={field.icon}>{field.label}</PromptFieldLabel>
                                           <PromptMentionTextarea
                                             value={String(shot[field.key] ?? '')}
                                             rows={2}
                                             resizable="vertical"
+                                            allowWrappedMentions
+                                            preventHorizontalScroll
                                             className={promptUi.shotFieldInput}
                                             onChange={(next) => updatePrompt(segment.segmentIndex, (current) => ({
                                               ...current,
