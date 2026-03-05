@@ -207,6 +207,7 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
               <LayoutGroup id="sidebar-nav">
                 {navigation.map((item) => {
                   const isActive = pathname === item.href;
+                  const isAgentEntry = item.href === '/dashboard/agent';
                   return (
                     <SidebarMenuItem key={item.name}>
                       <SidebarMenuButton
@@ -253,14 +254,31 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
                             )}
                           />
                           {!isCollapsed && (
-                            <span
-                              className={cn(
-                                "relative z-10",
-                                isActive ? (isDarkMode ? "text-sidebar-foreground" : "text-accent-foreground") : ""
-                              )}
-                            >
-                              {item.name}
-                            </span>
+                            <div className="relative z-10 inline-flex items-center gap-2">
+                              <span
+                                className={cn(
+                                  isActive ? (isDarkMode ? "text-sidebar-foreground" : "text-accent-foreground") : ""
+                                )}
+                              >
+                                {item.name}
+                              </span>
+                              {isAgentEntry ? (
+                                <span
+                                  className={cn(
+                                    "rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide leading-none",
+                                    isActive
+                                      ? (isDarkMode
+                                        ? "border-sidebar-foreground/30 bg-sidebar-foreground/10 text-sidebar-foreground"
+                                        : "border-accent-foreground/30 bg-accent-foreground/10 text-accent-foreground")
+                                      : (isDarkMode
+                                        ? "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80"
+                                        : "border-border bg-muted text-muted-foreground")
+                                  )}
+                                >
+                                  Beta
+                                </span>
+                              ) : null}
+                            </div>
                           )}
                         </Link>
                       </SidebarMenuButton>
@@ -378,6 +396,7 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
           <LayoutGroup id="sidebar-nav-mobile">
             {navigation.map((item) => {
               const isActive = pathname === item.href;
+              const isAgentEntry = item.href === '/dashboard/agent';
               return (
                 <Link
                   key={item.name}
@@ -417,14 +436,31 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
                         : (isDarkMode ? "text-sidebar-foreground/70" : "text-muted-foreground")
                     )}
                   />
-                  <span
-                    className={cn(
-                      "relative z-10",
-                      isActive ? (isDarkMode ? "text-sidebar-foreground" : "text-accent-foreground") : ""
-                    )}
-                  >
-                    {item.name}
-                  </span>
+                  <div className="relative z-10 inline-flex items-center gap-2">
+                    <span
+                      className={cn(
+                        isActive ? (isDarkMode ? "text-sidebar-foreground" : "text-accent-foreground") : ""
+                      )}
+                    >
+                      {item.name}
+                    </span>
+                    {isAgentEntry ? (
+                      <span
+                        className={cn(
+                          "rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide leading-none",
+                          isActive
+                            ? (isDarkMode
+                              ? "border-sidebar-foreground/30 bg-sidebar-foreground/10 text-sidebar-foreground"
+                              : "border-accent-foreground/30 bg-accent-foreground/10 text-accent-foreground")
+                            : (isDarkMode
+                              ? "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80"
+                              : "border-border bg-muted text-muted-foreground")
+                        )}
+                      >
+                        Beta
+                      </span>
+                    ) : null}
+                  </div>
                 </Link>
               );
             })}

@@ -24,6 +24,10 @@ import CloneSceneWorkspaceStep, {
   type WorkspaceScene
 } from '@/components/project-agent/CloneSceneWorkspaceStep';
 import { useCredits } from '@/contexts/CreditsContext';
+import {
+  requestNotificationPermissionIfNeeded,
+  sendBrowserNotification
+} from '@/lib/browser-notifications';
 import { createClient } from '@/lib/supabase/client';
 import { type VideoModel } from '@/lib/constants';
 import {
@@ -248,9 +252,9 @@ const buildInterruptedAssistantReply = (latestUserText: string, state: SessionSt
 
   if (isSceneScopedVideoStartCommand(raw)) {
     if (hasVideoSignal) {
-      return 'Video generation has already started for this clone project. Flowtra currently renders scene videos through the project-level video pass, and you can still ask me to regenerate a specific scene video afterward.';
+      return 'Video generation has already started for this clone project. Flowgen currently renders scene videos through the project-level video pass, and you can still ask me to regenerate a specific scene video afterward.';
     }
-    return 'I understood this as a scene-video request. Flowtra currently starts video generation for the whole clone project, or regenerates one specific scene video after review. Say "start video generation" to render all scenes, or "regenerate scene 1 video" to redo one scene.';
+    return 'I understood this as a scene-video request. Flowgen currently starts video generation for the whole clone project, or regenerates one specific scene video after review. Say "start video generation" to render all scenes, or "regenerate scene 1 video" to redo one scene.';
   }
 
   if (isStartVideoGenerationCommand(raw)) {
@@ -548,6 +552,16 @@ const clonePhaseRank = (phase?: SessionState['cloneExecution'] extends { phase: 
   }
 };
 
+const shouldNotifyClonePhaseTransition = (
+  previous: SessionState['cloneExecution'] extends { phase: infer P } ? P : string | undefined,
+  next: SessionState['cloneExecution'] extends { phase: infer P } ? P : string | undefined
+) => {
+  if (!next || previous === next) return false;
+  if (next === 'completed' || next === 'failed') return true;
+  if (!previous) return true;
+  return clonePhaseRank(next) > clonePhaseRank(previous);
+};
+
 const cloneExecutionSignalScore = (execution?: SessionState['cloneExecution'] | null) => {
   if (!execution?.segments?.length) return 0;
   const segmentScore = execution.segments.reduce((acc, segment) => {
@@ -771,6 +785,9 @@ export default function ProjectAgentPage() {
   const pendingCloneSelectionPersistRef = useRef<Promise<void> | null>(null);
   const latestCloneDraftRef = useRef<ClonePromptDraft | null>(null);
   const pendingCloneDraftPersistRef = useRef<Promise<void> | null>(null);
+  const prevAvatarStepRef = useRef<string | null>(null);
+  const prevClonePhaseRef = useRef<SessionState['cloneExecution'] extends { phase: infer P } ? P : string | null>(null);
+  const notificationPermissionRequestedRef = useRef(false);
 
   const ensureHistoryTracked = useCallback((id: string, options?: { prependIfNew?: boolean }) => {
     const ids = readHistoryIds();
@@ -957,6 +974,27 @@ export default function ProjectAgentPage() {
     }
   }, [sendMessage]);
 
+  const requestBrowserNotificationPermissionOnce = useCallback(() => {
+    if (notificationPermissionRequestedRef.current) return;
+    notificationPermissionRequestedRef.current = true;
+    void requestNotificationPermissionIfNeeded();
+  }, []);
+
+  const maybeRequestNotificationPermissionOnUserAction = useCallback((text: string) => {
+    const normalized = text.trim().toLowerCase();
+    if (!normalized) return;
+
+    const likelyGenerationStart = (
+      normalized === 'generate this clone now.' ||
+      isStartVideoGenerationCommand(text) ||
+      /\b(generate|start|render|create)\b[\s\w-]{0,24}\b(image|images|video|videos)\b/.test(normalized)
+    );
+
+    if (likelyGenerationStart) {
+      requestBrowserNotificationPermissionOnce();
+    }
+  }, [requestBrowserNotificationPermissionOnce]);
+
 
   const fetchSession = useCallback(async () => {
     if (!sessionId) return;
@@ -1034,7 +1072,7 @@ export default function ProjectAgentPage() {
 
   useEffect(() => {
     if (!error) return;
-    setStatusNote(error.message || 'Flowtra hit an error. Please retry.');
+    setStatusNote(error.message || 'Flowgen hit an error. Please retry.');
   }, [error]);
 
   useEffect(() => {
@@ -1046,6 +1084,107 @@ export default function ProjectAgentPage() {
       setStatusNote('');
     }
   }, [status, error]);
+
+  useEffect(() => {
+    prevAvatarStepRef.current = null;
+    prevClonePhaseRef.current = null;
+    notificationPermissionRequestedRef.current = false;
+  }, [sessionId]);
+
+  useEffect(() => {
+    const nextStep = sessionState?.step ?? null;
+    if (!nextStep) return;
+
+    const previousStep = prevAvatarStepRef.current;
+    if (previousStep === nextStep) return;
+
+    if (
+      !notificationPermissionRequestedRef.current &&
+      (nextStep === 'generating_image' || nextStep === 'generating_videos')
+    ) {
+      requestBrowserNotificationPermissionOnce();
+    }
+
+    if (nextStep === 'generating_image') {
+      sendBrowserNotification({
+        title: 'Image generation started',
+        body: 'Flowgen: Avatar Ads',
+        tag: 'agent-avatar-image-start'
+      });
+    } else if (nextStep === 'generating_videos') {
+      sendBrowserNotification({
+        title: 'Video generation started',
+        body: 'Flowgen: Avatar Ads',
+        tag: 'agent-avatar-video-start'
+      });
+    } else if (nextStep === 'completed') {
+      sendBrowserNotification({
+        title: 'Your video is ready',
+        body: 'Flowgen: Avatar Ads',
+        tag: 'agent-avatar-completed'
+      });
+    } else if (nextStep === 'failed') {
+      sendBrowserNotification({
+        title: 'Generation failed',
+        body: 'Flowgen: Avatar Ads',
+        tag: 'agent-avatar-failed'
+      });
+    }
+
+    prevAvatarStepRef.current = nextStep;
+  }, [requestBrowserNotificationPermissionOnce, sessionState?.step]);
+
+  useEffect(() => {
+    const nextPhase = sessionState?.cloneExecution?.phase ?? null;
+    if (!nextPhase) return;
+
+    const previousPhase = prevClonePhaseRef.current;
+    if (!shouldNotifyClonePhaseTransition(previousPhase ?? undefined, nextPhase)) {
+      prevClonePhaseRef.current = nextPhase;
+      return;
+    }
+
+    if (
+      !notificationPermissionRequestedRef.current &&
+      (nextPhase === 'generating_frames' || nextPhase === 'generating_videos' || nextPhase === 'merging')
+    ) {
+      requestBrowserNotificationPermissionOnce();
+    }
+
+    if (nextPhase === 'generating_frames') {
+      sendBrowserNotification({
+        title: 'Image generation started',
+        body: 'Flowgen: Clone Workflow',
+        tag: 'agent-clone-frames-start'
+      });
+    } else if (nextPhase === 'generating_videos') {
+      sendBrowserNotification({
+        title: 'Video generation started',
+        body: 'Flowgen: Clone Workflow',
+        tag: 'agent-clone-videos-start'
+      });
+    } else if (nextPhase === 'merging') {
+      sendBrowserNotification({
+        title: 'Video generation started',
+        body: 'Flowgen: Clone Workflow',
+        tag: 'agent-clone-merging'
+      });
+    } else if (nextPhase === 'completed') {
+      sendBrowserNotification({
+        title: 'Your video is ready',
+        body: 'Flowgen: Clone Workflow',
+        tag: 'agent-clone-completed'
+      });
+    } else if (nextPhase === 'failed') {
+      sendBrowserNotification({
+        title: 'Generation failed',
+        body: 'Flowgen: Clone Workflow',
+        tag: 'agent-clone-failed'
+      });
+    }
+
+    prevClonePhaseRef.current = nextPhase;
+  }, [requestBrowserNotificationPermissionOnce, sessionState?.cloneExecution?.phase]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -1165,6 +1304,7 @@ export default function ProjectAgentPage() {
     ensureHistoryTracked(sessionId);
     setPendingUserText(next);
     setPendingBaselineCount(messages.length);
+    maybeRequestNotificationPermissionOnUserAction(next);
     const sent = await sendMessageSafely(next);
     if (!sent) {
       setPendingUserText(null);
@@ -1177,6 +1317,7 @@ export default function ProjectAgentPage() {
     draft,
     ensureHistoryTracked,
     messages.length,
+    maybeRequestNotificationPermissionOnUserAction,
     sendMessageSafely,
     sendLocked,
     sessionId,
@@ -1226,6 +1367,7 @@ export default function ProjectAgentPage() {
     setRetryableUserMessageId(null);
     setPendingUserText(retryText);
     setPendingBaselineCount(visibleMessages.length);
+    maybeRequestNotificationPermissionOnUserAction(retryText);
 
     const sent = await sendMessageSafely(retryText);
     if (!sent) {
@@ -1237,7 +1379,7 @@ export default function ProjectAgentPage() {
     }
 
     return true;
-  }, [clearError, isStreaming, messages, sendMessageSafely, sessionState?.cloneExecution, setMessages]);
+  }, [clearError, isStreaming, messages, maybeRequestNotificationPermissionOnUserAction, sendMessageSafely, sessionState?.cloneExecution, setMessages]);
 
   const handleRetryLatestUserMessage = useCallback(() => {
     void retryLastUserMessage();
@@ -2856,7 +2998,7 @@ export default function ProjectAgentPage() {
               </div>
             </section>
 
-            <section className="h-full min-h-0 rounded-xl border border-[#e6e6e4] bg-[#fbfbfa] flex flex-col">
+            <section className="flowgen-chat-font h-full min-h-0 rounded-xl border border-[#e6e6e4] bg-[#fbfbfa] flex flex-col">
               <div className="relative flex items-center justify-between px-4 py-3 border-b border-[#e6e6e4]">
                 <div className="flex min-w-0 items-center gap-2 text-[#1f1f1e]">
                   <MessageCircle className="w-4 h-4" />
@@ -3024,7 +3166,7 @@ export default function ProjectAgentPage() {
                   <input
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
-                    placeholder="Ask Flowtra what to build next..."
+                    placeholder="Ask Flowgen what to make viral next..."
                     className="flex-1 min-h-11 rounded-xl border border-[#d9d9d7] bg-white px-4 text-sm text-[#1f1f1e] placeholder:text-[#9b9b98] focus:outline-none focus:ring-2 focus:ring-black disabled:opacity-50"
                     disabled={!isReady || awaitingAssistantTurn}
                   />

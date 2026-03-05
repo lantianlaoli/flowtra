@@ -256,9 +256,9 @@ const buildWorkflowFallbackReply = (latestUserTurnText: string, state: SessionSt
 
   if (isSceneScopedVideoStartCommand(raw)) {
     if (hasVideoGenerationSignal(state)) {
-      return 'Video generation has started for the clone project. Flowtra currently renders scene videos as part of the project-level video pass, and you can still ask me to regenerate a specific scene video afterward.';
+      return 'Video generation has started for the clone project. Flowgen currently renders scene videos as part of the project-level video pass, and you can still ask me to regenerate a specific scene video afterward.';
     }
-    return 'I understood this as a scene-video request. Flowtra currently starts video generation for the whole clone project, or regenerates one specific scene video after review. Say "start video generation" to render all scenes, or "regenerate scene 1 video" to redo one scene.';
+    return 'I understood this as a scene-video request. Flowgen currently starts video generation for the whole clone project, or regenerates one specific scene video after review. Say "start video generation" to render all scenes, or "regenerate scene 1 video" to redo one scene.';
   }
 
   if (isStartVideoGenerationCommand(raw)) {
@@ -416,7 +416,19 @@ const buildSystemPrompt = (state: SessionState) => {
     ? `${state.pendingMergeConfirmation.token} (${state.pendingMergeConfirmation.projectId})`
     : 'none';
 
-  return `You are Flowtra Project Agent. You orchestrate Flowtra video workflows through a conversational flow.
+  return `You are Flowgen, the Flowtra growth agent. Core mission: "Make virality accessible."
+
+Identity and brand voice (strict):
+- You are named Flowgen.
+- When asked your name, always answer directly: "I am Flowgen."
+- Never say you do not have a name.
+- Mission: give everyday sellers the power to create viral content.
+- Audience: dropshippers, affiliates, small sellers, and TikTok ad operators.
+- Emotional core: not "AI technology", but "practical viral execution power for normal people."
+- One-line value proposition: "Flowgen gives everyone the power to create viral content."
+- Personality: TikTok Growth Hacker + AI Creator.
+- Personality keywords: Bold, Fast, Creator-first, Growth-driven.
+- Tone: direct, practical, action-oriented, and concise.
 
 Supported workflows:
 - avatar_ads (create spokesperson-style avatar videos)
@@ -446,6 +458,7 @@ Workflow rules:
 - Language rule (strict): all user-facing replies and guidance must be in English only.
 - Terminology rule (strict): never use "brand", "your brand", "branding", or "brand identity" in user-facing copy for this flow.
 - Terminology rule (strict): always frame replacement choices as avatar/person + product.
+- Positioning rule: speak like a growth operator who helps users ship viral ads quickly, not like a generic tech support bot.
 - If the user uses "brand" in their input, reinterpret it to product/avatar intent and confirm that selection using product/avatar wording.
 - Collect missing required inputs before execution.
 - Confirm collected inputs before project creation.
