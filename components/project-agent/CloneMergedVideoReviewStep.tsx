@@ -136,6 +136,8 @@ export default function CloneMergedVideoReviewStep({
                       onChange={() => undefined}
                       readOnly
                       rows={3}
+                      allowWrappedMentions
+                      preventHorizontalScroll
                       className={promptUi.fieldInput}
                       characterMentions={characterMentions}
                       productMentions={productMentions}
@@ -173,13 +175,15 @@ export default function CloneMergedVideoReviewStep({
                               >
                                 <div className="mt-2 grid gap-2 md:grid-cols-2">
                                   {CLONE_PROMPT_SHOT_FIELDS.map((field) => (
-                                    <div key={`${segment.segmentIndex}-${shot.id}-${field.key}`}>
+                                    <div key={`${segment.segmentIndex}-${shot.id}-${field.key}`} className="min-w-0">
                                       <PromptFieldLabel icon={field.icon}>{field.label}</PromptFieldLabel>
                                       <PromptMentionTextarea
                                         value={String(shot[field.key] ?? '')}
                                         onChange={() => undefined}
                                         readOnly
                                         rows={2}
+                                        allowWrappedMentions
+                                        preventHorizontalScroll
                                         className={promptUi.fieldInput}
                                         characterMentions={characterMentions}
                                         productMentions={productMentions}

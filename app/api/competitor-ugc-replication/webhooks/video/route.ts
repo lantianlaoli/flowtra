@@ -62,6 +62,21 @@ interface KIEVideoWebhookPayload {
   };
 }
 
+function parseFallbackSegmentLocator(request: NextRequest): { projectId: string | null; segmentIndex: number | null } {
+  const rawProjectId = request.nextUrl.searchParams.get('projectId');
+  const rawSegmentIndex = request.nextUrl.searchParams.get('segmentIndex');
+  const projectId = typeof rawProjectId === 'string' && rawProjectId.trim().length > 0
+    ? rawProjectId.trim()
+    : null;
+  const parsedSegmentIndex = typeof rawSegmentIndex === 'string' && rawSegmentIndex.trim().length > 0
+    ? Number(rawSegmentIndex)
+    : NaN;
+  const segmentIndex = Number.isFinite(parsedSegmentIndex) && parsedSegmentIndex >= 0
+    ? parsedSegmentIndex
+    : null;
+  return { projectId, segmentIndex };
+}
+
 /**
  * POST /api/competitor-ugc-replication/webhooks/video
  *
@@ -80,21 +95,75 @@ export async function POST(request: NextRequest) {
   try {
     const payload: KIEVideoWebhookPayload = await request.json();
     const { code, msg, data } = payload;
-    const { taskId, info, fallbackFlag, resultJson } = data;
+    const { taskId, info, fallbackFlag, resultJson, state, failCode, failMsg } = data;
+    const normalizedTaskId = typeof taskId === 'string' ? taskId.trim() : '';
+    const fallbackLocator = parseFallbackSegmentLocator(request);
+    const webhookState = typeof state === 'string' ? state.toLowerCase() : '';
 
-    console.log('[UGC Video Webhook] Received:', { taskId, code });
+    console.log('[UGC Video Webhook] Received:', {
+      taskId: normalizedTaskId || taskId,
+      code,
+      state: webhookState || 'unknown',
+      fallbackProjectId: fallbackLocator.projectId,
+      fallbackSegmentIndex: fallbackLocator.segmentIndex
+    });
 
     // Security validation: Check if taskId exists in database (segment-level)
     const supabase = getSupabaseAdmin();
-    const { data: segment, error: segmentError } = await supabase
+    let segment: {
+      id: string;
+      project_id: string;
+      segment_index: number;
+      status: string | null;
+      video_webhook_received_at: string | null;
+      first_frame_url: string | null;
+      closing_frame_url: string | null;
+      prompt: SegmentPrompt | null;
+      retry_count: number | null;
+      video_task_id?: string | null;
+    } | null = null;
+
+    const { data: segmentByTaskId, error: segmentError } = await supabase
       .from('competitor_ugc_replication_segments')
-      .select('id, project_id, segment_index, status, video_webhook_received_at, first_frame_url, closing_frame_url, prompt, retry_count')
-      .eq('video_task_id', taskId)
+      .select('id, project_id, segment_index, status, video_webhook_received_at, first_frame_url, closing_frame_url, prompt, retry_count, video_task_id')
+      .eq('video_task_id', normalizedTaskId)
       .single();
+    segment = segmentByTaskId;
 
     if (segmentError || !segment) {
-      console.warn('[UGC Video Webhook] Task not found:', taskId);
-      // Return 200 to prevent KIE retries for invalid taskId
+      if (fallbackLocator.projectId && fallbackLocator.segmentIndex !== null) {
+        const { data: fallbackSegment, error: fallbackError } = await supabase
+          .from('competitor_ugc_replication_segments')
+          .select('id, project_id, segment_index, status, video_webhook_received_at, first_frame_url, closing_frame_url, prompt, retry_count, video_task_id')
+          .eq('project_id', fallbackLocator.projectId)
+          .eq('segment_index', fallbackLocator.segmentIndex)
+          .single();
+
+        if (!fallbackError && fallbackSegment) {
+          if (fallbackSegment.video_task_id && fallbackSegment.video_task_id !== normalizedTaskId) {
+            console.warn('[UGC Video Webhook] Stale task callback ignored:', {
+              taskId: normalizedTaskId,
+              expectedTaskId: fallbackSegment.video_task_id,
+              projectId: fallbackLocator.projectId,
+              segmentIndex: fallbackLocator.segmentIndex
+            });
+            return NextResponse.json({ success: true, message: 'Stale callback ignored' }, { status: 200 });
+          }
+          segment = fallbackSegment;
+          console.log('[UGC Video Webhook] Resolved segment via fallback locator:', {
+            projectId: fallbackSegment.project_id,
+            segmentIndex: fallbackSegment.segment_index
+          });
+        }
+      }
+    }
+
+    if (!segment) {
+      console.warn('[UGC Video Webhook] Task not found:', {
+        taskId: normalizedTaskId,
+        fallbackProjectId: fallbackLocator.projectId,
+        fallbackSegmentIndex: fallbackLocator.segmentIndex
+      });
       return NextResponse.json(
         { success: false, error: 'Task not found' },
         { status: 200 }
@@ -130,7 +199,19 @@ export async function POST(request: NextRequest) {
 
     // Update segment based on webhook status
     // Success: code 200 and video URL present (works for both formats)
-    if (code === 200 && videoUrl) {
+    const isSuccess = code === 200 && webhookState !== 'fail' && Boolean(videoUrl);
+    const shouldTreatAsFailure = webhookState === 'fail' || (
+      webhookState !== 'waiting' && (
+        code === 400 ||
+        code === 422 ||
+        code === 500 ||
+        code === 501 ||
+        code === 503 ||
+        (code === 200 && !videoUrl)
+      )
+    );
+
+    if (isSuccess) {
       // Success case: Update segment with video URL
       const { error: updateError } = await supabase
         .from('competitor_ugc_replication_segments')
@@ -302,11 +383,15 @@ export async function POST(request: NextRequest) {
         }
       }
 
-    } else if (code === 400 || code === 422 || code === 500 || code === 501 || code === 503) {
+    } else if (shouldTreatAsFailure) {
       // Failure case
+      const failureMessage = failMsg || msg || (code === 200 ? 'Video generation failed with empty result' : 'Video generation failed');
+      const failureCode = failCode || String(code);
       console.error('[UGC Video Webhook] Video generation failed for segment', segment.segment_index, {
         code,
-        msg
+        state: webhookState || null,
+        msg: failureMessage,
+        failCode
       });
 
       // Determine if error is retryable (server errors only)
@@ -381,8 +466,8 @@ export async function POST(request: NextRequest) {
         }
       } else {
         const errorMessage = currentRetryCount >= MAX_RETRIES
-          ? `Video generation failed after ${MAX_RETRIES} retries: ${msg}`
-          : `Video generation failed (non-retryable): ${msg}`;
+          ? `Video generation failed after ${MAX_RETRIES} retries [provider_code=${failureCode}]: ${failureMessage}`
+          : `Video generation failed (non-retryable) [provider_code=${failureCode}]: ${failureMessage}`;
 
         const { error: updateError } = await supabase
           .from('competitor_ugc_replication_segments')

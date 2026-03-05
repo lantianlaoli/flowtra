@@ -46,6 +46,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     let segments: Array<{
       index: number;
       status: string;
+      firstFrameTaskId: string | null;
       firstFrameUrl: string | null;
       closingFrameUrl: string | null;
       videoUrl: string | null;
@@ -58,11 +59,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const perSegmentDuration = record.segment_duration_seconds || getSegmentDurationForModel(recordModel);
 
     if (record.is_segmented) {
-      // Schema verified via Supabase MCP (2026-01-29): competitor_ugc_replication_segments columns include
-      // segment_index, status, first_frame_url, closing_frame_url, video_url, prompt, updated_at, error_message.
+      // Schema verified via Supabase MCP (2026-03-03): competitor_ugc_replication_segments columns include
+      // segment_index, status, first_frame_task_id, first_frame_url, closing_frame_url,
+      // video_url, prompt, updated_at, error_message.
       const { data: segmentRows, error: segmentError } = await supabase
         .from('competitor_ugc_replication_segments')
-        .select('segment_index,status,first_frame_url,closing_frame_url,video_url,video_task_id,prompt,updated_at,error_message')
+        .select('segment_index,status,first_frame_task_id,first_frame_url,closing_frame_url,video_url,video_task_id,prompt,updated_at,error_message')
         .eq('project_id', record.id)
         .order('segment_index', { ascending: true });
 
@@ -72,6 +74,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         segments = segmentRows.map(row => ({
           index: row.segment_index,
           status: row.status,
+          firstFrameTaskId: row.first_frame_task_id,
           firstFrameUrl: row.first_frame_url,
           closingFrameUrl: row.closing_frame_url,
           videoUrl: row.video_url,
@@ -167,6 +170,7 @@ function buildSegmentStatusFallback(
   segments: Array<{
     index: number;
     status: string;
+    firstFrameTaskId: string | null;
     firstFrameUrl: string | null;
     closingFrameUrl: string | null;
     videoUrl: string | null;
@@ -186,6 +190,7 @@ function buildSegmentStatusFallback(
     segments: segments.map(seg => ({
       index: seg.index,
       status: seg.status,
+      firstFrameTaskId: seg.firstFrameTaskId,
       firstFrameUrl: seg.firstFrameUrl,
       closingFrameUrl: seg.closingFrameUrl,
       videoUrl: seg.videoUrl,

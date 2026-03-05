@@ -334,8 +334,8 @@ export default function ClonePromptDraftStep({
   const [openShots, setOpenShots] = useState<Record<string, boolean>>({});
   const prefersReducedMotion = useReducedMotion();
   const mentionPropsForAllFields = enablePromptMentions
-    ? { characterMentions, productMentions }
-    : { characterMentions: [], productMentions: [] };
+    ? { characterMentions, productMentions, allowWrappedMentions: true, preventHorizontalScroll: true }
+    : { characterMentions: [], productMentions: [], allowWrappedMentions: true, preventHorizontalScroll: true };
   const sanitizeScenesForModel = useMemo(() => (
     (scenes: CloneDraftScene[]) => {
       return scenes.map((scene) => ({
@@ -544,7 +544,10 @@ export default function ClonePromptDraftStep({
                           <PromptMentionTextarea
                             value={scene.imagePrompt}
                             onChange={(next) => updateSceneImage(scene.sceneIndex, next)}
-                            rows={3}
+                            rows={5}
+                            resizable="vertical"
+                            allowWrappedMentions
+                            preventHorizontalScroll
                             className={promptUi.fieldInput}
                             characterMentions={characterMentions}
                             productMentions={productMentions}

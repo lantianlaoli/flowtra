@@ -22,6 +22,8 @@ type PromptMentionTextareaProps = {
   placeholder?: string;
   rows?: number;
   resizable?: 'none' | 'vertical';
+  allowWrappedMentions?: boolean;
+  preventHorizontalScroll?: boolean;
   disabled?: boolean;
   readOnly?: boolean;
   hasError?: boolean;
@@ -44,6 +46,8 @@ export default function PromptMentionTextarea({
   placeholder,
   rows = 6,
   resizable = 'none',
+  allowWrappedMentions = false,
+  preventHorizontalScroll = false,
   disabled,
   readOnly,
   hasError,
@@ -446,14 +450,17 @@ export default function PromptMentionTextarea({
           <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden rounded-[inherit]" aria-hidden="true">
             <div
               ref={overlayRef}
-              className="prompt-mention-overlay h-full overflow-auto whitespace-pre-wrap break-words px-3 py-2 text-sm leading-6 text-[#1f1f1e]"
+              className={clsx(
+                'prompt-mention-overlay h-full whitespace-pre-wrap break-words px-3 py-2 text-sm leading-6 text-[#1f1f1e] [overflow-wrap:anywhere]',
+                preventHorizontalScroll ? 'overflow-x-hidden overflow-y-auto' : 'overflow-auto'
+              )}
             >
               {Array.isArray(highlightedContent)
                 ? highlightedContent.map((segment, index) =>
                     segment.highlighted ? (
                       <span
                         key={`${segment.text}-${index}`}
-                        className="inline-flex items-center align-baseline"
+                        className="inline-flex max-w-full items-start align-baseline"
                       >
                         {(() => {
                           const trailingMatch = segment.text.match(/\s+$/);
@@ -472,7 +479,10 @@ export default function PromptMentionTextarea({
                           return (
                             <>
                               <span
-                                className="prompt-mention-token inline-flex items-center gap-1.5 overflow-hidden rounded-xl bg-[#eef2f7] px-2 py-0.5 text-[#1f1f1e] ring-1 ring-inset ring-[#d4dbe6]"
+                                className={clsx(
+                                  'prompt-mention-token inline-flex max-w-full gap-1.5 rounded-xl bg-[#eef2f7] px-2 py-0.5 text-[#1f1f1e] ring-1 ring-inset ring-[#d4dbe6]',
+                                  allowWrappedMentions ? 'items-start' : 'items-center overflow-hidden'
+                                )}
                                 data-token-type={parsed?.type ?? 'unknown'}
                               >
                                 <span className="shrink-0 text-[#6b7280]">@</span>
@@ -485,7 +495,16 @@ export default function PromptMentionTextarea({
                                     </span>
                                   )}
                                 </span>
-                                <span className="min-w-0 truncate">{mentionLabel}</span>
+                                <span
+                                  className={clsx(
+                                    'min-w-0',
+                                    allowWrappedMentions
+                                      ? 'whitespace-normal break-words leading-5 [overflow-wrap:anywhere]'
+                                      : 'truncate'
+                                  )}
+                                >
+                                  {mentionLabel}
+                                </span>
                               </span>
                               {trailingWhitespace}
                             </>
@@ -519,8 +538,10 @@ export default function PromptMentionTextarea({
           disabled={disabled}
           readOnly={readOnly}
           spellCheck={false}
+          style={{ resize: resizable === 'vertical' ? 'vertical' : 'none' }}
           className={clsx(
-            'prompt-mention-textarea block relative z-0 w-full border-0 bg-transparent px-3 py-2 text-sm leading-6 caret-black selection:bg-[#11111122] focus:outline-none focus:ring-0 focus:border-0 overflow-x-hidden overflow-y-auto',
+            'prompt-mention-textarea block relative z-0 w-full border-0 bg-transparent px-3 py-2 text-sm leading-6 caret-black selection:bg-[#11111122] focus:outline-none focus:ring-0 focus:border-0 overflow-y-auto',
+            'overflow-x-hidden',
             resizable === 'vertical' ? 'resize-y' : 'resize-none',
             isFocused ? 'text-[#1f1f1e] selection:text-[#1f1f1e]' : 'text-transparent selection:text-transparent',
             readOnly || disabled ? 'cursor-not-allowed bg-gray-50' : '',

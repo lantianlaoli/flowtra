@@ -32,6 +32,7 @@ type SegmentPromptLike = {
 type ExecutionSegmentLike = {
   segmentIndex: number;
   status: string;
+  firstFrameTaskId?: string | null;
   firstFrameUrl?: string | null;
   videoUrl?: string | null;
   errorMessage?: string | null;
@@ -123,6 +124,7 @@ export const buildWorkspaceScenes = (input: {
         sourceSummary: draftScene?.sourceSummary ?? null,
         imagePrompt,
         shots,
+        firstFrameTaskId: segment?.firstFrameTaskId ?? null,
         frameUrl: segment?.firstFrameUrl ?? null,
         videoUrl: segment?.videoUrl ?? null,
         frameError: (segment?.status === 'failed' && !segment?.videoUrl)

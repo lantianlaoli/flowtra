@@ -48,6 +48,7 @@ export type CloneExecutionSegmentPrompt = {
 export type CloneExecutionSegment = {
   segmentIndex: number;
   status: string;
+  firstFrameTaskId?: string | null;
   firstFrameUrl?: string | null;
   videoUrl?: string | null;
   errorMessage?: string | null;
@@ -433,7 +434,10 @@ export default function CloneSceneReviewStep({
                     <PromptFieldLabel icon={ImageIcon}>Image Prompt</PromptFieldLabel>
                     <PromptMentionTextarea
                       value={prompt.first_frame_description}
-                      rows={3}
+                      rows={5}
+                      resizable="vertical"
+                      allowWrappedMentions
+                      preventHorizontalScroll
                       className={promptUi.fieldInput}
                       onChange={(next) => updatePrompt(segment.segmentIndex, (current) => ({ ...current, first_frame_description: next }))}
                       characterMentions={characterMentions}
@@ -473,12 +477,14 @@ export default function CloneSceneReviewStep({
                                   >
                                     <div className="grid gap-2 md:grid-cols-2">
                                       {CLONE_PROMPT_SHOT_FIELDS.map((field) => (
-                                        <div key={`${segment.segmentIndex}-${shot.id}-${field.key}`}>
+                                        <div key={`${segment.segmentIndex}-${shot.id}-${field.key}`} className="min-w-0">
                                           <PromptFieldLabel icon={field.icon}>{field.label}</PromptFieldLabel>
                                           <PromptMentionTextarea
                                             value={String(shot[field.key] ?? '')}
                                             rows={2}
                                             resizable="vertical"
+                                            allowWrappedMentions
+                                            preventHorizontalScroll
                                             className={promptUi.shotFieldInput}
                                             onChange={(next) => updatePrompt(segment.segmentIndex, (current) => ({
                                               ...current,

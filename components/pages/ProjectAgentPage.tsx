@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import { DefaultChatTransport } from 'ai';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { AlertTriangle, ArrowUp, Clapperboard, History, Loader2, MessageCircle, Plus, RefreshCw, Search, Sparkles, User } from 'lucide-react';
+import { AlertTriangle, ArrowUp, Clapperboard, History, Loader2, MessageCircle, Package, Plus, RefreshCw, Search, Sparkles, User } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import VideoAssetCard from '@/components/VideoAssetCard';
@@ -128,13 +128,6 @@ const createSessionId = () => {
     return globalThis.crypto.randomUUID();
   }
   return `agent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-};
-
-const formatSelectionSummary = (items: Array<{ name: string }>) => {
-  if (items.length === 0) return 'none';
-  const names = items.map((item) => item.name);
-  if (names.length <= 2) return names.join(', ');
-  return `${names.slice(0, 2).join(', ')} +${names.length - 2} more`;
 };
 
 const extractMessageText = (message: { parts?: Array<{ type?: string; text?: string }>; content?: string }) => {
@@ -493,22 +486,41 @@ const mapStatusToClonePhase = (payload: Record<string, unknown>): 'idle' | 'gene
   const segmentStatus = (data.segmentStatus && typeof data.segmentStatus === 'object')
     ? data.segmentStatus as Record<string, unknown>
     : null;
+  const segmentList = Array.isArray(segmentStatus?.segments)
+    ? segmentStatus.segments as Array<Record<string, unknown>>
+    : [];
+  const hasFailedSegment = segmentList.some((segment) => (
+    typeof segment?.status === 'string' && segment.status === 'failed'
+  ));
+  if (hasFailedSegment) return 'failed';
+
   const total = Number(segmentStatus?.total ?? 0);
   const framesReady = Number(segmentStatus?.framesReady ?? 0);
   const videosReady = Number(segmentStatus?.videosReady ?? 0);
-  const videoGenerationRequested = Boolean(data.videoGenerationRequested);
+  const hasInFlightVideoGeneration = segmentList.some((segment) => (
+    typeof segment?.status === 'string' && segment.status === 'generating_video'
+  ));
 
   if (
-    step === 'generating_segment_videos' ||
-    step === 'ready_for_video' ||
     step === 'generating_video' ||
-    videosReady > 0 ||
-    videoGenerationRequested
+    hasInFlightVideoGeneration
   ) {
     return 'generating_videos';
   }
 
+  if (step === 'generating_segment_videos') {
+    // If no segment-level in-flight video status exists, prefer the actual segment snapshot
+    // instead of keeping a stale project-level "generating" step.
+    if (hasInFlightVideoGeneration || total === 0) {
+      return 'generating_videos';
+    }
+  }
+
   if (total > 0 && framesReady === total && videosReady < total) {
+    return 'reviewing_frames';
+  }
+
+  if (step === 'ready_for_video' && total > 0) {
     return 'reviewing_frames';
   }
 
@@ -595,6 +607,26 @@ const shouldKeepLocalCloneExecution = (
     return false;
   }
 
+  // If server reports an explicit failure for a segment that was previously pending/in-progress
+  // locally, always accept incoming so the UI surfaces the real error immediately.
+  const incomingHasExplicitFailure = (incomingExecution.segments || []).some((segment) => {
+    const incomingStatus = segment.status || '';
+    if (incomingStatus !== 'failed') return false;
+    const localSegment = localByIndex.get(segment.segmentIndex);
+    if (!localSegment) return true;
+    const localStatus = localSegment.status || '';
+    return (
+      localStatus === 'queued' ||
+      localStatus === 'pending_first_frame' ||
+      localStatus === 'awaiting_prev_first_frame' ||
+      localStatus === 'generating_first_frame' ||
+      localStatus === 'generating_video'
+    );
+  });
+  if (incomingHasExplicitFailure) {
+    return false;
+  }
+
   const localPhase = clonePhaseRank(localExecution.phase);
   const incomingPhase = clonePhaseRank(incomingExecution.phase);
 
@@ -611,7 +643,9 @@ const shouldKeepLocalCloneExecution = (
         Boolean(segment.videoUrl)
       ))
     );
-    if (!incomingHasVideoSignal) {
+    // Only keep local state if the incoming snapshot is clearly incomplete.
+    const incomingHasSegments = (incomingExecution.segments?.length ?? 0) > 0;
+    if (!incomingHasVideoSignal && !incomingHasSegments) {
       return true;
     }
   }
@@ -663,6 +697,8 @@ const mergeCloneExecutionWithLocal = (
 
     return {
       ...incomingSegment,
+      firstFrameTaskId: incomingSegment.firstFrameTaskId
+        ?? (localSegment.firstFrameTaskId ?? null),
       // Keep previous media URLs when server snapshot is transient/incomplete.
       // This avoids frame-card flicker during regeneration polling.
       firstFrameUrl: incomingSegment.firstFrameUrl
@@ -2285,6 +2321,7 @@ export default function ProjectAgentPage() {
     const segments = segmentsRaw.map((segment) => ({
       segmentIndex: Number(segment.index ?? 0),
       status: typeof segment.status === 'string' ? segment.status : 'queued',
+      firstFrameTaskId: typeof segment.firstFrameTaskId === 'string' ? segment.firstFrameTaskId : null,
       firstFrameUrl: typeof segment.firstFrameUrl === 'string' ? segment.firstFrameUrl : null,
       videoUrl: typeof segment.videoUrl === 'string' ? segment.videoUrl : null,
       errorMessage: typeof segment.errorMessage === 'string' ? segment.errorMessage : null,
@@ -2306,6 +2343,54 @@ export default function ProjectAgentPage() {
       segments
     };
   }, []);
+
+  const syncCloneExecutionState = useCallback(async (
+    projectId: string,
+    options?: { cancelled?: () => boolean }
+  ) => {
+    try {
+      const nextExecution = await fetchCloneExecutionStatus(projectId);
+      if (options?.cancelled?.()) return;
+
+      setSessionState((prev) => {
+        if (!prev) return prev;
+        const localExecution = prev.cloneExecution;
+        const shouldPreserveLocal = shouldKeepLocalCloneExecution(localExecution, nextExecution);
+
+        const mergedExecution = shouldPreserveLocal
+          ? localExecution
+          : (mergeCloneExecutionWithLocal(localExecution, nextExecution) ?? nextExecution);
+
+        const hasVideoSignal = Boolean(
+          mergedExecution?.segments?.some((segment) => (
+            segment.status === 'generating_video' ||
+            segment.status === 'video_ready' ||
+            Boolean(segment.videoUrl)
+          ))
+        );
+
+        const shouldPinGeneratingVideos = (
+          localExecution?.phase === 'generating_videos' &&
+          mergedExecution &&
+          (mergedExecution.phase === 'generating_frames' || mergedExecution.phase === 'reviewing_frames') &&
+          !hasVideoSignal &&
+          (mergedExecution.segments?.length ?? 0) === 0
+        );
+
+        return {
+          ...prev,
+          cloneExecution: shouldPinGeneratingVideos
+            ? {
+                ...mergedExecution,
+                phase: 'generating_videos'
+              }
+            : mergedExecution
+        };
+      });
+    } catch {
+      // Ignore intermittent sync failures.
+    }
+  }, [fetchCloneExecutionStatus]);
 
   const persistCloneState = useCallback(async (statePatch: Record<string, unknown>) => {
     if (!sessionId) return;
@@ -2365,56 +2450,43 @@ export default function ProjectAgentPage() {
     if (phase === 'completed' || phase === 'failed') return;
 
     let cancelled = false;
-    const sync = async () => {
-      try {
-        const nextExecution = await fetchCloneExecutionStatus(projectId);
-        if (cancelled) return;
-        setSessionState((prev) => {
-          if (!prev) return prev;
-          const localExecution = prev.cloneExecution;
-          const shouldPreserveLocal = shouldKeepLocalCloneExecution(localExecution, nextExecution);
+    const isCancelled = () => cancelled;
+    void syncCloneExecutionState(projectId, { cancelled: isCancelled });
 
-          const mergedExecution = shouldPreserveLocal
-            ? localExecution
-            : (mergeCloneExecutionWithLocal(localExecution, nextExecution) ?? nextExecution);
+    const supabase = createClient();
+    const channel: RealtimeChannel = supabase
+      .channel(`project-agent-clone-${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'competitor_ugc_replication_projects',
+          filter: `id=eq.${projectId}`
+        },
+        () => {
+          void syncCloneExecutionState(projectId, { cancelled: isCancelled });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'competitor_ugc_replication_segments',
+          filter: `project_id=eq.${projectId}`
+        },
+        () => {
+          void syncCloneExecutionState(projectId, { cancelled: isCancelled });
+        }
+      )
+      .subscribe();
 
-          const hasVideoSignal = Boolean(
-            mergedExecution?.segments?.some((segment) => (
-              segment.status === 'generating_video' ||
-              segment.status === 'video_ready' ||
-              Boolean(segment.videoUrl)
-            ))
-          );
-
-          const shouldPinGeneratingVideos = (
-            localExecution?.phase === 'generating_videos' &&
-            mergedExecution &&
-            (mergedExecution.phase === 'generating_frames' || mergedExecution.phase === 'reviewing_frames') &&
-            !hasVideoSignal
-          );
-
-          return {
-            ...prev,
-            cloneExecution: shouldPinGeneratingVideos
-              ? {
-                  ...mergedExecution,
-                  phase: 'generating_videos'
-                }
-              : mergedExecution
-          };
-        });
-      } catch {
-        // Ignore intermittent polling failures.
-      }
-    };
-
-    void sync();
-    const timer = window.setInterval(sync, 4000);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      supabase.removeChannel(channel);
     };
-  }, [fetchCloneExecutionStatus, sessionState?.cloneExecution?.phase, sessionState?.cloneExecution?.projectId]);
+  }, [sessionState?.cloneExecution?.phase, sessionState?.cloneExecution?.projectId, syncCloneExecutionState]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     chatBottomRef.current?.scrollIntoView({ behavior, block: 'end' });
@@ -2644,33 +2716,30 @@ export default function ProjectAgentPage() {
                         <>
                           <div className="space-y-2">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="text-xs font-semibold text-[#1f1f1e] uppercase tracking-wide">Choose Avatars</p>
-                              <p className="text-[11px] text-[#6d6d6a]">
-                                {selectedCloneAvatarIds.length === 0
-                                  ? `0/${MAX_CLONE_MULTI_SELECT} selected`
-                                  : `${selectedCloneAvatarIds.length}/${MAX_CLONE_MULTI_SELECT} selected`}
+                              <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1f1f1e] uppercase tracking-wide">
+                                <User className="h-3.5 w-3.5" />
+                                <span>Choose Avatars</span>
                               </p>
                             </div>
-                            {selectedCloneAvatars.length > 0 ? (
-                              <p className="text-xs text-[#6d6d6a]">
-                                {formatSelectionSummary(selectedCloneAvatars)}
-                              </p>
-                            ) : null}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
                               {cloneAvatarOptions.map((avatar) => (
                                 <button
                                   key={avatar.id}
                                   type="button"
                                   onClick={() => handleManualAvatarSelection(avatar.id)}
-                                  className={`rounded-xl border p-2 text-left transition-colors ${selectedCloneAvatarIds.includes(avatar.id) ? 'border-[#0f0f0f] bg-[#f3f3f2]' : 'border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                  className={`rounded-xl p-1.5 text-left transition-colors ${selectedCloneAvatarIds.includes(avatar.id) ? 'border-2 border-[#0f0f0f] bg-white shadow-[0_1px_0_rgba(15,15,15,0.04)]' : 'border border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
                                 >
-                                  <div className="w-full aspect-square rounded-xl overflow-hidden bg-[#efefed] mb-1.5">
+                                  <div className="w-full aspect-square rounded-[10px] overflow-hidden bg-[#efefed] mb-1">
                                     {avatar.photoUrl ? (
                                       // eslint-disable-next-line @next/next/no-img-element
                                       <img src={avatar.photoUrl} alt={avatar.name} className="w-full h-full object-cover" />
                                     ) : null}
                                   </div>
-                                  <p className="text-[11px] font-medium text-[#1f1f1e] truncate">{avatar.name}</p>
+                                  <span
+                                    className={`inline-flex max-w-full rounded-md px-2 py-1 text-[11px] font-medium ${selectedCloneAvatarIds.includes(avatar.id) ? 'bg-[#0f0f0f] text-white' : 'bg-[#f3f3f2] text-[#1f1f1e]'}`}
+                                  >
+                                    <span className="truncate">{avatar.name}</span>
+                                  </span>
                                 </button>
                               ))}
                             </div>
@@ -2678,33 +2747,30 @@ export default function ProjectAgentPage() {
 
                           <div className="space-y-2">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="text-xs font-semibold text-[#1f1f1e] uppercase tracking-wide">Choose Products</p>
-                              <p className="text-[11px] text-[#6d6d6a]">
-                                {selectedCloneProductIds.length === 0
-                                  ? `0/${MAX_CLONE_MULTI_SELECT} selected`
-                                  : `${selectedCloneProductIds.length}/${MAX_CLONE_MULTI_SELECT} selected`}
+                              <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1f1f1e] uppercase tracking-wide">
+                                <Package className="h-3.5 w-3.5" />
+                                <span>Choose Products</span>
                               </p>
                             </div>
-                            {selectedCloneProducts.length > 0 ? (
-                              <p className="text-xs text-[#6d6d6a]">
-                                {formatSelectionSummary(selectedCloneProducts)}
-                              </p>
-                            ) : null}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
                               {cloneProductOptions.map((product) => (
                                 <button
                                   key={product.id}
                                   type="button"
                                   onClick={() => handleManualProductSelection(product.id)}
-                                  className={`rounded-xl border p-2 text-left transition-colors ${selectedCloneProductIds.includes(product.id) ? 'border-[#0f0f0f] bg-[#f3f3f2]' : 'border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                  className={`rounded-xl p-1.5 text-left transition-colors ${selectedCloneProductIds.includes(product.id) ? 'border-2 border-[#0f0f0f] bg-white shadow-[0_1px_0_rgba(15,15,15,0.04)]' : 'border border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
                                 >
-                                  <div className="w-full aspect-square rounded-xl overflow-hidden bg-[#efefed] mb-1.5">
+                                  <div className="w-full aspect-square rounded-[10px] overflow-hidden bg-[#efefed] mb-1">
                                     {product.photoUrl ? (
                                       // eslint-disable-next-line @next/next/no-img-element
                                       <img src={product.photoUrl} alt={product.name} className="w-full h-full object-cover" />
                                     ) : null}
                                   </div>
-                                  <p className="text-[11px] font-medium text-[#1f1f1e] truncate">{product.name}</p>
+                                  <span
+                                    className={`inline-flex max-w-full rounded-md px-2 py-1 text-[11px] font-medium ${selectedCloneProductIds.includes(product.id) ? 'bg-[#0f0f0f] text-white' : 'bg-[#f3f3f2] text-[#1f1f1e]'}`}
+                                  >
+                                    <span className="truncate">{product.name}</span>
+                                  </span>
                                 </button>
                               ))}
                             </div>

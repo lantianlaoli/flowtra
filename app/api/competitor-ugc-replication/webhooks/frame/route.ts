@@ -309,16 +309,6 @@ export async function POST(request: NextRequest) {
                   imageInputCount: mergedProductImageUrls.length + cloneReferenceAssets.avatarPhotoUrls.length + 1
                 });
 
-                // Mark as generating
-                await supabase
-                  .from('competitor_ugc_replication_segments')
-                  .update({
-                    status: 'generating_first_frame',
-                    // Backfill prompt to prevent future continuation failures on the same segment.
-                    prompt: serializeSegmentPrompt(segmentPrompt)
-                  })
-                  .eq('id', nextSegment.id);
-
                 // ✅ Direct API call: Generate next segment's first frame
                 const taskId = await createSmartSegmentFrame(
                   segmentPrompt,
@@ -337,10 +327,14 @@ export async function POST(request: NextRequest) {
                   videoModel
                 );
 
-                // Save task ID
+                // Save task submission atomically so the UI only shows "generating"
+                // after a real KIE task id exists.
                 await supabase
                   .from('competitor_ugc_replication_segments')
                   .update({
+                    status: 'generating_first_frame',
+                    // Backfill prompt to prevent future continuation failures on the same segment.
+                    prompt: serializeSegmentPrompt(segmentPrompt),
                     first_frame_task_id: taskId
                   })
                   .eq('id', nextSegment.id);
