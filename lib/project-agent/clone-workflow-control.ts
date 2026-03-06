@@ -1,4 +1,5 @@
-export const MERGE_CONFIRMATION_TOKEN = '确认合并';
+export const MERGE_CONFIRMATION_TOKEN = 'create final video';
+export const REPLACEMENT_CONFIRMATION_TOKEN = 'confirm replacements';
 
 export const isMergeIntentCommand = (text: string) => {
   const normalized = text.trim().toLowerCase();
@@ -15,8 +16,18 @@ export const isMergeConfirmationCommand = (text: string) => {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
   return (
-    text.trim() === MERGE_CONFIRMATION_TOKEN ||
-    /^(confirm merge|merge confirmed|yes merge)$/i.test(normalized)
+    normalized === MERGE_CONFIRMATION_TOKEN ||
+    /^(create final video|confirm final video|final video confirmed|finish video)$/i.test(normalized) ||
+    /^(confirm merge|merge confirmed|yes merge|确认合并)$/i.test(normalized)
+  );
+};
+
+export const isReplacementConfirmationCommand = (text: string) => {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized === REPLACEMENT_CONFIRMATION_TOKEN ||
+    /^(confirm replacements|replacements confirmed|confirm selection|confirm selections)$/i.test(normalized)
   );
 };
 

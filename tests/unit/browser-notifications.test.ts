@@ -36,7 +36,7 @@ const createNotificationMock = (permission: NotificationPermission = 'default'):
 const restoreWindow = (originalWindow: typeof globalThis.window | undefined) => {
   const globalWithWindow = globalThis as typeof globalThis & { window?: typeof globalThis.window };
   if (originalWindow === undefined) {
-    delete globalWithWindow.window;
+    Reflect.deleteProperty(globalWithWindow as Record<string, unknown>, 'window');
     return;
   }
 
@@ -46,7 +46,7 @@ const restoreWindow = (originalWindow: typeof globalThis.window | undefined) => 
 test('unsupported environment returns unsupported permission and no-op send', async () => {
   const originalWindow = globalThis.window;
   const globalWithWindow = globalThis as typeof globalThis & { window?: typeof globalThis.window };
-  delete globalWithWindow.window;
+  Reflect.deleteProperty(globalWithWindow as Record<string, unknown>, 'window');
 
   try {
     assert.equal(isNotificationSupported(), false);

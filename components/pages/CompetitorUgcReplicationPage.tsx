@@ -693,6 +693,8 @@ export default function CompetitorUgcReplicationPage() {
             hasVideoReady || singleSegmentCompleted
               ? ("completed" as Generation["status"])
               : status;
+          const isTerminalStatus =
+            resolvedStatus === "completed" || resolvedStatus === "failed";
           let resolvedProgress =
             hasVideoReady || singleSegmentCompleted ? 100 : baseProgress;
           let stageLabel = getStageLabel(
@@ -769,6 +771,7 @@ export default function CompetitorUgcReplicationPage() {
             status: resolvedStatus,
             stage: resolvedStage,
             progress: resolvedProgress,
+            currentStep: effectiveStep || payload.current_step || gen.currentStep,
             videoUrl: payload.data?.videoUrl || gen.videoUrl,
             coverUrl: payload.data?.coverImageUrl || gen.coverUrl,
             videoModel:
@@ -792,8 +795,8 @@ export default function CompetitorUgcReplicationPage() {
             segmentStatus: nextSegmentStatus,
             segmentPlan: nextSegmentPlan,
             segments: nextSegments,
-            awaitingMerge,
-            mergeTaskId,
+            awaitingMerge: isTerminalStatus ? false : awaitingMerge,
+            mergeTaskId: isTerminalStatus ? null : mergeTaskId,
             videoGenerationRequested:
               typeof payloadData?.videoGenerationRequested === "boolean"
                 ? payloadData.videoGenerationRequested
@@ -943,6 +946,20 @@ export default function CompetitorUgcReplicationPage() {
         if (gen.status === "pending" || gen.status === "processing") {
           console.log(
             "✅ [activeProjectIds Include] Including pending/processing generation:",
+            gen.projectId,
+          );
+          return true;
+        }
+        if (gen.awaitingMerge) {
+          console.log(
+            "✅ [activeProjectIds Include] Including generation awaiting merge:",
+            gen.projectId,
+          );
+          return true;
+        }
+        if (gen.mergeTaskId && gen.status !== "completed" && gen.status !== "failed") {
+          console.log(
+            "✅ [activeProjectIds Include] Including generation with active merge task:",
             gen.projectId,
           );
           return true;

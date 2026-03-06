@@ -7,6 +7,13 @@ import {
   normalizeCloneSelections,
   normalizeSelectedIds
 } from '@/lib/project-agent/clone-selection';
+import {
+  buildCartesianSceneAssignments,
+  normalizeSceneAssignments,
+  type ClonePlanStatus,
+  type CloneSceneAssignment
+} from '@/lib/project-agent/clone-replacement-plan';
+import { REPLACEMENT_CONFIRMATION_TOKEN } from '@/lib/project-agent/clone-workflow-control';
 import { injectMentionsInline, stripMentionTokens } from '@/lib/project-agent/clone-prompt-mentions';
 
 type ShotPrompt = {
@@ -35,7 +42,14 @@ type ScenePrompt = {
 };
 
 type CloneReplacementDraft = {
-  status: 'idle' | 'generating' | 'ready' | 'failed';
+  status: 'idle' | 'generating' | 'ready' | 'awaiting_confirmation' | 'failed';
+  planStatus?: ClonePlanStatus;
+  confirmation?: {
+    requiredToken: string;
+    confirmedAt?: string | null;
+    confirmedByMessageId?: string | null;
+  } | null;
+  sceneAssignments?: CloneSceneAssignment[];
   error?: string | null;
   selectedAvatars?: Array<{
     id: string;
@@ -451,6 +465,63 @@ const generateReplacementDraft = async (input: {
   });
 };
 
+const applySceneAssignmentsToGeneratedScenes = (input: {
+  scenes: ScenePrompt[];
+  sceneAssignments: CloneSceneAssignment[];
+  avatarById: Map<string, { name: string }>;
+  productById: Map<string, { name: string }>;
+}) => {
+  return input.scenes.map((scene, index) => {
+    const assignment = input.sceneAssignments.find((item) => item.sceneIndex === scene.sceneIndex) ?? input.sceneAssignments[index];
+    if (!assignment) return scene;
+    const avatarName = assignment.avatarId ? (input.avatarById.get(assignment.avatarId)?.name || null) : null;
+    const productName = input.productById.get(assignment.productId)?.name || null;
+    const avatarToken = avatarName ? `@character(${avatarName})` : null;
+    const productToken = productName ? `@product(${productName})` : null;
+
+    const mentionContext = {
+      avatarToken,
+      productToken,
+      avatarName,
+      productName
+    };
+
+    const imagePrompt = injectMentionsInline({
+      imagePrompt: scene.imagePrompt || '',
+      fallbackSummary: scene.sourceSummary || scene.imagePrompt || '',
+      avatarToken,
+      productToken,
+      avatarName: avatarName || undefined,
+      productName: productName || undefined
+    });
+
+    const shots = (scene.videoPrompt?.shots || []).map((shot) => ({
+      ...shot,
+      subject: transformShotFieldInline(shot.subject || '', mentionContext, {
+        forceAvatar: Boolean(avatarToken),
+        forceProduct: Boolean(productToken)
+      }),
+      context_environment: transformShotFieldInline(shot.context_environment || '', mentionContext),
+      action: transformShotFieldInline(shot.action || '', mentionContext, {
+        forceAvatar: Boolean(avatarToken),
+        forceProduct: Boolean(productToken)
+      }),
+      style: transformShotFieldInline(shot.style || '', mentionContext),
+      camera_motion_positioning: transformShotFieldInline(shot.camera_motion_positioning || '', mentionContext),
+      composition: transformShotFieldInline(shot.composition || '', mentionContext),
+      ambiance_colour_lighting: transformShotFieldInline(shot.ambiance_colour_lighting || '', mentionContext),
+      audio: transformShotFieldInline(shot.audio || '', mentionContext),
+      dialogue: transformShotFieldInline(shot.dialogue || '', mentionContext)
+    }));
+
+    return {
+      ...scene,
+      imagePrompt,
+      videoPrompt: { shots }
+    };
+  });
+};
+
 export async function POST(request: NextRequest) {
   try {
     const isInternalRequest = request.headers.get('x-project-agent-internal') === '1';
@@ -471,11 +542,13 @@ export async function POST(request: NextRequest) {
       productId?: string;
       avatarIds?: string[];
       productIds?: string[];
+      sceneAssignments?: CloneSceneAssignment[];
     };
 
     const sessionId = body.sessionId?.trim();
     const avatarIds = normalizeSelectedIds(body.avatarId?.trim(), body.avatarIds, 8);
     const productIds = normalizeSelectedIds(body.productId?.trim(), body.productIds, 8);
+    const incomingAssignments = normalizeSceneAssignments(body.sceneAssignments, 8);
 
     if (!sessionId) {
       return NextResponse.json({ error: 'sessionId is required' }, { status: 400 });
@@ -512,6 +585,10 @@ export async function POST(request: NextRequest) {
       state.cloneReplacementDraft?.selectedProducts,
       state.cloneReplacementDraft?.selectedProduct
     );
+    const existingSceneAssignments = normalizeSceneAssignments(
+      state.cloneReplacementDraft?.sceneAssignments,
+      8
+    );
 
     if (!reference?.id) {
       return NextResponse.json({ error: 'Reference video is not selected yet.' }, { status: 400 });
@@ -521,11 +598,18 @@ export async function POST(request: NextRequest) {
       ...state,
       cloneReplacementDraft: {
         status: 'generating',
+        planStatus: state.cloneReplacementDraft?.planStatus || 'awaiting_confirmation',
+        confirmation: state.cloneReplacementDraft?.confirmation ?? {
+          requiredToken: REPLACEMENT_CONFIRMATION_TOKEN,
+          confirmedAt: null,
+          confirmedByMessageId: null
+        },
         error: null,
         selectedAvatars: existingSelectedAvatars,
         selectedAvatar: getPrimaryCloneSelection(existingSelectedAvatars),
         selectedProducts: existingSelectedProducts,
         selectedProduct: getPrimaryCloneSelection(existingSelectedProducts),
+        sceneAssignments: incomingAssignments.length > 0 ? incomingAssignments : existingSceneAssignments,
         scenes: []
       }
     };
@@ -620,6 +704,22 @@ export async function POST(request: NextRequest) {
 
     const avatarSelection = getPrimaryCloneSelection(avatarSelections);
     const productSelection = getPrimaryCloneSelection(productSelections);
+    const sceneCount = Math.max(
+      Array.isArray(state.cloneReplacementDraft?.scenes) ? state.cloneReplacementDraft.scenes.length : 0,
+      1
+    );
+    const sceneAssignments = (
+      incomingAssignments.length > 0
+        ? incomingAssignments
+        : buildCartesianSceneAssignments({
+            sceneCount,
+            avatarIds: avatarSelections.map((avatar) => avatar.id),
+            productIds: productSelections.map((product) => product.id),
+            existingAssignments: existingSceneAssignments
+          })
+    );
+    const avatarById = new Map(avatarSelections.map((avatar) => [avatar.id, { name: avatar.name }] as const));
+    const productById = new Map(productSelections.map((product) => [product.id, { name: product.name }] as const));
 
     const referenceSourceType = reference.sourceType || 'creator';
     const referenceSourceId = reference.sourceId || reference.id;
@@ -677,15 +777,32 @@ export async function POST(request: NextRequest) {
       avatarName: avatarSelection?.name,
       productName: productSelection?.name
     });
+    const assignedScenes = applySceneAssignmentsToGeneratedScenes({
+      scenes: generatedScenes,
+      sceneAssignments,
+      avatarById,
+      productById
+    });
 
+    const wasConfirmed = Boolean(
+      state.cloneReplacementDraft?.planStatus === 'confirmed' &&
+      state.cloneReplacementDraft?.confirmation?.confirmedAt
+    );
     const cloneReplacementDraft: CloneReplacementDraft = {
-      status: 'ready',
+      status: wasConfirmed ? 'ready' : 'awaiting_confirmation',
+      planStatus: wasConfirmed ? 'confirmed' : 'awaiting_confirmation',
+      confirmation: state.cloneReplacementDraft?.confirmation ?? {
+        requiredToken: REPLACEMENT_CONFIRMATION_TOKEN,
+        confirmedAt: null,
+        confirmedByMessageId: null
+      },
       error: null,
       selectedAvatars: avatarSelections,
       selectedAvatar: avatarSelection,
       selectedProducts: productSelections,
       selectedProduct: productSelection,
-      scenes: generatedScenes
+      sceneAssignments,
+      scenes: assignedScenes
     };
 
     const nextState: SessionState = {

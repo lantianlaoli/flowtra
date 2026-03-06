@@ -48,7 +48,19 @@ export type CloneDraftScene = {
 };
 
 export type ClonePromptDraft = {
-  status: 'idle' | 'generating' | 'ready' | 'failed';
+  status: 'idle' | 'generating' | 'ready' | 'awaiting_confirmation' | 'failed';
+  planStatus?: 'collecting' | 'planned' | 'awaiting_confirmation' | 'confirmed';
+  confirmation?: {
+    requiredToken: string;
+    confirmedAt?: string | null;
+    confirmedByMessageId?: string | null;
+  } | null;
+  sceneAssignments?: Array<{
+    sceneIndex: number;
+    avatarId?: string | null;
+    productId: string;
+    source: 'auto' | 'user_override';
+  }>;
   error?: string | null;
   selectedAvatars?: Array<{
     id: string;
