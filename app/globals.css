@@ -34,6 +34,8 @@
   --sidebar-accent-foreground: #000000;
   --sidebar-border: #e5e5e5;
   --sidebar-ring: #000000;
+  --font-inter: "Inter";
+  --font-plus-jakarta-sans: "Plus Jakarta Sans";
 }
 
 .dashboard-theme {
