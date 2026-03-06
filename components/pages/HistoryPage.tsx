@@ -546,7 +546,15 @@ export default function HistoryPage() {
   };
 
   const downloadVideo = async (item: HistoryItem, resolution: HighResResolution): Promise<'ready' | 'processing' | 'error'> => {
-    if (!user?.id || !userCredits) return 'error';
+    if (!user?.id) {
+      showError('Please sign in to download videos');
+      return 'error';
+    }
+
+    if (typeof userCredits !== 'number') {
+      showError('Credits are still loading. Please try again in a moment.');
+      return 'error';
+    }
 
     const historyId = item.id;
     const isFirstDownload = item && 'downloaded' in item ? !item.downloaded : false;

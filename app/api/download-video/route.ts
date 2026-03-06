@@ -122,8 +122,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
       }
     }
 
-    // Schema verified via Supabase MCP (2026-01-23): competitor_ugc_replication_projects columns include
-    // id, user_id, status, video_url, downloaded, download_credits_used, last_processed_at
+    // Schema verified via Supabase MCP (2026-03-06): competitor_ugc_replication_projects columns include
+    // id, user_id, status, video_url, merged_video_url, downloaded, download_credits_used, last_processed_at
     const { data: historyRecord, error: historyError } = await supabase
       .from('competitor_ugc_replication_projects')
       .select('*')
@@ -138,7 +138,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
       }, { status: 404 });
     }
 
-    if (historyRecord.status !== 'completed' || !historyRecord.video_url) {
+    const downloadableVideoUrl = historyRecord.video_url || historyRecord.merged_video_url;
+
+    if (historyRecord.status !== 'completed' || !downloadableVideoUrl) {
       return NextResponse.json({
         success: false,
         message: 'Video generation not completed yet'
@@ -188,7 +190,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
     // Stream the video file from the external URL directly to the client
     // This avoids loading the entire video in server memory, providing instant download start
     try {
-      const videoResponse = await fetch(historyRecord.video_url);
+      const videoResponse = await fetch(downloadableVideoUrl);
       if (!videoResponse.ok) {
         throw new Error(`Failed to fetch video: ${videoResponse.status}`);
       }

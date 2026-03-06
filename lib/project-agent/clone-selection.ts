@@ -5,6 +5,11 @@ export type CloneSelectionItem = {
   brandName?: string | null;
 };
 
+type CloneSelectionStateLike<T extends CloneSelectionItem> = {
+  selectedItems?: T[] | null;
+  selectedItem?: T | null;
+};
+
 const isCloneSelectionItem = <T extends CloneSelectionItem>(value: T | null | undefined): value is T => (
   Boolean(value?.id?.trim())
 );
@@ -54,4 +59,37 @@ export const normalizeSelectedIds = (
   }, []);
 
   return normalized.slice(0, limit);
+};
+
+const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
+
+export const hasExplicitCloneAvatarSelectionState = (
+  draft: { selectedAvatars?: unknown; selectedAvatar?: unknown } | null | undefined
+) => Boolean(draft && (hasOwn(draft, 'selectedAvatars') || hasOwn(draft, 'selectedAvatar')));
+
+export const hasExplicitCloneProductSelectionState = (
+  draft: { selectedProducts?: unknown; selectedProduct?: unknown } | null | undefined
+) => Boolean(draft && (hasOwn(draft, 'selectedProducts') || hasOwn(draft, 'selectedProduct')));
+
+export const resolveCloneSelection = <T extends CloneSelectionItem>(
+  input: CloneSelectionStateLike<T> & {
+    fallbackSelection?: T | null;
+    allowFallback?: boolean;
+    limit?: number;
+  }
+) => {
+  const selections = normalizeCloneSelections(input.selectedItems, input.selectedItem);
+  const useFallback = Boolean(input.allowFallback && selections.length === 0 && input.fallbackSelection);
+  const primarySelection = getPrimaryCloneSelection(selections) ?? (useFallback ? input.fallbackSelection ?? null : null);
+  const selectedIds = normalizeSelectedIds(
+    useFallback ? input.fallbackSelection?.id : undefined,
+    selections.map((item) => item.id),
+    input.limit
+  );
+
+  return {
+    selections,
+    primarySelection,
+    selectedIds
+  };
 };
