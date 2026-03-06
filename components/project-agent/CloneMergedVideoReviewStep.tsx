@@ -84,7 +84,7 @@ export default function CloneMergedVideoReviewStep({
           <p className="text-xs text-[#787876] mt-1">
             {isCompleted
               ? 'Final merged video is ready. Download is available in My Ads.'
-              : 'Merging scene videos. You can review all scene prompts on the right.'}
+              : 'Final video creation is in progress. Please wait a few seconds, then check My Ads for details and download.'}
           </p>
         </div>
         <div className="inline-flex items-center gap-1.5 text-xs text-[#666665]">

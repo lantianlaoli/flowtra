@@ -89,6 +89,7 @@ export default function VideoImportModal({
   const [isRetryingAnalysis, setIsRetryingAnalysis] = useState(false);
   const closeTimerRef = useRef<number | null>(null);
   const router = useRouter();
+  const isProcessingStep = step === 'processing' || step === 'processing-batch';
 
   useEffect(() => {
     if (!isOpen) return;
@@ -669,7 +670,7 @@ export default function VideoImportModal({
           />
 
           <motion.div
-            className="assets-modal-panel assets-video-import-panel relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-[1180px] max-h-[90vh] mx-auto overflow-hidden flex flex-col"
+            className={`assets-modal-panel assets-video-import-panel relative mx-auto flex w-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${isProcessingStep ? 'max-w-[1560px] h-[88vh] max-h-[878px]' : 'max-w-[1180px] max-h-[90vh]'}`}
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -931,11 +932,11 @@ export default function VideoImportModal({
             )}
 
             {step === 'processing' && (
-              <div className={`assets-modal-body grid min-h-0 flex-1 grid-cols-1 items-stretch gap-6 p-6 overflow-hidden ${requiresFirstFrameForMotionSwap ? 'lg:grid-cols-[minmax(0,0.6fr)_minmax(0,0.4fr)]' : 'lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]'}`}>
-                <div className={`grid min-h-0 h-full min-w-0 gap-4 overflow-hidden ${requiresFirstFrameForMotionSwap ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <div className={`assets-modal-body grid min-h-0 flex-1 grid-cols-1 items-stretch gap-5 overflow-hidden px-5 py-5 ${requiresFirstFrameForMotionSwap ? 'lg:grid-cols-[840px_minmax(520px,1fr)]' : 'lg:grid-cols-[340px_minmax(720px,1fr)]'}`}>
+                <div className={`grid min-h-0 h-full min-w-0 items-stretch justify-items-center gap-4 overflow-hidden ${requiresFirstFrameForMotionSwap ? 'grid-cols-2' : 'grid-cols-1'}`}>
                   {requiresFirstFrameForMotionSwap && (
-                    <label className="assets-video-import-preview min-w-0 overflow-hidden rounded-xl border-2 border-dashed border-gray-300 bg-white cursor-pointer transition-colors hover:border-gray-500">
-                      <div className="mx-auto w-full max-w-[320px] aspect-[9/16] min-h-0 overflow-hidden flex items-center justify-center text-center px-5">
+                    <label className="assets-video-import-preview flex h-full aspect-[9/16] w-auto max-w-full min-w-0 overflow-hidden rounded-xl border-2 border-dashed border-gray-300 bg-white transition-colors hover:border-gray-500 cursor-pointer">
+                      <div className="flex h-full w-full items-center justify-center overflow-hidden px-5 text-center">
                         {processingVideo?.cover_url ? (
                           <img
                             src={processingVideo.cover_url}
@@ -970,8 +971,8 @@ export default function VideoImportModal({
                       </div>
                     </label>
                   )}
-                  <div className="min-h-0 h-full flex items-center justify-center">
-                    <div className="assets-video-import-preview h-full w-auto max-w-full aspect-[9/16] min-h-0 overflow-hidden rounded-xl border-2 border-gray-300 bg-black/95">
+                  <div className="flex min-h-0 h-full items-stretch justify-start overflow-hidden">
+                    <div className="assets-video-import-preview h-full aspect-[9/16] w-auto max-w-full overflow-hidden rounded-xl border-2 border-gray-300 bg-black/95">
                       {processingVideo?.video_cdn_url ? (
                         <VideoPlayer
                           src={processingVideo.video_cdn_url}
@@ -987,7 +988,7 @@ export default function VideoImportModal({
                     </div>
                   </div>
                 </div>
-                <div className="assets-video-import-panel flex flex-col gap-4 min-h-0 h-full overflow-hidden">
+                <div className="assets-video-import-panel flex min-h-0 h-full flex-col gap-4 overflow-hidden">
                   <div className="space-y-2">
                     <div className="space-y-2">
                       <label htmlFor="import-video-name" className="assets-video-import-label text-xs uppercase tracking-wide text-gray-500">

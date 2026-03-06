@@ -317,7 +317,7 @@ export default function CompetitorShotsEditor({
                         {/* Section: Audio */}
                         <div className="space-y-3">
                           <SectionHeader icon={<Music className="w-3.5 h-3.5" />} title="Audio & Action" />
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <ShotTextarea
                               label="Action"
                               value={shot.action}
@@ -326,10 +326,17 @@ export default function CompetitorShotsEditor({
                               readOnly={readOnly}
                             />
                             <ShotTextarea
-                              label="Audio / Dialogue"
-                              value={shot.audio}
-                              onChange={(value) => updateShot(shot.shot_id, 'audio', value)}
-                              placeholder="Sound effects, music mood, or dialogue"
+                              label="Audio Summary"
+                              value={shot.audio_summary}
+                              onChange={(value) => updateShot(shot.shot_id, 'audio_summary', value)}
+                              placeholder="Music bed, sound effects, or ambient audio"
+                              readOnly={readOnly}
+                            />
+                            <ShotTextarea
+                              label="Dialogue"
+                              value={shot.dialogue}
+                              onChange={(value) => updateShot(shot.shot_id, 'dialogue', value)}
+                              placeholder="Literal spoken line from this shot"
                               readOnly={readOnly}
                             />
                           </div>

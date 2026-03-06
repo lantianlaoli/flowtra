@@ -66,7 +66,8 @@ const responseFormat = {
               camera_motion_positioning: { type: 'string' },
               composition: { type: 'string' },
               ambiance_colour_lighting: { type: 'string' },
-              audio: { type: 'string' }
+              audio_summary: { type: 'string' },
+              dialogue: { type: 'string' }
             },
             required: [
               'shot_id',
@@ -81,7 +82,8 @@ const responseFormat = {
               'camera_motion_positioning',
               'composition',
               'ambiance_colour_lighting',
-              'audio'
+              'audio_summary',
+              'dialogue'
             ],
             additionalProperties: false
           }
@@ -104,7 +106,7 @@ const body = {
       content: [
         {
           type: 'text',
-          text: 'Analyze this video and return JSON only, following the provided schema.'
+          text: 'Analyze this video and return JSON only, following the provided schema. For each shot, audio_summary must describe music/ambience/SFX, and dialogue must contain the best-effort literal spoken words from that shot. Use visible subtitles when present, infer aggressively when speech is partially unclear, and return dialogue as an empty string only for clearly silent shots.'
         },
         {
           type: 'video_url',
@@ -136,7 +138,8 @@ const REQUIRED_SHOT_FIELDS = [
   'camera_motion_positioning',
   'composition',
   'ambiance_colour_lighting',
-  'audio'
+  'audio_summary',
+  'dialogue'
 ];
 
 const parseJsonContent = (content) => {
@@ -187,12 +190,15 @@ const validateStrictShots = (analysis) => {
       'camera_motion_positioning',
       'composition',
       'ambiance_colour_lighting',
-      'audio',
+      'audio_summary',
     ]) {
       const value = shot[key];
       if (typeof value !== 'string' || !value.trim()) {
         return { ok: false, reason: `shot ${i + 1} empty "${key}"` };
       }
+    }
+    if (typeof shot.dialogue !== 'string') {
+      return { ok: false, reason: `shot ${i + 1} invalid "dialogue"` };
     }
   }
   return { ok: true };

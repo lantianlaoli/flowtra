@@ -112,8 +112,16 @@ const REQUIRED_SHOT_FIELDS = [
   'camera_motion_positioning',
   'composition',
   'ambiance_colour_lighting',
-  'audio'
+  'audio_summary',
+  'dialogue'
 ] as const;
+
+const hasSpeechSignal = (value: string): boolean => {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return false;
+
+  return /\b(voiceover|dialogue|dialog|narrat|says|speaks|speaking|talking|spoken|caption|subtitle|line)\b/.test(normalized);
+};
 
 const validateStrictShotSchema = (analysis: Record<string, unknown>): { valid: boolean; reason?: string } => {
   const shots = analysis.shots;
@@ -143,18 +151,84 @@ const validateStrictShotSchema = (analysis: Record<string, unknown>): { valid: b
       'camera_motion_positioning',
       'composition',
       'ambiance_colour_lighting',
-      'audio'
+      'audio_summary',
+      'dialogue'
     ] as const;
 
     for (const field of requiredTextFields) {
+      const value = record[field];
+      if (typeof value !== 'string') {
+        return { valid: false, reason: `Shot ${i + 1} has empty "${field}".` };
+      }
+    }
+
+    const nonEmptyTextFields = [
+      'first_frame_description',
+      'subject',
+      'context_environment',
+      'action',
+      'style',
+      'camera_motion_positioning',
+      'composition',
+      'ambiance_colour_lighting',
+      'audio_summary'
+    ] as const;
+
+    for (const field of nonEmptyTextFields) {
       const value = record[field];
       if (typeof value !== 'string' || !value.trim()) {
         return { valid: false, reason: `Shot ${i + 1} has empty "${field}".` };
       }
     }
+
+    const audioSummary = typeof record.audio_summary === 'string' ? record.audio_summary : '';
+    const dialogue = typeof record.dialogue === 'string' ? record.dialogue : '';
+    if (hasSpeechSignal(audioSummary) && !dialogue.trim()) {
+      return {
+        valid: false,
+        reason: `Shot ${i + 1} indicates spoken audio in "audio_summary" but returned empty "dialogue".`
+      };
+    }
   }
 
   return { valid: true };
+};
+
+const parseCreatorVideoAnalysisResponse = (data: unknown) => {
+  const apiResponse = data as { choices?: Array<{ message?: { content?: unknown } }> };
+  const rawContent = apiResponse.choices?.[0]?.message?.content;
+  const normalizedContent = extractStructuredContent(rawContent);
+
+  if (!normalizedContent) {
+    return {
+      ok: false as const,
+      reason: `Invalid creator video analysis response format. choices=${Array.isArray(apiResponse.choices) ? apiResponse.choices.length : 0}; rawContentType=${typeof rawContent}`,
+      normalizedContent: null
+    };
+  }
+
+  const jsonPayload = extractJsonObjectFromText(normalizedContent);
+  if (!jsonPayload) {
+    return {
+      ok: false as const,
+      reason: `Invalid creator video analysis JSON payload. normalizedPreview=${truncateForLog(normalizedContent, 220)}`,
+      normalizedContent
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(jsonPayload) as Record<string, unknown>;
+    return {
+      ok: true as const,
+      parsed
+    };
+  } catch {
+    return {
+      ok: false as const,
+      reason: `Invalid creator video analysis JSON payload. normalizedPreview=${truncateForLog(normalizedContent, 220)}`,
+      normalizedContent
+    };
+  }
 };
 
 const buildDebugContext = (input: { videoUrl: string; sourceName: string; model: string }) => {
@@ -218,7 +292,8 @@ You MUST return complete shot objects. Every shot must include ALL required fiel
 - camera_motion_positioning
 - composition
 - ambiance_colour_lighting
-- audio
+- audio_summary
+- dialogue
 
 Global required fields:
 - name
@@ -229,6 +304,11 @@ Global required fields:
 Rules:
 - Do not include markdown or explanations.
 - shots must be an ordered array with complete timeline coverage.
+- dialogue must be the best-effort literal spoken words for this shot.
+- Use subtitle/caption text when visible.
+- If speech is partially unclear, infer the most likely spoken words from captions and context.
+- If the shot has no speech, return dialogue as an empty string.
+- audio_summary must describe the non-dialogue audio bed, music, ambience, or SFX for the shot.
 - If language is unclear, set detected_language to "en".`
                 : `Analyze this creator reference video${params.sourceName ? ` from "${params.sourceName}"` : ''} and output a strict JSON shot breakdown.
 Requirements:
@@ -237,7 +317,13 @@ Requirements:
 - Keep each field concrete and production-usable for storyboard recreation.
 - Detect primary language and output it in detected_language.
 - If language is unclear, default to "en".
-- Every shot MUST include non-empty: first_frame_description, subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_colour_lighting, audio.`
+- Every shot MUST include non-empty: first_frame_description, subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_colour_lighting, audio_summary.
+- Every shot MUST include dialogue as a string.
+- dialogue = the best-effort literal spoken line for that shot, prioritizing audible speech and visible subtitles/captions.
+- If spoken words continue across multiple shots, split them by the most likely shot boundary.
+- If speech is partially unclear, infer aggressively from subtitle/context and return the most likely line instead of a summary.
+- If the shot is clearly silent, set dialogue to "".
+- audio_summary = music, ambience, or SFX only. Do not use audio_summary as a transcript substitute.`
             },
             {
               type: 'video_url',
@@ -305,7 +391,8 @@ const analyzeCreatorVideoByUrl = async (input: {
                 camera_motion_positioning: { type: 'string' },
                 composition: { type: 'string' },
                 ambiance_colour_lighting: { type: 'string' },
-                audio: { type: 'string' }
+                audio_summary: { type: 'string' },
+                dialogue: { type: 'string' }
               },
               required: [
                 'shot_id',
@@ -320,7 +407,8 @@ const analyzeCreatorVideoByUrl = async (input: {
                 'camera_motion_positioning',
                 'composition',
                 'ambiance_colour_lighting',
-                'audio'
+                'audio_summary',
+                'dialogue'
               ],
               additionalProperties: false
             }
@@ -332,43 +420,6 @@ const analyzeCreatorVideoByUrl = async (input: {
       }
     }
   } as const;
-
-  const parseApiResponse = (data: unknown, responseText: string) => {
-    const apiResponse = data as { choices?: Array<{ message?: { content?: unknown } }> };
-    const rawContent = apiResponse.choices?.[0]?.message?.content;
-    const normalizedContent = extractStructuredContent(rawContent);
-
-    if (!normalizedContent) {
-      return {
-        ok: false as const,
-        reason: `Invalid creator video analysis response format. choices=${Array.isArray(apiResponse.choices) ? apiResponse.choices.length : 0}; rawContentType=${typeof rawContent}`,
-        normalizedContent: null
-      };
-    }
-
-    const jsonPayload = extractJsonObjectFromText(normalizedContent);
-    if (!jsonPayload) {
-      return {
-        ok: false as const,
-        reason: `Invalid creator video analysis JSON payload. normalizedPreview=${truncateForLog(normalizedContent, 220)}`,
-        normalizedContent
-      };
-    }
-
-    try {
-      const parsed = JSON.parse(jsonPayload) as Record<string, unknown>;
-      return {
-        ok: true as const,
-        parsed
-      };
-    } catch {
-      return {
-        ok: false as const,
-        reason: `Invalid creator video analysis JSON payload. normalizedPreview=${truncateForLog(normalizedContent, 220)}`,
-        normalizedContent
-      };
-    }
-  };
 
   const executeAttempt = async (opts: { relaxedMode: boolean; includeResponseFormat: boolean }) => {
     const response = await callOpenRouterForCreatorVideo({
@@ -449,7 +500,7 @@ const analyzeCreatorVideoByUrl = async (input: {
 
   // Attempt 1: strict schema response_format
   const firstAttempt = await executeAttempt({ relaxedMode: false, includeResponseFormat: true });
-  let parsedResult = parseApiResponse(firstAttempt.data, firstAttempt.responseText);
+  let parsedResult = parseCreatorVideoAnalysisResponse(firstAttempt.data);
 
   // Attempt 2 fallback: no response_format, plain JSON-only instruction.
   if (!parsedResult.ok) {
@@ -458,7 +509,7 @@ const analyzeCreatorVideoByUrl = async (input: {
       reason: parsedResult.reason
     });
     const secondAttempt = await executeAttempt({ relaxedMode: true, includeResponseFormat: false });
-    parsedResult = parseApiResponse(secondAttempt.data, secondAttempt.responseText);
+    parsedResult = parseCreatorVideoAnalysisResponse(secondAttempt.data);
   }
 
   if (!parsedResult.ok) {
@@ -616,4 +667,10 @@ export const analyzeCreatorVideoAndUpdate = async ({
 
     return { error: message };
   }
+};
+
+export const __test__ = {
+  hasSpeechSignal,
+  parseCreatorVideoAnalysisResponse,
+  validateStrictShotSchema,
 };
