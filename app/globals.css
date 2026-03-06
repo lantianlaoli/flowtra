@@ -1755,6 +1755,9 @@
 
   --font-sans:
     var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-chat:
+    var(--font-plus-jakarta-sans), var(--font-inter), "Inter", "SF Pro Text",
+    "Helvetica Neue", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono:
     ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo,
     monospace;
@@ -1828,6 +1831,11 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden; /* Prevent horizontal scroll/overflow on mobile */
+}
+
+.flowgen-chat-font {
+  font-family: var(--font-chat);
+  letter-spacing: -0.01em;
 }
 
 /* Custom scrollbar styling */

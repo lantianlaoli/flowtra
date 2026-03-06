@@ -11,12 +11,22 @@ import {
 } from '@/lib/project-agent/clone-selection';
 import {
   MERGE_CONFIRMATION_TOKEN,
+  REPLACEMENT_CONFIRMATION_TOKEN,
   isMergeConfirmationCommand,
   isMergeIntentCommand,
+  isReplacementConfirmationCommand,
   isRegenerateVideoCommand,
   isStartVideoGenerationCommand,
   mapClonePhaseFromStatusPayload as mapClonePhaseFromPayload
 } from '@/lib/project-agent/clone-workflow-control';
+import {
+  buildCartesianSceneAssignments,
+  hasExplicitAvatarIntent,
+  isProductOnlyIntent,
+  isSelectionContinueIntent,
+  type ClonePlanStatus,
+  type CloneSceneAssignment
+} from '@/lib/project-agent/clone-replacement-plan';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -60,7 +70,14 @@ type SessionState = {
     detectedProduct?: string | null;
   };
   cloneReplacementDraft?: {
-    status: 'idle' | 'generating' | 'ready' | 'failed';
+    status: 'idle' | 'generating' | 'ready' | 'awaiting_confirmation' | 'failed';
+    planStatus?: ClonePlanStatus;
+    confirmation?: {
+      requiredToken: string;
+      confirmedAt?: string | null;
+      confirmedByMessageId?: string | null;
+    } | null;
+    sceneAssignments?: CloneSceneAssignment[];
     error?: string | null;
     selectedAvatars?: Array<{ id: string; name: string; photoUrl?: string | null }>;
     selectedAvatar?: { id: string; name: string; photoUrl?: string | null };
@@ -121,7 +138,7 @@ type SessionState = {
   pendingMergeConfirmation?: {
     projectId: string;
     requestedAt: string;
-    token: '确认合并';
+    token: string;
   } | null;
 };
 
@@ -250,48 +267,110 @@ const hasVideoGenerationSignal = (state: SessionState) => {
   );
 };
 
-const buildWorkflowFallbackReply = (latestUserTurnText: string, state: SessionState) => {
+const shouldGenerateWorkflowFallback = (latestUserTurnText: string, state: SessionState) => {
   const raw = latestUserTurnText.trim();
-  if (!raw) return null;
+  if (!raw) return false;
 
   if (isSceneScopedVideoStartCommand(raw)) {
-    if (hasVideoGenerationSignal(state)) {
-      return 'Video generation has started for the clone project. Flowtra currently renders scene videos as part of the project-level video pass, and you can still ask me to regenerate a specific scene video afterward.';
-    }
-    return 'I understood this as a scene-video request. Flowtra currently starts video generation for the whole clone project, or regenerates one specific scene video after review. Say "start video generation" to render all scenes, or "regenerate scene 1 video" to redo one scene.';
+    return true;
   }
 
   if (isStartVideoGenerationCommand(raw)) {
-    if (hasVideoGenerationSignal(state)) {
-      return 'Video generation has started. I am rendering each scene video now and will keep you posted as progress updates arrive.';
-    }
-    return 'I received your video-generation request. Frames still appear to be in review/generation, so I will start video generation as soon as all frames are ready.';
+    return true;
   }
 
   if (isStartFrameGenerationCommand(raw)) {
-    return 'Frame generation has started. I am generating the first frames for all scenes now.';
+    return true;
   }
 
   if (isRegenerateFrameCommand(raw)) {
-    const sceneIndex = parseSceneIndexFromUserTurn(raw);
-    if (sceneIndex && Number.isFinite(sceneIndex)) {
-      return `I am regenerating the frame for Scene ${sceneIndex} now.`;
-    }
-    return 'I am regenerating the requested frame now.';
+    return true;
   }
 
   if (isRegenerateVideoCommand(raw)) {
-    const sceneIndex = parseSceneIndexFromUserTurn(raw);
-    if (sceneIndex && Number.isFinite(sceneIndex)) {
-      return `I am regenerating the video for Scene ${sceneIndex} now.`;
-    }
-    return 'I am regenerating the requested scene video now.';
+    return true;
   }
 
-  return null;
+  if (isReplacementConfirmationCommand(raw)) {
+    return true;
+  }
+
+  return state.intent === 'competitor_ugc_replication';
 };
 
-type ForcedToolChoice = { type: 'tool'; toolName: 'startCloneVideoGeneration' | 'mergeCloneVideos' | 'regenerateCloneVideos' } | undefined;
+const buildWorkflowFallbackReply = async (input: {
+  latestUserTurnText: string;
+  state: SessionState;
+  model: ReturnType<typeof openrouter.chat>;
+}) => {
+  if (!shouldGenerateWorkflowFallback(input.latestUserTurnText, input.state)) {
+    return null;
+  }
+
+  const selectedAvatars = normalizeCloneSelections(
+    input.state.cloneReplacementDraft?.selectedAvatars,
+    input.state.cloneReplacementDraft?.selectedAvatar
+  );
+  const selectedProducts = normalizeCloneSelections(
+    input.state.cloneReplacementDraft?.selectedProducts,
+    input.state.cloneReplacementDraft?.selectedProduct
+  );
+  const clonePhase = input.state.cloneExecution?.phase || 'idle';
+  const draftStatus = input.state.cloneReplacementDraft?.status || 'idle';
+  const planStatus = input.state.cloneReplacementDraft?.planStatus || 'collecting';
+  const segments = Array.isArray(input.state.cloneExecution?.segments) ? input.state.cloneExecution?.segments : [];
+  const framesReady = segments.filter((segment) => Boolean(segment.firstFrameUrl)).length;
+  const videosReady = segments.filter((segment) => Boolean(segment.videoUrl)).length;
+
+  const { text } = await generateText({
+    model: input.model,
+    system: [
+      'You are Flowgen writing one contextual assistant reply.',
+      'Do not use canned or template wording.',
+      'Always provide clear next actions.',
+      'Reply in English only.',
+      'When replacements are confirmed and draft/scene workspace is available, tell the user exactly what to do next:',
+      'review/edit scene prompts on the left, then say "start frame generation", then after frame review say "start video generation".',
+      'If generation is already running, summarize progress and the next valid command.'
+    ].join(' '),
+    prompt: JSON.stringify({
+      latestUserTurn: input.latestUserTurnText,
+      state: {
+        intent: input.state.intent || 'unknown',
+        referenceSelected: Boolean(input.state.cloneReferenceVideo?.id),
+        selectedAvatars: selectedAvatars.map((item) => item.name),
+        selectedProducts: selectedProducts.map((item) => item.name),
+        draftStatus,
+        planStatus,
+        clonePhase,
+        totalSegments: segments.length,
+        framesReady,
+        videosReady,
+        hasVideoSignal: hasVideoGenerationSignal(input.state)
+      }
+    })
+  });
+
+  const reply = text.trim();
+  return reply.length > 0 ? reply : null;
+};
+
+const getClonePlanStatus = (state: SessionState): ClonePlanStatus => {
+  return state.cloneReplacementDraft?.planStatus || 'collecting';
+};
+
+const isCloneSelectionConfirmed = (state: SessionState, latestUserText: string) => {
+  const draft = state.cloneReplacementDraft;
+  if (!draft) return false;
+  if (isReplacementConfirmationCommand(latestUserText)) return true;
+  return Boolean(
+    draft.planStatus === 'confirmed' &&
+    draft.confirmation?.confirmedAt &&
+    draft.confirmation?.requiredToken === REPLACEMENT_CONFIRMATION_TOKEN
+  );
+};
+
+type ForcedToolChoice = { type: 'tool'; toolName: 'startCloneVideoGeneration' | 'mergeCloneVideos' | 'regenerateCloneVideos' | 'confirmCloneSelections' | 'generateCloneReplacementDraft' } | undefined;
 
 const tryParseJsonObject = (raw: string): Record<string, unknown> | null => {
   const trimmed = raw.trim();
@@ -318,10 +397,25 @@ const classifyToolIntent = async (input: {
   latestUserTurnText: string;
   clonePhase?: SessionState['cloneExecution'] extends { phase: infer P } ? P : string;
   hasCloneProject: boolean;
+  hasSelectedProducts: boolean;
+  cloneDraftStatus?: SessionState['cloneReplacementDraft'] extends { status: infer S } ? S : string;
   pendingMergeConfirmation?: SessionState['pendingMergeConfirmation'] | null;
 }): Promise<ForcedToolChoice> => {
   const userText = input.latestUserTurnText.trim();
   if (!userText) return undefined;
+
+  if (
+    isSelectionContinueIntent(userText) &&
+    input.hasSelectedProducts &&
+    input.cloneDraftStatus !== 'generating' &&
+    input.cloneDraftStatus !== 'ready'
+  ) {
+    return { type: 'tool', toolName: 'generateCloneReplacementDraft' };
+  }
+
+  if (isReplacementConfirmationCommand(userText)) {
+    return { type: 'tool', toolName: 'confirmCloneSelections' };
+  }
   if (!input.hasCloneProject) return undefined;
 
   const hasPendingMerge = Boolean(input.pendingMergeConfirmation?.projectId);
@@ -404,11 +498,16 @@ const buildSystemPrompt = (state: SessionState) => {
   const referenceDetectedCharacter = state.cloneReferenceVideo?.detectedCharacter || 'not available';
   const referenceDetectedProduct = state.cloneReferenceVideo?.detectedProduct || 'not available';
   const cloneDraftStatus = state.cloneReplacementDraft?.status || 'idle';
+  const clonePlanStatus = getClonePlanStatus(state);
   const cloneDraftSceneCount = Array.isArray(state.cloneReplacementDraft?.scenes) ? state.cloneReplacementDraft.scenes.length : 0;
+  const cloneAssignmentCount = Array.isArray(state.cloneReplacementDraft?.sceneAssignments) ? state.cloneReplacementDraft.sceneAssignments.length : 0;
   const cloneDraftSelection = [
     selectedAvatars.length > 0 ? `avatars=${selectedAvatars.map((avatar) => avatar.name).join(', ')}` : null,
     selectedProducts.length > 0 ? `products=${selectedProducts.map((product) => product.name).join(', ')}` : null
   ].filter(Boolean).join(', ') || 'none';
+  const replacementConfirmation = state.cloneReplacementDraft?.confirmation?.confirmedAt
+    ? `confirmed at ${state.cloneReplacementDraft.confirmation.confirmedAt}`
+    : 'not confirmed';
   const cloneExecutionPhase = state.cloneExecution?.phase || 'idle';
   const cloneExecutionSegments = Array.isArray(state.cloneExecution?.segments) ? state.cloneExecution?.segments.length : 0;
   const cloneExecutionMergedVideo = state.cloneExecution?.mergedVideoUrl || 'not ready';
@@ -416,7 +515,19 @@ const buildSystemPrompt = (state: SessionState) => {
     ? `${state.pendingMergeConfirmation.token} (${state.pendingMergeConfirmation.projectId})`
     : 'none';
 
-  return `You are Flowtra Project Agent. You orchestrate Flowtra video workflows through a conversational flow.
+  return `You are Flowgen, the Flowtra growth agent. Core mission: "Make virality accessible."
+
+Identity and brand voice (strict):
+- You are named Flowgen.
+- When asked your name, always answer directly: "I am Flowgen."
+- Never say you do not have a name.
+- Mission: give everyday sellers the power to create viral content.
+- Audience: dropshippers, affiliates, small sellers, and TikTok ad operators.
+- Emotional core: not "AI technology", but "practical viral execution power for normal people."
+- One-line value proposition: "Flowgen gives everyone the power to create viral content."
+- Personality: TikTok Growth Hacker + AI Creator.
+- Personality keywords: Bold, Fast, Creator-first, Growth-driven.
+- Tone: direct, practical, action-oriented, and concise.
 
 Supported workflows:
 - avatar_ads (create spokesperson-style avatar videos)
@@ -445,7 +556,9 @@ Workflow rules:
 - Style rule: avoid fixed/canned templates. Each reply must be generated from the current conversation context and latest state, with wording adapted to the specific user turn.
 - Language rule (strict): all user-facing replies and guidance must be in English only.
 - Terminology rule (strict): never use "brand", "your brand", "branding", or "brand identity" in user-facing copy for this flow.
-- Terminology rule (strict): always frame replacement choices as avatar/person + product.
+- Terminology rule (strict): frame replacements as avatar/person and/or product based on user intent.
+- Terminology rule (strict): avoid technical words like "merge" in user-facing replies; use "create final video" or "finish video" instead.
+- Positioning rule: speak like a growth operator who helps users ship viral ads quickly, not like a generic tech support bot.
 - If the user uses "brand" in their input, reinterpret it to product/avatar intent and confirm that selection using product/avatar wording.
 - Collect missing required inputs before execution.
 - Confirm collected inputs before project creation.
@@ -458,10 +571,11 @@ Workflow rules:
 - When the user confirms prompts, use confirmVideoGeneration.
 - If the user picks competitor_ugc_replication, run the executable clone flow end-to-end in chat:
   - Step 1: choose reference video.
-  - Step 2: choose replacement avatar and/or product.
-  - Step 3: review replaced prompts, then ask me in chat to start frame generation.
-  - Step 4: review first frames per scene; if needed, ask me in chat to regenerate frame(s), then ask me in chat to start video generation.
-  - Step 5: after all scene videos are ready, allow frame/video regeneration before merge; merge requires explicit chat confirmation token.
+  - Step 2: collect multi-avatar and multi-product selections (avatar and product are both optional at planning stage).
+  - Step 3: build and review deterministic scene assignments (cartesian preview).
+  - Step 4: wait for explicit replacement confirmation token "${REPLACEMENT_CONFIRMATION_TOKEN}".
+  - Step 5: after replacement confirmation, start frame generation and continue execution phases.
+  - Step 6: after all scene videos are ready, allow frame/video regeneration before creating the final video; final-video creation requires explicit chat confirmation token.
   - Keep replies progress-aware and concise at each phase.
 - For competitor_ugc_replication, the sequence must follow the existing manual flow:
   1) First ask user to select ONE reference video.
@@ -470,7 +584,7 @@ Workflow rules:
   4) In step 1 responses, never mention product requirements yet.
   6) If Reference Video is already selected in current state, do not ask for reference video again; continue to the next required step.
   7) After Reference Video is selected, your first sentence must explicitly confirm you understood the video structure using the provided summary and key shots.
-  8) In the same reply, naturally recommend replacement directions and ask user to choose replacement avatar/person and replacement product.
+  8) In the same reply, naturally recommend replacement directions and ask user to choose replacement avatars and/or products.
   9) Keep this as a normal conversational reply; do not rely on UI labels or step headers in the wording.
   10) If cloneReplacementDraft.status is "ready", reply naturally that replacement prompts are prepared from the reference structure, briefly summarize selected replacements, and ask the user to review/edit Scene and shot-level fields (subject, background, action, style, camera, composition, lighting, audio, dialogue) in Step 3.
   11) If cloneReplacementDraft.status is "generating", tell the user you are preparing prompt drafts now and to wait briefly.
@@ -479,22 +593,25 @@ Workflow rules:
   14) Grounding rule (strict): when replying about a selected reference video, you must use ONLY "Reference Summary", "Reference Key Shots", "Reference Detected Character", and "Reference Detected Product" from current state. If details are missing, say they are unavailable; do not invent scene details.
   15) In the first response after reference selection, cite at least two concrete shot cues from "Reference Key Shots" verbatim or near-verbatim when available.
   16) Context rule (strict): for every reply, incorporate the latest user request plus relevant prior chat context; do not answer with generic fallback copy.
-  17) Step 2 auto-match rule: when reference video is selected and user describes replacements in natural language (e.g. "replace with a man and LIEVEDA book"), you must try to resolve matches from existing options by calling listAvatars and listProducts, then call selectAvatar/selectProduct for best matches.
+  17) Step 2 auto-match rule: when reference video is selected and user describes replacements in natural language (including multiple avatars/products), resolve matches from existing options by calling listAvatars and listProducts, then apply selection tools.
   18) You may only claim something is "preselected" after a successful selectAvatar/selectProduct tool call in this turn (tool result must be success=true). If a tool returns success=false, do not claim any preselection and ask a short clarification instead.
-  19) Product guard: if the user did not explicitly specify a replacement product in the latest turn, do not call selectProduct and do not assume any product. Ask a short follow-up question instead.
-  20) After successful auto-match, explicitly tell the user which avatar/product were preselected and ask if those choices are correct; instruct confirmation only via chat message.
-  20.1) When the user confirms replacements in natural language (not limited to fixed phrases), call generateCloneReplacementDraft immediately to start Step 3 draft generation.
-  20.2) Manual-selection rule: if current state already has selected avatar/product (from left panel) and user says they are done/selected/continue without repeating names, explicitly read back the selected avatar/product from state and ask whether to proceed to next step.
-  20.3) If both selected avatar and selected product already exist in current state and user confirms to continue, call generateCloneReplacementDraft even when the latest message does not restate the names.
-  21) If the latest user message indicates they already confirmed replacements (e.g. "I selected replacement ... Continue to the next step..."), do NOT ask for confirmation again. Instead, acknowledge the chosen avatar/product and say you are now applying those replacements to the original prompt structure.
-  22) In that post-confirmation turn, guide the user to review/edit the generated Scene and shot fields in Step 3 (subject, context/background, action, style, camera, composition, lighting, audio, dialogue), then tell them to send a chat command to start frame generation.
-  23) If cloneReplacementDraft.status is ready and cloneExecutionPhase is still idle, never tell the user to start video generation yet. At this stage, always guide them to start frame generation first.
-  24) Never instruct clicking any "confirm" control on the left panel. Replacement confirmation is chat-only. During clone execution phases, never instruct clicking removed buttons. Use command-style guidance, e.g. "Say 'start frame generation'", "say 'regenerate scene 2 frame'", "say 'regenerate scene 2 video'" or, only after frame review, "say 'start video generation'".
-  25) If cloneReplacementDraft.status is ready and user asks to start generation, call startCloneGenerationFromDraft. If user asks to regenerate frames, call regenerateCloneFrames. If user asks to regenerate scene videos, call regenerateCloneVideos. If user asks to start video generation after frame review, call startCloneVideoGeneration.
-  25.1) For merge/finalize requests in clone flow: first ask for confirmation token "${MERGE_CONFIRMATION_TOKEN}" and do not merge immediately. Only call mergeCloneVideos after the user sends the confirmation token.
-  26) Download guidance rule: after merge starts or when cloneExecutionPhase is "completed", explicitly tell the user to check "My Ads" to view/download the final video.
-  27) If user asks where to download the finished clone video, answer directly: "Please go to My Ads to view and download it."
-  28) If matching is uncertain, present top likely candidates and ask a short clarification question; do not proceed to generation.
+  19) Selection priority rule: if current state already contains selected avatars/products from the left panel, treat those selections as authoritative user intent.
+  20) After successful auto-match, read back selected avatars/products and ask user to review scene assignments.
+  20.1) Use planCloneAssignments to build deterministic cartesian scene assignments preview.
+  20.2) Allow updateSceneAssignment for per-scene manual overrides before confirmation.
+  20.3) If user requests to clear or replace current selections, call clearCloneSelections or setCloneSelections instead of silently keeping previous values.
+  21) Continue rule: if the user says done/selected/continue/next and state already has selections, do not ask for names again. Read back selected avatars/products + assignment summary, then proceed to draft generation.
+  21.1) Only ask for explicit product name if there is no selected product in current state.
+  21.2) Do not infer execution confirmation from vague wording like "continue" or "looks good". Execution confirmation is valid only when user sends "${REPLACEMENT_CONFIRMATION_TOKEN}" and confirmCloneSelections succeeds.
+  22) Until selection confirmation is complete, do not call execution tools. Respond with concise guidance and expected next command.
+  23) In confirmed state, guide the user to review/edit Scene and shot fields (subject, context/background, action, style, camera, composition, lighting, audio, dialogue), then tell them to send a chat command to start frame generation.
+  24) If cloneReplacementDraft.status is ready and cloneExecutionPhase is still idle, never tell the user to start video generation yet. At this stage, always guide them to start frame generation first.
+  25) Never instruct clicking any "confirm" control on the left panel. Replacement confirmation is chat-only via token "${REPLACEMENT_CONFIRMATION_TOKEN}". During clone execution phases, never instruct clicking removed buttons. Use command-style guidance.
+  26) If cloneReplacementDraft.status is ready and user asks to start generation, call startCloneGenerationFromDraft only after confirmation gate passes. If user asks to regenerate frames, call regenerateCloneFrames. If user asks to regenerate scene videos, call regenerateCloneVideos. If user asks to start video generation after frame review, call startCloneVideoGeneration.
+  25.1) For final-video requests in clone flow: first ask for confirmation token "${MERGE_CONFIRMATION_TOKEN}" and do not start final-video creation immediately. Only call mergeCloneVideos after the user sends the confirmation token.
+  27) Download guidance rule: after final-video creation starts or when cloneExecutionPhase is "completed", explicitly tell the user to check "My Ads" to view/download the final video.
+  28) If user asks where to download the finished clone video, answer directly: "Please go to My Ads to view and download it."
+  29) If matching is uncertain, present top likely candidates and ask a short clarification question; do not proceed to generation.
 - If the user picks motion_swap, collect requirements and guide to the existing workflow entrypoint.
 - When user asks what workflows are available, always list ALL three:
   1) Avatar Ads
@@ -510,8 +627,12 @@ Current state:
 - Reference Detected Character: ${referenceDetectedCharacter}
 - Reference Detected Product: ${referenceDetectedProduct}
 - Clone Draft Status: ${cloneDraftStatus}
+- Clone Plan Status: ${clonePlanStatus}
 - Clone Draft Selections: ${cloneDraftSelection}
 - Clone Draft Scenes: ${cloneDraftSceneCount}
+- Clone Assignment Count: ${cloneAssignmentCount}
+- Replacement Confirmation: ${replacementConfirmation}
+- Replacement Confirmation Token: ${REPLACEMENT_CONFIRMATION_TOKEN}
 - Clone Execution Phase: ${cloneExecutionPhase}
 - Clone Execution Segments: ${cloneExecutionSegments}
 - Clone Execution Merged Video URL: ${cloneExecutionMergedVideo}
@@ -835,6 +956,41 @@ export async function POST(request: Request) {
       }
     };
 
+    const cloneDraftPrerequisiteGate = () => {
+      if (sessionState.intent !== 'competitor_ugc_replication' || !sessionState.cloneReferenceVideo?.id) {
+        return { ok: false as const, message: 'Reference video is not selected yet.' };
+      }
+      // Backward compatibility: allow legacy in-flight clone sessions that predate
+      // replacement plan confirmation fields.
+      if (
+        sessionState.cloneExecution?.projectId &&
+        !sessionState.cloneReplacementDraft?.confirmation &&
+        !sessionState.cloneReplacementDraft?.planStatus
+      ) {
+        return { ok: true as const };
+      }
+      const selectedProducts = normalizeCloneSelections(
+        sessionState.cloneReplacementDraft?.selectedProducts,
+        sessionState.cloneReplacementDraft?.selectedProduct
+      );
+      if (selectedProducts.length === 0 && !sessionState.product?.id) {
+        return { ok: false as const, message: 'Please select at least one replacement product first.' };
+      }
+      return { ok: true as const };
+    };
+
+    const cloneExecutionGate = () => {
+      const draftGate = cloneDraftPrerequisiteGate();
+      if (!draftGate.ok) return draftGate;
+      if (!isCloneSelectionConfirmed(sessionState, latestUserTurnText)) {
+        return {
+          ok: false as const,
+          message: `Replacement plan is not confirmed yet. Review scene assignments, then reply "${REPLACEMENT_CONFIRMATION_TOKEN}".`
+        };
+      }
+      return { ok: true as const };
+    };
+
     const resolveCloneProjectId = async (): Promise<string | null> => {
       const fromState = sessionState.cloneExecution?.projectId;
       if (fromState) {
@@ -905,6 +1061,11 @@ export async function POST(request: Request) {
           sessionState.cloneExecution?.projectId ||
           sessionState.projectId
         ),
+        hasSelectedProducts: normalizeCloneSelections(
+          sessionState.cloneReplacementDraft?.selectedProducts,
+          sessionState.cloneReplacementDraft?.selectedProduct
+        ).length > 0 || Boolean(sessionState.product?.id),
+        cloneDraftStatus: sessionState.cloneReplacementDraft?.status,
         pendingMergeConfirmation: sessionState.pendingMergeConfirmation ?? null
       });
     } catch (intentError) {
@@ -961,6 +1122,13 @@ export async function POST(request: Request) {
             required: []
           }),
           execute: async ({ avatarId, avatarName }) => {
+            if (isProductOnlyIntent(latestUserTurnText) && !hasExplicitAvatarIntent(latestUserTurnText)) {
+              return {
+                success: false,
+                message: 'You asked for product-only replacement. No avatar was selected. Say "use avatar <name>" if you also want person replacement.'
+              };
+            }
+
             const avatars = await fetchUserAvatarOptions();
 
             const normalizedName = avatarName?.toLowerCase().trim();
@@ -969,13 +1137,14 @@ export async function POST(request: Request) {
             const avatarAlias = normalizedName ? normalizedAvatarName(normalizedName) : '';
             const maleAlias = new Set(['man', 'male', 'guy', 'boy']);
             const femaleAlias = new Set(['woman', 'female', 'girl']);
+            const explicitAvatarIntent = hasExplicitAvatarIntent(latestUserTurnText);
 
             let match = mergedAvatars.find((avatar) => avatarId ? avatar.id === avatarId : false);
             if (!match && avatarAlias) {
-              if (maleAlias.has(avatarAlias)) {
+              if (explicitAvatarIntent && maleAlias.has(avatarAlias)) {
                 match = mergedAvatars.find((avatar) => normalizedAvatarName(avatar.avatar_name || '') === 'default male')
                   || mergedAvatars.find((avatar) => /male|man/.test(normalizedAvatarName(avatar.avatar_name || '')));
-              } else if (femaleAlias.has(avatarAlias)) {
+              } else if (explicitAvatarIntent && femaleAlias.has(avatarAlias)) {
                 match = mergedAvatars.find((avatar) => normalizedAvatarName(avatar.avatar_name || '') === 'default female')
                   || mergedAvatars.find((avatar) => /female|woman/.test(normalizedAvatarName(avatar.avatar_name || '')));
               } else {
@@ -1002,15 +1171,27 @@ export async function POST(request: Request) {
                   error: null,
                   scenes: []
                 }),
-                selectedAvatars: [{
-                  id: match.id,
-                  name: match.avatar_name || 'Unnamed Avatar',
-                  photoUrl: match.photo_url ?? null
-                }],
+                selectedAvatars: normalizeCloneSelections([
+                  ...normalizeCloneSelections(
+                    sessionState.cloneReplacementDraft?.selectedAvatars,
+                    sessionState.cloneReplacementDraft?.selectedAvatar
+                  ),
+                  {
+                    id: match.id,
+                    name: match.avatar_name || 'Unnamed Avatar',
+                    photoUrl: match.photo_url ?? null
+                  }
+                ]),
                 selectedAvatar: {
                   id: match.id,
                   name: match.avatar_name || 'Unnamed Avatar',
                   photoUrl: match.photo_url ?? null
+                },
+                planStatus: 'awaiting_confirmation',
+                confirmation: {
+                  requiredToken: REPLACEMENT_CONFIRMATION_TOKEN,
+                  confirmedAt: null,
+                  confirmedByMessageId: null
                 }
               }
             });
@@ -1060,7 +1241,19 @@ export async function POST(request: Request) {
             }
 
             const matchedProductNameNormalized = normalize(match.product_name || '');
-            if (!latestUserTextNormalized || !latestUserTextNormalized.includes(matchedProductNameNormalized)) {
+            const hasSelectedProductInState = (
+              normalizeCloneSelections(
+                sessionState.cloneReplacementDraft?.selectedProducts,
+                sessionState.cloneReplacementDraft?.selectedProduct
+              ).length > 0 ||
+              Boolean(sessionState.product?.id)
+            );
+            const allowImplicitByState = hasSelectedProductInState && isSelectionContinueIntent(latestUserTurnText);
+            const hasExplicitByLatestTurn = Boolean(
+              latestUserTextNormalized &&
+              latestUserTextNormalized.includes(matchedProductNameNormalized)
+            );
+            if (!hasExplicitByLatestTurn && !allowImplicitByState && !productId) {
               return {
                 success: false,
                 message: 'User has not explicitly specified this replacement product in the latest message.'
@@ -1078,15 +1271,27 @@ export async function POST(request: Request) {
                   error: null,
                   scenes: []
                 }),
-                selectedProducts: [{
-                  id: match.id,
-                  name: match.product_name,
-                  photoUrl: null
-                }],
+                selectedProducts: normalizeCloneSelections([
+                  ...normalizeCloneSelections(
+                    sessionState.cloneReplacementDraft?.selectedProducts,
+                    sessionState.cloneReplacementDraft?.selectedProduct
+                  ),
+                  {
+                    id: match.id,
+                    name: match.product_name,
+                    photoUrl: null
+                  }
+                ]),
                 selectedProduct: {
                   id: match.id,
                   name: match.product_name,
                   photoUrl: null
+                },
+                planStatus: 'awaiting_confirmation',
+                confirmation: {
+                  requiredToken: REPLACEMENT_CONFIRMATION_TOKEN,
+                  confirmedAt: null,
+                  confirmedByMessageId: null
                 }
               }
             });
@@ -1094,12 +1299,416 @@ export async function POST(request: Request) {
             return { success: true, product: match };
           }
         }),
+        setCloneSelections: tool({
+          description: 'Bulk set replacement avatars/products for clone planning. Supports replace/add mode.',
+          inputSchema: jsonSchema({
+            type: 'object',
+            properties: {
+              avatarIds: { type: 'array', items: { type: 'string' } },
+              productIds: { type: 'array', items: { type: 'string' } },
+              mode: { type: 'string', enum: ['replace', 'add'] }
+            },
+            required: []
+          }),
+          execute: async ({ avatarIds, productIds, mode }) => {
+            const mergeMode = mode === 'add' ? 'add' : 'replace';
+            const nextAvatarIds = normalizeSelectedIds(undefined, avatarIds, 8);
+            const nextProductIds = normalizeSelectedIds(undefined, productIds, 8);
+
+            const currentSelectedAvatars = normalizeCloneSelections(
+              sessionState.cloneReplacementDraft?.selectedAvatars,
+              sessionState.cloneReplacementDraft?.selectedAvatar
+            );
+            const currentSelectedProducts = normalizeCloneSelections(
+              sessionState.cloneReplacementDraft?.selectedProducts,
+              sessionState.cloneReplacementDraft?.selectedProduct
+            );
+
+            const userAvatars = await fetchUserAvatarOptions();
+            const avatarMap = new Map(
+              mergeAvatarOptions(userAvatars).map((avatar) => [avatar.id, avatar] as const)
+            );
+
+            const resolvedAvatarSelections = nextAvatarIds.map((id) => {
+              const avatar = avatarMap.get(id);
+              if (!avatar) return null;
+              return {
+                id: avatar.id,
+                name: avatar.avatar_name || 'Unnamed Avatar',
+                photoUrl: avatar.photo_url ?? null
+              };
+            }).filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+            if (nextAvatarIds.length > 0 && resolvedAvatarSelections.length !== nextAvatarIds.length) {
+              return { success: false, message: 'One or more avatars were not found.' };
+            }
+
+            let productRows: Array<{ id: string; product_name: string; user_product_photos?: Array<{ photo_url?: string; is_primary?: boolean }> }> = [];
+            if (nextProductIds.length > 0) {
+              const { data, error: productsError } = await supabase
+                .from('user_products')
+                .select('id, product_name, user_product_photos(photo_url,is_primary)')
+                .eq('user_id', userId)
+                .in('id', nextProductIds);
+              if (productsError) {
+                return { success: false, message: 'Failed to load selected products.' };
+              }
+              productRows = (data ?? []) as typeof productRows;
+            }
+
+            const productMap = new Map(
+              productRows.map((product) => [product.id, product] as const)
+            );
+            const resolvedProductSelections = nextProductIds.map((id) => {
+              const product = productMap.get(id);
+              if (!product) return null;
+              const photos = Array.isArray(product.user_product_photos)
+                ? product.user_product_photos as Array<{ photo_url?: string; is_primary?: boolean }>
+                : [];
+              const primaryPhoto = photos.find((photo) => photo.is_primary) || photos[0];
+              return {
+                id: product.id,
+                name: product.product_name || 'Unnamed Product',
+                photoUrl: primaryPhoto?.photo_url || null
+              };
+            }).filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+            if (nextProductIds.length > 0 && resolvedProductSelections.length !== nextProductIds.length) {
+              return { success: false, message: 'One or more products were not found.' };
+            }
+
+            const selectedAvatars = mergeMode === 'add'
+              ? normalizeCloneSelections([...currentSelectedAvatars, ...resolvedAvatarSelections])
+              : normalizeCloneSelections(resolvedAvatarSelections);
+            const selectedProducts = mergeMode === 'add'
+              ? normalizeCloneSelections([...currentSelectedProducts, ...resolvedProductSelections])
+              : normalizeCloneSelections(resolvedProductSelections);
+
+            const sceneCount = Math.max(
+              Array.isArray(sessionState.cloneReplacementDraft?.scenes) ? sessionState.cloneReplacementDraft.scenes.length : 0,
+              Array.isArray(sessionState.cloneReferenceVideo?.keyShots) ? sessionState.cloneReferenceVideo?.keyShots.length || 0 : 0,
+              1
+            );
+            const sceneAssignments = buildCartesianSceneAssignments({
+              sceneCount,
+              avatarIds: selectedAvatars.map((avatar) => avatar.id),
+              productIds: selectedProducts.map((product) => product.id),
+              existingAssignments: sessionState.cloneReplacementDraft?.sceneAssignments
+            });
+
+            const primaryAvatar = getPrimaryCloneSelection(selectedAvatars);
+            const primaryProduct = getPrimaryCloneSelection(selectedProducts);
+            const nextPlanStatus: ClonePlanStatus = selectedProducts.length > 0 ? 'awaiting_confirmation' : 'collecting';
+            await persistSession({
+              avatar: primaryAvatar ? { id: primaryAvatar.id, name: primaryAvatar.name, photoUrl: primaryAvatar.photoUrl || '' } : null,
+              product: primaryProduct ? { id: primaryProduct.id, name: primaryProduct.name } : null,
+              cloneReplacementDraft: {
+                ...(sessionState.cloneReplacementDraft ?? { status: 'idle', error: null, scenes: [] }),
+                status: sessionState.cloneReplacementDraft?.status === 'ready' ? 'awaiting_confirmation' : (sessionState.cloneReplacementDraft?.status ?? 'idle'),
+                error: null,
+                selectedAvatars,
+                selectedAvatar: primaryAvatar,
+                selectedProducts,
+                selectedProduct: primaryProduct,
+                sceneAssignments,
+                planStatus: nextPlanStatus,
+                confirmation: {
+                  requiredToken: REPLACEMENT_CONFIRMATION_TOKEN,
+                  confirmedAt: null,
+                  confirmedByMessageId: null
+                }
+              }
+            });
+
+            return {
+              success: true,
+              selectedAvatarCount: selectedAvatars.length,
+              selectedProductCount: selectedProducts.length,
+              assignments: sceneAssignments
+            };
+          }
+        }),
+        clearCloneSelections: tool({
+          description: 'Clear selected replacement avatars/products for clone planning.',
+          inputSchema: jsonSchema({
+            type: 'object',
+            properties: {
+              clearAvatars: { type: 'boolean' },
+              clearProducts: { type: 'boolean' }
+            },
+            required: []
+          }),
+          execute: async ({ clearAvatars, clearProducts }) => {
+            const shouldClearAvatars = clearAvatars !== false;
+            const shouldClearProducts = clearProducts !== false;
+            const selectedAvatars = shouldClearAvatars
+              ? []
+              : normalizeCloneSelections(
+                  sessionState.cloneReplacementDraft?.selectedAvatars,
+                  sessionState.cloneReplacementDraft?.selectedAvatar
+                );
+            const selectedProducts = shouldClearProducts
+              ? []
+              : normalizeCloneSelections(
+                  sessionState.cloneReplacementDraft?.selectedProducts,
+                  sessionState.cloneReplacementDraft?.selectedProduct
+                );
+
+            const sceneAssignments = buildCartesianSceneAssignments({
+              sceneCount: Math.max(Array.isArray(sessionState.cloneReplacementDraft?.scenes) ? sessionState.cloneReplacementDraft.scenes.length : 1, 1),
+              avatarIds: selectedAvatars.map((avatar) => avatar.id),
+              productIds: selectedProducts.map((product) => product.id),
+              existingAssignments: sessionState.cloneReplacementDraft?.sceneAssignments
+            });
+            const primaryAvatar = getPrimaryCloneSelection(selectedAvatars);
+            const primaryProduct = getPrimaryCloneSelection(selectedProducts);
+            await persistSession({
+              avatar: primaryAvatar ? { id: primaryAvatar.id, name: primaryAvatar.name, photoUrl: primaryAvatar.photoUrl || '' } : null,
+              product: primaryProduct ? { id: primaryProduct.id, name: primaryProduct.name } : null,
+              cloneReplacementDraft: {
+                ...(sessionState.cloneReplacementDraft ?? { status: 'idle', error: null, scenes: [] }),
+                status: sessionState.cloneReplacementDraft?.status === 'ready' ? 'awaiting_confirmation' : (sessionState.cloneReplacementDraft?.status ?? 'idle'),
+                selectedAvatars,
+                selectedAvatar: primaryAvatar,
+                selectedProducts,
+                selectedProduct: primaryProduct,
+                sceneAssignments,
+                planStatus: selectedProducts.length > 0 ? 'awaiting_confirmation' : 'collecting',
+                confirmation: {
+                  requiredToken: REPLACEMENT_CONFIRMATION_TOKEN,
+                  confirmedAt: null,
+                  confirmedByMessageId: null
+                }
+              }
+            });
+            return { success: true };
+          }
+        }),
+        planCloneAssignments: tool({
+          description: 'Build deterministic cartesian scene assignment preview using selected avatars/products.',
+          inputSchema: emptySchema,
+          execute: async () => {
+            const selectedAvatars = normalizeCloneSelections(
+              sessionState.cloneReplacementDraft?.selectedAvatars,
+              sessionState.cloneReplacementDraft?.selectedAvatar
+            );
+            const selectedProducts = normalizeCloneSelections(
+              sessionState.cloneReplacementDraft?.selectedProducts,
+              sessionState.cloneReplacementDraft?.selectedProduct
+            );
+            if (selectedProducts.length === 0) {
+              return { success: false, message: 'Please select at least one replacement product first.' };
+            }
+
+            const sceneCount = Math.max(
+              Array.isArray(sessionState.cloneReplacementDraft?.scenes) ? sessionState.cloneReplacementDraft.scenes.length : 0,
+              Array.isArray(sessionState.cloneReferenceVideo?.keyShots) ? sessionState.cloneReferenceVideo?.keyShots.length || 0 : 0,
+              1
+            );
+            const sceneAssignments = buildCartesianSceneAssignments({
+              sceneCount,
+              avatarIds: selectedAvatars.map((avatar) => avatar.id),
+              productIds: selectedProducts.map((product) => product.id),
+              existingAssignments: sessionState.cloneReplacementDraft?.sceneAssignments
+            });
+            await persistSession({
+              cloneReplacementDraft: {
+                ...(sessionState.cloneReplacementDraft ?? { status: 'idle', error: null, scenes: [] }),
+                sceneAssignments,
+                planStatus: 'awaiting_confirmation',
+                confirmation: {
+                  requiredToken: REPLACEMENT_CONFIRMATION_TOKEN,
+                  confirmedAt: null,
+                  confirmedByMessageId: null
+                }
+              }
+            });
+            return { success: true, assignments: sceneAssignments };
+          }
+        }),
+        updateSceneAssignment: tool({
+          description: 'Update one scene assignment (avatar optional, product required) before confirmation.',
+          inputSchema: jsonSchema({
+            type: 'object',
+            properties: {
+              sceneIndex: { type: 'integer', minimum: 1 },
+              avatarId: { type: 'string' },
+              productId: { type: 'string' }
+            },
+            required: ['sceneIndex', 'productId']
+          }),
+          execute: async ({ sceneIndex, avatarId, productId }) => {
+            const selectedAvatars = normalizeCloneSelections(
+              sessionState.cloneReplacementDraft?.selectedAvatars,
+              sessionState.cloneReplacementDraft?.selectedAvatar
+            );
+            const selectedProducts = normalizeCloneSelections(
+              sessionState.cloneReplacementDraft?.selectedProducts,
+              sessionState.cloneReplacementDraft?.selectedProduct
+            );
+            if (!selectedProducts.some((product) => product.id === productId)) {
+              return { success: false, message: 'The selected product is not in the current replacement set.' };
+            }
+            if (avatarId && !selectedAvatars.some((avatar) => avatar.id === avatarId)) {
+              return { success: false, message: 'The selected avatar is not in the current replacement set.' };
+            }
+
+            const sceneCount = Math.max(
+              Array.isArray(sessionState.cloneReplacementDraft?.scenes) ? sessionState.cloneReplacementDraft.scenes.length : 1,
+              1
+            );
+            const autoAssignments = buildCartesianSceneAssignments({
+              sceneCount,
+              avatarIds: selectedAvatars.map((avatar) => avatar.id),
+              productIds: selectedProducts.map((product) => product.id),
+              existingAssignments: sessionState.cloneReplacementDraft?.sceneAssignments
+            });
+            const assignmentMap = new Map(autoAssignments.map((assignment) => [assignment.sceneIndex, assignment] as const));
+            assignmentMap.set(sceneIndex, {
+              sceneIndex,
+              avatarId: avatarId || null,
+              productId,
+              source: 'user_override'
+            });
+            const sceneAssignments = Array.from(assignmentMap.values()).sort((a, b) => a.sceneIndex - b.sceneIndex);
+
+            await persistSession({
+              cloneReplacementDraft: {
+                ...(sessionState.cloneReplacementDraft ?? { status: 'idle', error: null, scenes: [] }),
+                sceneAssignments,
+                planStatus: 'awaiting_confirmation',
+                confirmation: {
+                  requiredToken: REPLACEMENT_CONFIRMATION_TOKEN,
+                  confirmedAt: null,
+                  confirmedByMessageId: null
+                }
+              }
+            });
+            return { success: true, assignments: sceneAssignments };
+          }
+        }),
+        confirmCloneSelections: tool({
+          description: 'Confirm replacement selections and lock plan using explicit confirmation token.',
+          inputSchema: jsonSchema({
+            type: 'object',
+            properties: {
+              token: { type: 'string' }
+            },
+            required: []
+          }),
+          execute: async ({ token }) => {
+            const confirmationText = (typeof token === 'string' && token.trim().length > 0) ? token : latestUserTurnText;
+            if (!isReplacementConfirmationCommand(confirmationText)) {
+              return {
+                success: false,
+                message: `Please confirm replacements by replying "${REPLACEMENT_CONFIRMATION_TOKEN}".`
+              };
+            }
+            const selectedAvatars = normalizeCloneSelections(
+              sessionState.cloneReplacementDraft?.selectedAvatars,
+              sessionState.cloneReplacementDraft?.selectedAvatar
+            );
+            const selectedProducts = normalizeCloneSelections(
+              sessionState.cloneReplacementDraft?.selectedProducts,
+              sessionState.cloneReplacementDraft?.selectedProduct
+            );
+            if (selectedProducts.length === 0) {
+              return { success: false, message: 'Please select at least one replacement product first.' };
+            }
+            const sceneCount = Math.max(
+              Array.isArray(sessionState.cloneReplacementDraft?.scenes) ? sessionState.cloneReplacementDraft.scenes.length : 0,
+              Array.isArray(sessionState.cloneReferenceVideo?.keyShots) ? sessionState.cloneReferenceVideo?.keyShots.length || 0 : 0,
+              1
+            );
+            const sceneAssignments = buildCartesianSceneAssignments({
+              sceneCount,
+              avatarIds: selectedAvatars.map((avatar) => avatar.id),
+              productIds: selectedProducts.map((product) => product.id),
+              existingAssignments: sessionState.cloneReplacementDraft?.sceneAssignments
+            });
+            const selectedAvatarIds = normalizeSelectedIds(
+              sessionState.avatar?.id ?? selectedAvatars[0]?.id,
+              selectedAvatars.map((avatar) => avatar.id),
+              8
+            );
+            const selectedProductIds = normalizeSelectedIds(
+              sessionState.product?.id ?? selectedProducts[0]?.id,
+              selectedProducts.map((product) => product.id),
+              8
+            );
+
+            const confirmedAt = new Date().toISOString();
+            await persistSession({
+              cloneReplacementDraft: {
+                ...(sessionState.cloneReplacementDraft ?? { status: 'idle', error: null, scenes: [] }),
+                status: 'generating',
+                sceneAssignments,
+                planStatus: 'confirmed',
+                confirmation: {
+                  requiredToken: REPLACEMENT_CONFIRMATION_TOKEN,
+                  confirmedAt,
+                  confirmedByMessageId: normalizedIncomingMessage.id
+                }
+              }
+            });
+
+            const internalHeaders: HeadersInit = {
+              'Content-Type': 'application/json',
+              'x-project-agent-internal': '1'
+            };
+            if (userId) {
+              internalHeaders['x-project-agent-user-id'] = userId;
+            }
+
+            const draftResponse = await fetch(`${origin}/api/project-agent/clone-replacement-draft`, {
+              method: 'POST',
+              headers: internalHeaders,
+              body: JSON.stringify({
+                sessionId: resolvedSessionId,
+                avatarId: selectedAvatarIds[0],
+                productId: selectedProductIds[0],
+                avatarIds: selectedAvatarIds,
+                productIds: selectedProductIds,
+                sceneAssignments
+              })
+            });
+            const draftPayload = await draftResponse.json().catch(() => ({}));
+            if (!draftResponse.ok || !draftPayload?.success || !draftPayload?.draft) {
+              const errorMessage = draftPayload?.error || 'Replacement confirmation succeeded, but failed to prepare scene drafts.';
+              await persistSession({
+                cloneReplacementDraft: {
+                  ...(sessionState.cloneReplacementDraft ?? { status: 'idle', error: null, scenes: [] }),
+                  status: 'failed',
+                  error: errorMessage,
+                  sceneAssignments,
+                  planStatus: 'confirmed',
+                  confirmation: {
+                    requiredToken: REPLACEMENT_CONFIRMATION_TOKEN,
+                    confirmedAt,
+                    confirmedByMessageId: normalizedIncomingMessage.id
+                  }
+                }
+              });
+              return { success: false, message: errorMessage };
+            }
+
+            await persistSession({
+              cloneReplacementDraft: draftPayload.draft as SessionState['cloneReplacementDraft']
+            });
+            return {
+              success: true,
+              assignments: sceneAssignments,
+              scenes: Array.isArray(draftPayload.draft?.scenes) ? draftPayload.draft.scenes.length : 0
+            };
+          }
+        }),
         generateCloneReplacementDraft: tool({
           description: 'Generate Step 3 replacement prompt draft from current selected avatar/product for clone workflow',
           inputSchema: emptySchema,
           execute: async () => {
-            if (sessionState.intent !== 'competitor_ugc_replication' || !sessionState.cloneReferenceVideo?.id) {
-              return { success: false, message: 'Reference video is not selected yet.' };
+            const gate = cloneDraftPrerequisiteGate();
+            if (!gate.ok) {
+              return { success: false, message: gate.message };
             }
 
             if (sessionState.cloneReplacementDraft?.status === 'generating') {
@@ -1152,11 +1761,18 @@ export async function POST(request: Request) {
 
             const generatingDraft = {
               status: 'generating' as const,
+              planStatus: 'confirmed' as const,
+              confirmation: sessionState.cloneReplacementDraft?.confirmation ?? {
+                requiredToken: REPLACEMENT_CONFIRMATION_TOKEN,
+                confirmedAt: new Date().toISOString(),
+                confirmedByMessageId: normalizedIncomingMessage.id
+              },
               error: null,
               selectedAvatars,
               selectedAvatar: primaryAvatar,
               selectedProducts,
               selectedProduct: primaryProduct,
+              sceneAssignments: sessionState.cloneReplacementDraft?.sceneAssignments ?? [],
               scenes: []
             };
 
@@ -1180,7 +1796,8 @@ export async function POST(request: Request) {
                 avatarId: selectedAvatarIds[0],
                 productId: selectedProductIds[0],
                 avatarIds: selectedAvatarIds,
-                productIds: selectedProductIds
+                productIds: selectedProductIds,
+                sceneAssignments: sessionState.cloneReplacementDraft?.sceneAssignments ?? []
               })
             });
 
@@ -1408,8 +2025,9 @@ export async function POST(request: Request) {
           description: 'Start clone generation from Step 3 draft (chat-driven, no UI button).',
           inputSchema: emptySchema,
           execute: async () => {
-            if (sessionState.intent !== 'competitor_ugc_replication' || !sessionState.cloneReferenceVideo?.id) {
-              return { success: false, message: 'Reference video is missing.' };
+            const gate = cloneExecutionGate();
+            if (!gate.ok) {
+              return { success: false, message: gate.message };
             }
 
             const draft = sessionState.cloneReplacementDraft;
@@ -1469,6 +2087,10 @@ export async function POST(request: Request) {
             ));
             const videoDuration = String(Math.max(1, draft.scenes.length) * 8);
             const normalizedModel: 'veo3_fast' = 'veo3_fast';
+            const cloneReferenceVideo = sessionState.cloneReferenceVideo;
+            if (!cloneReferenceVideo) {
+              return { success: false, message: 'Reference video is missing.' };
+            }
 
             const createPayload: Record<string, unknown> = {
               userId,
@@ -1485,10 +2107,10 @@ export async function POST(request: Request) {
               segmentPrompts,
               requestSource: 'project_agent_clone'
             };
-            if (sessionState.cloneReferenceVideo.sourceType === 'competitor_ad') {
-              createPayload.competitorAdId = sessionState.cloneReferenceVideo.sourceId || sessionState.cloneReferenceVideo.id;
+            if (cloneReferenceVideo.sourceType === 'competitor_ad') {
+              createPayload.competitorAdId = cloneReferenceVideo.sourceId || cloneReferenceVideo.id;
             } else {
-              createPayload.creatorSourceVideoId = sessionState.cloneReferenceVideo.id || sessionState.cloneReferenceVideo.sourceId;
+              createPayload.creatorSourceVideoId = cloneReferenceVideo.id || cloneReferenceVideo.sourceId;
             }
 
             await persistSession({
@@ -1566,6 +2188,10 @@ export async function POST(request: Request) {
           description: 'Start clone video generation from reviewed first frames for the current competitor clone project',
           inputSchema: emptySchema,
           execute: async () => {
+            const gate = cloneExecutionGate();
+            if (!gate.ok) {
+              return { success: false, message: gate.message };
+            }
             const projectId = await resolveCloneProjectId();
             if (!projectId) {
               return { success: false, message: 'Clone project is not initialized yet.' };
@@ -1692,6 +2318,10 @@ export async function POST(request: Request) {
             required: []
           }),
           execute: async ({ sceneIndex }) => {
+            const gate = cloneExecutionGate();
+            if (!gate.ok) {
+              return { success: false, message: gate.message };
+            }
             const projectId = await resolveCloneProjectId();
             if (!projectId) {
               return { success: false, message: 'Clone project is not initialized yet.' };
@@ -1831,6 +2461,10 @@ export async function POST(request: Request) {
             required: []
           }),
           execute: async ({ sceneIndex }) => {
+            const gate = cloneExecutionGate();
+            if (!gate.ok) {
+              return { success: false, message: gate.message };
+            }
             const projectId = await resolveCloneProjectId();
             if (!projectId) {
               return { success: false, message: 'Clone project is not initialized yet.' };
@@ -1922,9 +2556,13 @@ export async function POST(request: Request) {
           }
         }),
         mergeCloneVideos: tool({
-          description: 'Merge generated clone scene videos into the final output when the project is awaiting merge',
+          description: 'Create the final video from generated scene videos when the project is awaiting finalization',
           inputSchema: emptySchema,
           execute: async () => {
+            const gate = cloneExecutionGate();
+            if (!gate.ok) {
+              return { success: false, message: gate.message };
+            }
             const projectId = await resolveCloneProjectId();
             if (!projectId) {
               return { success: false, message: 'Clone project is not initialized yet.' };
@@ -1945,7 +2583,7 @@ export async function POST(request: Request) {
               });
               return {
                 success: false,
-                message: `If all scene videos look good, reply "${MERGE_CONFIRMATION_TOKEN}" and I will start the final merge.`
+                message: `If all scene videos look good, reply "${MERGE_CONFIRMATION_TOKEN}" and I will create the final video for you.`
               };
             }
 
@@ -1962,7 +2600,7 @@ export async function POST(request: Request) {
             });
             const precheckPayload = await precheckResponse.json().catch(() => ({}));
             if (!precheckResponse.ok || !precheckPayload?.data) {
-              return { success: false, message: precheckPayload?.error || 'Failed to verify merge readiness.' };
+              return { success: false, message: precheckPayload?.error || 'Failed to verify final-video readiness.' };
             }
             const precheckData = precheckPayload.data as Record<string, unknown>;
             const currentStep = typeof precheckPayload.current_step === 'string' ? precheckPayload.current_step : '';
@@ -1973,7 +2611,7 @@ export async function POST(request: Request) {
             if (!isAwaitingMerge || !allVideosReady) {
               return {
                 success: false,
-                message: 'Merge is not ready yet. You can continue regenerating scene frame/video and merge after all scene videos are ready.'
+                message: 'Your final video is not ready yet. You can continue regenerating scene frames/videos, then create the final video once all scenes are ready.'
               };
             }
 
@@ -1983,7 +2621,7 @@ export async function POST(request: Request) {
             });
             const mergePayload = await mergeResponse.json().catch(() => ({}));
             if (!mergeResponse.ok) {
-              return { success: false, message: mergePayload?.error || 'Failed to start merge.' };
+              return { success: false, message: mergePayload?.error || 'Failed to start creating the final video.' };
             }
 
             const statusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
@@ -2000,7 +2638,7 @@ export async function POST(request: Request) {
 
             return {
               success: true,
-              message: 'Final video merge has started. Once it finishes, please go to My Ads to view and download the final video.'
+              message: 'Final video creation has started. Once it finishes, go to My Ads to view and download your final video.'
             };
           }
         }),
@@ -2062,7 +2700,7 @@ export async function POST(request: Request) {
         }
 
         // Guardrail: certain tool-heavy turns may finish without a visible assistant text.
-        // In that case we persist one deterministic assistant reply to prevent false "interrupted" UX.
+        // In that case we generate one contextual AI reply to avoid silent turns.
         const hasAssistantAfterLatestUser = (() => {
           let latestUserIndex = -1;
           let latestAssistantIndex = -1;
@@ -2074,7 +2712,11 @@ export async function POST(request: Request) {
         })();
 
         if (!hasAssistantAfterLatestUser) {
-          const fallbackReply = buildWorkflowFallbackReply(latestUserTurnText, sessionState);
+          const fallbackReply = await buildWorkflowFallbackReply({
+            latestUserTurnText,
+            state: sessionState,
+            model
+          });
           if (fallbackReply) {
             messagesToPersist.push({
               id: `assistant-fallback-${Date.now().toString(36)}`,

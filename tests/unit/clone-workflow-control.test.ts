@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 
 import {
   MERGE_CONFIRMATION_TOKEN,
+  REPLACEMENT_CONFIRMATION_TOKEN,
   isMergeConfirmationCommand,
   isMergeIntentCommand,
+  isReplacementConfirmationCommand,
   isStartVideoGenerationCommand,
   isRegenerateVideoCommand,
   mapClonePhaseFromStatusPayload
@@ -18,8 +20,15 @@ test('detects merge intent commands in EN and ZH', () => {
 
 test('detects merge confirmation token', () => {
   assert.equal(isMergeConfirmationCommand(MERGE_CONFIRMATION_TOKEN), true);
+  assert.equal(isMergeConfirmationCommand('create final video'), true);
   assert.equal(isMergeConfirmationCommand('confirm merge'), true);
   assert.equal(isMergeConfirmationCommand('merge now'), false);
+});
+
+test('detects replacement confirmation token', () => {
+  assert.equal(isReplacementConfirmationCommand(REPLACEMENT_CONFIRMATION_TOKEN), true);
+  assert.equal(isReplacementConfirmationCommand('confirm replacements'), true);
+  assert.equal(isReplacementConfirmationCommand('confirm replacement'), false);
 });
 
 test('detects scene video regeneration command', () => {

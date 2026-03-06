@@ -24,6 +24,10 @@ import CloneSceneWorkspaceStep, {
   type WorkspaceScene
 } from '@/components/project-agent/CloneSceneWorkspaceStep';
 import { useCredits } from '@/contexts/CreditsContext';
+import {
+  requestNotificationPermissionIfNeeded,
+  sendBrowserNotification
+} from '@/lib/browser-notifications';
 import { createClient } from '@/lib/supabase/client';
 import { type VideoModel } from '@/lib/constants';
 import {
@@ -120,8 +124,6 @@ const THINKING_MESSAGES = [
   'Working on a stronger result for this step...',
   'Refining visuals and logic together...'
 ];
-const START_VIDEO_FALLBACK_REPLY = 'Video generation has started. I am now rendering each scene video and will keep this workflow moving.';
-const GENERIC_INTERRUPTION_REPLY = 'I hit a connection issue before I could finish replying. Your last request may still be processing. If nothing changes in a moment, tap Retry and I will continue from the same point.';
 
 const createSessionId = () => {
   if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
@@ -145,17 +147,6 @@ const renderUIMessageText = (message: UIMessage) => {
     .filter((part) => part.type === 'text')
     .map((part) => part.text)
     .join('');
-};
-
-const isSyntheticWorkflowMessage = (text: string) => {
-  const normalized = text.trim().toLowerCase();
-  return (
-    normalized === 'i want to clone a viral video. show me reference videos to choose from.' ||
-    normalized.startsWith('i selected "') && normalized.includes('" as the reference video for clone.') ||
-    normalized.startsWith('i selected replacement ') ||
-    normalized === 'generate this clone now.' ||
-    normalized === 'please regenerate this step with the same selections.'
-  );
 };
 
 const isWorkflowCommandMessage = (text: string) => {
@@ -207,12 +198,6 @@ const findLatestCloneIntentIndex = (messages: UIMessage[]) => {
   return -1;
 };
 
-const isSceneScopedVideoStartCommand = (text: string) => {
-  const normalized = text.trim().toLowerCase();
-  if (!normalized) return false;
-  return /\b(start|begin|run|generate|render)\b[\s\w-]{0,18}\b(scene|shot|segment)\s*#?\s*\d+[\s\w-]{0,12}\bvideo\b/.test(normalized);
-};
-
 const extractRegenerateSceneIndex = (text: string): number | null => {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return null;
@@ -226,49 +211,6 @@ const extractRegenerateSceneIndex = (text: string): number | null => {
   return value;
 };
 
-const hasCloneVideoGenerationSignal = (execution: SessionState['cloneExecution'] | null | undefined) => {
-  if (!execution) return false;
-  if (execution.phase === 'generating_videos' || execution.phase === 'merging' || execution.phase === 'completed') {
-    return true;
-  }
-  return Boolean(
-    execution.segments?.some((segment) => (
-      segment.status === 'generating_video' ||
-      segment.status === 'video_ready' ||
-      Boolean(segment.videoUrl)
-    ))
-  );
-};
-
-const buildInterruptedAssistantReply = (latestUserText: string, state: SessionState | null): string => {
-  const raw = latestUserText.trim();
-  if (!raw) return GENERIC_INTERRUPTION_REPLY;
-
-  const hasVideoSignal = hasCloneVideoGenerationSignal(state?.cloneExecution);
-
-  if (isSceneScopedVideoStartCommand(raw)) {
-    if (hasVideoSignal) {
-      return 'Video generation has already started for this clone project. Flowtra currently renders scene videos through the project-level video pass, and you can still ask me to regenerate a specific scene video afterward.';
-    }
-    return 'I understood this as a scene-video request. Flowtra currently starts video generation for the whole clone project, or regenerates one specific scene video after review. Say "start video generation" to render all scenes, or "regenerate scene 1 video" to redo one scene.';
-  }
-
-  if (isStartVideoGenerationCommand(raw)) {
-    return hasVideoSignal
-      ? START_VIDEO_FALLBACK_REPLY
-      : 'I received your video-generation request. If all scene frames are ready, I will start rendering the videos now. If not, I will wait for the remaining frames first.';
-  }
-
-  if (isWorkflowCommandMessage(raw)) {
-    const sceneIndex = extractRegenerateSceneIndex(raw);
-    if (sceneIndex) {
-      return `I received the request for Scene ${sceneIndex}. If the workflow does not move in a moment, tap Retry and I will rerun it from the latest project state.`;
-    }
-    return 'I received your workflow command. The connection dropped before I could finish replying, but your latest project state is still preserved. If nothing changes in a moment, tap Retry and I will continue from here.';
-  }
-
-  return GENERIC_INTERRUPTION_REPLY;
-};
 
 const dedupeConversationMessages = (messages: UIMessage[]) => {
   // Keep the latest payload for each id to avoid dropping streamed final text.
@@ -548,6 +490,16 @@ const clonePhaseRank = (phase?: SessionState['cloneExecution'] extends { phase: 
   }
 };
 
+const shouldNotifyClonePhaseTransition = (
+  previous: SessionState['cloneExecution'] extends { phase: infer P } ? P : string | undefined,
+  next: SessionState['cloneExecution'] extends { phase: infer P } ? P : string | undefined
+) => {
+  if (!next || previous === next) return false;
+  if (next === 'completed' || next === 'failed') return true;
+  if (!previous) return true;
+  return clonePhaseRank(next) > clonePhaseRank(previous);
+};
+
 const cloneExecutionSignalScore = (execution?: SessionState['cloneExecution'] | null) => {
   if (!execution?.segments?.length) return 0;
   const segmentScore = execution.segments.reduce((acc, segment) => {
@@ -760,17 +712,18 @@ export default function ProjectAgentPage() {
   const [awaitingCloneDraftReply, setAwaitingCloneDraftReply] = useState(false);
   const [cloneDraftReplyBaseline, setCloneDraftReplyBaseline] = useState(0);
   const [retryableUserMessageId, setRetryableUserMessageId] = useState<string | null>(null);
-  const [autoRetriedUserMessageIds, setAutoRetriedUserMessageIds] = useState<string[]>([]);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const historyPopoverRef = useRef<HTMLDivElement | null>(null);
   const isStreamingRef = useRef(false);
   const lastPersistedMessagesSignatureRef = useRef('');
   const draftPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLocalCloneDraftEditAtRef = useRef(0);
-  const lastAutoRetryRef = useRef<{ text: string; at: number } | null>(null);
   const pendingCloneSelectionPersistRef = useRef<Promise<void> | null>(null);
   const latestCloneDraftRef = useRef<ClonePromptDraft | null>(null);
   const pendingCloneDraftPersistRef = useRef<Promise<void> | null>(null);
+  const prevAvatarStepRef = useRef<string | null>(null);
+  const prevClonePhaseRef = useRef<SessionState['cloneExecution'] extends { phase: infer P } ? P : string | null>(null);
+  const notificationPermissionRequestedRef = useRef(false);
 
   const ensureHistoryTracked = useCallback((id: string, options?: { prependIfNew?: boolean }) => {
     const ids = readHistoryIds();
@@ -879,12 +832,42 @@ export default function ProjectAgentPage() {
         if (draftSelection && (selectedAvatars.length > 0 || selectedProducts.length > 0)) {
           statePatch.cloneReplacementDraft = {
             status: draftSelection.status ?? 'idle',
+            planStatus: draftSelection.planStatus ?? 'collecting',
+            confirmation: draftSelection.confirmation ?? null,
             error: draftSelection.error ?? null,
             scenes: Array.isArray(draftSelection.scenes) ? draftSelection.scenes : [],
+            sceneAssignments: Array.isArray(draftSelection.sceneAssignments) ? draftSelection.sceneAssignments : [],
             selectedAvatars,
             selectedAvatar: getPrimaryCloneSelection(selectedAvatars),
             selectedProducts,
             selectedProduct: getPrimaryCloneSelection(selectedProducts)
+          };
+        } else if (sessionState?.avatar || sessionState?.product) {
+          const fallbackSelectedAvatars = sessionState?.avatar
+            ? [{
+                id: sessionState.avatar.id,
+                name: sessionState.avatar.name,
+                photoUrl: sessionState.avatar.photoUrl || null
+              }]
+            : [];
+          const fallbackSelectedProducts = sessionState?.product
+            ? [{
+                id: sessionState.product.id,
+                name: sessionState.product.name,
+                photoUrl: null
+              }]
+            : [];
+          statePatch.cloneReplacementDraft = {
+            status: 'idle',
+            planStatus: 'collecting',
+            confirmation: null,
+            error: null,
+            scenes: [],
+            sceneAssignments: [],
+            selectedAvatars: fallbackSelectedAvatars,
+            selectedAvatar: getPrimaryCloneSelection(fallbackSelectedAvatars),
+            selectedProducts: fallbackSelectedProducts,
+            selectedProduct: getPrimaryCloneSelection(fallbackSelectedProducts)
           };
         }
 
@@ -905,10 +888,7 @@ export default function ProjectAgentPage() {
       setPendingUserText(null);
       setPendingBaselineCount(0);
       const lastUser = [...messages].reverse().find((message) => message.role === 'user');
-      const lastUserText = lastUser ? renderUIMessageText(lastUser).trim() : '';
       if (lastUser?.id) {
-        const fallbackReply = buildInterruptedAssistantReply(lastUserText, sessionState ?? null);
-        appendSyntheticAssistantMessage(fallbackReply, { afterUserMessageId: lastUser.id });
         setRetryableUserMessageId(lastUser.id);
       }
       setStatusNote('');
@@ -956,6 +936,27 @@ export default function ProjectAgentPage() {
       return false;
     }
   }, [sendMessage]);
+
+  const requestBrowserNotificationPermissionOnce = useCallback(() => {
+    if (notificationPermissionRequestedRef.current) return;
+    notificationPermissionRequestedRef.current = true;
+    void requestNotificationPermissionIfNeeded();
+  }, []);
+
+  const maybeRequestNotificationPermissionOnUserAction = useCallback((text: string) => {
+    const normalized = text.trim().toLowerCase();
+    if (!normalized) return;
+
+    const likelyGenerationStart = (
+      normalized === 'generate this clone now.' ||
+      isStartVideoGenerationCommand(text) ||
+      /\b(generate|start|render|create)\b[\s\w-]{0,24}\b(image|images|video|videos)\b/.test(normalized)
+    );
+
+    if (likelyGenerationStart) {
+      requestBrowserNotificationPermissionOnce();
+    }
+  }, [requestBrowserNotificationPermissionOnce]);
 
 
   const fetchSession = useCallback(async () => {
@@ -1034,7 +1035,7 @@ export default function ProjectAgentPage() {
 
   useEffect(() => {
     if (!error) return;
-    setStatusNote(error.message || 'Flowtra hit an error. Please retry.');
+    setStatusNote(error.message || 'Flowgen hit an error. Please retry.');
   }, [error]);
 
   useEffect(() => {
@@ -1046,6 +1047,93 @@ export default function ProjectAgentPage() {
       setStatusNote('');
     }
   }, [status, error]);
+
+  useEffect(() => {
+    prevAvatarStepRef.current = null;
+    prevClonePhaseRef.current = null;
+    notificationPermissionRequestedRef.current = false;
+  }, [sessionId]);
+
+  useEffect(() => {
+    const nextStep = sessionState?.step ?? null;
+    if (!nextStep) return;
+
+    const previousStep = prevAvatarStepRef.current;
+    if (previousStep === nextStep) return;
+
+    if (nextStep === 'generating_image') {
+      sendBrowserNotification({
+        title: 'Image generation started',
+        body: 'Flowgen: Avatar Ads',
+        tag: 'agent-avatar-image-start'
+      });
+    } else if (nextStep === 'generating_videos') {
+      sendBrowserNotification({
+        title: 'Video generation started',
+        body: 'Flowgen: Avatar Ads',
+        tag: 'agent-avatar-video-start'
+      });
+    } else if (nextStep === 'completed') {
+      sendBrowserNotification({
+        title: 'Your video is ready',
+        body: 'Flowgen: Avatar Ads',
+        tag: 'agent-avatar-completed'
+      });
+    } else if (nextStep === 'failed') {
+      sendBrowserNotification({
+        title: 'Generation failed',
+        body: 'Flowgen: Avatar Ads',
+        tag: 'agent-avatar-failed'
+      });
+    }
+
+    prevAvatarStepRef.current = nextStep;
+  }, [sessionState?.step]);
+
+  useEffect(() => {
+    const nextPhase = sessionState?.cloneExecution?.phase ?? null;
+    if (!nextPhase) return;
+
+    const previousPhase = prevClonePhaseRef.current;
+    if (!shouldNotifyClonePhaseTransition(previousPhase ?? undefined, nextPhase)) {
+      prevClonePhaseRef.current = nextPhase;
+      return;
+    }
+
+    if (nextPhase === 'generating_frames') {
+      sendBrowserNotification({
+        title: 'Image generation started',
+        body: 'Flowgen: Clone Workflow',
+        tag: 'agent-clone-frames-start'
+      });
+    } else if (nextPhase === 'generating_videos') {
+      sendBrowserNotification({
+        title: 'Video generation started',
+        body: 'Flowgen: Clone Workflow',
+        tag: 'agent-clone-videos-start'
+      });
+    } else if (nextPhase === 'merging') {
+      sendBrowserNotification({
+        title: 'Video generation started',
+        body: 'Flowgen: Clone Workflow',
+        tag: 'agent-clone-merging'
+      });
+    } else if (nextPhase === 'completed') {
+      sendBrowserNotification({
+        title: 'Your video is ready',
+        body: 'Flowgen: Clone Workflow',
+        tag: 'agent-clone-completed'
+      });
+    } else if (nextPhase === 'failed') {
+      sendBrowserNotification({
+        title: 'Generation failed',
+        body: 'Flowgen: Clone Workflow',
+        tag: 'agent-clone-failed'
+      });
+    }
+
+    prevClonePhaseRef.current = nextPhase;
+  }, [sessionState?.cloneExecution?.phase]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -1165,11 +1253,17 @@ export default function ProjectAgentPage() {
     ensureHistoryTracked(sessionId);
     setPendingUserText(next);
     setPendingBaselineCount(messages.length);
+    maybeRequestNotificationPermissionOnUserAction(next);
     const sent = await sendMessageSafely(next);
     if (!sent) {
       setPendingUserText(null);
       setPendingBaselineCount(0);
-      setStatusNote('Network issue interrupted assistant reply. Use the retry icon below your latest message.');
+      const latestUser = [...dedupeConversationMessages(messages)]
+        .reverse()
+        .find((message) => message.role === 'user' && renderUIMessageText(message).trim().length > 0);
+      if (latestUser?.id) {
+        setRetryableUserMessageId(latestUser.id);
+      }
       return;
     }
   }, [
@@ -1177,6 +1271,7 @@ export default function ProjectAgentPage() {
     draft,
     ensureHistoryTracked,
     messages.length,
+    maybeRequestNotificationPermissionOnUserAction,
     sendMessageSafely,
     sendLocked,
     sessionId,
@@ -1195,49 +1290,23 @@ export default function ProjectAgentPage() {
     const retryText = renderUIMessageText(lastUser).trim();
     if (!retryText) return false;
 
-    const execution = sessionState?.cloneExecution;
-    const hasVideoGenerationSignal = Boolean(
-      execution?.phase === 'generating_videos' ||
-      execution?.phase === 'merging' ||
-      execution?.phase === 'completed' ||
-      execution?.segments?.some((segment) => (
-        segment.status === 'generating_video' ||
-        segment.status === 'video_ready' ||
-        Boolean(segment.videoUrl)
-      ))
-    );
-
-    // For deterministic start-video turns, avoid re-sending duplicated user bubbles
-    // once backend signals that video generation has already started.
-    if (isStartVideoGenerationCommand(retryText) && hasVideoGenerationSignal) {
-      const fallbackMessage: UIMessage = {
-        id: `assistant-fallback-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        role: 'assistant',
-        parts: [{ type: 'text', text: START_VIDEO_FALLBACK_REPLY }]
-      };
-      setMessages((prev) => dedupeConversationMessages([...prev, fallbackMessage]));
-      setRetryableUserMessageId(null);
-      setStatusNote('');
-      return true;
-    }
-
     clearError();
     setStatusNote('');
     setRetryableUserMessageId(null);
     setPendingUserText(retryText);
     setPendingBaselineCount(visibleMessages.length);
+    maybeRequestNotificationPermissionOnUserAction(retryText);
 
     const sent = await sendMessageSafely(retryText);
     if (!sent) {
       setPendingUserText(null);
       setPendingBaselineCount(0);
       setRetryableUserMessageId(lastUser.id);
-      setStatusNote('Network issue interrupted assistant reply. Use the retry icon below your latest message.');
       return false;
     }
 
     return true;
-  }, [clearError, isStreaming, messages, sendMessageSafely, sessionState?.cloneExecution, setMessages]);
+  }, [clearError, isStreaming, messages, maybeRequestNotificationPermissionOnUserAction, sendMessageSafely]);
 
   const handleRetryLatestUserMessage = useCallback(() => {
     void retryLastUserMessage();
@@ -1382,7 +1451,12 @@ export default function ProjectAgentPage() {
         setAwaitingCloneStructureReply(false);
         setCloneStructureReplyReady(false);
         setCloneStructureReplyBaseline(0);
-        setStatusNote('Reference selected. Chat sync was interrupted once. Please tap Retry in chat to continue.');
+        const latestUser = [...dedupeConversationMessages(messages)]
+          .reverse()
+          .find((message) => message.role === 'user' && renderUIMessageText(message).trim().length > 0);
+        if (latestUser?.id) {
+          setRetryableUserMessageId(latestUser.id);
+        }
       }
     } catch (chatSendError) {
       // Keep clone flow progressing even if chat transport has an intermittent failure.
@@ -1392,7 +1466,12 @@ export default function ProjectAgentPage() {
       setAwaitingCloneStructureReply(false);
       setCloneStructureReplyReady(false);
       setCloneStructureReplyBaseline(0);
-      setStatusNote('Reference selected. Chat sync was interrupted once. Please tap Retry in chat to continue.');
+      const latestUser = [...dedupeConversationMessages(messages)]
+        .reverse()
+        .find((message) => message.role === 'user' && renderUIMessageText(message).trim().length > 0);
+      if (latestUser?.id) {
+        setRetryableUserMessageId(latestUser.id);
+      }
     }
 
     void loadCloneReplacementOptions();
@@ -1418,7 +1497,6 @@ export default function ProjectAgentPage() {
     setSelectedCloneAvatarIds([]);
     setSelectedCloneProductIds([]);
     setRetryableUserMessageId(null);
-    setAutoRetriedUserMessageIds([]);
     setIsGeneratingCloneProject(false);
     setIsHistoryPopoverOpen(false);
 
@@ -1444,7 +1522,6 @@ export default function ProjectAgentPage() {
     setSelectedCloneAvatarIds([]);
     setSelectedCloneProductIds([]);
     setRetryableUserMessageId(null);
-    setAutoRetriedUserMessageIds([]);
     setIsGeneratingCloneProject(false);
     setIsHistoryPopoverOpen(false);
 
@@ -1582,7 +1659,12 @@ export default function ProjectAgentPage() {
     if (!sent) {
       setPendingUserText(null);
       setPendingBaselineCount(0);
-      setStatusNote('Network issue interrupted assistant reply. Use the retry icon below your latest message.');
+      const latestUser = [...dedupeConversationMessages(messages)]
+        .reverse()
+        .find((message) => message.role === 'user' && renderUIMessageText(message).trim().length > 0);
+      if (latestUser?.id) {
+        setRetryableUserMessageId(latestUser.id);
+      }
     }
     void loadCloneableVideos();
   }, [
@@ -1804,36 +1886,6 @@ export default function ProjectAgentPage() {
       .slice(cloneIntentIndex + 1)
       .some((message) => message.role === 'assistant' && renderUIMessageText(message).trim().length > 0);
   }, [displayMessages]);
-  const appendSyntheticAssistantMessage = useCallback((text: string, options?: { afterUserMessageId?: string }) => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-    setMessages((prev) => {
-      const deduped = dedupeConversationMessages(prev);
-      if (options?.afterUserMessageId) {
-        const targetIndex = deduped.findIndex((message) => message.id === options.afterUserMessageId);
-        if (targetIndex >= 0) {
-          const hasAssistantAfter = deduped
-            .slice(targetIndex + 1)
-            .some((message) => message.role === 'assistant' && renderUIMessageText(message).trim().length > 0);
-          if (hasAssistantAfter) {
-            return deduped;
-          }
-        }
-      }
-
-      const previous = deduped[deduped.length - 1];
-      if (previous?.role === 'assistant' && renderUIMessageText(previous).trim() === trimmed) {
-        return deduped;
-      }
-
-      const message: UIMessage = {
-        id: `assistant-fallback-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        role: 'assistant',
-        parts: [{ type: 'text', text: trimmed }]
-      };
-      return dedupeConversationMessages([...deduped, message]);
-    });
-  }, [setMessages]);
   const preferredRegeneratingSceneIndex = useMemo(() => {
     const latestRegenerateCommand = [...displayMessages]
       .reverse()
@@ -1851,71 +1903,10 @@ export default function ProjectAgentPage() {
       .find((message) => message.role === 'user' && renderUIMessageText(message).trim().length > 0);
 
     if (!lastUser?.id) return false;
-    const lastUserText = renderUIMessageText(lastUser).trim();
-    const normalizedLastUserText = lastUserText.toLowerCase();
-    const now = Date.now();
-
-    if (
-      lastAutoRetryRef.current &&
-      lastAutoRetryRef.current.text === normalizedLastUserText &&
-      now - lastAutoRetryRef.current.at < 8000
-    ) {
-      appendSyntheticAssistantMessage(
-        buildInterruptedAssistantReply(lastUserText, sessionState ?? null),
-        { afterUserMessageId: lastUser.id }
-      );
-      setRetryableUserMessageId(lastUser.id);
-      setStatusNote('');
-      return false;
-    }
-
-    // Never auto-resend deterministic workflow messages.
-    const isCloneKickoffIntent = (
-      !sessionState?.cloneReferenceVideo?.id &&
-      /\b(clone|viral|competitor|ugc)\b/i.test(lastUserText)
-    );
-
-    const hasVideoGenerationSignal = Boolean(
-      sessionState?.cloneExecution?.phase === 'generating_videos' ||
-      sessionState?.cloneExecution?.phase === 'merging' ||
-      sessionState?.cloneExecution?.phase === 'completed' ||
-      sessionState?.cloneExecution?.segments?.some((segment) => (
-        segment.status === 'generating_video' ||
-        segment.status === 'video_ready' ||
-        Boolean(segment.videoUrl)
-      ))
-    );
-
-    if (isStartVideoGenerationCommand(lastUserText) && hasVideoGenerationSignal) {
-      appendSyntheticAssistantMessage(START_VIDEO_FALLBACK_REPLY);
-      setRetryableUserMessageId(null);
-      setStatusNote('');
-      return true;
-    }
-
-    if (isSyntheticWorkflowMessage(lastUserText) || isWorkflowCommandMessage(lastUserText) || isCloneKickoffIntent) {
-      appendSyntheticAssistantMessage(
-        buildInterruptedAssistantReply(lastUserText, sessionState ?? null),
-        { afterUserMessageId: lastUser.id }
-      );
-      setRetryableUserMessageId(lastUser.id);
-      setStatusNote('');
-      return false;
-    }
-
-    // For normal chat turns, require explicit user action via Retry to prevent ghost duplicate messages.
-    if (!autoRetriedUserMessageIds.includes(lastUser.id)) {
-      setAutoRetriedUserMessageIds((prev) => [...prev, lastUser.id]);
-      lastAutoRetryRef.current = { text: normalizedLastUserText, at: now };
-    }
     setRetryableUserMessageId(lastUser.id);
-    appendSyntheticAssistantMessage(
-      buildInterruptedAssistantReply(lastUserText, sessionState ?? null),
-      { afterUserMessageId: lastUser.id }
-    );
     setStatusNote('');
     return false;
-  }, [appendSyntheticAssistantMessage, autoRetriedUserMessageIds, displayMessages, sessionState, sessionState?.cloneReferenceVideo?.id]);
+  }, [displayMessages]);
 
   useEffect(() => {
     if (!isCloneIntentTurn) return;
@@ -2086,7 +2077,7 @@ export default function ProjectAgentPage() {
       return true;
     }
     const draftStatus = sessionState?.cloneReplacementDraft?.status;
-    if (draftStatus !== 'ready' && draftStatus !== 'failed') {
+    if (draftStatus !== 'ready' && draftStatus !== 'awaiting_confirmation' && draftStatus !== 'failed') {
       return false;
     }
     return !awaitingCloneDraftReply && !isStreaming && status === 'ready';
@@ -2247,37 +2238,6 @@ export default function ProjectAgentPage() {
   }, [displayMessages, retryableUserMessageId]);
 
   useEffect(() => {
-    if (!retryableUserMessageId) return;
-    const targetIndex = displayMessages.findIndex((message) => message.id === retryableUserMessageId);
-    if (targetIndex < 0) return;
-    const targetMessage = displayMessages[targetIndex];
-    if (targetMessage.role !== 'user') return;
-    const targetText = renderUIMessageText(targetMessage).trim();
-    if (!isStartVideoGenerationCommand(targetText)) return;
-
-    const hasAssistantAfter = displayMessages
-      .slice(targetIndex + 1)
-      .some((message) => message.role === 'assistant' && renderUIMessageText(message).trim().length > 0);
-    if (hasAssistantAfter) return;
-
-    const execution = sessionState?.cloneExecution;
-    if (!execution) return;
-
-    const hasVideoStartedSignal = Boolean(
-      execution.segments?.some((segment) => (
-        segment.status === 'generating_video' ||
-        segment.status === 'video_ready' ||
-        Boolean(segment.videoUrl)
-      ))
-    );
-    if (!hasVideoStartedSignal) return;
-
-    appendSyntheticAssistantMessage(START_VIDEO_FALLBACK_REPLY);
-    setRetryableUserMessageId(null);
-    setStatusNote('');
-  }, [appendSyntheticAssistantMessage, displayMessages, retryableUserMessageId, sessionState?.cloneExecution]);
-
-  useEffect(() => {
     if (isStreaming || pendingUserText) return;
     if (statusNote) return;
     if (awaitingCloneEntryReply || awaitingCloneStructureReply || awaitingCloneDraftReply) return;
@@ -2352,45 +2312,33 @@ export default function ProjectAgentPage() {
       const nextExecution = await fetchCloneExecutionStatus(projectId);
       if (options?.cancelled?.()) return;
 
-      setSessionState((prev) => {
-        if (!prev) return prev;
-        const localExecution = prev.cloneExecution;
-        const shouldPreserveLocal = shouldKeepLocalCloneExecution(localExecution, nextExecution);
+      // Treat /status as source of truth for clone execution to avoid
+      // local optimistic drift (e.g. showing video-ready when DB is not ready).
+      setSessionState((prev) => (
+        prev
+          ? {
+              ...prev,
+              cloneExecution: nextExecution
+            }
+          : prev
+      ));
 
-        const mergedExecution = shouldPreserveLocal
-          ? localExecution
-          : (mergeCloneExecutionWithLocal(localExecution, nextExecution) ?? nextExecution);
-
-        const hasVideoSignal = Boolean(
-          mergedExecution?.segments?.some((segment) => (
-            segment.status === 'generating_video' ||
-            segment.status === 'video_ready' ||
-            Boolean(segment.videoUrl)
-          ))
-        );
-
-        const shouldPinGeneratingVideos = (
-          localExecution?.phase === 'generating_videos' &&
-          mergedExecution &&
-          (mergedExecution.phase === 'generating_frames' || mergedExecution.phase === 'reviewing_frames') &&
-          !hasVideoSignal &&
-          (mergedExecution.segments?.length ?? 0) === 0
-        );
-
-        return {
-          ...prev,
-          cloneExecution: shouldPinGeneratingVideos
-            ? {
-                ...mergedExecution,
-                phase: 'generating_videos'
-              }
-            : mergedExecution
-        };
-      });
+      // Persist authoritative clone execution snapshot so refresh restores the
+      // same state instead of older session-state snapshots.
+      if (sessionId) {
+        await fetch('/api/project-agent/session', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            statePatch: { cloneExecution: nextExecution }
+          })
+        });
+      }
     } catch {
       // Ignore intermittent sync failures.
     }
-  }, [fetchCloneExecutionStatus]);
+  }, [fetchCloneExecutionStatus, sessionId]);
 
   const persistCloneState = useCallback(async (statePatch: Record<string, unknown>) => {
     if (!sessionId) return;
@@ -2705,7 +2653,7 @@ export default function ProjectAgentPage() {
                     <div className="w-full rounded-xl border border-[#e6e6e4] bg-white p-4 space-y-4">
                       <div>
                         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Step 2</p>
-                        <p className="text-sm font-medium text-[#4f4f4d]">Replace Character & Product</p>
+                        <p className="text-sm font-medium text-[#4f4f4d]">Choose who and what you want to replace</p>
                       </div>
 
                       {isCloneOptionsLoading ? (
@@ -2782,6 +2730,7 @@ export default function ProjectAgentPage() {
                     )}
 
                     {showCloneSceneWorkspaceStep && !showCloneMergedResultStep ? (
+                      <div className="space-y-3">
                       <CloneSceneWorkspaceStep
                         phase={workspacePhase}
                         scenes={workspaceScenes}
@@ -2793,6 +2742,7 @@ export default function ProjectAgentPage() {
                           handleCloneDraftChange(nextDraftScenes);
                         }}
                       />
+                      </div>
                     ) : null}
 
                     {showCloneMergedResultStep && sessionState?.cloneExecution ? (
@@ -2856,7 +2806,7 @@ export default function ProjectAgentPage() {
               </div>
             </section>
 
-            <section className="h-full min-h-0 rounded-xl border border-[#e6e6e4] bg-[#fbfbfa] flex flex-col">
+            <section className="flowgen-chat-font h-full min-h-0 rounded-xl border border-[#e6e6e4] bg-[#fbfbfa] flex flex-col">
               <div className="relative flex items-center justify-between px-4 py-3 border-b border-[#e6e6e4]">
                 <div className="flex min-w-0 items-center gap-2 text-[#1f1f1e]">
                   <MessageCircle className="w-4 h-4" />
@@ -3024,7 +2974,7 @@ export default function ProjectAgentPage() {
                   <input
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
-                    placeholder="Ask Flowtra what to build next..."
+                    placeholder="Ask Flowgen what to make viral next..."
                     className="flex-1 min-h-11 rounded-xl border border-[#d9d9d7] bg-white px-4 text-sm text-[#1f1f1e] placeholder:text-[#9b9b98] focus:outline-none focus:ring-2 focus:ring-black disabled:opacity-50"
                     disabled={!isReady || awaitingAssistantTurn}
                   />
