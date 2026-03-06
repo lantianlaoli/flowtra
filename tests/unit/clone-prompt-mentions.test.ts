@@ -84,3 +84,16 @@ test('falls back to inline anchor when no obvious noun exists', () => {
   assert.doesNotMatch(result, /featuring @character\(/i);
   assert.match(result, /\.$/);
 });
+
+test('keeps hands-only prompt product-only when no avatar token is provided', () => {
+  const prompt = 'A close-up of hands holding the product near the sink.';
+  const result = injectMentionsInline({
+    imagePrompt: prompt,
+    productToken,
+    productName: 'book'
+  });
+
+  assert.match(result, /hands holding the @product\(book\)/i);
+  assert.doesNotMatch(result, /@character\(/i);
+  assert.doesNotMatch(result, /Default Founder/i);
+});

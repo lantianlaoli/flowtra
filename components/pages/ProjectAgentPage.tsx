@@ -32,6 +32,8 @@ import { createClient } from '@/lib/supabase/client';
 import { type VideoModel } from '@/lib/constants';
 import {
   getPrimaryCloneSelection,
+  hasExplicitCloneAvatarSelectionState,
+  hasExplicitCloneProductSelectionState,
   normalizeCloneSelections
 } from '@/lib/project-agent/clone-selection';
 import { isStartVideoGenerationCommand } from '@/lib/project-agent/clone-workflow-control';
@@ -812,12 +814,14 @@ export default function ProjectAgentPage() {
       prepareSendMessagesRequest: ({ id, messages }) => {
         const draftSelection = latestCloneDraftRef.current ?? sessionState?.cloneReplacementDraft;
         const statePatch: Record<string, unknown> = {};
+        const hasExplicitAvatarSelection = hasExplicitCloneAvatarSelectionState(draftSelection);
+        const hasExplicitProductSelection = hasExplicitCloneProductSelectionState(draftSelection);
 
-        if (sessionState?.avatar) {
+        if (sessionState?.avatar && !hasExplicitAvatarSelection) {
           statePatch.avatar = sessionState.avatar;
         }
 
-        if (sessionState?.product) {
+        if (sessionState?.product && !hasExplicitProductSelection) {
           statePatch.product = sessionState.product;
         }
 
@@ -829,7 +833,7 @@ export default function ProjectAgentPage() {
           draftSelection?.selectedProducts,
           draftSelection?.selectedProduct
         );
-        if (draftSelection && (selectedAvatars.length > 0 || selectedProducts.length > 0)) {
+        if (draftSelection && (hasExplicitAvatarSelection || hasExplicitProductSelection || selectedAvatars.length > 0 || selectedProducts.length > 0)) {
           statePatch.cloneReplacementDraft = {
             status: draftSelection.status ?? 'idle',
             planStatus: draftSelection.planStatus ?? 'collecting',
@@ -2106,12 +2110,17 @@ export default function ProjectAgentPage() {
   ]);
 
   useEffect(() => {
+    const hasExplicitAvatarSelection = hasExplicitCloneAvatarSelectionState(sessionState?.cloneReplacementDraft);
     const nextSelectedAvatars = normalizeCloneSelections(
       sessionState?.cloneReplacementDraft?.selectedAvatars,
       sessionState?.cloneReplacementDraft?.selectedAvatar
     );
     if (nextSelectedAvatars.length > 0) {
       setSelectedCloneAvatarIds(nextSelectedAvatars.map((avatar) => avatar.id));
+      return;
+    }
+    if (hasExplicitAvatarSelection) {
+      setSelectedCloneAvatarIds([]);
       return;
     }
     if (sessionState?.avatar?.id) {
@@ -2121,6 +2130,7 @@ export default function ProjectAgentPage() {
     setSelectedCloneAvatarIds([]);
   }, [
     sessionState?.avatar?.id,
+    sessionState?.cloneReplacementDraft,
     sessionState?.cloneReplacementDraft?.selectedAvatar,
     sessionState?.cloneReplacementDraft?.selectedAvatars
   ]);

@@ -11,7 +11,8 @@ export interface CompetitorShotForm {
   camera_motion_positioning: string;
   composition: string;
   ambiance_colour_lighting: string;
-  audio: string;
+  audio_summary: string;
+  dialogue: string;
 }
 
 type JsonRecord = Record<string, unknown>;
@@ -66,6 +67,12 @@ export const parseShotsFromAnalysis = (analysisShots: unknown): CompetitorShotFo
     const fallbackDescription = toStringValue(
       record.description ?? record.visual_description ?? record.summary
     );
+    const explicitDialogue = toStringValue(
+      record.dialogue ?? record.transcript ?? record.voiceover ?? record.spoken_words
+    );
+    const legacyAudio = toStringValue(record.audio);
+    const audioSummary = toStringValue(record.audio_summary)
+      || (!explicitDialogue ? legacyAudio : '');
 
     const normalizedStartTime = normalizeTimeValue(record.start_time);
     const normalizedEndTime = normalizeTimeValue(record.end_time);
@@ -89,7 +96,8 @@ export const parseShotsFromAnalysis = (analysisShots: unknown): CompetitorShotFo
       camera_motion_positioning: toStringValue(record.camera_motion_positioning ?? record.camera_motion ?? record.camera),
       composition: toStringValue(record.composition ?? record.framing),
       ambiance_colour_lighting: toStringValue(record.ambiance_colour_lighting ?? record.lighting),
-      audio: toStringValue(record.audio ?? record.dialogue ?? record.voiceover)
+      audio_summary: audioSummary,
+      dialogue: explicitDialogue
     };
   });
 };
@@ -109,7 +117,8 @@ export const sanitizeShotsForSave = (shots: CompetitorShotForm[]): CompetitorSho
     camera_motion_positioning: shot.camera_motion_positioning?.trim() || '',
     composition: shot.composition?.trim() || '',
     ambiance_colour_lighting: shot.ambiance_colour_lighting?.trim() || '',
-    audio: shot.audio?.trim() || ''
+    audio_summary: shot.audio_summary?.trim() || '',
+    dialogue: shot.dialogue?.trim() || ''
   }));
 };
 
@@ -126,7 +135,8 @@ export const createEmptyShot = (id: number): CompetitorShotForm => ({
   camera_motion_positioning: '',
   composition: '',
   ambiance_colour_lighting: '',
-  audio: ''
+  audio_summary: '',
+  dialogue: ''
 });
 
 export const reindexShots = (shots: CompetitorShotForm[]): CompetitorShotForm[] =>

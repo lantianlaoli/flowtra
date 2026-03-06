@@ -42,6 +42,20 @@ test('builds deterministic cartesian scene assignments', () => {
   ]);
 });
 
+test('keeps avatar assignment null for product-only plans', () => {
+  const assignments = buildCartesianSceneAssignments({
+    sceneCount: 3,
+    avatarIds: [],
+    productIds: ['p1']
+  });
+
+  assert.deepEqual(assignments.map((item) => [item.sceneIndex, item.avatarId, item.productId]), [
+    [1, null, 'p1'],
+    [2, null, 'p1'],
+    [3, null, 'p1']
+  ]);
+});
+
 test('preserves valid manual scene overrides', () => {
   const assignments = buildCartesianSceneAssignments({
     sceneCount: 3,

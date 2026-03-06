@@ -6,8 +6,11 @@ import { getSupabaseAdmin, normalizeAvatarPhotoSet } from '@/lib/supabase';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 import {
   getPrimaryCloneSelection,
+  hasExplicitCloneAvatarSelectionState,
+  hasExplicitCloneProductSelectionState,
   normalizeCloneSelections,
-  normalizeSelectedIds
+  normalizeSelectedIds,
+  resolveCloneSelection
 } from '@/lib/project-agent/clone-selection';
 import {
   MERGE_CONFIRMATION_TOKEN,
@@ -252,6 +255,31 @@ const isRegenerateFrameCommand = (text: string) => {
   return /regenerate\s+(scene|shot|frame)\s*#?\s*\d+|regenerate\s*#?\s*\d+\s*(scene|shot|frame)/i.test(normalized);
 };
 
+const isReferenceSelectionMessage = (text: string) => {
+  const normalized = text.trim();
+  if (!normalized) return false;
+  return /^i selected ".*" as the reference video for clone\.$/i.test(normalized);
+};
+
+const isFreshCloneIntentMessage = (text: string) => {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  if (isReferenceSelectionMessage(text)) return false;
+  if (
+    isMergeIntentCommand(text) ||
+    isMergeConfirmationCommand(text) ||
+    isReplacementConfirmationCommand(text) ||
+    isRegenerateVideoCommand(text) ||
+    isStartVideoGenerationCommand(text) ||
+    isStartFrameGenerationCommand(text) ||
+    isRegenerateFrameCommand(text)
+  ) {
+    return false;
+  }
+
+  return /\b(clone|viral|competitor|ugc)\b/i.test(normalized);
+};
+
 const hasVideoGenerationSignal = (state: SessionState) => {
   const execution = state.cloneExecution;
   if (!execution) return false;
@@ -307,6 +335,16 @@ const buildWorkflowFallbackReply = async (input: {
     return null;
   }
 
+  if (isRegenerateFrameCommand(input.latestUserTurnText)) {
+    const sceneIndex = parseSceneIndexFromUserTurn(input.latestUserTurnText);
+    const sceneLabel = typeof sceneIndex === 'number' ? `scene ${sceneIndex}` : 'that scene';
+    if (hasVideoGenerationSignal(input.state)) {
+      return `I started regenerating the frame for ${sceneLabel} only. This does not start a new video generation run. Some scene videos were already in progress from your earlier run, so those may keep processing in parallel. Once the new frame is ready, regenerate ${sceneLabel} video if you want that scene's clip to use the updated frame.`;
+    }
+
+    return `I started regenerating the frame for ${sceneLabel} only. This does not start video generation. No need to run "start frame generation" again for this refresh. Once the new frame is ready, review it first, then start video generation when you are ready to continue.`;
+  }
+
   const selectedAvatars = normalizeCloneSelections(
     input.state.cloneReplacementDraft?.selectedAvatars,
     input.state.cloneReplacementDraft?.selectedAvatar
@@ -357,6 +395,48 @@ const buildWorkflowFallbackReply = async (input: {
 
 const getClonePlanStatus = (state: SessionState): ClonePlanStatus => {
   return state.cloneReplacementDraft?.planStatus || 'collecting';
+};
+
+const resolveCloneDraftSelections = (state: SessionState) => {
+  const draft = state.cloneReplacementDraft;
+  const fallbackAvatar = state.avatar
+    ? {
+        id: state.avatar.id,
+        name: state.avatar.name,
+        photoUrl: state.avatar.photoUrl
+      }
+    : null;
+  const fallbackProduct = state.product
+    ? {
+        id: state.product.id,
+        name: state.product.name,
+        photoUrl: null
+      }
+    : null;
+
+  const avatarSelection = resolveCloneSelection({
+    selectedItems: draft?.selectedAvatars,
+    selectedItem: draft?.selectedAvatar,
+    fallbackSelection: fallbackAvatar,
+    allowFallback: !hasExplicitCloneAvatarSelectionState(draft),
+    limit: 8
+  });
+  const productSelection = resolveCloneSelection({
+    selectedItems: draft?.selectedProducts,
+    selectedItem: draft?.selectedProduct,
+    fallbackSelection: fallbackProduct,
+    allowFallback: !hasExplicitCloneProductSelectionState(draft),
+    limit: 8
+  });
+
+  return {
+    selectedAvatars: avatarSelection.selections,
+    selectedAvatarIds: avatarSelection.selectedIds,
+    primaryAvatar: avatarSelection.primarySelection,
+    selectedProducts: productSelection.selections,
+    selectedProductIds: productSelection.selectedIds,
+    primaryProduct: productSelection.primarySelection
+  };
 };
 
 const isCloneSelectionConfirmed = (state: SessionState, latestUserText: string) => {
@@ -610,6 +690,7 @@ Workflow rules:
   26) If cloneReplacementDraft.status is ready and user asks to start generation, call startCloneGenerationFromDraft only after confirmation gate passes. If user asks to regenerate frames, call regenerateCloneFrames. If user asks to regenerate scene videos, call regenerateCloneVideos. If user asks to start video generation after frame review, call startCloneVideoGeneration.
   25.1) For final-video requests in clone flow: first ask for confirmation token "${MERGE_CONFIRMATION_TOKEN}" and do not start final-video creation immediately. Only call mergeCloneVideos after the user sends the confirmation token.
   27) Download guidance rule: after final-video creation starts or when cloneExecutionPhase is "completed", explicitly tell the user to check "My Ads" to view/download the final video.
+  27.1) When final-video creation starts for a clone project, say it has started, ask the user to wait about 10-20 seconds, send them to "My Ads" for details/download, and invite them to start cloning the next video.
   28) If user asks where to download the finished clone video, answer directly: "Please go to My Ads to view and download it."
   29) If matching is uncertain, present top likely candidates and ask a short clarification question; do not proceed to generation.
 - If the user picks motion_swap, collect requirements and guide to the existing workflow entrypoint.
@@ -651,6 +732,18 @@ const getOrigin = (request: Request) => new URL(request.url).origin;
 const mergeState = (state: SessionState, patch: Partial<SessionState>) => ({
   ...state,
   ...patch
+});
+
+const buildFreshCloneState = (state: SessionState): SessionState => ({
+  ...state,
+  intent: 'competitor_ugc_replication',
+  cloneReferenceVideo: undefined,
+  cloneReplacementDraft: undefined,
+  cloneExecution: null,
+  pendingMergeConfirmation: null,
+  projectId: undefined,
+  avatar: null,
+  product: null
 });
 
 const mapClonePhaseFromStatusPayload = mapClonePhaseFromPayload;
@@ -858,6 +951,16 @@ export async function POST(request: Request) {
           : [normalizedIncomingMessage]
       )
     ]);
+
+    const shouldResetCloneSession = (
+      sessionState.intent === 'competitor_ugc_replication' &&
+      Boolean(sessionState.cloneReferenceVideo?.id) &&
+      isFreshCloneIntentMessage(messageText(normalizedIncomingMessage))
+    );
+
+    if (shouldResetCloneSession) {
+      sessionState = buildFreshCloneState(sessionState);
+    }
 
     const persistMessagesOnly = async (nextMessages: UIMessage[], nextState?: SessionState) => {
       const payload = {
@@ -1626,16 +1729,7 @@ export async function POST(request: Request) {
               productIds: selectedProducts.map((product) => product.id),
               existingAssignments: sessionState.cloneReplacementDraft?.sceneAssignments
             });
-            const selectedAvatarIds = normalizeSelectedIds(
-              sessionState.avatar?.id ?? selectedAvatars[0]?.id,
-              selectedAvatars.map((avatar) => avatar.id),
-              8
-            );
-            const selectedProductIds = normalizeSelectedIds(
-              sessionState.product?.id ?? selectedProducts[0]?.id,
-              selectedProducts.map((product) => product.id),
-              8
-            );
+            const { selectedAvatarIds, selectedProductIds } = resolveCloneDraftSelections(sessionState);
 
             const confirmedAt = new Date().toISOString();
             await persistSession({
@@ -1718,42 +1812,14 @@ export async function POST(request: Request) {
               return { success: true, message: 'Replacement draft is already ready.' };
             }
 
-            const selectedAvatars = normalizeCloneSelections(
-              sessionState.cloneReplacementDraft?.selectedAvatars,
-              sessionState.cloneReplacementDraft?.selectedAvatar
-            );
-            const selectedProducts = normalizeCloneSelections(
-              sessionState.cloneReplacementDraft?.selectedProducts,
-              sessionState.cloneReplacementDraft?.selectedProduct
-            );
-            const selectedAvatarIds = normalizeSelectedIds(
-              sessionState.avatar?.id ?? selectedAvatars[0]?.id,
-              selectedAvatars.map((avatar) => avatar.id),
-              8
-            );
-            const selectedProductIds = normalizeSelectedIds(
-              sessionState.product?.id ?? selectedProducts[0]?.id,
-              selectedProducts.map((product) => product.id),
-              8
-            );
-            const primaryAvatar = getPrimaryCloneSelection(selectedAvatars) ?? (
-              sessionState.avatar
-                ? {
-                    id: sessionState.avatar.id,
-                    name: sessionState.avatar.name,
-                    photoUrl: sessionState.avatar.photoUrl
-                  }
-                : null
-            );
-            const primaryProduct = getPrimaryCloneSelection(selectedProducts) ?? (
-              sessionState.product
-                ? {
-                    id: sessionState.product.id,
-                    name: sessionState.product.name,
-                    photoUrl: null
-                  }
-                : null
-            );
+            const {
+              selectedAvatars,
+              selectedAvatarIds,
+              primaryAvatar,
+              selectedProducts,
+              selectedProductIds,
+              primaryProduct
+            } = resolveCloneDraftSelections(sessionState);
 
             if (selectedAvatarIds.length === 0 && selectedProductIds.length === 0) {
               return { success: false, message: 'Please select at least one replacement (avatar or product) first.' };
@@ -2043,16 +2109,7 @@ export async function POST(request: Request) {
               draft.selectedProducts,
               draft.selectedProduct
             );
-            const selectedAvatarIds = normalizeSelectedIds(
-              sessionState.avatar?.id ?? selectedAvatars[0]?.id,
-              selectedAvatars.map((avatar) => avatar.id),
-              8
-            );
-            const selectedProductIds = normalizeSelectedIds(
-              sessionState.product?.id ?? selectedProducts[0]?.id,
-              selectedProducts.map((product) => product.id),
-              8
-            );
+            const { selectedAvatarIds, selectedProductIds } = resolveCloneDraftSelections(sessionState);
             const selectedAvatarId = selectedAvatarIds[0] || undefined;
             const selectedProductId = selectedProductIds[0] || undefined;
             const primaryProduct = getPrimaryCloneSelection(selectedProducts);
@@ -2638,7 +2695,7 @@ export async function POST(request: Request) {
 
             return {
               success: true,
-              message: 'Final video creation has started. Once it finishes, go to My Ads to view and download your final video.'
+              message: 'Final video creation has started. Please wait about 10-20 seconds, then go to My Ads to view details and download it. If you want, you can start cloning the next video now.'
             };
           }
         }),

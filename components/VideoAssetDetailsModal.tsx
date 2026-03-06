@@ -215,7 +215,7 @@ export default function VideoAssetDetailsModal({
 
           <motion.div
             className={`assets-modal-panel assets-video-details-panel relative flex flex-col bg-white rounded-2xl shadow-xl border border-gray-200 w-full mx-auto overflow-hidden h-[86vh] ${
-              isCompact ? "max-w-4xl" : "max-w-5xl"
+              isCompact ? "max-w-[1320px] h-[78vh] max-h-[820px]" : "max-w-5xl"
             }`}
             initial={{ opacity: 0, scale: 0.96, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -239,13 +239,13 @@ export default function VideoAssetDetailsModal({
               </button>
             </div>
 
-            <div className={`assets-modal-body grid min-h-0 flex-1 grid-cols-1 items-stretch gap-6 p-6 overflow-hidden ${isCompact ? "lg:grid-cols-[minmax(0,0.54fr)_minmax(0,0.46fr)]" : "lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]"}`}>
+            <div className={`assets-modal-body grid min-h-0 flex-1 grid-cols-1 items-stretch gap-6 p-6 overflow-hidden ${isCompact ? "lg:grid-cols-[420px_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]"}`}>
               <div className="min-h-0 h-full flex items-center justify-center">
-                <div className="assets-video-details-preview bg-black/95 rounded-xl overflow-hidden h-full w-auto max-w-full aspect-[9/16]">
+                <div className={`assets-video-details-preview bg-black/95 rounded-xl overflow-hidden aspect-[9/16] ${isCompact ? "w-full max-w-[380px] h-auto" : "h-full w-auto max-w-full"}`}>
                   {video.video_cdn_url ? (
                     <VideoPlayer
                       src={video.video_cdn_url}
-                      className="w-full h-full"
+                      className="w-full h-full object-contain"
                       showControls
                     />
                   ) : (

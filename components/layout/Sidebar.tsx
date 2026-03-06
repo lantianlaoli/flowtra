@@ -98,7 +98,7 @@ const navigation = [
   }
 ];
 
-export default function Sidebar({ credits = 0, creditsData, userEmail, userImageUrl, onTriggerOnboarding }: SidebarProps) {
+export default function Sidebar({ credits, creditsData, userEmail, userImageUrl, onTriggerOnboarding }: SidebarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -187,7 +187,7 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
         )}
 
         {/* Credits Display */}
-        {(credits !== undefined || creditsData) && !isCollapsed && (
+        {displayCredits !== undefined && !isCollapsed && (
           <div className="mb-6">
             <CreditsDisplay
               credits={displayCredits}
@@ -378,7 +378,7 @@ export default function Sidebar({ credits = 0, creditsData, userEmail, userImage
         )}
 
         {/* Credits Display */}
-        {(credits !== undefined || creditsData) && (
+        {displayCredits !== undefined && (
           <div className="mb-6">
             <CreditsDisplay
               credits={displayCredits}
