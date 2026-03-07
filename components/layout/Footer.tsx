@@ -111,6 +111,20 @@ export default function Footer() {
                   AIDirs
                 </a>
               </li>
+              <li>
+                <a
+                  href="https://turbo0.com/item/flowtra"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center"
+                >
+                  <img
+                    src="https://img.turbo0.com/badge-listed-light.svg"
+                    alt="Listed on Turbo0"
+                    style={{ height: '54px', width: 'auto' }}
+                  />
+                </a>
+              </li>
             </ul>
           </nav>
 
