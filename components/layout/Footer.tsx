@@ -16,7 +16,7 @@ export default function Footer() {
   return (
     <footer className="bg-white border-t border-[#E5E5E5] py-14 md:py-20">
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-10 md:gap-12">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-10 md:gap-12">
           {/* Logo, Description, and Copyright */}
           <section aria-labelledby="footer-about">
             <h2 id="footer-about" className="sr-only">About Flowtra</h2>
@@ -93,6 +93,23 @@ export default function Footer() {
                 <Link href="/tools/ai-angle-generator" className="text-[14px] text-[#666666] hover:text-black transition-colors">
                   AI Multi-Angle Photo
                 </Link>
+              </li>
+            </ul>
+          </nav>
+
+          {/* Social Proof Column */}
+          <nav aria-labelledby="footer-social-proof">
+            <h3 id="footer-social-proof" className="text-[13px] font-bold text-black mb-5 uppercase tracking-wider">Social Proof</h3>
+            <ul className="space-y-4">
+              <li>
+                <a
+                  href="https://aidirs.org/item/flowtra"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[14px] text-[#666666] hover:text-black transition-colors"
+                >
+                  AIDirs
+                </a>
               </li>
             </ul>
           </nav>
