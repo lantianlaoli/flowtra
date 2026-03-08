@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { type VideoDuration, type VideoModel } from '@/lib/constants';
+import { type CloneVideoQuality, type VideoDuration, type VideoModel } from '@/lib/constants';
 
 export type WorkflowStep = 'describing' | 'generating_prompts' | 'generating_cover' | 'generating_video' | 'complete';
 export type WorkflowStatus = 'started' | 'uploaded_waiting_config' | 'workflow_initiated' | 'in_progress' | 'completed' | 'failed';
@@ -43,9 +43,10 @@ export const useCompetitorUgcReplicationWorkflow = (
   elementsCount: number = 1,
   videoAspectRatio: '16:9' | '9:16' = '16:9',
   videoDuration: VideoDuration = '8',
+  selectedVideoQuality: CloneVideoQuality = '720p',
   selectedLanguage: string = 'en',
-    useCustomScript: boolean = false,
-    customScript: string = ''
+  useCustomScript: boolean = false,
+  customScript: string = ''
 ) => {
   // Initialize guest usage limits
   const maxGuestUsage = 1; // Guest users: 1 VEO3_fast
@@ -246,6 +247,7 @@ export const useCompetitorUgcReplicationWorkflow = (
         photoOnly: normalizedPhotoOnly,
         videoAspectRatio: videoAspectRatio,
         videoDuration,
+        videoQuality: selectedVideoQuality,
         competitorAdId: competitorAdId || undefined,
         creatorSourceVideoId: creatorSourceVideoId || undefined,
         language: selectedLanguage,
@@ -321,6 +323,7 @@ export const useCompetitorUgcReplicationWorkflow = (
     elementsCount,
     videoAspectRatio,
     videoDuration,
+    selectedVideoQuality,
     selectedLanguage,
     useCustomScript,
     customScript,

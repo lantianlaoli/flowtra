@@ -8,6 +8,7 @@ test('Kling video request body defaults input.mode to std', () => {
     projectId: 'project-123',
     segmentIndex: 1,
     aspectRatio: '9:16',
+    quality: '720p',
     imageUrls: ['https://example.com/frame-1.png'],
     boundedDuration: 8,
     hasMultipleShots: false,
@@ -31,6 +32,7 @@ test('Kling multi-shot request body includes multi_prompt and elements', () => {
     projectId: 'project-123',
     segmentIndex: 0,
     aspectRatio: '16:9',
+    quality: '1080p',
     imageUrls: ['https://example.com/frame-1.png'],
     boundedDuration: 12,
     hasMultipleShots: true,
@@ -48,7 +50,7 @@ test('Kling multi-shot request body includes multi_prompt and elements', () => {
     input: Record<string, unknown>;
   };
 
-  assert.equal(requestBody.input.mode, 'std');
+  assert.equal(requestBody.input.mode, 'pro');
   assert.deepEqual(requestBody.input.multi_prompt, [
     { prompt: 'Shot one prompt', duration: 5 },
     { prompt: 'Shot two prompt', duration: 7 }
@@ -65,6 +67,7 @@ test('single-shot Kling request body does not include multi_prompt', () => {
     projectId: 'project-123',
     segmentIndex: 0,
     aspectRatio: '16:9',
+    quality: '720p',
     imageUrls: ['https://example.com/frame-1.png'],
     boundedDuration: 6,
     hasMultipleShots: false,

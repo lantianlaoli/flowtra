@@ -6,7 +6,7 @@ import {
   startSegmentVideoTask,
   type SerializedSegmentPlanSegment
 } from '@/lib/competitor-ugc-replication-workflow';
-import { getGenerationCost, getSegmentDurationForModel, type VideoModel } from '@/lib/constants';
+import { getGenerationCost, getSegmentDurationForModel, type PersistedVideoQuality, type VideoModel } from '@/lib/constants';
 import { isKlingPromptValidationError } from '@/lib/kling-prompt-budget';
 import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
@@ -177,7 +177,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const segmentCost = getSegmentPromptVideoGenerationCost(
           projectModel || 'veo3_fast',
           segmentPrompt.shots,
-          segmentDurationSeconds
+          segmentDurationSeconds,
+          (project.video_quality as PersistedVideoQuality | null | undefined) || undefined
         );
 
         segmentsToStart.push({
@@ -195,7 +196,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       : getGenerationCost(
           project.video_model as VideoModel,
           project.video_duration || '8',
-          project.video_quality || 'standard'
+          (project.video_quality as PersistedVideoQuality | null | undefined) || undefined
         );
 
     const hasPendingVideoWork = project.is_segmented

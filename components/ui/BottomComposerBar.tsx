@@ -1,6 +1,6 @@
 'use client';
 
-import { Sparkles, Coins } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { ReactNode } from 'react';
 
 interface BottomComposerBarProps {
@@ -92,12 +92,6 @@ export default function BottomComposerBar({
                   : generateButtonText
                 }
               </span>
-              {!isGenerating && generationCost > 0 && (
-                <span className="bottom-composer-cost flex items-center gap-1 px-2 py-0.5 bg-white/20 rounded-md text-xs ml-1">
-                  <Coins className="w-3 h-3" />
-                  {generationCost}
-                </span>
-              )}
             </button>
           </div>
         </div>

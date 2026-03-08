@@ -9,7 +9,7 @@ import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDispl
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
 import type { UserAvatar } from '@/lib/supabase';
 import type { SystemAvatar } from '@/lib/default-avatars';
-import { MODEL_PROCESSING_TIMES, type VideoModel } from '@/lib/constants';
+import { MODEL_PROCESSING_TIMES, type CloneVideoQuality, type VideoModel } from '@/lib/constants';
 import { getSegmentPromptVideoGenerationCost } from '@/lib/competitor-ugc-segment-billing';
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
 import { estimateKlingPromptUsage, KLING_PROMPT_MAX_CHARS } from '@/lib/kling-prompt-budget';
@@ -175,6 +175,7 @@ type SegmentInspectorProps = {
   segment?: SegmentCardSummary | null;
   segmentPlanEntry?: SegmentPrompt;
   videoModel?: string;
+  videoQuality?: CloneVideoQuality;
   videoDuration?: string | null;
   videoAspectRatio?: '16:9' | '9:16' | string | null;
   selectedLanguage?: LanguageCode;
@@ -201,6 +202,7 @@ export default function SegmentInspector({
   segment,
   segmentPlanEntry,
   videoModel,
+  videoQuality,
   videoDuration,
   videoAspectRatio,
   selectedLanguage,
@@ -242,8 +244,8 @@ export default function SegmentInspector({
       return 0;
     }
 
-    return getSegmentPromptVideoGenerationCost(resolvedModel, shots);
-  }, [shots, videoModel]);
+    return getSegmentPromptVideoGenerationCost(resolvedModel, shots, undefined, videoQuality);
+  }, [shots, videoModel, videoQuality]);
   const promptSeedSignature = useMemo(() => JSON.stringify({
     photo: initialPhotoPrompt?.trim() || '',
     shots: initialShots

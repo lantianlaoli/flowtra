@@ -7,6 +7,7 @@ import {
   NON_AGENT_IMAGE_OUTPUT_FORMAT,
   NON_AGENT_IMAGE_RESOLUTION,
   getGenerationCost,
+  getDefaultCloneVideoQuality,
   getSegmentCountFromDuration,
   getSegmentDurationForModel,
   getReplicaPhotoCredits,
@@ -14,8 +15,12 @@ import {
   KLING_MAX_TASK_DURATION_SECONDS,
   KLING_MAX_PROJECT_DURATION_SECONDS,
   KLING_MIN_TASK_DURATION_SECONDS,
+  mapCloneQualityToKlingMode,
+  mapCloneQualityToSeedanceResolution,
+  normalizeCloneVideoQualityForModel,
   snapDurationToModel,
   type LanguageCode,
+  type PersistedVideoQuality,
   type VideoDuration,
   type VideoModel
 } from '@/lib/constants';
@@ -106,7 +111,7 @@ export interface StartWorkflowRequest {
   replicaMode?: boolean;
   // Generic video params (applies to all models)
   videoDuration?: VideoDuration;
-  videoQuality?: 'standard' | 'high';
+  videoQuality?: PersistedVideoQuality;
   language?: string; // Language for AI-generated content
   // NEW: Custom Script mode
   customScript?: string; // User-provided video script for direct video generation
@@ -1374,7 +1379,10 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     // ALL models: PAID generation, FREE download
     let generationCost = 0;
     const duration = request.videoDuration;
-    const quality = request.videoQuality || 'standard';
+    const quality = normalizeCloneVideoQualityForModel(
+      actualVideoModel,
+      request.videoQuality || getDefaultCloneVideoQuality(actualVideoModel)
+    );
 
     console.log(`💳 [CREDITS DEBUG] Calculating generation cost:`, {
       model: actualVideoModel,
@@ -1506,7 +1514,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       language: request.language || 'en', // Language for AI-generated content
       // Generic video fields
       video_duration: duration || '8',
-      video_quality: quality || 'standard',
+      video_quality: quality,
       // DEPRECATED: download_credits_used (downloads are now free)
       download_credits_used: 0,
       is_segmented: hasSegmentFlow, // FIX: Use segmentCount instead of isSegmented to avoid data inconsistency
@@ -4615,6 +4623,7 @@ async function startSegmentVideoTaskKling(
     projectId: project.id,
     segmentIndex,
     aspectRatio: project.video_aspect_ratio === '9:16' ? '9:16' : '16:9',
+    quality: project.video_quality,
     imageUrls,
     boundedDuration,
     hasMultipleShots,
@@ -4683,6 +4692,7 @@ function buildKlingVideoRequestBody(input: {
   projectId: string;
   segmentIndex: number;
   aspectRatio: '16:9' | '9:16';
+  quality?: PersistedVideoQuality | null;
   imageUrls: string[];
   boundedDuration: number;
   hasMultipleShots: boolean;
@@ -4694,7 +4704,7 @@ function buildKlingVideoRequestBody(input: {
     model: 'kling-3.0/video',
     callBackUrl: buildSegmentVideoWebhookUrl(input.projectId, input.segmentIndex),
     input: {
-      mode: 'std',
+      mode: mapCloneQualityToKlingMode(input.quality),
       image_urls: input.imageUrls,
       sound: true,
       duration: String(input.boundedDuration),
@@ -4747,6 +4757,7 @@ async function startSegmentVideoTaskSeedance(
   console.log(`🎬 Seedance Segment ${segmentIndex + 1}/${totalSegments}: Images count = ${inputUrls.length} ${hasClosingFrame ? '(first + closing)' : '(first only)'}`);
 
   const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
+  const resolution = mapCloneQualityToSeedanceResolution(project.video_quality);
 
   // Build prompt text from segment fields
   const promptParts: string[] = [];
@@ -4831,7 +4842,7 @@ async function startSegmentVideoTaskSeedance(
       prompt: promptText,
       input_urls: inputUrls,
       aspect_ratio: aspectRatio, // '16:9' or '9:16'
-      resolution: '1080p', // Fixed 1080p as default for Seedance
+      resolution,
       duration: String(segmentDuration),
       fixed_lens: false, // Allow dynamic camera movement
       generate_audio: true // Enable audio generation

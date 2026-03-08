@@ -1,5 +1,6 @@
 import {
   DEFAULT_SEGMENT_DURATION_SECONDS,
+  type PersistedVideoQuality,
   getSegmentVideoGenerationCost,
   type VideoModel
 } from '@/lib/constants';
@@ -87,8 +88,9 @@ export function getEffectiveSegmentDurationSeconds(
 export function getSegmentPromptVideoGenerationCost(
   model: VideoModel,
   shots?: Array<SegmentShotTimingLike> | null,
-  fallbackDurationSeconds?: number
+  fallbackDurationSeconds?: number,
+  videoQuality?: PersistedVideoQuality
 ): number {
   const segmentDurationSeconds = getEffectiveSegmentDurationSeconds(shots, fallbackDurationSeconds);
-  return getSegmentVideoGenerationCost(model, segmentDurationSeconds);
+  return getSegmentVideoGenerationCost(model, segmentDurationSeconds, videoQuality);
 }
