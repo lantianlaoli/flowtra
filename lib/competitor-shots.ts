@@ -16,6 +16,8 @@ export interface CompetitorShot {
   focusLensEffects?: string;
   audio: string;
   dialogue?: string;
+  sfx?: string;
+  ambient?: string;
   startTimeSeconds: number;
   endTimeSeconds: number;
 }
@@ -112,6 +114,8 @@ export function parseCompetitorTimeline(
       focusLensEffects: toString(rawShot.focus_lens_effects),
       audio: toString(rawShot.audio_summary),
       dialogue: toString(rawShot.dialogue),
+      sfx: toString(rawShot.sfx),
+      ambient: toString(rawShot.ambient),
       startTimeSeconds: startSeconds,
       endTimeSeconds: endSeconds
     });

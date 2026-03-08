@@ -79,3 +79,14 @@ test('single-shot Kling request body does not include multi_prompt', () => {
   assert.equal('multi_prompt' in requestBody.input, false);
   assert.equal(requestBody.input.prompt, 'One shot only.');
 });
+
+test('Kling element names stay within the 20 character API limit', () => {
+  const name = __test__.buildKlingElementName(
+    'Nutritional supplements1',
+    'product:nutritional supplements1',
+    new Set<string>()
+  );
+
+  assert.equal(name.length <= 20, true);
+  assert.equal(name.startsWith('element_'), true);
+});

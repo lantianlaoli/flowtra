@@ -127,6 +127,8 @@ export interface StartWorkflowRequest {
       composition?: string;
       ambiance_colour_lighting?: string;
       audio?: string;
+      sfx?: string;
+      ambient?: string;
       dialogue?: string;
       language?: string;
     }>;
@@ -149,6 +151,8 @@ export type SegmentShot = {
   end_seconds?: number;
   duration_seconds?: number;
   audio: string;
+  sfx?: string;
+  ambient?: string;
   style: string;
   action: string;
   subject: string;
@@ -586,10 +590,12 @@ const convertCompetitorShotToSegmentShot = (
     end_seconds: endSeconds,
     duration_seconds: durationSeconds,
     audio: shot.audio || '',
+    sfx: shot.sfx || '',
+    ambient: shot.ambient || '',
     style: shot.style || '',
     action: shot.action || '',
     subject: shot.subject || '',
-    dialogue: '',
+    dialogue: shot.dialogue || '',
     language,
     composition: shot.composition || '',
     context_environment: shot.contextEnvironment || '',
@@ -635,6 +641,8 @@ const normalizeSegmentShots = (
         end_seconds: end,
         duration_seconds: normalizedDuration,
         audio: cleanSegmentText(record.audio) || cleanSegmentText(fallbackSegment.audio) || '',
+        sfx: cleanSegmentText(record.sfx) || '',
+        ambient: cleanSegmentText(record.ambient) || '',
         style: cleanSegmentText(record.style) || cleanSegmentText(fallbackSegment.style) || '',
         action: cleanSegmentText(record.action) || cleanSegmentText(fallbackSegment.action) || '',
         subject: cleanSegmentText(record.subject) || cleanSegmentText(fallbackSegment.subject) || '',
@@ -951,10 +959,12 @@ function buildSegmentPlanFromKlingSegments(
         end_seconds: end,
         duration_seconds: Math.max(1, end - start),
         audio: part.shot.audio || '',
+        sfx: part.shot.sfx || '',
+        ambient: part.shot.ambient || '',
         style: part.shot.style || '',
         action: part.shot.action || '',
         subject: part.shot.subject || '',
-        dialogue: '',
+        dialogue: part.shot.dialogue || '',
         language: defaultLanguage,
         composition: part.shot.composition || '',
         context_environment: part.shot.contextEnvironment || '',
@@ -974,7 +984,7 @@ function buildSegmentPlanFromKlingSegments(
       first_frame_description: primaryShot?.firstFrameDescription || '',
       ambiance_colour_lighting: primaryShot?.ambianceColourLighting || '',
       camera_motion_positioning: primaryShot?.cameraMotionPositioning || '',
-      dialogue: '',
+      dialogue: primaryShot?.dialogue || '',
       language: defaultLanguage,
       index: segmentIndex + 1,
       first_frame_image_size: undefined,
@@ -3171,6 +3181,8 @@ export function serializeSegmentPrompt(segment: SegmentPrompt): SerializedSegmen
           end_seconds: shot.end_seconds,
           duration_seconds: shot.duration_seconds,
           audio: shot.audio,
+          sfx: shot.sfx,
+          ambient: shot.ambient,
           style: shot.style,
           action: shot.action,
           subject: shot.subject,
@@ -3288,6 +3300,9 @@ function mergeShotGroup(shots: CompetitorShot[], segmentIndex: number): Competit
     composition: joinText(shots.map(shot => shot.composition)),
     ambianceColourLighting: joinText(shots.map(shot => shot.ambianceColourLighting)),
     audio: joinText(shots.map(shot => shot.audio)),
+    dialogue: joinText(shots.map(shot => shot.dialogue)),
+    sfx: joinText(shots.map(shot => shot.sfx)),
+    ambient: joinText(shots.map(shot => shot.ambient)),
     startTimeSeconds: first.startTimeSeconds,
     endTimeSeconds: last.endTimeSeconds
   };
@@ -4125,7 +4140,7 @@ function slugifyElementName(value: string): string {
 }
 
 function buildKlingElementName(rawName: string, _mentionKey: string, usedNames: Set<string>): string {
-  const MAX_LEN = 24;
+  const MAX_LEN = 20;
   const slug = slugifyElementName(rawName).replace(/^element_+/, '') || 'asset';
   let candidate = `element_${slug}`.slice(0, MAX_LEN);
 
@@ -4854,5 +4869,6 @@ export const __test__ = {
   shouldWaitForContinuationFrame,
   buildStructuredVideoPromptPayload,
   buildKlingVideoRequestBody,
-  getPromptSegmentDurationSeconds
+  getPromptSegmentDurationSeconds,
+  buildKlingElementName
 };
