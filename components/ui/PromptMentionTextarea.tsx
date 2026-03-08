@@ -37,6 +37,7 @@ type PromptMentionTextareaProps = {
 
 const TOKEN_REGEX = /@(?:character|product)\([^)]*\)/g;
 const TOKEN_PARSE_REGEX = /^@(character|product)\(([^)]*)\)\s*$/;
+const MENTION_TOKEN_MAX_WIDTH_CLASS = 'max-w-[min(260px,calc(100%-0.5rem))]';
 
 const buildMentionToken = (item: PromptMentionItem) => `@${item.type}(${item.label})`;
 
@@ -223,7 +224,30 @@ export default function PromptMentionTextarea({
       suppressSelectionUpdateRef.current = false;
       return;
     }
-    updateMentionState(target.value, target.selectionStart ?? target.value.length);
+    const selectionStart = target.selectionStart ?? target.value.length;
+    const selectionEnd = target.selectionEnd ?? selectionStart;
+    if (selectionStart === selectionEnd) {
+      const token = findTokenAt(target.value, selectionStart);
+      if (token) {
+        const midpoint = token.start + ((token.end - token.start) / 2);
+        const nextCaret = selectionStart <= midpoint ? token.start : token.end;
+        target.setSelectionRange(nextCaret, nextCaret);
+        updateMentionState(target.value, nextCaret);
+        return;
+      }
+    } else {
+      const intersections = getTokenIntersections(target.value, selectionStart, selectionEnd);
+      if (intersections.length > 0) {
+        const nextStart = Math.min(selectionStart, intersections[0].start);
+        const nextEnd = Math.max(selectionEnd, intersections[intersections.length - 1].end);
+        if (nextStart !== selectionStart || nextEnd !== selectionEnd) {
+          target.setSelectionRange(nextStart, nextEnd);
+          updateMentionState(target.value, nextEnd);
+          return;
+        }
+      }
+    }
+    updateMentionState(target.value, selectionStart);
   };
 
   const handleScroll = () => {
@@ -446,8 +470,7 @@ export default function PromptMentionTextarea({
           readOnly || disabled ? 'bg-gray-50' : ''
         )}
       >
-        {!isFocused ? (
-          <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden rounded-[inherit]" aria-hidden="true">
+        <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden rounded-[inherit]" aria-hidden="true">
             <div
               ref={overlayRef}
               className={clsx(
@@ -460,7 +483,7 @@ export default function PromptMentionTextarea({
                     segment.highlighted ? (
                       <span
                         key={`${segment.text}-${index}`}
-                        className="inline-flex max-w-full items-start align-baseline"
+                        className="inline-flex max-w-full items-center align-middle"
                       >
                         {(() => {
                           const trailingMatch = segment.text.match(/\s+$/);
@@ -480,8 +503,9 @@ export default function PromptMentionTextarea({
                             <>
                               <span
                                 className={clsx(
-                                  'prompt-mention-token inline-flex max-w-full gap-1.5 rounded-xl bg-[#eef2f7] px-2 py-0.5 text-[#1f1f1e] ring-1 ring-inset ring-[#d4dbe6]',
-                                  allowWrappedMentions ? 'items-start' : 'items-center overflow-hidden'
+                                  'prompt-mention-token inline-flex gap-1.5 rounded-xl bg-[#eef2f7] px-2 py-0.5 text-[#1f1f1e] ring-1 ring-inset ring-[#d4dbe6]',
+                                  MENTION_TOKEN_MAX_WIDTH_CLASS,
+                                  'items-center overflow-hidden'
                                 )}
                                 data-token-type={parsed?.type ?? 'unknown'}
                               >
@@ -497,11 +521,9 @@ export default function PromptMentionTextarea({
                                 </span>
                                 <span
                                   className={clsx(
-                                    'min-w-0',
-                                    allowWrappedMentions
-                                      ? 'whitespace-normal break-words leading-5 [overflow-wrap:anywhere]'
-                                      : 'truncate'
+                                    'min-w-0 flex-1 truncate leading-6'
                                   )}
+                                  title={mentionLabel}
                                 >
                                   {mentionLabel}
                                 </span>
@@ -517,8 +539,12 @@ export default function PromptMentionTextarea({
                   )
                 : highlightedContent}
             </div>
+            {!value && placeholder ? (
+              <div className="absolute inset-x-3 top-2 text-sm leading-6 text-gray-400">
+                {placeholder}
+              </div>
+            ) : null}
           </div>
-        ) : null}
         <textarea
           ref={textareaRef}
           value={value}
@@ -538,17 +564,20 @@ export default function PromptMentionTextarea({
           disabled={disabled}
           readOnly={readOnly}
           spellCheck={false}
-          style={{ resize: resizable === 'vertical' ? 'vertical' : 'none' }}
+          style={{
+            resize: resizable === 'vertical' ? 'vertical' : 'none',
+            WebkitTextFillColor: 'transparent',
+            caretColor: '#111111'
+          }}
           className={clsx(
-            'prompt-mention-textarea block relative z-0 w-full border-0 bg-transparent px-3 py-2 text-sm leading-6 caret-black selection:bg-[#11111122] focus:outline-none focus:ring-0 focus:border-0 overflow-y-auto',
+            'prompt-mention-textarea block relative z-0 w-full border-0 bg-transparent px-3 py-2 text-sm leading-6 selection:bg-transparent focus:outline-none focus:ring-0 focus:border-0 overflow-y-auto',
             'overflow-x-hidden',
             resizable === 'vertical' ? 'resize-y' : 'resize-none',
-            isFocused ? 'text-[#1f1f1e] selection:text-[#1f1f1e]' : 'text-transparent selection:text-transparent',
+            'text-transparent selection:text-transparent',
             readOnly || disabled ? 'cursor-not-allowed bg-gray-50' : '',
-            'placeholder:text-gray-400',
             className
           )}
-          placeholder={placeholder}
+          placeholder=""
         />
       </div>
       {mentionOpen && (

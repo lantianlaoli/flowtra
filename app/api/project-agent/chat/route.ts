@@ -4,6 +4,7 @@ import { convertToModelMessages, generateText, jsonSchema, stepCountIs, streamTe
 import { createOpenAI } from '@ai-sdk/openai';
 import { getSupabaseAdmin, normalizeAvatarPhotoSet } from '@/lib/supabase';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
+import { getVideoModelDisplayName, type VideoModel } from '@/lib/constants';
 import {
   getPrimaryCloneSelection,
   hasExplicitCloneAvatarSelectionState,
@@ -30,6 +31,10 @@ import {
   type ClonePlanStatus,
   type CloneSceneAssignment
 } from '@/lib/project-agent/clone-replacement-plan';
+import {
+  getEffectiveProjectAgentVideoModel,
+  normalizeProjectAgentVideoModel
+} from '@/lib/project-agent/video-model';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -112,7 +117,7 @@ type SessionState = {
   cloneExecution?: {
     projectId: string;
     phase: 'idle' | 'generating_frames' | 'reviewing_frames' | 'generating_videos' | 'awaiting_merge' | 'merging' | 'completed' | 'failed';
-    model?: 'veo3' | 'veo3_fast' | 'seedance_1_5_pro';
+    model?: VideoModel;
     duration?: string;
     creditsCost?: number;
     error?: string | null;
@@ -132,7 +137,7 @@ type SessionState = {
   language?: string;
   videoDurationSeconds?: number;
   videoAspectRatio?: '16:9' | '9:16';
-  videoModel?: 'veo3_fast';
+  videoModel?: VideoModel;
   projectId?: string;
   generatedPrompts?: Record<string, unknown> | null;
   imagePrompt?: string | null;
@@ -184,6 +189,33 @@ const cloneDraftSceneToSegmentPrompt = (
       ? (typeof scene.isContinuation === 'boolean' ? scene.isContinuation : true)
       : false
   };
+};
+
+const parseTimecodeToSeconds = (value: string): number | null => {
+  const [minutesPart, secondsPart] = value.trim().split(':');
+  const minutes = Number(minutesPart);
+  const seconds = Number(secondsPart);
+  if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
+  return (minutes * 60) + seconds;
+};
+
+const getSegmentPromptDurationSeconds = (
+  segment: ReturnType<typeof cloneDraftSceneToSegmentPrompt>
+): number => {
+  const shots = Array.isArray(segment.shots) ? segment.shots : [];
+  const endTimes = shots
+    .map((shot) => {
+      const parts = String(shot.time_range || '').split('-').map((part) => part.trim());
+      if (parts.length !== 2) return null;
+      return parseTimecodeToSeconds(parts[1]);
+    })
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+
+  if (endTimes.length === 0) {
+    return 8;
+  }
+
+  return Math.max(1, Math.round(Math.max(...endTimes)));
 };
 
 type ProductRow = {
@@ -594,6 +626,8 @@ const buildSystemPrompt = (state: SessionState) => {
   const pendingMergeConfirmation = state.pendingMergeConfirmation?.projectId
     ? `${state.pendingMergeConfirmation.token} (${state.pendingMergeConfirmation.projectId})`
     : 'none';
+  const selectedVideoModel = normalizeProjectAgentVideoModel(state.videoModel);
+  const effectiveVideoModel = getEffectiveProjectAgentVideoModel(state.intent, state.videoModel);
 
   return `You are Flowgen, the Flowtra growth agent. Core mission: "Make virality accessible."
 
@@ -719,6 +753,8 @@ Current state:
 - Clone Execution Merged Video URL: ${cloneExecutionMergedVideo}
 - Pending Merge Confirmation: ${pendingMergeConfirmation}
 - Custom Dialogue: ${dialogueLabel}
+- Selected Video Model: ${getVideoModelDisplayName(selectedVideoModel)} (${selectedVideoModel})
+- Effective Video Model For Current Flow: ${getVideoModelDisplayName(effectiveVideoModel)} (${effectiveVideoModel})
 - Duration: ${state.videoDurationSeconds ?? 'unset'}
 - Aspect: ${state.videoAspectRatio ?? 'unset'}
 - Language: ${state.language ?? 'unset'}
@@ -766,9 +802,7 @@ const toCloneExecutionFromStatusPayload = (projectId: string, payload: Record<st
   }));
 
   const videoModel = data.videoModel;
-  const normalizedModel = (videoModel === 'veo3' || videoModel === 'seedance_1_5_pro' || videoModel === 'veo3_fast')
-    ? videoModel
-    : 'veo3_fast';
+  const normalizedModel = normalizeProjectAgentVideoModel(videoModel);
 
   return {
     projectId,
@@ -1964,7 +1998,7 @@ export async function POST(request: Request) {
             formData.set('user_id', userId);
             formData.set('video_duration_seconds', duration.toString());
             formData.set('image_size', imageSize);
-            formData.set('video_model', sessionState.videoModel ?? 'veo3_fast');
+            formData.set('video_model', getEffectiveProjectAgentVideoModel('avatar_ads', sessionState.videoModel));
             formData.set('video_aspect_ratio', aspect);
             formData.set('selected_person_photo_url', sessionState.avatar.photoUrl);
             formData.set('language', sessionState.language ?? 'en');
@@ -2142,8 +2176,11 @@ export async function POST(request: Request) {
             const segmentPrompts = draft.scenes.map((scene) => (
               cloneDraftSceneToSegmentPrompt(scene, sessionState.language ?? 'en')
             ));
-            const videoDuration = String(Math.max(1, draft.scenes.length) * 8);
-            const normalizedModel: 'veo3_fast' = 'veo3_fast';
+            const videoDuration = String(segmentPrompts.reduce(
+              (total, segment) => total + getSegmentPromptDurationSeconds(segment),
+              0
+            ));
+            const normalizedModel = normalizeProjectAgentVideoModel(sessionState.videoModel);
             const cloneReferenceVideo = sessionState.cloneReferenceVideo;
             if (!cloneReferenceVideo) {
               return { success: false, message: 'Reference video is missing.' };

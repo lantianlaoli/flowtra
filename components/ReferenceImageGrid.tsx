@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { Loader2, Plus, Upload, X } from 'lucide-react';
+import { Loader2, Upload, X } from 'lucide-react';
 
 interface ReferenceImageGridItem {
   alt: string;
@@ -24,7 +24,7 @@ interface ReferenceImageGridProps {
 }
 
 const MAX_REFERENCE_IMAGES = 3;
-const GRID_CARD_COUNT = 4;
+const GRID_CARD_COUNT = 3;
 
 export const PRODUCT_REFERENCE_SLOTS: ReferenceImageGridSlot[] = [
   {
@@ -57,19 +57,21 @@ function SlotBadge({
 
 function ReferenceImageCard({
   alt,
+  className,
   label,
   onRemove,
   removeDisabled,
   src
 }: {
   alt: string;
+  className?: string;
   label: string;
   onRemove: () => void;
   removeDisabled?: boolean;
   src: string;
 }) {
   return (
-    <div className="group relative aspect-[4/5] overflow-hidden rounded-[18px] border border-black/8 bg-white">
+    <div className={`group relative aspect-[4/5] overflow-hidden rounded-[18px] border border-black/8 bg-white ${className || ''}`}>
       <div className="absolute left-2 top-2 z-10">
         <SlotBadge label={label} />
       </div>
@@ -94,13 +96,15 @@ function ReferenceImageCard({
 }
 
 function ReferenceImageLoadingCard({
+  className,
   label
 }: {
+  className?: string;
   label: string;
 }) {
   return (
     <div
-      className="relative aspect-[4/5] overflow-hidden rounded-[18px] border border-black/8 bg-[linear-gradient(180deg,#fafafa_0%,#f1f1f1_55%,#fafafa_100%)]"
+      className={`relative aspect-[4/5] overflow-hidden rounded-[18px] border border-black/8 bg-[linear-gradient(180deg,#fafafa_0%,#f1f1f1_55%,#fafafa_100%)] ${className || ''}`}
       aria-busy="true"
     >
       <div className="absolute left-2 top-2 z-10">
@@ -116,18 +120,23 @@ function ReferenceImageLoadingCard({
   );
 }
 
-function ReferenceImageAddCard({
+function ReferenceImageUploadCard({
+  className,
   label,
-  onAdd
+  onAdd,
+  disabled = false
 }: {
+  className?: string;
   label: string;
   onAdd: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onAdd}
-      className="relative flex aspect-[4/5] flex-col items-center justify-center rounded-[18px] border border-dashed border-black/10 bg-white text-gray-500 transition hover:bg-[#fafafa] hover:text-gray-700"
+      disabled={disabled}
+      className={`relative flex aspect-[4/5] flex-col items-center justify-center rounded-[18px] border border-dashed border-black/10 bg-white text-gray-500 transition hover:bg-[#fafafa] hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-60 ${className || ''}`}
     >
       <div className="absolute left-2 top-2">
         <SlotBadge label={label} />
@@ -140,60 +149,32 @@ function ReferenceImageAddCard({
 }
 
 function ReferenceImageEmptyCard({
-  label
+  className,
+  label,
+  onAdd
 }: {
+  className?: string;
   label: string;
+  onAdd?: (() => void) | undefined;
 }) {
+  if (onAdd) {
+    return (
+      <ReferenceImageUploadCard
+        className={className}
+        label={label}
+        onAdd={onAdd}
+      />
+    );
+  }
+
   return (
-    <div className="relative aspect-[4/5] overflow-hidden rounded-[18px] border border-dashed border-black/8 bg-white">
+    <div className={`relative aspect-[4/5] overflow-hidden rounded-[18px] border border-dashed border-black/8 bg-white ${className || ''}`}>
       <div className="absolute left-2 top-2 z-10">
         <SlotBadge label={label} />
       </div>
       <div className="flex h-full items-center justify-center text-gray-300">
-        <Plus className="h-5 w-5" />
+        <Upload className="h-5 w-5" />
       </div>
-    </div>
-  );
-}
-
-function ReferenceImageHelperCard({
-  canAdd,
-  filledCount,
-  isGenerating,
-  onAdd
-}: {
-  canAdd: boolean;
-  filledCount: number;
-  isGenerating: boolean;
-  onAdd?: () => void;
-}) {
-  if (isGenerating) {
-    return (
-      <div className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-[18px] border border-dashed border-black/8 bg-white">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/88 text-gray-700 shadow-sm">
-          <Loader2 className="h-4 w-4 animate-spin" />
-        </div>
-      </div>
-    );
-  }
-
-  if (canAdd && onAdd) {
-    return (
-      <button
-        type="button"
-        onClick={onAdd}
-        className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-[18px] border border-dashed border-black/10 bg-white text-gray-500 transition hover:bg-[#fafafa] hover:text-gray-700"
-      >
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/88 shadow-sm">
-          <Upload className="h-4 w-4" />
-        </div>
-      </button>
-    );
-  }
-
-  return (
-    <div className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-[18px] border border-dashed border-black/8 bg-white">
-      <div className="h-1.5 w-1.5 rounded-full bg-black/10" />
     </div>
   );
 }
@@ -209,28 +190,18 @@ export default function ReferenceImageGrid({
   const pendingCount = isGenerating ? Math.max(0, MAX_REFERENCE_IMAGES - items.length) : 0;
 
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid h-full min-h-0 grid-cols-2 gap-2">
       {Array.from({ length: GRID_CARD_COUNT }, (_, index) => {
-        if (index === GRID_CARD_COUNT - 1) {
-          return (
-            <ReferenceImageHelperCard
-              key="helper-card"
-              canAdd={Boolean(onAdd) && items.length < MAX_REFERENCE_IMAGES}
-              filledCount={items.length}
-              isGenerating={isGenerating}
-              onAdd={onAdd}
-            />
-          );
-        }
-
         const item = items[index];
         const slot = slots[index] || PRODUCT_REFERENCE_SLOTS[index];
+        const cardClassName = '';
 
         if (item) {
           return (
             <ReferenceImageCard
               key={item.key}
               alt={item.alt}
+              className={cardClassName}
               label={slot.label}
               onRemove={() => onRemove(index)}
               removeDisabled={removeDisabled}
@@ -243,17 +214,8 @@ export default function ReferenceImageGrid({
           return (
             <ReferenceImageLoadingCard
               key={`loading-${index}`}
+              className={cardClassName}
               label={slot.label}
-            />
-          );
-        }
-
-        if (onAdd && index === items.length) {
-          return (
-            <ReferenceImageAddCard
-              key="add-reference"
-              label={slot.label}
-              onAdd={onAdd}
             />
           );
         }
@@ -261,7 +223,9 @@ export default function ReferenceImageGrid({
         return (
           <ReferenceImageEmptyCard
             key={`empty-${index}`}
+            className={cardClassName}
             label={slot.label}
+            onAdd={onAdd && index >= items.length && !isGenerating ? onAdd : undefined}
           />
         );
       })}

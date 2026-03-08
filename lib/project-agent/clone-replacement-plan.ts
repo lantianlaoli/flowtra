@@ -38,10 +38,14 @@ export const hasExplicitAvatarIntent = (text: string) => {
 };
 
 const SELECTION_CONTINUE_PATTERNS = [
+  /\bi['’]?ve made (my |a )?choice\b/i,
   /\bi have made (a )?choice\b/i,
+  /\bi['’]?ve made my selection(s)?\b/i,
   /\bi made (a )?choice\b/i,
   /\bi selected\b/i,
   /\bi already selected\b/i,
+  /\bi['’]?ve already selected\b/i,
+  /\bi['’]?ve chosen\b/i,
   /\bi have chosen\b/i,
   /\bi chose\b/i,
   /\bcontinue\b/i,
