@@ -183,12 +183,14 @@ const convertShotsForEditor = (shots: SegmentPrompt['shots'], fallbackLanguage: 
   if (Array.isArray(shots) && shots.length > 0) {
     return shots.map((shot, index) => {
       const parsedAudio = parseLegacyAudioField(shot.audio || '');
+      const sfx = (shot.sfx || '').trim() || parsedAudio.sfx;
+      const ambient = (shot.ambient || '').trim() || parsedAudio.ambient;
       return {
       id: shot.id || index + 1,
       time_range: shot.time_range || '00:00 - 00:02',
-      audio: buildLegacyAudioField(parsedAudio),
-      sfx: parsedAudio.sfx,
-      ambient: parsedAudio.ambient,
+      audio: buildLegacyAudioField({ sfx, ambient }),
+      sfx,
+      ambient,
       style: shot.style || '',
       action: shot.action || '',
       subject: shot.subject || '',

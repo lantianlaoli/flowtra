@@ -2141,6 +2141,8 @@ function composeSegmentPromptUpdate(
     id: shot.id ?? index + 1,
     time_range: shot.time_range.trim(),
     audio: shot.audio.trim(),
+    sfx: shot.sfx.trim(),
+    ambient: shot.ambient.trim(),
     style: shot.style.trim(),
     action: shot.action.trim(),
     subject: shot.subject.trim(),

@@ -91,6 +91,9 @@ test('buildManualCloneSeedPrompts preserves competitor shots for segmented non-K
         composition: 'Tight crop',
         ambianceColourLighting: 'Warm morning light',
         audio: 'Soft beat',
+        dialogue: 'This is the one I actually keep on my desk.',
+        sfx: 'Soft package tap',
+        ambient: 'Low room tone',
         startTimeSeconds: 0,
         endTimeSeconds: 8
       },
@@ -108,6 +111,9 @@ test('buildManualCloneSeedPrompts preserves competitor shots for segmented non-K
         composition: 'Vertical waist-up',
         ambianceColourLighting: 'Neutral indoor light',
         audio: 'Voiceover line',
+        dialogue: 'You can see the finish right away.',
+        sfx: '',
+        ambient: 'Quiet bedroom ambience',
         startTimeSeconds: 8,
         endTimeSeconds: 16
       }
@@ -117,8 +123,12 @@ test('buildManualCloneSeedPrompts preserves competitor shots for segmented non-K
   assert.equal(prompts.length, 2);
   assert.equal(prompts[0].first_frame_description, 'Shot one opening frame with product on table.');
   assert.equal(prompts[0].shots?.[0].action, 'Creator picks up the product');
+  assert.equal(prompts[0].shots?.[0].dialogue, 'This is the one I actually keep on my desk.');
+  assert.equal(prompts[0].shots?.[0].sfx, 'Soft package tap');
+  assert.equal(prompts[0].shots?.[0].ambient, 'Low room tone');
   assert.equal(prompts[1].first_frame_description, 'Shot two opening frame with product in use.');
   assert.equal(prompts[1].shots?.[0].composition, 'Vertical waist-up');
+  assert.equal(prompts[1].shots?.[0].dialogue, 'You can see the finish right away.');
 });
 
 test('buildManualCloneSeedPrompts creates shot-aware Kling segments without AI adaptation', () => {
@@ -143,6 +153,9 @@ test('buildManualCloneSeedPrompts creates shot-aware Kling segments without AI a
         composition: 'Macro angle',
         ambianceColourLighting: 'Soft warm light',
         audio: 'Music only',
+        dialogue: 'Watch the texture hit right away.',
+        sfx: 'Soft click',
+        ambient: 'Bedroom room tone',
         startTimeSeconds: 0,
         endTimeSeconds: 4
       },
@@ -160,6 +173,9 @@ test('buildManualCloneSeedPrompts creates shot-aware Kling segments without AI a
         composition: 'Medium close-up',
         ambianceColourLighting: 'Warm LED accent',
         audio: 'Music continues',
+        dialogue: 'Then turn it so the detail catches.',
+        sfx: '',
+        ambient: 'Music bed',
         startTimeSeconds: 4,
         endTimeSeconds: 8
       },
@@ -177,6 +193,9 @@ test('buildManualCloneSeedPrompts creates shot-aware Kling segments without AI a
         composition: 'Vertical close-up',
         ambianceColourLighting: 'Indoor ambient glow',
         audio: 'Music and CTA overlay',
+        dialogue: 'Finish on the hero result.',
+        sfx: 'Soft fabric glide',
+        ambient: 'Room tone with music',
         startTimeSeconds: 8,
         endTimeSeconds: 12
       }
@@ -186,6 +205,9 @@ test('buildManualCloneSeedPrompts creates shot-aware Kling segments without AI a
   assert.equal(prompts.length, 1);
   assert.equal(prompts[0].shots?.length, 3);
   assert.equal(prompts[0].shots?.[0].action, 'Hand presents the device');
+  assert.equal(prompts[0].shots?.[0].dialogue, 'Watch the texture hit right away.');
+  assert.equal(prompts[0].shots?.[0].sfx, 'Soft click');
   assert.equal(prompts[0].shots?.[2].action, 'Device glides along calf muscle');
+  assert.equal(prompts[0].shots?.[2].ambient, 'Room tone with music');
   assert.equal(prompts[0].is_continuation_from_prev, false);
 });

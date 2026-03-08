@@ -107,6 +107,8 @@ export default function PromptMentionTextarea({
 }: PromptMentionTextareaProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const menuScrollRef = useRef<HTMLDivElement | null>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionStart, setMentionStart] = useState<number | null>(null);
@@ -171,10 +173,13 @@ export default function PromptMentionTextarea({
       return;
     }
 
+    const shouldResetActiveIndex = !mentionOpen || mention.start !== mentionStart || mention.query !== mentionQuery;
     setMentionStart(mention.start);
     setMentionQuery(mention.query);
     setMentionOpen(true);
-    setActiveIndex(0);
+    if (shouldResetActiveIndex) {
+      setActiveIndex(0);
+    }
   };
 
   const syncMentionFromTextarea = () => {
@@ -222,6 +227,12 @@ export default function PromptMentionTextarea({
       document.removeEventListener('touchstart', handlePointerDown);
     };
   }, [mentionOpen]);
+
+  useEffect(() => {
+    if (!mentionOpen) return;
+    const activeOption = optionRefs.current[activeIndex];
+    activeOption?.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex, mentionOpen]);
 
   return (
     <div ref={rootRef} className="prompt-mention-root relative min-w-0">
@@ -337,7 +348,7 @@ export default function PromptMentionTextarea({
 
       {mentionOpen && (
         <div role="listbox" className="prompt-mention-menu absolute z-20 mt-2 w-full rounded-xl border border-gray-200 bg-white shadow-lg">
-          <div className="max-h-64 space-y-2 overflow-y-auto p-2">
+          <div ref={menuScrollRef} className="max-h-64 space-y-2 overflow-y-auto p-2">
             <div>
               <div className="flex items-center gap-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                 <User className="h-3.5 w-3.5" />
@@ -354,6 +365,9 @@ export default function PromptMentionTextarea({
                     return (
                       <button
                         key={`character-${item.id}`}
+                        ref={(node) => {
+                          optionRefs.current[flatIndex] = node;
+                        }}
                         type="button"
                         role="option"
                         aria-selected={isActive}
@@ -410,6 +424,9 @@ export default function PromptMentionTextarea({
                     return (
                       <button
                         key={`product-${item.id}`}
+                        ref={(node) => {
+                          optionRefs.current[flatIndex] = node;
+                        }}
                         type="button"
                         role="option"
                         aria-selected={isActive}
