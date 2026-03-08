@@ -7,11 +7,10 @@ import { Google, ByteDance, Kling } from '@lobehub/icons';
 import { cn } from '@/lib/utils';
 import {
   GENERATION_COSTS,
-  canAffordModel,
   getProcessingTime,
   getModelCostByConfig,
   getVideoModelDisplayName,
-  type VideoQuality,
+  type PersistedVideoQuality,
   type VideoDuration,
   type VideoModel
 } from '@/lib/constants';
@@ -20,7 +19,7 @@ interface VideoModelSelectorProps {
   credits: number;
   selectedModel: VideoModel;
   onModelChange: (model: VideoModel) => void;
-  videoQuality?: VideoQuality;
+  videoQuality?: PersistedVideoQuality;
   videoDuration?: VideoDuration;
   label?: string;
   className?: string;
@@ -112,7 +111,7 @@ export default function VideoModelSelector({
         icon: Google,
         cost: calculateDurationCost('veo3_fast'),
         processingTime: getProcessingTime('veo3_fast'),
-        affordable: canAffordModel(credits, 'veo3_fast'),
+        affordable: credits >= calculateDurationCost('veo3_fast'),
         features: 'Fast processing, 2-3 min',
         supported: isModelSupported('veo3_fast'),
         badge: 'Popular'
@@ -124,7 +123,7 @@ export default function VideoModelSelector({
         icon: ByteDance,
         cost: calculateDurationCost('seedance_1_5_pro'),
         processingTime: getProcessingTime('seedance_1_5_pro'),
-        affordable: canAffordModel(credits, 'seedance_1_5_pro'),
+        affordable: credits >= calculateDurationCost('seedance_1_5_pro'),
         features: 'Built-in audio, 1-2 min',
         supported: isModelSupported('seedance_1_5_pro'),
         badge: 'Audio'
@@ -132,12 +131,12 @@ export default function VideoModelSelector({
       {
         value: 'kling_3' as const,
         label: getVideoModelDisplayName('kling_3'),
-        description: '1080P · with audio',
+        description: 'Resolution-aware audio generation',
         icon: Kling,
         cost: calculateDurationCost('kling_3'),
         processingTime: getProcessingTime('kling_3'),
-        affordable: canAffordModel(credits, 'kling_3'),
-        features: 'Pro mode default, 40 credits / s',
+        affordable: credits >= calculateDurationCost('kling_3'),
+        features: '720p std or 1080p pro',
         supported: isModelSupported('kling_3'),
         badge: 'New'
       },
@@ -148,7 +147,7 @@ export default function VideoModelSelector({
         icon: Google,
         cost: calculateDurationCost('veo3'),
         processingTime: getProcessingTime('veo3'),
-        affordable: canAffordModel(credits, 'veo3'),
+        affordable: credits >= calculateDurationCost('veo3'),
         features: 'Premium quality, 5-8 min',
         supported: isModelSupported('veo3'),
         badge: 'Premium'

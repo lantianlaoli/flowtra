@@ -7,9 +7,10 @@ import { Settings, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import VideoDurationSelector, { type VideoDurationOption } from './VideoDurationSelector';
 import VideoModelSelector from './VideoModelSelector';
+import VideoQualitySelector from './VideoQualitySelector';
 import LanguageSelector, { LanguageCode } from './LanguageSelector';
 import FormatSelector, { type Format } from './FormatSelector';
-import type { VideoDuration, VideoModel } from '@/lib/constants';
+import type { CloneVideoQuality, VideoDuration, VideoModel } from '@/lib/constants';
 
 interface ConfigPopoverProps {
   // Duration props
@@ -27,6 +28,11 @@ interface ConfigPopoverProps {
   disabledModels?: VideoModel[];
   disabledModelReasons?: Partial<Record<VideoModel, string>>;
   hideModelSelector?: boolean;
+
+  // Quality props
+  selectedVideoQuality?: CloneVideoQuality;
+  onVideoQualityChange?: (quality: CloneVideoQuality) => void;
+  hideVideoQualitySelector?: boolean;
 
   // Language props
   selectedLanguage?: LanguageCode;
@@ -66,6 +72,9 @@ export default function ConfigPopover({
   disabledModels = [],
   disabledModelReasons = {},
   hideModelSelector = false,
+  selectedVideoQuality,
+  onVideoQualityChange,
+  hideVideoQualitySelector = false,
   selectedLanguage,
   onLanguageChange,
   hideLanguageSelector = false,
@@ -259,10 +268,20 @@ export default function ConfigPopover({
           selectedModel={selectedModel}
           onModelChange={onModelChange}
           videoDuration={videoDuration}
+          videoQuality={selectedVideoQuality}
           disabledModels={disabledModels}
           disabledModelReasons={disabledModelReasons}
           label="Video Model"
           showIcon
+        />
+      )}
+
+      {!hideVideoQualitySelector && selectedModel && selectedVideoQuality && onVideoQualityChange && videoDuration && (
+        <VideoQualitySelector
+          selectedModel={selectedModel}
+          selectedQuality={selectedVideoQuality}
+          onQualityChange={onVideoQualityChange}
+          disabled={disabled}
         />
       )}
 

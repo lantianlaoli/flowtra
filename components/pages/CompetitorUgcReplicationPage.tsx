@@ -23,10 +23,13 @@ import SegmentInspector, {
 } from "@/components/competitor-ugc-replication/SegmentInspector";
 
 import {
+  getDefaultCloneVideoQuality,
   getGenerationCost,
   getSegmentCountFromDuration,
+  normalizeCloneVideoQualityForModel,
   snapDurationToModel,
   type VideoModel,
+  type CloneVideoQuality,
   type VideoDuration,
   getReplicaPhotoCredits,
 } from "@/lib/constants";
@@ -232,6 +235,8 @@ export default function CompetitorUgcReplicationPage() {
 
   // Video configuration states
   const [selectedModel, setSelectedModel] = useState<VideoModel>("veo3_fast");
+  const [selectedVideoQuality, setSelectedVideoQuality] =
+    useState<CloneVideoQuality>(getDefaultCloneVideoQuality("veo3_fast"));
   const [format, setFormat] = useState<Format>("9:16");
 
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>("en");
@@ -330,6 +335,12 @@ export default function CompetitorUgcReplicationPage() {
       };
     }
   }, [selectedReferenceVideo]);
+
+  useEffect(() => {
+    setSelectedVideoQuality((current) =>
+      normalizeCloneVideoQualityForModel(selectedModel, current),
+    );
+  }, [selectedModel]);
 
   const effectiveVideoDuration = useMemo<VideoDuration>(() => {
     const targetDurationSeconds = selectedReferenceVideo?.duration_seconds || 0;
@@ -519,6 +530,7 @@ export default function CompetitorUgcReplicationPage() {
       elementsCount,
       format as "16:9" | "9:16",
       effectiveVideoDuration,
+      selectedVideoQuality,
       selectedLanguage,
       false, // Always use auto mode now
       "",
@@ -1735,7 +1747,7 @@ export default function CompetitorUgcReplicationPage() {
       mergeLoading: false,
       videoGenerationRequested: false,
       isPhotoOnly: isCompetitorPhotoMode,
-      creditsCost: isCompetitorPhotoMode ? generationCost : 0,
+      creditsCost: generationCost,
     };
 
     setGenerations((prev) => [newGeneration, ...prev]);
@@ -1849,8 +1861,12 @@ export default function CompetitorUgcReplicationPage() {
   const replicaPhotoCredits = getReplicaPhotoCredits(photoResolution);
   const generationCost = isCompetitorPhotoMode
     ? replicaPhotoCredits
-    : getGenerationCost(selectedModel, effectiveVideoDuration.toString());
-  const composerGenerationCost = isCompetitorPhotoMode ? generationCost : 0;
+    : getGenerationCost(
+        selectedModel,
+        effectiveVideoDuration.toString(),
+        selectedVideoQuality,
+      );
+  const composerGenerationCost = 0;
   const downloadCost = 0; // Version 2.0: ALL downloads are FREE
   const canAfford = isCompetitorPhotoMode
     ? (userCredits || 0) >= generationCost
@@ -2046,6 +2062,8 @@ export default function CompetitorUgcReplicationPage() {
             videoDuration={effectiveVideoDuration}
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
+            selectedVideoQuality={selectedVideoQuality}
+            onVideoQualityChange={setSelectedVideoQuality}
             userCredits={userCredits || 0}
             selectedLanguage={selectedLanguage}
             onLanguageChange={setSelectedLanguage}
@@ -2077,7 +2095,7 @@ export default function CompetitorUgcReplicationPage() {
         isGenerating={isGenerating}
         generationCost={composerGenerationCost}
         userCredits={userCredits || 0}
-        generateButtonText={isCompetitorPhotoMode ? "Generate" : "Create Project"}
+        generateButtonText={isCompetitorPhotoMode ? "Generate" : "Start"}
       />
 
       {segmentInspector && inspectorContext && (
@@ -2091,6 +2109,7 @@ export default function CompetitorUgcReplicationPage() {
           videoModel={inspectorContext.generation.videoModel}
           videoDuration={inspectorContext.generation.videoDuration}
           videoAspectRatio={inspectorContext.generation.videoAspectRatio}
+          videoQuality={selectedVideoQuality}
           selectedLanguage={selectedLanguage}
           onRegenerate={handleSegmentRegenerate}
           isSubmitting={segmentInspectorSubmitting}

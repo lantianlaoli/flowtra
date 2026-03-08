@@ -13,7 +13,7 @@ import {
   type SegmentPrompt,
   type SerializedSegmentPlanSegment
 } from '@/lib/competitor-ugc-replication-workflow';
-import { getSegmentDurationForModel, type VideoModel } from '@/lib/constants';
+import { getSegmentDurationForModel, type PersistedVideoQuality, type VideoModel } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { getAvatarPhotoUrls, SYSTEM_AVATARS } from '@/lib/default-avatars';
 import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
@@ -485,7 +485,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         const segmentVideoCost = getSegmentPromptVideoGenerationCost(
           projectModel || 'veo3_fast',
           mergedPrompt.shots,
-          segmentDurationSeconds
+          segmentDurationSeconds,
+          (project.video_quality as PersistedVideoQuality | null | undefined) || undefined
         );
         const effectiveSegmentDurationSeconds = getEffectiveSegmentDurationSeconds(
           mergedPrompt.shots,

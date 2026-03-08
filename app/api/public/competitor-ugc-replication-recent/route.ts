@@ -3,6 +3,8 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { getSupabaseAdmin } from '@/lib/supabase';
 
+import type { PersistedVideoQuality } from '@/lib/constants';
+
 interface CompetitorUgcReplicationProjectRow {
   id: string;
   created_at: string;
@@ -11,7 +13,7 @@ interface CompetitorUgcReplicationProjectRow {
   video_model: string | null;
   status: string | null;
   video_duration: string | null;
-  video_quality: 'standard' | 'high' | null;
+  video_quality: PersistedVideoQuality | null;
 }
 
 interface CompetitorUgcReplicationProject {
@@ -22,7 +24,7 @@ interface CompetitorUgcReplicationProject {
   videoModel?: string;
   status?: string;
   videoDuration?: string;
-  videoQuality?: 'standard' | 'high';
+  videoQuality?: PersistedVideoQuality;
 }
 
 function mapProjectRow(row: CompetitorUgcReplicationProjectRow): CompetitorUgcReplicationProject {

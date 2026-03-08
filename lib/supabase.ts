@@ -16,6 +16,7 @@ import {
   removeStorageObjectWithFallback,
 } from '@/lib/storage/ops'
 import { STORAGE_BUCKETS, type StorageBucket } from '@/lib/storage/types'
+import type { PersistedVideoQuality } from '@/lib/constants'
 
 // Lazily initialize clients to avoid evaluating env vars during build time
 let browserClient: SupabaseClient | null = null
@@ -122,7 +123,7 @@ export interface SingleVideoProject {
   video_aspect_ratio?: string // Video aspect ratio, defaults to '16:9'
   video_generation_prompt?: Record<string, unknown> // JSONB field containing the prompt used for video generation
   video_duration?: string | null // Video duration in seconds (e.g., '8', '10', '15') - applicable to all video models
-  video_quality?: 'standard' | 'high' | null // Video quality setting - applicable to all video models
+  video_quality?: PersistedVideoQuality | null // Video quality setting - applicable to all video models
   generation_credits_used?: number | null // Credits actually charged for generation
   is_segmented?: boolean // Whether this project uses segmented generation
   segment_count?: number // Number of segments requested (default 1)

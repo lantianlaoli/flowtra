@@ -32,7 +32,7 @@ import type { SystemAvatar } from '@/lib/default-avatars';
 import { useToast } from '@/contexts/ToastContext';
 import { estimateKlingPromptUsage, KLING_PROMPT_MAX_CHARS } from '@/lib/kling-prompt-budget';
 import { getSegmentPromptVideoGenerationCost } from '@/lib/competitor-ugc-segment-billing';
-import type { VideoModel } from '@/lib/constants';
+import type { CloneVideoQuality, VideoModel } from '@/lib/constants';
 import SegmentTimelineRuler from '@/components/competitor-ugc-replication/SegmentTimelineRuler';
 import { MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
 
@@ -73,6 +73,7 @@ interface SegmentFormColumnProps {
   segment?: SegmentCardSummary | null;
   segmentPlanEntry?: SegmentPrompt;
   videoModel?: string;
+  videoQuality?: CloneVideoQuality;
   videoDuration?: string | null;
   selectedLanguage?: LanguageCode;
   onRegenerate?: (options: {
@@ -212,6 +213,7 @@ export default function SegmentFormColumn({
   segment,
   segmentPlanEntry,
   videoModel,
+  videoQuality,
   videoDuration,
   selectedLanguage,
   onRegenerate,
@@ -251,8 +253,8 @@ export default function SegmentFormColumn({
       return 0;
     }
 
-    return getSegmentPromptVideoGenerationCost(resolvedModel, shots);
-  }, [shots, videoModel]);
+    return getSegmentPromptVideoGenerationCost(resolvedModel, shots, undefined, videoQuality);
+  }, [shots, videoModel, videoQuality]);
 
   const firstFrameUrl = segment?.firstFrameUrl || null;
   const videoUrl = segment?.videoUrl || null;

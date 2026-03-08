@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import type { PersistedVideoQuality } from '@/lib/constants';
 
 interface CompetitorUgcReplicationProject {
   id: string;
@@ -12,7 +13,7 @@ interface CompetitorUgcReplicationProject {
   videoModel?: string;
   status?: string;
   videoDuration?: string;
-  videoQuality?: 'standard' | 'high';
+  videoQuality?: PersistedVideoQuality;
 }
 
 interface ApiResponse {
