@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, UserCircle, Upload, Loader2, Plus, AlertCircle, CircleHelp, Sparkles } from 'lucide-react';
+import { Check, X, UserCircle, Upload, Loader2, AlertCircle, CircleHelp, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import { UserAvatar } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
+import ReferenceImageGrid from './ReferenceImageGrid';
 
 interface CreateAvatarModalProps {
   isOpen: boolean;
@@ -22,11 +23,27 @@ interface PreviewFile {
   preview: string;
 }
 
+const AVATAR_REFERENCE_SLOTS = [
+  {
+    label: '45° Front Left',
+    description: 'Show the left-front facial angle and shoulder line.'
+  },
+  {
+    label: '45° Front Right',
+    description: 'Show the right-front facial angle and silhouette.'
+  },
+  {
+    label: 'Back View',
+    description: 'Show the rear profile, hair, or outfit details.'
+  }
+];
+
 export default function CreateAvatarModal({
   isOpen,
   onClose,
   onAvatarCreated
 }: CreateAvatarModalProps) {
+  const fieldBadgeClassName = 'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]';
   const [avatarName, setAvatarName] = useState('');
   const [primaryImage, setPrimaryImage] = useState<PreviewFile | null>(null);
   const [referenceImages, setReferenceImages] = useState<PreviewFile[]>([]);
@@ -34,9 +51,18 @@ export default function CreateAvatarModal({
   const [isCreating, setIsCreating] = useState(false);
   const [isUploadingRefs, setIsUploadingRefs] = useState(false);
   const [isGeneratingReferences, setIsGeneratingReferences] = useState(false);
+  const [highlightReferenceRequirement, setHighlightReferenceRequirement] = useState(false);
 
   const primaryInputRef = useRef<HTMLInputElement | null>(null);
   const referenceInputRef = useRef<HTMLInputElement | null>(null);
+
+  const triggerReferenceRequirementHint = () => {
+    setHighlightReferenceRequirement(false);
+    requestAnimationFrame(() => {
+      setHighlightReferenceRequirement(true);
+      window.setTimeout(() => setHighlightReferenceRequirement(false), 1100);
+    });
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -45,6 +71,7 @@ export default function CreateAvatarModal({
       setReferenceImages([]);
       setError(null);
       setIsGeneratingReferences(false);
+      setHighlightReferenceRequirement(false);
       setTimeout(() => {
         const input = document.querySelector('#avatar-name-input') as HTMLInputElement | null;
         input?.focus();
@@ -149,6 +176,7 @@ export default function CreateAvatarModal({
       const preview = await validateAndLoadImage(file);
       setReferenceImages((prev) => [...prev, { file, preview }]);
       setError(null);
+      setHighlightReferenceRequirement(false);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Failed to load image.');
     } finally {
@@ -274,6 +302,12 @@ export default function CreateAvatarModal({
       return;
     }
 
+    if (referenceImages.length < 1) {
+      setError('Upload at least one reference photo to continue.');
+      triggerReferenceRequirementHint();
+      return;
+    }
+
     setIsCreating(true);
     setError(null);
 
@@ -339,6 +373,11 @@ export default function CreateAvatarModal({
       !isUploadingRefs &&
       !isGeneratingReferences
   );
+  const referenceGridItems = referenceImages.map((reference, index) => ({
+    alt: `Reference ${index + 1}`,
+    key: `reference-${index}`,
+    src: reference.preview
+  }));
 
   return (
     <AnimatePresence>
@@ -366,13 +405,13 @@ export default function CreateAvatarModal({
             transition={{ duration: 0.2 }}
           >
             <div className="assets-modal-header flex items-center justify-between border-b border-gray-200 px-6 py-5">
-              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3">
                 <div className="assets-modal-icon flex h-11 w-11 items-center justify-center rounded-xl bg-black text-white">
                   <UserCircle className="h-5 w-5" />
                 </div>
                 <div>
                   <p className="assets-modal-title text-xl font-semibold text-gray-900">Create New Avatar</p>
-                  <p className="assets-modal-subtitle text-sm text-gray-600">Add 1 primary portrait and up to 3 reference photos.</p>
+                  <p className="assets-modal-subtitle text-sm text-gray-600">Add 1 primary portrait and 1-3 reference photos.</p>
                 </div>
               </div>
               <button
@@ -394,7 +433,7 @@ export default function CreateAvatarModal({
               )}
 
               <div>
-                <label htmlFor="avatar-name-input" className="assets-modal-label text-sm font-medium text-gray-700">Avatar Name</label>
+                <label htmlFor="avatar-name-input" className="assets-modal-label text-sm font-medium text-gray-700">Name</label>
                 <input
                   id="avatar-name-input"
                   type="text"
@@ -402,15 +441,18 @@ export default function CreateAvatarModal({
                   onChange={(event) => setAvatarName(event.target.value)}
                   className="assets-modal-input mt-2 w-full rounded-xl border border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm text-gray-900 transition-all focus:border-black focus:bg-white focus:outline-none focus:ring-0"
                   placeholder="Enter avatar name"
-                  maxLength={255}
+                  maxLength={60}
                 />
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-5">
-                <div className="space-y-3 h-full min-h-0 flex flex-col">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium leading-5 text-gray-900">Primary Portrait (Required)</p>
-                    <div className="relative group">
+                <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-5">
+                  <div className="space-y-3 h-full min-h-0 flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium leading-5 text-gray-900">Primary Portrait</p>
+                      <span className={`${fieldBadgeClassName} border-black/10 bg-black/[0.04] text-black/75`}>
+                        Required
+                      </span>
+                      <div className="relative group">
                       <button
                         type="button"
                         className="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:text-gray-600 align-middle"
@@ -432,8 +474,8 @@ export default function CreateAvatarModal({
                               <Image src={BLURRY_EXAMPLE_URL} alt="Bad example" width={64} height={64} className="h-full w-full object-cover" />
                             </div>
                             <span className="mt-1 text-[11px] text-gray-600">Bad (Blurry)</span>
-                          </div>
-                        </div>
+                      </div>
+                    </div>
                       </div>
                     </div>
                   </div>
@@ -491,10 +533,19 @@ export default function CreateAvatarModal({
                   />
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-3 h-full min-h-0 flex flex-col">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-1.5 leading-none">
-                      <p className="text-sm font-medium text-gray-900">Reference Photos (Optional)</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-gray-900">Reference Photos</p>
+                        <motion.span
+                          className={`${fieldBadgeClassName} ${highlightReferenceRequirement ? 'border-black/20 bg-black text-white shadow-[0_8px_24px_rgba(0,0,0,0.14)]' : 'border-gray-200 bg-gray-50 text-gray-600'}`}
+                          animate={highlightReferenceRequirement ? { scale: [1, 1.08, 1], x: [0, -3, 3, 0] } : { scale: 1, x: 0 }}
+                          transition={{ duration: 0.45, ease: 'easeInOut' }}
+                        >
+                          Min 1
+                        </motion.span>
+                      </div>
                       <div className="relative group">
                         <button
                           type="button"
@@ -510,61 +561,40 @@ export default function CreateAvatarModal({
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">{referenceImages.length}/3</span>
-                      <button
-                        type="button"
-                        onClick={handleGenerateReferences}
-                        disabled={!primaryImage || referenceImages.length >= 3 || isCreating || isUploadingRefs || isGeneratingReferences}
-                        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition-colors hover:border-gray-900 hover:text-gray-900 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
-                      >
-                        {isGeneratingReferences ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Sparkles className="h-3.5 w-3.5" />
-                        )}
-                        {isGeneratingReferences ? 'Generating…' : 'AI Generate'}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleGenerateReferences}
+                      disabled={!primaryImage || referenceImages.length >= 3 || isCreating || isUploadingRefs || isGeneratingReferences}
+                      className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition-colors hover:border-gray-900 hover:text-gray-900 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                    >
+                      {isGeneratingReferences ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5" />
+                      )}
+                      {isGeneratingReferences ? 'Generating…' : 'AI Generate'}
+                    </button>
                   </div>
 
-                  <div className="grid flex-1 min-h-0 grid-cols-2 grid-rows-[auto_minmax(0,1fr)] gap-3">
-                    {referenceImages.map((item, index) => (
-                      <div
-                        key={`reference-${index}`}
-                        className={cn(
-                          'relative rounded-xl overflow-hidden border border-gray-200 bg-gray-50 group',
-                          referenceImages.length === 3 && index === 2
-                            ? 'col-span-2 h-full min-h-[220px]'
-                            : 'aspect-square'
-                        )}
-                      >
-                        <Image src={item.preview} alt={`Reference ${index + 1}`} fill className="object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => removeReferenceImage(index)}
-                          className="absolute top-2 right-2 h-6 w-6 rounded-full bg-black/70 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-
-                    {referenceImages.length < 3 && (
-                      <label className="aspect-square rounded-xl border-2 border-dashed border-gray-300 bg-[#FAFAFA] flex flex-col items-center justify-center text-gray-600 hover:border-gray-400 hover:bg-gray-50 transition cursor-pointer">
-                        <input
-                          ref={referenceInputRef}
-                          type="file"
-                          accept={getAcceptedImageFormats()}
-                          onChange={handleReferenceUpload}
-                          className="hidden"
-                          disabled={isCreating || isUploadingRefs || isGeneratingReferences}
-                        />
-                        <Plus className="h-5 w-5 mb-2 text-gray-400" />
-                        <span className="text-xs font-medium">Add Reference</span>
-                      </label>
-                    )}
+                  <div className="flex-1 min-h-0">
+                    <ReferenceImageGrid
+                      items={referenceGridItems}
+                      isGenerating={isGeneratingReferences}
+                      onAdd={referenceImages.length < 3 ? () => referenceInputRef.current?.click() : undefined}
+                      onRemove={removeReferenceImage}
+                      removeDisabled={isCreating || isUploadingRefs || isGeneratingReferences}
+                      slots={AVATAR_REFERENCE_SLOTS}
+                    />
                   </div>
+
+                  <input
+                    ref={referenceInputRef}
+                    type="file"
+                    accept={getAcceptedImageFormats()}
+                    onChange={handleReferenceUpload}
+                    className="hidden"
+                    disabled={isCreating || isUploadingRefs || isGeneratingReferences}
+                  />
                 </div>
               </div>
 
@@ -572,9 +602,10 @@ export default function CreateAvatarModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="assets-modal-secondary flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50"
+                  className="assets-modal-secondary flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50"
                   disabled={isCreating || isUploadingRefs}
                 >
+                  <X className="h-4 w-4" />
                   Cancel
                 </button>
                 <button
@@ -582,8 +613,8 @@ export default function CreateAvatarModal({
                   disabled={!canSubmit}
                   className="assets-modal-primary flex flex-1 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {(isCreating || isUploadingRefs) && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {isUploadingRefs ? 'Uploading references...' : isCreating ? 'Creating...' : 'Create Avatar'}
+                  {(isCreating || isUploadingRefs) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  Save
                 </button>
               </div>
             </form>

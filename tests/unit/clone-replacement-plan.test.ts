@@ -21,6 +21,8 @@ test('detects explicit avatar intent', () => {
 
 test('detects selection-continue intent', () => {
   assert.equal(isSelectionContinueIntent('I have made choice'), true);
+  assert.equal(isSelectionContinueIntent("I've made my choice."), true);
+  assert.equal(isSelectionContinueIntent("I've already selected everything."), true);
   assert.equal(isSelectionContinueIntent('I selected already, continue'), true);
   assert.equal(isSelectionContinueIntent('next step'), true);
   assert.equal(isSelectionContinueIntent('what can you do'), false);

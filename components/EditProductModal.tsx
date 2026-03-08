@@ -3,9 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
-import { AlertCircle, CircleHelp, Loader2, Package, Sparkles, Upload, X } from 'lucide-react';
+import { AlertCircle, Check, CircleHelp, Loader2, Package, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { UserProduct, UserProductPhoto } from '@/lib/supabase';
-import ConfirmDialog from './ConfirmDialog';
 import { cn } from '@/lib/utils';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 import ReferenceImageGrid, { PRODUCT_REFERENCE_SLOTS } from './ReferenceImageGrid';
@@ -31,12 +30,12 @@ export default function EditProductModal({
   onDeletePhoto,
   isDeleting = false
 }: EditProductModalProps) {
+  const fieldBadgeClassName = 'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]';
   const [productName, setProductName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   const [isGeneratingReferences, setIsGeneratingReferences] = useState(false);
-  const [showDeleteProductDialog, setShowDeleteProductDialog] = useState(false);
 
   const frontalInputRef = useRef<HTMLInputElement | null>(null);
   const referenceInputRef = useRef<HTMLInputElement | null>(null);
@@ -340,6 +339,11 @@ export default function EditProductModal({
     }
   };
 
+  const handleDeleteProduct = () => {
+    onDelete(product.id);
+    onClose();
+  };
+
   const canSave = Boolean(
     productName.trim() && !isSaving && !isUploadingPhotos && !isGeneratingReferences
   );
@@ -406,7 +410,7 @@ export default function EditProductModal({
 
                 <div>
                   <label htmlFor="edit-product-name-input" className="assets-modal-label text-sm font-medium text-gray-700">
-                    Product Name
+                    Name
                   </label>
                   <input
                     id="edit-product-name-input"
@@ -415,7 +419,7 @@ export default function EditProductModal({
                     onChange={(event) => setProductName(event.target.value)}
                     className="assets-modal-input mt-2 w-full rounded-xl border border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm text-gray-900 transition-all focus:border-black focus:bg-white focus:outline-none focus:ring-0"
                     placeholder="Enter product name"
-                    maxLength={100}
+                    maxLength={60}
                     disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
                   />
                 </div>
@@ -423,7 +427,12 @@ export default function EditProductModal({
                 <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-5">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-gray-900">Frontal Image (Required)</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-gray-900">Frontal Image</p>
+                        <span className={`${fieldBadgeClassName} border-black/10 bg-black/[0.04] text-black/75`}>
+                          Required
+                        </span>
+                      </div>
                     </div>
 
                     <div
@@ -492,7 +501,12 @@ export default function EditProductModal({
                   <div className="space-y-3 h-full min-h-0 flex flex-col">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-1.5 leading-none">
-                        <p className="text-sm font-medium text-gray-900">Reference Images (Optional)</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-gray-900">Reference Images</p>
+                          <span className={`${fieldBadgeClassName} border-gray-200 bg-gray-50 text-gray-500`}>
+                            Optional
+                          </span>
+                        </div>
                         <div className="relative group">
                           <button
                             type="button"
@@ -550,19 +564,20 @@ export default function EditProductModal({
                 <div className="assets-modal-actions flex flex-col gap-3 pt-2 sm:flex-row">
                   <button
                     type="button"
-                    onClick={() => setShowDeleteProductDialog(true)}
-                    className="assets-modal-secondary flex-1 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
+                    onClick={handleDeleteProduct}
+                    className="assets-modal-secondary flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
                     disabled={isDeleting || isSaving || isUploadingPhotos || isGeneratingReferences}
                   >
-                    {isDeleting ? 'Deleting…' : 'Delete Product'}
+                    {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    Delete
                   </button>
                   <button
                     type="submit"
                     disabled={!canSave}
                     className="assets-modal-primary flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:opacity-40"
                   >
-                    {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-                    {isSaving ? 'Saving…' : 'Save Changes'}
+                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    Save
                   </button>
                 </div>
               </form>
@@ -570,19 +585,6 @@ export default function EditProductModal({
           </motion.div>
         )}
       </AnimatePresence>
-
-      <ConfirmDialog
-        isOpen={showDeleteProductDialog}
-        onClose={() => setShowDeleteProductDialog(false)}
-        onConfirm={() => {
-          onDelete(product.id);
-          onClose();
-        }}
-        title="Delete Product"
-        message={`Are you sure you want to delete "${product.product_name}"? This action cannot be undone.`}
-        confirmText="Delete"
-        variant="danger"
-      />
     </>
   );
 }

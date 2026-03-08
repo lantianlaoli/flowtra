@@ -1901,7 +1901,22 @@ async function startAIWorkflow(
     }
 
     const overrideSegmentCount = hasSegmentPromptOverrides ? request.segmentPrompts!.length : 0;
-    const totalDurationSeconds = parseInt(request.videoDuration || String(Math.max(1, overrideSegmentCount) * 8), 10);
+    const overrideTotalDurationSeconds = hasSegmentPromptOverrides
+      ? request.segmentPrompts!.reduce((total, segment) => (
+          total + getPromptSegmentDurationSeconds(segment)
+        ), 0)
+      : 0;
+    if (
+      hasSegmentPromptOverrides &&
+      request.resolvedVideoModel === 'kling_3' &&
+      overrideTotalDurationSeconds >= KLING_MIN_TASK_DURATION_SECONDS
+    ) {
+      request.videoDuration = String(overrideTotalDurationSeconds) as VideoDuration;
+    }
+    const totalDurationSeconds = parseInt(
+      request.videoDuration || String(overrideTotalDurationSeconds || Math.max(1, overrideSegmentCount) * 8),
+      10
+    );
     const segmentedFlow = request.resolvedVideoModel === 'kling_3'
       ? true
       : isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
@@ -3942,7 +3957,13 @@ export async function startSegmentVideoTask(
   const dialogueSeed = providedAdCopy || compiledSegmentPrompt.dialogue || '';
   const dialogueContent = compilePromptForExecution(dialogueSeed, videoModel).compiledValue;
   const music = cleanSegmentText(compiledSegmentPrompt.audio) || '';
-  const perSegmentDuration = resolveTaskDurationSeconds(project, videoModel, segmentIndex, totalSegments);
+  const perSegmentDuration = resolveTaskDurationSeconds(
+    project,
+    videoModel,
+    segmentIndex,
+    totalSegments,
+    compiledSegmentPrompt
+  );
   const normalizedShots = buildNormalizedShots(
     compiledSegmentPrompt,
     perSegmentDuration,
@@ -4055,12 +4076,49 @@ const PLAIN_AT_REFERENCE_REGEX = /@(?<name>[a-z0-9][a-z0-9_-]*)/gi;
 const KLING_SHOT_MIN_DURATION_SECONDS = 1;
 const KLING_SHOT_MAX_DURATION_SECONDS = 12;
 
+function parseTimeRangeEndSeconds(value: string): number | null {
+  const parts = String(value || '').split('-').map((part) => part.trim());
+  if (parts.length !== 2) return null;
+  const [minutesPart, secondsPart] = parts[1].split(':');
+  const minutes = Number(minutesPart);
+  const seconds = Number(secondsPart);
+  if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
+  return (minutes * 60) + seconds;
+}
+
+function getPromptSegmentDurationSeconds(
+  segment:
+    | NonNullable<StartWorkflowRequest['segmentPrompts']>[number]
+    | SegmentPrompt
+    | undefined,
+  fallback = DEFAULT_SEGMENT_DURATION_SECONDS
+): number {
+  const shots = Array.isArray(segment?.shots) ? segment.shots : [];
+  const endTimes = shots
+    .map((shot: { time_range?: string }) => parseTimeRangeEndSeconds(String(shot.time_range || '')))
+    .filter((value: number | null): value is number => typeof value === 'number' && Number.isFinite(value));
+
+  if (endTimes.length === 0) {
+    return fallback;
+  }
+
+  return Math.max(1, Math.round(Math.max(...endTimes)));
+}
+
 function resolveTaskDurationSeconds(
   project: SingleVideoProject,
   model: VideoModel,
   segmentIndex: number,
-  totalSegments: number
+  totalSegments: number,
+  segmentPrompt?: SegmentPrompt
 ): number {
+  if (model === 'kling_3' && Array.isArray(segmentPrompt?.shots) && segmentPrompt.shots.length > 0) {
+    return Math.max(
+      KLING_MIN_TASK_DURATION_SECONDS,
+      Math.min(KLING_MAX_TASK_DURATION_SECONDS, getPromptSegmentDurationSeconds(segmentPrompt))
+    );
+  }
+
   if (typeof project.segment_duration_seconds === 'number' && project.segment_duration_seconds > 0) {
     return project.segment_duration_seconds;
   }
@@ -4629,31 +4687,20 @@ async function startSegmentVideoTaskKling(
     throw new Error(`Kling prompt still contains unresolved references: ${unresolvedPromptReferences.join(', ')}`);
   }
 
-  const requestBody: Record<string, unknown> = {
-    model: 'kling-3.0/video',
-    callBackUrl: buildSegmentVideoWebhookUrl(project.id, segmentIndex),
-    input: {
-      mode: 'pro',
-      image_urls: imageUrls,
-      sound: true,
-      duration: String(boundedDuration),
-      aspect_ratio: project.video_aspect_ratio === '9:16' ? '9:16' : '16:9',
-      multi_shots: hasMultipleShots
-    }
-  };
-
-  if (hasMultipleShots) {
-    (requestBody.input as Record<string, unknown>).multi_prompt = multiPrompt.map(({ prompt, duration }) => ({ prompt, duration }));
-  } else {
-    (requestBody.input as Record<string, unknown>).prompt = singlePrompt?.prompt || '';
-  }
-
-  if (elements.length > 0) {
-    (requestBody.input as Record<string, unknown>).kling_elements = elements;
-  }
+  const requestBody = buildKlingVideoRequestBody({
+    projectId: project.id,
+    segmentIndex,
+    aspectRatio: project.video_aspect_ratio === '9:16' ? '9:16' : '16:9',
+    imageUrls,
+    boundedDuration,
+    hasMultipleShots,
+    multiPrompt: multiPrompt.map(({ prompt, duration }) => ({ prompt, duration })),
+    prompt: singlePrompt?.prompt || '',
+    elements
+  });
 
   console.log(`🎬 Kling Segment ${segmentIndex + 1}/${totalSegments}:`, {
-    mode: 'pro',
+    mode: (requestBody.input as Record<string, unknown>).mode,
     duration: boundedDuration,
     multiShots: hasMultipleShots,
     shotCount: normalizedShots.length,
@@ -4706,6 +4753,43 @@ async function startSegmentVideoTaskKling(
   }
 
   return result.data.taskId;
+}
+
+function buildKlingVideoRequestBody(input: {
+  projectId: string;
+  segmentIndex: number;
+  aspectRatio: '16:9' | '9:16';
+  imageUrls: string[];
+  boundedDuration: number;
+  hasMultipleShots: boolean;
+  multiPrompt: Array<{ prompt: string; duration: number }>;
+  prompt: string;
+  elements: KlingElement[];
+}) {
+  const requestBody: Record<string, unknown> = {
+    model: 'kling-3.0/video',
+    callBackUrl: buildSegmentVideoWebhookUrl(input.projectId, input.segmentIndex),
+    input: {
+      mode: 'std',
+      image_urls: input.imageUrls,
+      sound: true,
+      duration: String(input.boundedDuration),
+      aspect_ratio: input.aspectRatio,
+      multi_shots: input.hasMultipleShots
+    }
+  };
+
+  if (input.hasMultipleShots) {
+    (requestBody.input as Record<string, unknown>).multi_prompt = input.multiPrompt;
+  } else {
+    (requestBody.input as Record<string, unknown>).prompt = input.prompt;
+  }
+
+  if (input.elements.length > 0) {
+    (requestBody.input as Record<string, unknown>).kling_elements = input.elements;
+  }
+
+  return requestBody;
 }
 
 /**
@@ -4859,5 +4943,7 @@ export const __test__ = {
   cleanSegmentText,
   buildProjectAgentFramePrompt,
   shouldWaitForContinuationFrame,
-  buildStructuredVideoPromptPayload
+  buildStructuredVideoPromptPayload,
+  buildKlingVideoRequestBody,
+  getPromptSegmentDurationSeconds
 };

@@ -69,3 +69,19 @@ test('structured video prompt payload keeps only shot content', () => {
   assert.equal(payload.shots.length, 1);
   assert.equal(payload.shots[0].action, 'Continues the massaging motion');
 });
+
+test('Kling prompt scene duration follows the scene shot time range end', () => {
+  assert.equal(
+    __test__.getPromptSegmentDurationSeconds({
+      shots: [
+        {
+          time_range: '00:00 - 00:03'
+        },
+        {
+          time_range: '00:03 - 00:11'
+        }
+      ]
+    }),
+    11
+  );
+});

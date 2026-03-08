@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { AnimatePresence, motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -9,7 +9,8 @@ import { useRouter } from 'next/navigation';
 import { DefaultChatTransport } from 'ai';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { AlertTriangle, ArrowUp, Clapperboard, History, Loader2, MessageCircle, Package, Plus, RefreshCw, Search, Sparkles, User } from 'lucide-react';
+import { ByteDance, Google, Kling } from '@lobehub/icons';
+import { AlertTriangle, ArrowUpRight, Check, ChevronDown, Clapperboard, History, Loader2, Lock, MessageCircle, Package, Plus, RefreshCw, Search, Sparkles, User } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import VideoAssetCard from '@/components/VideoAssetCard';
@@ -29,13 +30,17 @@ import {
   sendBrowserNotification
 } from '@/lib/browser-notifications';
 import { createClient } from '@/lib/supabase/client';
-import { type VideoModel } from '@/lib/constants';
+import { getVideoModelDisplayName, type VideoModel } from '@/lib/constants';
 import {
   getPrimaryCloneSelection,
   hasExplicitCloneAvatarSelectionState,
   hasExplicitCloneProductSelectionState,
   normalizeCloneSelections
 } from '@/lib/project-agent/clone-selection';
+import {
+  normalizeProjectAgentVideoModel,
+  PROJECT_AGENT_VIDEO_MODELS
+} from '@/lib/project-agent/video-model';
 import { isStartVideoGenerationCommand } from '@/lib/project-agent/clone-workflow-control';
 import { buildWorkspaceScenes } from '@/lib/project-agent/workspace-scenes';
 
@@ -71,7 +76,7 @@ interface SessionState {
   language?: string;
   videoDurationSeconds?: number;
   videoAspectRatio?: '16:9' | '9:16';
-  videoModel?: string;
+  videoModel?: VideoModel;
   projectId?: string;
   generatedPrompts?: Record<string, unknown> | null;
   imagePrompt?: string | null;
@@ -389,9 +394,125 @@ const inferReferenceStructure = (analysis: Record<string, unknown> | null | unde
 };
 
 const normalizeVideoModel = (raw: unknown): VideoModel => {
-  if (raw === 'veo3' || raw === 'seedance_1_5_pro') return raw;
-  return 'veo3_fast';
+  return normalizeProjectAgentVideoModel(raw);
 };
+
+const MODEL_OPTION_META: Record<VideoModel, {
+  description: string;
+  icon: ComponentType<{ className?: string }>;
+}> = {
+  veo3_fast: {
+    description: 'Fast generation',
+    icon: Google
+  },
+  seedance_1_5_pro: {
+    description: 'Built-in audio',
+    icon: ByteDance
+  },
+  kling_3: {
+    description: 'Kling std mode',
+    icon: Kling
+  },
+  veo3: {
+    description: 'Premium quality',
+    icon: Google
+  }
+};
+
+function ProjectAgentModelSelector({
+  selectedModel,
+  onModelChange
+}: {
+  selectedModel: VideoModel;
+  onModelChange: (model: VideoModel) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handlePointerDown);
+    return () => window.removeEventListener('mousedown', handlePointerDown);
+  }, []);
+
+  const selectedMeta = MODEL_OPTION_META[selectedModel];
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        className="inline-flex h-12 items-center gap-2 rounded-[22px] border border-[#d9d9d7] bg-white px-3.5 text-sm font-medium text-[#1f1f1e] shadow-[0_1px_0_rgba(15,15,15,0.03)] transition-all duration-200 ease-out hover:-translate-y-[1px] hover:border-[#c9c9c5] hover:bg-[#fdfdfc] hover:shadow-[0_10px_24px_rgba(15,15,15,0.08)] active:translate-y-0 active:scale-[0.985] active:shadow-[0_4px_12px_rgba(15,15,15,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f1f1e]/10"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+      >
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#e6e6e4] bg-[#fcfcfb]">
+          <selectedMeta.icon className="h-[18px] w-[18px] text-[#1f1f1e]" />
+        </span>
+        <span className="flex flex-col items-start leading-none">
+          <span>{getVideoModelDisplayName(selectedModel)}</span>
+        </span>
+        <ChevronDown className={`ml-1 h-3.5 w-3.5 text-[#6f6f6d] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      <AnimatePresence>
+        {isOpen ? (
+          <motion.div
+            initial={{ opacity: 0, y: 6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.98 }}
+            transition={{ duration: 0.16 }}
+            className="absolute bottom-full left-0 z-20 mb-2 w-[300px] rounded-[24px] border border-[#e6e6e4] bg-white p-2 shadow-[0_24px_60px_rgba(15,15,15,0.12)]"
+            role="listbox"
+            aria-label="Video model"
+          >
+            {PROJECT_AGENT_VIDEO_MODELS.map((modelOption) => {
+              const meta = MODEL_OPTION_META[modelOption];
+              const isSelected = modelOption === selectedModel;
+
+              return (
+                <button
+                  key={modelOption}
+                  type="button"
+                  onClick={() => {
+                    onModelChange(modelOption);
+                    setIsOpen(false);
+                  }}
+                  className={`flex w-full items-center justify-between rounded-[20px] border px-3 py-3 text-left transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f1f1e]/8 ${
+                    isSelected
+                      ? 'border-[#d9d9d7] bg-[#fcfcfb] text-[#1f1f1e]'
+                      : 'border-transparent text-[#1f1f1e] hover:-translate-y-[1px] hover:border-[#e7e7e4] hover:bg-[#fcfcfb] hover:shadow-[0_8px_18px_rgba(15,15,15,0.06)] active:translate-y-0 active:scale-[0.99]'
+                  }`}
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#e6e6e4] bg-white">
+                      <meta.icon className="h-[18px] w-[18px] text-current" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{getVideoModelDisplayName(modelOption)}</span>
+                    </span>
+                  </span>
+                  <span className="ml-3 inline-flex h-5 w-5 items-center justify-center">
+                    {isSelected ? (
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#0f0f0f] bg-[#0f0f0f] text-white shadow-[0_6px_14px_rgba(15,15,15,0.12)]">
+                        <Check className="h-3.5 w-3.5" />
+                      </span>
+                    ) : null}
+                  </span>
+                </button>
+              );
+            })}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 const workspacePromptToDraftScene = (scene: WorkspaceScene): CloneDraftScene => ({
   sceneIndex: scene.sceneIndex,
@@ -684,6 +805,7 @@ export default function ProjectAgentPage() {
 
   const [sessionId, setSessionId] = useState('');
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
+  const [selectedVideoModel, setSelectedVideoModel] = useState<VideoModel>('veo3_fast');
   const [statusNote, setStatusNote] = useState('');
   const [draft, setDraft] = useState('');
   const [pendingUserText, setPendingUserText] = useState<string | null>(null);
@@ -723,6 +845,9 @@ export default function ProjectAgentPage() {
   const pendingCloneSelectionPersistRef = useRef<Promise<void> | null>(null);
   const latestCloneDraftRef = useRef<ClonePromptDraft | null>(null);
   const pendingCloneDraftPersistRef = useRef<Promise<void> | null>(null);
+  const lastLocalVideoModelEditAtRef = useRef(0);
+  const pendingVideoModelPersistRef = useRef<Promise<void> | null>(null);
+  const latestSelectedVideoModelRef = useRef<VideoModel>('veo3_fast');
   const prevAvatarStepRef = useRef<string | null>(null);
   const prevClonePhaseRef = useRef<SessionState['cloneExecution'] extends { phase: infer P } ? P : string | null>(null);
   const notificationPermissionRequestedRef = useRef(false);
@@ -814,6 +939,7 @@ export default function ProjectAgentPage() {
       prepareSendMessagesRequest: ({ id, messages }) => {
         const draftSelection = latestCloneDraftRef.current ?? sessionState?.cloneReplacementDraft;
         const statePatch: Record<string, unknown> = {};
+        statePatch.videoModel = selectedVideoModel;
         const hasExplicitAvatarSelection = hasExplicitCloneAvatarSelectionState(draftSelection);
         const hasExplicitProductSelection = hasExplicitCloneProductSelectionState(draftSelection);
 
@@ -962,6 +1088,40 @@ export default function ProjectAgentPage() {
     }
   }, [requestBrowserNotificationPermissionOnce]);
 
+  const persistVideoModel = useCallback(async (model: VideoModel) => {
+    if (!sessionId) return;
+    const persistTask = (async () => {
+      try {
+        const response = await fetch('/api/project-agent/session', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            statePatch: {
+              videoModel: model
+            }
+          })
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload?.error || 'Failed to save video model.');
+        }
+      } catch (modelPersistError) {
+        console.error('Failed to persist video model:', modelPersistError);
+        setStatusNote('Failed to save the selected video model. Please try again.');
+      }
+    })();
+
+    pendingVideoModelPersistRef.current = persistTask;
+    try {
+      await persistTask;
+    } finally {
+      if (pendingVideoModelPersistRef.current === persistTask) {
+        pendingVideoModelPersistRef.current = null;
+      }
+    }
+  }, [sessionId]);
+
 
   const fetchSession = useCallback(async () => {
     if (!sessionId) return;
@@ -970,15 +1130,27 @@ export default function ProjectAgentPage() {
       if (!response.ok) {
         if (response.status === 404) {
           setSessionState(null);
+          setSelectedVideoModel('veo3_fast');
         }
         return;
       }
 
       const payload = await response.json();
       if (!payload?.session) return;
+      const incomingState = payload.session.state || null;
+      const incomingVideoModel = normalizeProjectAgentVideoModel(incomingState?.videoModel);
+      const hasVeryRecentLocalVideoModelEdit = Date.now() - lastLocalVideoModelEditAtRef.current < 5000;
+      const hasPendingVideoModelPersist = Boolean(pendingVideoModelPersistRef.current);
+      const shouldPreserveLocalVideoModel = (
+        latestSelectedVideoModelRef.current !== incomingVideoModel &&
+        (hasVeryRecentLocalVideoModelEdit || hasPendingVideoModelPersist)
+      );
+
+      if (!shouldPreserveLocalVideoModel) {
+        setSelectedVideoModel(incomingVideoModel);
+      }
 
       setSessionState((prev) => {
-        const incomingState = payload.session.state || null;
         if (!incomingState) return null;
         if (!prev) return incomingState;
 
@@ -1057,6 +1229,25 @@ export default function ProjectAgentPage() {
     prevClonePhaseRef.current = null;
     notificationPermissionRequestedRef.current = false;
   }, [sessionId]);
+
+  const handleVideoModelChange = useCallback((model: VideoModel) => {
+    setStatusNote('');
+    lastLocalVideoModelEditAtRef.current = Date.now();
+    setSelectedVideoModel(model);
+    setSessionState((prev) => (
+      prev
+        ? {
+            ...prev,
+            videoModel: model
+          }
+        : prev
+    ));
+    void persistVideoModel(model);
+  }, [persistVideoModel]);
+
+  useEffect(() => {
+    latestSelectedVideoModelRef.current = selectedVideoModel;
+  }, [selectedVideoModel]);
 
   useEffect(() => {
     const nextStep = sessionState?.step ?? null;
@@ -1274,7 +1465,7 @@ export default function ProjectAgentPage() {
     clearError,
     draft,
     ensureHistoryTracked,
-    messages.length,
+    messages,
     maybeRequestNotificationPermissionOnUserAction,
     sendMessageSafely,
     sendLocked,
@@ -1486,6 +1677,7 @@ export default function ProjectAgentPage() {
     const nextId = createSessionId();
     setSessionId(nextId);
     setSessionState(null);
+    setSelectedVideoModel('veo3_fast');
     setDraft('');
     setPendingUserText(null);
     setStatusNote('');
@@ -1514,6 +1706,7 @@ export default function ProjectAgentPage() {
   const selectHistory = useCallback((targetSessionId: string) => {
     setSessionId(targetSessionId);
     setSessionState(null);
+    setSelectedVideoModel('veo3_fast');
     setPendingUserText(null);
     setStatusNote('');
     setMessages([]);
@@ -2980,26 +3173,37 @@ export default function ProjectAgentPage() {
               </div>
 
               <div className="border-t border-[#e6e6e4] px-4 py-4">
-                <form onSubmit={handleSubmit} className="flex gap-2">
+                <div className="flex items-start justify-between gap-3">
+                  <ProjectAgentModelSelector
+                    selectedModel={selectedVideoModel}
+                    onModelChange={handleVideoModelChange}
+                  />
+                </div>
+                <form
+                  onSubmit={handleSubmit}
+                  className="mt-3 flex items-center gap-2 rounded-[26px] border border-[#d9d9d7] bg-white p-2 shadow-[0_18px_40px_rgba(15,15,15,0.06)]"
+                >
                   <input
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
                     placeholder="Ask Flowgen what to make viral next..."
-                    className="flex-1 min-h-11 rounded-xl border border-[#d9d9d7] bg-white px-4 text-sm text-[#1f1f1e] placeholder:text-[#9b9b98] focus:outline-none focus:ring-2 focus:ring-black disabled:opacity-50"
+                    className="flex-1 min-h-12 rounded-[18px] bg-transparent px-4 text-sm text-[#1f1f1e] placeholder:text-[#9b9b98] focus:outline-none disabled:opacity-50"
                     disabled={!isReady || awaitingAssistantTurn}
                   />
                   <button
                     type="submit"
                     disabled={!isReady || awaitingAssistantTurn || !draft.trim()}
                     aria-label={awaitingAssistantTurn ? 'Waiting for response' : 'Send message'}
-                    className={`min-h-11 min-w-11 rounded-xl text-white inline-flex items-center justify-center disabled:opacity-50 ${
-                      awaitingAssistantTurn ? 'bg-[#8d8d8a]' : 'bg-[#0f0f0f]'
+                    className={`h-12 w-12 shrink-0 rounded-full text-white inline-flex items-center justify-center transition-all duration-200 ease-out disabled:opacity-50 ${
+                      awaitingAssistantTurn
+                        ? 'bg-[#8d8d8a]'
+                        : 'bg-[#0f0f0f] shadow-[0_10px_24px_rgba(15,15,15,0.16)] hover:-translate-y-[1px] hover:scale-[1.03] hover:bg-[#1a1a1a] hover:shadow-[0_16px_32px_rgba(15,15,15,0.2)] active:translate-y-0 active:scale-[0.97] active:bg-black active:shadow-[0_8px_18px_rgba(15,15,15,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f1f1e]/12'
                     }`}
                   >
                     {awaitingAssistantTurn ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <ArrowUp className="w-4 h-4" />
+                      <ArrowUpRight className="h-4 w-4 translate-x-[0.5px] -translate-y-[0.5px]" />
                     )}
                   </button>
                 </form>

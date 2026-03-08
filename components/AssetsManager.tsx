@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import { Search, Loader2, Package, ExternalLink, UserCircle, Video } from 'lucide-react';
+import { Search, Loader2, Package, ExternalLink, Plus, UserCircle, Video } from 'lucide-react';
 import { UserProduct, UserAvatar } from '@/lib/supabase';
 import type { SystemAvatar } from '@/lib/default-avatars';
 import { useToast } from '@/contexts/ToastContext';
@@ -438,125 +438,65 @@ export default function AssetsManager() {
       <div className="assets-content space-y-6">
         {activeTab === 'products' ? (
           <>
-            {/* Actions & Search */}
-            <div className="assets-actions flex flex-col lg:flex-row gap-4 justify-between items-center">
-              <div className="assets-search relative w-full lg:max-w-md">
-                <Search className="assets-search-icon w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search products..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="assets-search-input w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+            <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {filteredProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onView={handleEditProduct}
+                  onEditClick={handleEditProduct}
+                  onDelete={handleDeleteProduct}
+                  onPhotoUpload={handlePhotoUpload}
+                  isDeleting={deletingProductId === product.id}
+                  mode="compact"
                 />
-              </div>
-              <div className="assets-actions-buttons flex gap-3 w-full lg:w-auto">
-                <button
-                  onClick={() => setShowCreateProductModal(true)}
-                  className="assets-primary-button flex-1 lg:flex-none flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium whitespace-nowrap"
-                >
-                  <Package className="w-4 h-4" />
-                  New Product
-                </button>
-              </div>
-            </div>
+              ))}
 
-            {/* Products Grid */}
-            {filteredProducts.length === 0 && normalizedSearch ? (
-              <div className="assets-empty py-12 text-center">
-                <Search className="assets-empty-icon w-12 h-12 mx-auto mb-4 text-gray-200" />
-                <h3 className="assets-empty-title text-lg font-medium text-gray-900 mb-2">No results found</h3>
-                <p className="assets-empty-copy text-gray-500">Try adjusting your search terms</p>
-              </div>
-            ) : filteredProducts.length > 0 ? (
-              <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {filteredProducts.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onView={handleEditProduct}
-                    onEditClick={handleEditProduct}
-                    onDelete={handleDeleteProduct}
-                    onPhotoUpload={handlePhotoUpload}
-                    isDeleting={deletingProductId === product.id}
-                    mode="compact"
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="assets-empty py-12 text-center border-2 border-dashed border-gray-200 rounded-xl">
-                <Package className="assets-empty-icon w-12 h-12 mx-auto mb-4 text-gray-200" />
-                <h3 className="assets-empty-title text-lg font-medium text-gray-900 mb-2">No products yet</h3>
-                <p className="assets-empty-copy text-gray-500 mb-6">
-                  Create your first product to start generating videos faster.
-                </p>
-                <button
-                  onClick={() => setShowCreateProductModal(true)}
-                  className="assets-primary-button inline-flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
-                >
-                  <Package className="w-4 h-4" />
-                  Add Product
-                </button>
-              </div>
-            )}
+              <button
+                type="button"
+                onClick={() => setShowCreateProductModal(true)}
+                className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-dashed border-gray-300 bg-white text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-400 hover:shadow-sm"
+              >
+                <div className="flex aspect-[4/5] w-full flex-col items-center justify-center gap-4 bg-[#fcfcfc] px-4 text-center">
+                  <div className="flex h-18 w-18 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 transition-colors group-hover:border-gray-300 group-hover:text-black">
+                    <Plus className="h-7 w-7" />
+                  </div>
+                  <span className="text-sm font-semibold text-gray-700 transition-colors group-hover:text-black">
+                    Upload
+                  </span>
+                </div>
+              </button>
+            </div>
           </>
         ) : activeTab === 'avatars' ? (
           <>
-            {/* Actions & Search */}
-            <div className="assets-actions flex flex-col md:flex-row gap-4 justify-between items-center">
-              <div className="assets-search relative w-full md:max-w-md">
-                <Search className="assets-search-icon w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search avatars..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="assets-search-input w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+            <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {filteredAvatars.map((avatar) => (
+                <AvatarCard
+                  key={avatar.id}
+                  avatar={avatar}
+                  onEdit={handleEditAvatar}
+                  onDelete={handleDeleteAvatar}
+                  isDeleting={deletingAvatarId === avatar.id}
+                  mode="full"
                 />
-              </div>
-              <div className="assets-actions-buttons w-full md:w-auto">
-                <button
-                  onClick={() => setShowCreateAvatarModal(true)}
-                  className="assets-primary-button w-full md:w-auto flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium whitespace-nowrap"
-                >
-                  <UserCircle className="w-4 h-4" />
-                  Add Avatar
-                </button>
-              </div>
-            </div>
+              ))}
 
-            {/* Avatars Tab */}
-            {filteredAvatars.length === 0 && searchTerm ? (
-              <div className="assets-empty py-12 text-center">
-                <Search className="assets-empty-icon w-12 h-12 mx-auto mb-4 text-gray-200" />
-                <h3 className="assets-empty-title text-lg font-medium text-gray-900 mb-2">No results found</h3>
-                <p className="assets-empty-copy text-gray-500">Try adjusting your search terms</p>
-              </div>
-            ) : (
-              <>
-                {filteredAvatars.length > 0 ? (
-                  <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                    {filteredAvatars.map((avatar) => (
-                      <AvatarCard
-                        key={avatar.id}
-                        avatar={avatar}
-                        onEdit={handleEditAvatar}
-                        onDelete={handleDeleteAvatar}
-                        isDeleting={deletingAvatarId === avatar.id}
-                        mode="full"
-                      />
-                    ))}
+              <button
+                type="button"
+                onClick={() => setShowCreateAvatarModal(true)}
+                className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-dashed border-gray-300 bg-white text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-400 hover:shadow-sm"
+              >
+                <div className="flex aspect-[4/5] w-full flex-col items-center justify-center gap-4 bg-[#fcfcfc] px-4 text-center">
+                  <div className="flex h-18 w-18 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 transition-colors group-hover:border-gray-300 group-hover:text-black">
+                    <Plus className="h-7 w-7" />
                   </div>
-                ) : (
-                  <div className="assets-empty text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
-                    <UserCircle className="assets-empty-icon w-12 h-12 mx-auto mb-4 text-gray-200" />
-                    <p className="assets-empty-copy text-gray-500">
-                      {searchTerm ? 'No avatars match your search' : 'No avatars yet. Add your first avatar to use in video generation.'}
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
+                  <span className="text-sm font-semibold text-gray-700 transition-colors group-hover:text-black">
+                    Upload
+                  </span>
+                </div>
+              </button>
+            </div>
           </>
         ) : (
           <>

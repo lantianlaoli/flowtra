@@ -5,7 +5,6 @@ import Image from 'next/image';
 import { Eye, Edit2, Trash2, Plus, X, Loader2 } from 'lucide-react';
 import { UserProduct, UserProductPhoto } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import ConfirmDialog from './ConfirmDialog';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 
 interface ProductCardProps {
@@ -40,7 +39,6 @@ export default function ProductCard({
   mode = 'full'
 }: ProductCardProps) {
   const [isHovered, setIsHovered] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingName, setEditingName] = useState('');
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -53,6 +51,24 @@ export default function ProductCard({
   const isSelectableMode = mode === 'selectable';
   const isFullMode = mode === 'full';
   const isListMode = mode === 'list';
+
+  const deletingOverlay = isDeleting ? (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[rgba(255,255,255,0.9)]"
+    >
+      <motion.div
+        animate={{ rotate: [0, -10, 10, -6, 0], scale: [1, 1.06, 1] }}
+        transition={{ duration: 1.1, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-black text-white shadow-[0_12px_30px_rgba(15,15,15,0.16)]"
+      >
+        <Trash2 className="h-5 w-5" />
+      </motion.div>
+      <p className="text-sm font-semibold text-[#1f1f1e]">Removing…</p>
+    </motion.div>
+  ) : null;
 
   // Click handlers
   const handleCardClick = () => {
@@ -82,10 +98,6 @@ export default function ProductCard({
   const handleDelete = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (isDeleting) return;
-    setShowDeleteDialog(true);
-  };
-
-  const confirmDelete = () => {
     onDelete(product.id);
   };
 
@@ -197,12 +209,12 @@ export default function ProductCard({
     return (
       <>
         <motion.div
-          className="assets-product-card assets-product-card--compact bg-white rounded-xl border border-gray-200 overflow-hidden transition-all duration-200 cursor-pointer hover:border-gray-300 hover:shadow-sm"
+          className="assets-product-card assets-product-card--compact relative bg-white rounded-xl border border-gray-200 overflow-hidden transition-all duration-200 cursor-pointer hover:border-gray-300 hover:shadow-sm"
           onClick={handleCardClick}
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          whileHover={{ y: -2 }}
+          whileHover={isDeleting ? undefined : { y: -2 }}
         >
           {/* Product Photo */}
           <div className="assets-product-card-media relative w-full aspect-square bg-gray-100">
@@ -238,18 +250,9 @@ export default function ProductCard({
               </button>
             </div>
           </div>
+          <AnimatePresence>{deletingOverlay}</AnimatePresence>
         </motion.div>
 
-        {/* Delete Confirmation Dialog */}
-        <ConfirmDialog
-          isOpen={showDeleteDialog}
-          onClose={() => setShowDeleteDialog(false)}
-          onConfirm={confirmDelete}
-          title="Delete Product"
-          message={`Are you sure you want to delete "${product.product_name}"? This action cannot be undone.`}
-          confirmText="Delete"
-          variant="danger"
-        />
       </>
     );
   }
@@ -263,7 +266,7 @@ export default function ProductCard({
           onHoverStart={() => setIsHovered(true)}
           onHoverEnd={() => setIsHovered(false)}
           onClick={handleCardClick}
-          whileHover={{ y: -1 }}
+        whileHover={isDeleting ? undefined : { y: -1 }}
         >
           <div className="assets-product-card-row flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-4">
             {/* Product Photo (left side on desktop, top on mobile) */}
@@ -323,16 +326,6 @@ export default function ProductCard({
           </div>
         </motion.div>
 
-        {/* Delete Confirmation Dialog */}
-        <ConfirmDialog
-          isOpen={showDeleteDialog}
-          onClose={() => setShowDeleteDialog(false)}
-          onConfirm={confirmDelete}
-          title="Delete Product"
-          message={`Are you sure you want to delete "${product.product_name}"? This action cannot be undone.`}
-          confirmText="Delete"
-          variant="danger"
-        />
       </>
     );
   }
@@ -342,7 +335,7 @@ export default function ProductCard({
     <>
       <motion.div
         className={`
-          assets-product-card assets-product-card--full bg-white rounded-xl border-2 transition-all duration-200 cursor-pointer
+          assets-product-card assets-product-card--full relative bg-white rounded-xl border-2 transition-all duration-200 cursor-pointer
           ${isSelectableMode
             ? isSelected
               ? 'border-gray-900 shadow-lg ring-2 ring-gray-200'
@@ -353,7 +346,7 @@ export default function ProductCard({
         onHoverStart={() => setIsHovered(true)}
         onHoverEnd={() => setIsHovered(false)}
         onClick={handleCardClick}
-        whileHover={{ y: -2 }}
+        whileHover={isDeleting ? undefined : { y: -2 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       >
         {/* Header */}
@@ -495,18 +488,8 @@ export default function ProductCard({
             </div>
           )}
         </div>
+        <AnimatePresence>{deletingOverlay}</AnimatePresence>
       </motion.div>
-
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={showDeleteDialog}
-        onClose={() => setShowDeleteDialog(false)}
-        onConfirm={confirmDelete}
-        title="Delete Product"
-        message={`Are you sure you want to delete "${product.product_name}"? This action cannot be undone.`}
-        confirmText="Delete"
-        variant="danger"
-      />
     </>
   );
 }

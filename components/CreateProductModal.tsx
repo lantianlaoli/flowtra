@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Image from 'next/image';
-import { AlertCircle, CircleHelp, Loader2, Package, Sparkles, Upload, X } from 'lucide-react';
+import { AlertCircle, Check, CircleHelp, Loader2, Package, Sparkles, Upload, X } from 'lucide-react';
 import { UserProduct, UserProductPhoto } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
@@ -25,6 +25,7 @@ export default function CreateProductModal({
   onClose,
   onProductCreated
 }: CreateProductModalProps) {
+  const fieldBadgeClassName = 'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]';
   const [productName, setProductName] = useState('');
   const [frontalImage, setFrontalImage] = useState<PreviewFile | null>(null);
   const [referenceImages, setReferenceImages] = useState<PreviewFile[]>([]);
@@ -32,8 +33,17 @@ export default function CreateProductModal({
   const [isCreating, setIsCreating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isGeneratingReferences, setIsGeneratingReferences] = useState(false);
+  const [highlightReferenceRequirement, setHighlightReferenceRequirement] = useState(false);
   const frontalInputRef = useRef<HTMLInputElement | null>(null);
   const referenceInputRef = useRef<HTMLInputElement | null>(null);
+
+  const triggerReferenceRequirementHint = () => {
+    setHighlightReferenceRequirement(false);
+    requestAnimationFrame(() => {
+      setHighlightReferenceRequirement(true);
+      window.setTimeout(() => setHighlightReferenceRequirement(false), 1100);
+    });
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -42,6 +52,7 @@ export default function CreateProductModal({
       setReferenceImages([]);
       setFormError(null);
       setIsGeneratingReferences(false);
+      setHighlightReferenceRequirement(false);
     }
   }, [isOpen]);
 
@@ -116,6 +127,7 @@ export default function CreateProductModal({
       const preview = await validateAndLoadImage(file);
       setReferenceImages((prev) => [...prev, { file, preview }]);
       setFormError(null);
+      setHighlightReferenceRequirement(false);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Failed to load image.');
     } finally {
@@ -280,6 +292,12 @@ export default function CreateProductModal({
       return;
     }
 
+    if (referenceImages.length < 1) {
+      setFormError('Upload at least one reference image to continue.');
+      triggerReferenceRequirementHint();
+      return;
+    }
+
     setIsCreating(true);
     setFormError(null);
 
@@ -371,14 +389,14 @@ export default function CreateProductModal({
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2 }}
           >
-            <div className="assets-modal-header flex items-center justify-between border-b border-gray-200 px-6 py-5">
+                <div className="assets-modal-header flex items-center justify-between border-b border-gray-200 px-6 py-5">
               <div className="flex items-center gap-3">
                 <div className="assets-modal-icon flex h-11 w-11 items-center justify-center rounded-xl bg-black text-white">
                   <Package className="h-5 w-5" />
                 </div>
                 <div>
                   <p className="assets-modal-title text-xl font-semibold text-gray-900">Create New Product</p>
-                  <p className="assets-modal-subtitle text-sm text-gray-600">Add 1 frontal image and up to 3 reference images.</p>
+                  <p className="assets-modal-subtitle text-sm text-gray-600">Add 1 frontal image and 1-3 reference images.</p>
                 </div>
               </div>
               <button
@@ -402,7 +420,7 @@ export default function CreateProductModal({
               <div className="space-y-4">
                 <div>
                   <label htmlFor="product-name-input" className="assets-modal-label text-sm font-medium text-gray-700">
-                    Product Name
+                    Name
                   </label>
                   <input
                     id="product-name-input"
@@ -411,14 +429,19 @@ export default function CreateProductModal({
                     onChange={(event) => setProductName(event.target.value)}
                     className="assets-modal-input mt-2 w-full rounded-xl border border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm text-gray-900 transition-all focus:border-black focus:bg-white focus:outline-none focus:ring-0"
                     placeholder="Enter product name"
-                    maxLength={100}
+                    maxLength={60}
                   />
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-5">
                   <div className="space-y-3 h-full min-h-0 flex flex-col">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-gray-900">Frontal Image (Required)</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-gray-900">Frontal Image</p>
+                        <span className={`${fieldBadgeClassName} border-black/10 bg-black/[0.04] text-black/75`}>
+                          Required
+                        </span>
+                      </div>
                     </div>
 
                     <div
@@ -484,10 +507,19 @@ export default function CreateProductModal({
                     </div>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-3 h-full min-h-0 flex flex-col">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-1.5 leading-none">
-                        <p className="text-sm font-medium text-gray-900">Reference Images (Optional)</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-gray-900">Reference Images</p>
+                          <motion.span
+                            className={`${fieldBadgeClassName} ${highlightReferenceRequirement ? 'border-black/20 bg-black text-white shadow-[0_8px_24px_rgba(0,0,0,0.14)]' : 'border-gray-200 bg-gray-50 text-gray-600'}`}
+                            animate={highlightReferenceRequirement ? { scale: [1, 1.08, 1], x: [0, -3, 3, 0] } : { scale: 1, x: 0 }}
+                            transition={{ duration: 0.45, ease: 'easeInOut' }}
+                          >
+                            Min 1
+                          </motion.span>
+                        </div>
                         <div className="relative group">
                           <button
                             type="button"
@@ -519,14 +551,16 @@ export default function CreateProductModal({
                         </button>
                       </div>
                     </div>
-                    <ReferenceImageGrid
-                      items={referenceGridItems}
-                      isGenerating={isGeneratingReferences}
-                      onAdd={referenceImages.length < 3 ? () => referenceInputRef.current?.click() : undefined}
-                      onRemove={removeReferenceImage}
-                      removeDisabled={isCreating || isGeneratingReferences}
-                      slots={PRODUCT_REFERENCE_SLOTS}
-                    />
+                    <div className="flex-1 min-h-0">
+                      <ReferenceImageGrid
+                        items={referenceGridItems}
+                        isGenerating={isGeneratingReferences}
+                        onAdd={referenceImages.length < 3 ? () => referenceInputRef.current?.click() : undefined}
+                        onRemove={removeReferenceImage}
+                        removeDisabled={isCreating || isGeneratingReferences}
+                        slots={PRODUCT_REFERENCE_SLOTS}
+                      />
+                    </div>
 
                     <input
                       ref={referenceInputRef}
@@ -545,9 +579,10 @@ export default function CreateProductModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="assets-modal-secondary flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-50"
+                  className="assets-modal-secondary flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-50"
                   disabled={isCreating}
                 >
+                  <X className="h-4 w-4" />
                   Cancel
                 </button>
                 <button
@@ -555,8 +590,8 @@ export default function CreateProductModal({
                   disabled={!canSubmit}
                   className="assets-modal-primary flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:opacity-40"
                 >
-                  {(isCreating || isUploading) && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {isCreating ? (isUploading ? 'Uploading images…' : 'Creating…') : 'Save Product'}
+                  {(isCreating || isUploading) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  Save
                 </button>
               </div>
             </form>

@@ -240,6 +240,36 @@ const transformShotFieldInline = (
   });
 };
 
+const buildShotSubject = (input: {
+  subject?: string | null;
+  sourceSummary?: string | null;
+  avatarToken?: string | null;
+  productToken?: string | null;
+  avatarName?: string | null;
+  productName?: string | null;
+}) => {
+  const mentionContext = {
+    avatarToken: input.avatarToken,
+    productToken: input.productToken,
+    avatarName: input.avatarName,
+    productName: input.productName
+  };
+
+  const direct = transformShotFieldInline(input.subject || '', mentionContext, {
+    forceAvatar: Boolean(input.avatarToken),
+    forceProduct: Boolean(input.productToken)
+  }).trim();
+  if (direct) return direct;
+
+  const summaryFallback = transformShotFieldInline(input.sourceSummary || '', mentionContext, {
+    forceAvatar: Boolean(input.avatarToken),
+    forceProduct: Boolean(input.productToken)
+  }).trim();
+  if (summaryFallback) return summaryFallback;
+
+  return [input.avatarToken, input.productToken].filter(Boolean).join(' ').trim();
+};
+
 const parseModelScenes = (raw: unknown): ScenePrompt[] => {
   const parsed = raw as {
     scenes?: Array<{
@@ -444,7 +474,14 @@ const generateReplacementDraft = async (input: {
 
     shots = shots.map((shot) => ({
       ...shot,
-      subject: transformShotFieldInline(shot.subject || '', mentionContext, { forceAvatar: Boolean(input.avatarName), forceProduct: Boolean(input.productName) }),
+      subject: buildShotSubject({
+        subject: shot.subject || '',
+        sourceSummary: scene.sourceSummary || input.scenes[index]?.sourceSummary || '',
+        avatarToken,
+        productToken,
+        avatarName: input.avatarName,
+        productName: input.productName
+      }),
       context_environment: transformShotFieldInline(shot.context_environment || '', mentionContext),
       action: transformShotFieldInline(shot.action || '', mentionContext, { forceAvatar: Boolean(input.avatarName), forceProduct: Boolean(input.productName) }),
       style: transformShotFieldInline(shot.style || '', mentionContext),
@@ -497,9 +534,13 @@ const applySceneAssignmentsToGeneratedScenes = (input: {
 
     const shots = (scene.videoPrompt?.shots || []).map((shot) => ({
       ...shot,
-      subject: transformShotFieldInline(shot.subject || '', mentionContext, {
-        forceAvatar: Boolean(avatarToken),
-        forceProduct: Boolean(productToken)
+      subject: buildShotSubject({
+        subject: shot.subject || '',
+        sourceSummary: scene.sourceSummary || scene.imagePrompt || '',
+        avatarToken,
+        productToken,
+        avatarName,
+        productName
       }),
       context_environment: transformShotFieldInline(shot.context_environment || '', mentionContext),
       action: transformShotFieldInline(shot.action || '', mentionContext, {

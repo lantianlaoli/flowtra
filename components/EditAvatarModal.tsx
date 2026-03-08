@@ -3,13 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
-import { AlertCircle, CircleHelp, Loader2, Sparkles, Upload, UserCircle, X } from 'lucide-react';
+import { AlertCircle, Check, CircleHelp, Loader2, Sparkles, Trash2, Upload, UserCircle, X } from 'lucide-react';
 import {
   type AvatarPhotoSet,
   normalizeAvatarPhotoSet,
   type UserAvatar
 } from '@/lib/supabase';
-import ConfirmDialog from './ConfirmDialog';
 import { cn } from '@/lib/utils';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 
@@ -32,13 +31,13 @@ export default function EditAvatarModal({
   onDelete,
   isDeleting = false
 }: EditAvatarModalProps) {
+  const fieldBadgeClassName = 'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]';
   const [avatarName, setAvatarName] = useState('');
   const [currentAvatar, setCurrentAvatar] = useState<UserAvatar | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   const [isGeneratingReferences, setIsGeneratingReferences] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const primaryInputRef = useRef<HTMLInputElement | null>(null);
   const referenceInputRef = useRef<HTMLInputElement | null>(null);
@@ -371,9 +370,9 @@ export default function EditAvatarModal({
     }
   };
 
-  const handleConfirmDelete = async () => {
+  const handleDeleteAvatar = () => {
     if (!onDelete || !currentAvatar) return;
-    await onDelete(currentAvatar.id);
+    void onDelete(currentAvatar.id);
     onClose();
   };
 
@@ -443,7 +442,7 @@ export default function EditAvatarModal({
 
                 <div>
                   <label htmlFor="edit-avatar-name-input" className="assets-modal-label text-sm font-medium text-gray-700">
-                    Avatar Name
+                    Name
                   </label>
                   <input
                     id="edit-avatar-name-input"
@@ -452,7 +451,7 @@ export default function EditAvatarModal({
                     onChange={(event) => setAvatarName(event.target.value)}
                     className="assets-modal-input mt-2 w-full rounded-xl border border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm text-gray-900 transition-all focus:border-black focus:bg-white focus:outline-none focus:ring-0"
                     placeholder="Enter avatar name"
-                    maxLength={255}
+                    maxLength={60}
                     disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
                   />
                 </div>
@@ -460,7 +459,12 @@ export default function EditAvatarModal({
                 <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-5">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-gray-900">Primary Portrait (Required)</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-gray-900">Primary Portrait</p>
+                        <span className={`${fieldBadgeClassName} border-black/10 bg-black/[0.04] text-black/75`}>
+                          Required
+                        </span>
+                      </div>
                     </div>
 
                     <div
@@ -509,7 +513,12 @@ export default function EditAvatarModal({
                   <div className="space-y-3 h-full min-h-0 flex flex-col">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-1.5 leading-none">
-                        <p className="text-sm font-medium text-gray-900">Reference Photos (Optional)</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-gray-900">Reference Photos</p>
+                          <span className={`${fieldBadgeClassName} border-gray-200 bg-gray-50 text-gray-500`}>
+                            Optional
+                          </span>
+                        </div>
                         <div className="relative group">
                           <button
                             type="button"
@@ -601,19 +610,20 @@ export default function EditAvatarModal({
                 <div className="assets-modal-actions flex flex-col gap-3 pt-2 sm:flex-row">
                   <button
                     type="button"
-                    onClick={() => setShowDeleteDialog(true)}
-                    className="assets-modal-secondary flex-1 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
+                    onClick={handleDeleteAvatar}
+                    className="assets-modal-secondary flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
                     disabled={!onDelete || isDeleting || isSaving || isUploadingPhotos || isGeneratingReferences}
                   >
-                    {isDeleting ? 'Deleting…' : 'Delete Avatar'}
+                    {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    Delete
                   </button>
                   <button
                     type="submit"
                     disabled={!canSave}
                     className="assets-modal-primary flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:opacity-40"
                   >
-                    {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-                    {isSaving ? 'Saving…' : 'Save Changes'}
+                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    Save
                   </button>
                 </div>
               </form>
@@ -621,16 +631,6 @@ export default function EditAvatarModal({
           </motion.div>
         )}
       </AnimatePresence>
-
-      <ConfirmDialog
-        isOpen={showDeleteDialog}
-        onClose={() => setShowDeleteDialog(false)}
-        onConfirm={handleConfirmDelete}
-        title="Delete Avatar"
-        message={`Are you sure you want to delete "${currentAvatar.avatar_name}"? This action cannot be undone.`}
-        confirmText="Delete"
-        variant="danger"
-      />
     </>
   );
 }

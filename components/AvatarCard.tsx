@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { Eye, Loader2 } from 'lucide-react';
+import { Eye, Trash2 } from 'lucide-react';
 import { UserAvatar } from '@/lib/supabase';
 import type { SystemAvatar } from '@/lib/default-avatars';
 import { motion } from 'framer-motion';
@@ -31,6 +31,24 @@ export default function AvatarCard({
   const isSelectableMode = mode === 'selectable';
   const isFullMode = mode === 'full';
 
+  const deletingOverlay = isDeleting ? (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[rgba(255,255,255,0.9)]"
+    >
+      <motion.div
+        animate={{ rotate: [0, -10, 10, -6, 0], scale: [1, 1.06, 1] }}
+        transition={{ duration: 1.1, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-black text-white shadow-[0_12px_30px_rgba(15,15,15,0.16)]"
+      >
+        <Trash2 className="h-5 w-5" />
+      </motion.div>
+      <p className="text-sm font-semibold text-[#1f1f1e]">Removing…</p>
+    </motion.div>
+  ) : null;
+
   const handleCardClick = () => {
     if (isSelectableMode && onSelect) {
       onSelect(avatar);
@@ -48,7 +66,7 @@ export default function AvatarCard({
           assets-avatar-card relative bg-white rounded-xl border overflow-hidden transition-all duration-200
           ${isSelectableMode ? 'cursor-pointer hover:border-gray-300 hover:shadow-sm' : 'hover:border-gray-300 hover:shadow-sm'}
           ${isSelected ? 'border-gray-900 ring-2 ring-gray-900' : 'border-gray-200'}
-          ${isDeleting ? 'opacity-50 pointer-events-none' : ''}
+          ${isDeleting ? 'pointer-events-none' : ''}
         `}
         onClick={handleCardClick}
         layout
@@ -56,6 +74,7 @@ export default function AvatarCard({
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.9 }}
         transition={{ duration: 0.2 }}
+        whileHover={isDeleting ? undefined : { y: -2 }}
       >
         <div className="assets-avatar-card-media relative w-full aspect-square">
           <Image
@@ -65,13 +84,6 @@ export default function AvatarCard({
             className="object-cover"
             sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
           />
-
-          {isDeleting && (
-            <div className="assets-avatar-card-loading absolute inset-0 bg-white/80 flex items-center justify-center">
-              <Loader2 className="w-6 h-6 text-gray-900 animate-spin" />
-            </div>
-          )}
-
           {isSelected && isSelectableMode && (
             <div className="assets-avatar-card-selected absolute top-2 right-2 w-6 h-6 bg-gray-900 rounded-full flex items-center justify-center">
               <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -100,6 +112,7 @@ export default function AvatarCard({
             )}
           </div>
         </div>
+        {deletingOverlay}
       </motion.div>
   );
 }
