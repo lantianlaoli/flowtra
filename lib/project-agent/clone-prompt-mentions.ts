@@ -1,4 +1,4 @@
-const MENTION_TOKEN_REGEX = /@(?:character|product)\([^)]*\)/g;
+import { MENTION_TOKEN_REGEX } from '@/lib/prompt-mention-tokens';
 
 const AVATAR_ROLE_REGEX = /\b(man|male|woman|female|person|character|subject|mother|father|guy|girl|boy|lady)\b/i;
 const AVATAR_PRONOUN_REGEX = /\b(he|she|him|his|her)\b/i;
@@ -15,9 +15,9 @@ const normalizeSentenceEnding = (text: string) => {
 
 const cleanupPromptGrammar = (text: string) => {
   const withoutLegacySuffix = text
-    .replace(/,\s*featuring\s*@character\([^)]*\)\s*interacting\s*with\s*@product\([^)]*\)\.?/gi, '')
-    .replace(/,\s*featuring\s*@character\([^)]*\)\.?/gi, '')
-    .replace(/,\s*featuring\s*@product\([^)]*\)\.?/gi, '');
+    .replace(/,\s*featuring\s*@(?:character|c)\([^)]*\)\s*interacting\s*with\s*@(?:product|p)\([^)]*\)\.?/gi, '')
+    .replace(/,\s*featuring\s*@(?:character|c)\([^)]*\)\.?/gi, '')
+    .replace(/,\s*featuring\s*@(?:product|p)\([^)]*\)\.?/gi, '');
 
   const cleaned = withoutLegacySuffix
     .replace(/\s+,/g, ',')

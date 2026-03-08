@@ -1,8 +1,7 @@
 import type { VideoModel } from '@/lib/constants';
+import { MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
 
 export type PromptCompileMode = 'kling_elements' | 'plain_text';
-
-const MENTION_REGEX = /@(?<type>character|product)\((?<name>[^)]*)\)/g;
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> => (
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -10,7 +9,7 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => (
 
 export const replaceMentionsForPlainText = (text: string): string => (
   text
-    .replace(MENTION_REGEX, (_match, _type: string, name: string) => (name || '').trim())
+    .replace(MENTION_TOKEN_REGEX, (match) => parseMentionToken(match)?.label.trim() || '')
     .replace(/\s{2,}/g, ' ')
     .replace(/\s+([,.;!?])/g, '$1')
     .replace(/\(\s+/g, '(')
@@ -20,7 +19,7 @@ export const replaceMentionsForPlainText = (text: string): string => (
 
 const countMentionsInValue = (value: unknown): number => {
   if (typeof value === 'string') {
-    return Array.from(value.matchAll(MENTION_REGEX)).length;
+    return Array.from(value.matchAll(MENTION_TOKEN_REGEX)).length;
   }
   if (Array.isArray(value)) {
     return value.reduce<number>((total, item) => total + countMentionsInValue(item), 0);

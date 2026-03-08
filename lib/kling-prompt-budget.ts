@@ -1,5 +1,8 @@
-const MENTION_REGEX = /@(?<type>character|product)\((?<name>[^)]*)\)/g;
-const PARTIAL_MENTION_SUFFIX_REGEX = /@(?:character|product)\([^)]*$/;
+import {
+  MENTION_TOKEN_REGEX as MENTION_REGEX,
+  PARTIAL_MENTION_TOKEN_SUFFIX_REGEX as PARTIAL_MENTION_SUFFIX_REGEX,
+  parseMentionToken
+} from '@/lib/prompt-mention-tokens';
 
 export const KLING_PROMPT_MAX_CHARS = 500;
 export const KLING_PROMPT_SOFT_TARGET = 460;
@@ -388,8 +391,9 @@ const buildEstimateTokenMap = (texts: string[]): Record<string, string> => {
 
   for (const text of texts) {
     for (const match of text.matchAll(MENTION_REGEX)) {
-      const type = match.groups?.type;
-      const name = cleanPromptText(match.groups?.name);
+      const parsed = parseMentionToken(match[0]);
+      const type = parsed?.type;
+      const name = cleanPromptText(parsed?.label);
       if (!type || !name) continue;
       const key = `${type}:${name.toLowerCase()}`;
       if (map[key]) continue;
@@ -402,9 +406,11 @@ const buildEstimateTokenMap = (texts: string[]): Record<string, string> => {
 };
 
 const replaceMentionsForEstimate = (text: string, tokenMap: Record<string, string>): string => (
-  text.replace(MENTION_REGEX, (_match, type: string, name: string) => {
-    const key = `${type}:${String(name || '').trim().toLowerCase()}`;
-    return tokenMap[key] ? `@${tokenMap[key]}` : String(name || '').trim();
+  text.replace(MENTION_REGEX, (match) => {
+    const parsed = parseMentionToken(match);
+    if (!parsed) return match;
+    const key = `${parsed.type}:${String(parsed.label || '').trim().toLowerCase()}`;
+    return tokenMap[key] ? `@${tokenMap[key]}` : String(parsed.label || '').trim();
   })
 );
 
@@ -413,8 +419,9 @@ const collectEstimateTags = (texts: string[], tokenMap: Record<string, string>):
 
   for (const text of texts) {
     for (const match of text.matchAll(MENTION_REGEX)) {
-      const type = match.groups?.type;
-      const name = cleanPromptText(match.groups?.name);
+      const parsed = parseMentionToken(match[0]);
+      const type = parsed?.type;
+      const name = cleanPromptText(parsed?.label);
       if (!type || !name) continue;
       const mapped = tokenMap[`${type}:${name.toLowerCase()}`];
       if (mapped) {

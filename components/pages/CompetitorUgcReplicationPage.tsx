@@ -1110,7 +1110,7 @@ export default function CompetitorUgcReplicationPage() {
         // Execute composeSegmentPromptUpdate with error handling
         let mergedPrompt;
         try {
-          mergedPrompt = composeSegmentPromptUpdate(prompt, inspectorPrompt);
+          mergedPrompt = composeSegmentPromptUpdate(prompt, inspectorPrompt, selectedLanguage);
           console.log("[DEBUG] Merged prompt created successfully");
         } catch (error) {
           console.error("[DEBUG] composeSegmentPromptUpdate failed:", error);
@@ -1265,7 +1265,7 @@ export default function CompetitorUgcReplicationPage() {
         // Execute composeSegmentPromptUpdate with error handling
         let mergedPrompt;
         try {
-          mergedPrompt = composeSegmentPromptUpdate(prompt, currentPrompt);
+          mergedPrompt = composeSegmentPromptUpdate(prompt, currentPrompt, selectedLanguage);
           console.log("[DEBUG] Merged prompt created successfully");
         } catch (error) {
           console.error("[DEBUG] composeSegmentPromptUpdate failed:", error);
@@ -2014,6 +2014,7 @@ export default function CompetitorUgcReplicationPage() {
                         }
                         handleMergeProject(projectId);
                       }}
+                      selectedLanguage={selectedLanguage}
                       projectType="competitor-ugc-replication"
                     />
                   </div>
@@ -2048,7 +2049,6 @@ export default function CompetitorUgcReplicationPage() {
             userCredits={userCredits || 0}
             selectedLanguage={selectedLanguage}
             onLanguageChange={setSelectedLanguage}
-            hideLanguageSelector
             hideDurationSelector
             format={format}
             onFormatChange={setFormat}
@@ -2091,6 +2091,7 @@ export default function CompetitorUgcReplicationPage() {
           videoModel={inspectorContext.generation.videoModel}
           videoDuration={inspectorContext.generation.videoDuration}
           videoAspectRatio={inspectorContext.generation.videoAspectRatio}
+          selectedLanguage={selectedLanguage}
           onRegenerate={handleSegmentRegenerate}
           isSubmitting={segmentInspectorSubmitting}
         />
@@ -2134,6 +2135,7 @@ export default function CompetitorUgcReplicationPage() {
 function composeSegmentPromptUpdate(
   payload: SegmentPromptPayload,
   current?: Partial<SegmentPrompt>,
+  selectedLanguage?: LanguageCode,
 ): Partial<SegmentPrompt> {
   const normalizedShots = payload.shots.map((shot, index) => ({
     id: shot.id ?? index + 1,
@@ -2143,7 +2145,7 @@ function composeSegmentPromptUpdate(
     action: shot.action.trim(),
     subject: shot.subject.trim(),
     dialogue: shot.dialogue.trim(),
-    language: shot.language,
+    language: selectedLanguage || shot.language,
     composition: shot.composition.trim(),
     context_environment: shot.context_environment.trim(),
     ambiance_colour_lighting: shot.ambiance_colour_lighting.trim(),
@@ -2169,7 +2171,7 @@ function composeSegmentPromptUpdate(
       primaryShot?.ambiance_colour_lighting ||
       current?.ambiance_colour_lighting ||
       "",
-    language: primaryShot?.language || current?.language || "en",
+    language: selectedLanguage || primaryShot?.language || current?.language || "en",
     is_continuation_from_prev: payload.is_continuation_from_prev,
     shots: normalizedShots,
   };

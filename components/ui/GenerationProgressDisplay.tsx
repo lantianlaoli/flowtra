@@ -38,6 +38,7 @@ import {
 import { getDownloadCost, type VideoModel, getVideoModelDisplayName } from '@/lib/constants';
 import type { SegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
 import SegmentEditorSplitPane from '@/components/competitor-ugc-replication/SegmentEditorSplitPane';
+import type { LanguageCode } from '@/components/ui/LanguageSelector';
 
 const ACTION_BUTTON_BASE =
   'inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/35';
@@ -140,6 +141,7 @@ interface GenerationProgressDisplayProps {
     characterIds?: string[];
   }) => Promise<void> | void;
   projectType?: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-swap';
+  selectedLanguage?: LanguageCode;
 }
 
 export default function GenerationProgressDisplay({
@@ -156,7 +158,8 @@ export default function GenerationProgressDisplay({
   onReview,
   reviewCtaLabel = 'Edit',
   onSegmentRegenerate,
-  projectType
+  projectType,
+  selectedLanguage
 }: GenerationProgressDisplayProps) {
   // Load TikTok script when in empty state
   useEffect(() => {
@@ -251,6 +254,7 @@ export default function GenerationProgressDisplay({
           reviewCtaLabel={reviewCtaLabel}
           onSegmentRegenerate={onSegmentRegenerate}
           projectType={projectType}
+          selectedLanguage={selectedLanguage}
         />
       ))}
     </div>
@@ -277,6 +281,7 @@ interface GenerationCardProps {
     characterIds?: string[];
   }) => Promise<void> | void;
   projectType?: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-swap';
+  selectedLanguage?: LanguageCode;
 }
 
 function GenerationCard({
@@ -291,7 +296,8 @@ function GenerationCard({
   onReview,
   reviewCtaLabel,
   onSegmentRegenerate,
-  projectType
+  projectType,
+  selectedLanguage
 }: GenerationCardProps) {
   const {
     status,
@@ -744,6 +750,7 @@ function GenerationCard({
                 videoModel={generation.videoModel}
                 videoDuration={generation.videoDuration}
                 videoAspectRatio={generation.videoAspectRatio}
+                selectedLanguage={selectedLanguage}
                 onRegenerate={editorReadOnly ? undefined : (onSegmentRegenerate ? (options) => {
                   const projectId = (generation as any).projectId || generation.id;
                   if (!projectId) return;

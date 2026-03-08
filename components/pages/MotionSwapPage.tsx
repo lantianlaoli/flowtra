@@ -24,6 +24,7 @@ import { useCredits } from "@/contexts/CreditsContext";
 import * as Dialog from "@radix-ui/react-dialog";
 import type { Format } from "@/components/ui/FormatSelector";
 import { useSearchParams } from "next/navigation";
+import { MENTION_TOKEN_REGEX, buildMentionToken, parseMentionToken } from "@/lib/prompt-mention-tokens";
 
 interface MotionSwapVideo {
   id: string;
@@ -106,11 +107,12 @@ export default function MotionSwapPage() {
   const getMentionedIds = (text: string) => {
     const characterIds = new Set<string>();
     const productIds = new Set<string>();
-    const regex = /@(?<type>character|product)\((?<name>[^)]*)\)/g;
     let match: RegExpExecArray | null;
-    while ((match = regex.exec(text)) !== null) {
-      const type = match.groups?.type;
-      const name = match.groups?.name?.trim();
+    MENTION_TOKEN_REGEX.lastIndex = 0;
+    while ((match = MENTION_TOKEN_REGEX.exec(text)) !== null) {
+      const parsed = parseMentionToken(match[0]);
+      const type = parsed?.type;
+      const name = parsed?.label?.trim();
       if (!type || !name) continue;
       if (type === "character") {
         const avatar = avatars.find((item) => item.avatar_name === name);
@@ -380,8 +382,8 @@ export default function MotionSwapPage() {
     productName?: string | null,
   ) => {
     const tokens = [];
-    if (avatarName) tokens.push(`@character(${avatarName})`);
-    if (productName) tokens.push(`@product(${productName})`);
+    if (avatarName) tokens.push(buildMentionToken({ type: "character", label: avatarName }));
+    if (productName) tokens.push(buildMentionToken({ type: "product", label: productName }));
     if (tokens.length === 0) return "";
     return `Swap ${tokens.join(" and ")} in the reference video.`;
   };
