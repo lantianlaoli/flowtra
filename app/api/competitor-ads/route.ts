@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { auth } from '@clerk/nextjs/server';
+import { getAnalysisShotCount } from '@/lib/video-analysis-schema';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -34,13 +35,7 @@ export async function GET(request: NextRequest) {
 
     // NEW: Enrich response with shot_count from analysis_result
     const enrichedAds = (competitorAds || []).map(ad => {
-      let shotCount = 0;
-      if (ad.analysis_result && typeof ad.analysis_result === 'object') {
-        const analysis = ad.analysis_result as Record<string, unknown>;
-        if (Array.isArray(analysis.shots)) {
-          shotCount = analysis.shots.length;
-        }
-      }
+      const shotCount = getAnalysisShotCount((ad.analysis_result as Record<string, unknown> | null) || null);
       return {
         ...ad,
         shot_count: shotCount

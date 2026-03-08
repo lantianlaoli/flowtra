@@ -4,6 +4,7 @@ import { analyzeCompetitorAdWithLanguage } from '@/lib/competitor-ugc-replicatio
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchTikTokVideoUrl, TikTokFetchError } from '@/lib/fetch-tiktok-video';
 import { STORAGE_BUCKETS } from '@/lib/storage/types';
+import { analysisToLegacyFlatShots, buildAudioSummary } from '@/lib/video-analysis-schema';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -115,6 +116,19 @@ export async function POST(request: NextRequest) {
         file_url: videoUrl,
         competitor_name: competitor_name
       });
+      const previewAnalysis = {
+        name: typeof analysis.name === 'string' ? analysis.name : '',
+        detected_language: typeof analysis.detected_language === 'string' ? analysis.detected_language : language,
+        video_duration_seconds: typeof analysis.video_duration_seconds === 'number' ? analysis.video_duration_seconds : 0,
+        shots: analysisToLegacyFlatShots(analysis).map(shot => ({
+          ...shot,
+          audio: buildAudioSummary({
+            dialogue: shot.dialogue || '',
+            sfx: shot.sfx || '',
+            ambient: shot.ambient || ''
+          })
+        }))
+      };
 
       console.log(`[POST /api/competitor-ads/analyze-preview] ✅ Analysis complete, language: ${language}`);
 
@@ -133,7 +147,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        analysis,
+        analysis: previewAnalysis,
         language,
         video_url: tiktok_url ? videoUrl : undefined // Return CDN URL for TikTok preview
       }, { status: 200 });

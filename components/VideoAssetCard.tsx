@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import { Eye, Video } from "lucide-react";
+import { Eye, Trash2, Video } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 
 interface VideoAsset {
   id: string;
@@ -18,12 +19,14 @@ interface VideoAssetCardProps {
   video: VideoAsset;
   onViewDetails: (video: VideoAsset) => void;
   compact?: boolean;
+  isDeleting?: boolean;
 }
 
 export default function VideoAssetCard({
   video,
   onViewDetails,
   compact = false,
+  isDeleting = false,
 }: VideoAssetCardProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -34,7 +37,7 @@ export default function VideoAssetCard({
   };
 
   const handleHoverPlay = () => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || isDeleting) return;
     videoRef.current.play().catch(() => undefined);
   };
 
@@ -44,8 +47,31 @@ export default function VideoAssetCard({
     videoRef.current.currentTime = 0;
   };
 
+  const deletingOverlay = isDeleting ? (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[rgba(255,255,255,0.9)]"
+    >
+      <motion.div
+        animate={{ rotate: [0, -10, 10, -6, 0], scale: [1, 1.06, 1] }}
+        transition={{ duration: 1.1, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-black text-white shadow-[0_12px_30px_rgba(15,15,15,0.16)]"
+      >
+        <Trash2 className="h-5 w-5" />
+      </motion.div>
+      <p className="text-sm font-semibold text-[#1f1f1e]">Removing…</p>
+    </motion.div>
+  ) : null;
+
   return (
-    <div className="assets-video-card bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200 group">
+    <motion.div
+      className={`assets-video-card relative bg-white rounded-lg border border-gray-200 overflow-hidden transition-all duration-200 group ${
+        isDeleting ? "pointer-events-none" : "hover:shadow-lg"
+      }`}
+      whileHover={isDeleting ? undefined : { y: -2 }}
+    >
       <div
         className={`assets-video-card-media relative w-full bg-gray-100 ${compact ? 'aspect-[3/4]' : 'aspect-[9/16]'}`}
         onMouseEnter={handleHoverPlay}
@@ -75,11 +101,13 @@ export default function VideoAssetCard({
         <button
           onClick={handleViewDetails}
           className={`assets-video-card-action w-full flex items-center justify-between bg-white text-gray-900 rounded-lg border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 group/btn ${compact ? 'px-2.5 py-2 text-xs' : 'px-3 py-2.5 text-sm'}`}
+          disabled={isDeleting}
         >
           <span className="font-medium">View Details</span>
           <Eye className="w-4 h-4 text-gray-400 group-hover/btn:text-gray-600 transition-colors" />
         </button>
       </div>
-    </div>
+      <AnimatePresence>{deletingOverlay}</AnimatePresence>
+    </motion.div>
   );
 }

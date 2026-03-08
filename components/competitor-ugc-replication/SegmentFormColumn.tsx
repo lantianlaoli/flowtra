@@ -5,7 +5,6 @@ import NextImage from 'next/image';
 import clsx from 'clsx';
 import {
   Loader2,
-  Check,
   ChevronDown,
   Plus,
   Trash2,
@@ -14,12 +13,11 @@ import {
   User,
   Clapperboard,
   Palette,
-  Music,
+  Volume2,
+  Waves,
   MessageSquare,
-  Globe,
   Camera,
   Move,
-  MapPin,
   Sun,
   Sparkles,
   Image as ImageIcon,
@@ -31,16 +29,19 @@ import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
 import type { UserAvatar } from '@/lib/supabase';
 import type { SystemAvatar } from '@/lib/default-avatars';
-import { getFlagEmoji } from '@/lib/language-utils';
 import { useToast } from '@/contexts/ToastContext';
 import { estimateKlingPromptUsage, KLING_PROMPT_MAX_CHARS } from '@/lib/kling-prompt-budget';
 import { getSegmentPromptVideoGenerationCost } from '@/lib/competitor-ugc-segment-billing';
 import type { VideoModel } from '@/lib/constants';
+import SegmentTimelineRuler from '@/components/competitor-ugc-replication/SegmentTimelineRuler';
+import { MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
 
 export type SegmentShotPayload = {
   id: number;
   time_range: string;
   audio: string;
+  sfx: string;
+  ambient: string;
   style: string;
   action: string;
   subject: string;
@@ -73,6 +74,7 @@ interface SegmentFormColumnProps {
   segmentPlanEntry?: SegmentPrompt;
   videoModel?: string;
   videoDuration?: string | null;
+  selectedLanguage?: LanguageCode;
   onRegenerate?: (options: {
     type: 'photo' | 'video';
     prompt: SegmentPromptPayload;
@@ -121,6 +123,8 @@ const createEmptyShotPayload = (id: number, language: LanguageCode): SegmentShot
   id,
   time_range: '00:00 - 00:02',
   audio: '',
+  sfx: '',
+  ambient: '',
   style: '',
   action: '',
   subject: '',
@@ -132,12 +136,59 @@ const createEmptyShotPayload = (id: number, language: LanguageCode): SegmentShot
   camera_motion_positioning: ''
 });
 
+const buildShotPayloadForPersistence = (shot: SegmentShotPayload, index: number) => ({
+  id: index + 1,
+  time_range: shot.time_range.trim(),
+  audio: buildLegacyAudioField(shot).trim(),
+  sfx: shot.sfx.trim(),
+  ambient: shot.ambient.trim(),
+  style: shot.style.trim(),
+  action: shot.action.trim(),
+  subject: shot.subject.trim(),
+  dialogue: shot.dialogue.trim(),
+  language: shot.language,
+  composition: shot.composition.trim(),
+  context_environment: shot.context_environment.trim(),
+  ambiance_colour_lighting: shot.ambiance_colour_lighting.trim(),
+  camera_motion_positioning: shot.camera_motion_positioning.trim()
+});
+
+const parseLegacyAudioField = (value?: string) => {
+  const source = (value || '').trim();
+  if (!source) {
+    return { sfx: '', ambient: '' };
+  }
+
+  const sfxMatch = source.match(/SFX:\s*([^|]+)/i);
+  const ambientMatch = source.match(/Ambient:\s*([^|]+)/i);
+  if (sfxMatch || ambientMatch) {
+    return {
+      sfx: (sfxMatch?.[1] || '').trim(),
+      ambient: (ambientMatch?.[1] || '').trim(),
+    };
+  }
+
+  return { sfx: '', ambient: source };
+};
+
+const buildLegacyAudioField = (shot: Pick<SegmentShotPayload, 'sfx' | 'ambient'>) => {
+  const parts = [
+    shot.sfx.trim() ? `SFX: ${shot.sfx.trim()}` : '',
+    shot.ambient.trim() ? `Ambient: ${shot.ambient.trim()}` : '',
+  ].filter(Boolean);
+  return parts.join(' | ');
+};
+
 const convertShotsForEditor = (shots: SegmentPrompt['shots'], fallbackLanguage: LanguageCode): SegmentShotPayload[] => {
   if (Array.isArray(shots) && shots.length > 0) {
-    return shots.map((shot, index) => ({
+    return shots.map((shot, index) => {
+      const parsedAudio = parseLegacyAudioField(shot.audio || '');
+      return {
       id: shot.id || index + 1,
       time_range: shot.time_range || '00:00 - 00:02',
-      audio: shot.audio || '',
+      audio: buildLegacyAudioField(parsedAudio),
+      sfx: parsedAudio.sfx,
+      ambient: parsedAudio.ambient,
       style: shot.style || '',
       action: shot.action || '',
       subject: shot.subject || '',
@@ -147,7 +198,8 @@ const convertShotsForEditor = (shots: SegmentPrompt['shots'], fallbackLanguage: 
       context_environment: shot.context_environment || '',
       ambiance_colour_lighting: shot.ambiance_colour_lighting || '',
       camera_motion_positioning: shot.camera_motion_positioning || ''
-    }));
+    };
+    });
   }
   return [createEmptyShotPayload(1, fallbackLanguage)];
 };
@@ -159,6 +211,7 @@ export default function SegmentFormColumn({
   segmentPlanEntry,
   videoModel,
   videoDuration,
+  selectedLanguage,
   onRegenerate,
   isSubmitting,
   readOnly = false
@@ -171,29 +224,17 @@ export default function SegmentFormColumn({
     };
   }, [segment?.prompt, segmentPlanEntry]);
 
+  const activeLanguage = selectedLanguage || normalizeShotLanguage(normalizedPrompt.language || DEFAULT_LANGUAGE);
   const initialPhotoPrompt = normalizedPrompt.first_frame_description || '';
   const initialShots = useMemo(
-    () => convertShotsForEditor(normalizedPrompt.shots, normalizeShotLanguage(normalizedPrompt.language || DEFAULT_LANGUAGE)),
-    [normalizedPrompt]
+    () => convertShotsForEditor(normalizedPrompt.shots, activeLanguage).map((shot) => ({ ...shot, language: activeLanguage })),
+    [activeLanguage, normalizedPrompt]
   );
 
   const [photoPrompt, setPhotoPrompt] = useState(initialPhotoPrompt);
   const [shots, setShots] = useState<SegmentShotPayload[]>(initialShots);
   const [shotExpansion, setShotExpansion] = useState<Record<number, boolean>>({});
-  const [openLanguageDropdownId, setOpenLanguageDropdownId] = useState<number | null>(null);
   const [isContinuation, setIsContinuation] = useState(Boolean(normalizedPrompt.is_continuation_from_prev));
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (openLanguageDropdownId === null) return;
-      const target = event.target as HTMLElement;
-      if (!target.closest('[data-language-dropdown]')) {
-        setOpenLanguageDropdownId(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [openLanguageDropdownId]);
 
   const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const productCacheRef = useRef<Record<string, { items: ProductOption[]; error?: string }>>({});
@@ -225,20 +266,7 @@ export default function SegmentFormColumn({
   const promptSeedRef = useRef(promptSeedSignature);
 
   const normalizeShotsForCompare = (items: SegmentShotPayload[]) =>
-    items.map((shot, idx) => ({
-      id: idx + 1,
-      time_range: shot.time_range.trim(),
-      audio: shot.audio.trim(),
-      style: shot.style.trim(),
-      action: shot.action.trim(),
-      subject: shot.subject.trim(),
-      dialogue: shot.dialogue.trim(),
-      language: shot.language,
-      composition: shot.composition.trim(),
-      context_environment: shot.context_environment.trim(),
-      ambiance_colour_lighting: shot.ambiance_colour_lighting.trim(),
-      camera_motion_positioning: shot.camera_motion_positioning.trim()
-    }));
+    items.map((shot, idx) => buildShotPayloadForPersistence(shot, idx));
 
   const hasLocalEdits = (nextInitialPhoto: string, nextInitialShots: SegmentShotPayload[], nextContinuation: boolean) => {
     if (photoPrompt.trim() !== nextInitialPhoto.trim()) return true;
@@ -251,7 +279,8 @@ export default function SegmentFormColumn({
       if (!initial) return true;
       return (
         shot.time_range !== initial.time_range ||
-        shot.audio !== initial.audio ||
+        shot.sfx !== initial.sfx ||
+        shot.ambient !== initial.ambient ||
         shot.style !== initial.style ||
         shot.action !== initial.action ||
         shot.subject !== initial.subject ||
@@ -295,6 +324,12 @@ export default function SegmentFormColumn({
       return next;
     });
   }, [shots]);
+
+  useEffect(() => {
+    setShots((prev) => prev.map((shot) => (
+      shot.language === activeLanguage ? shot : { ...shot, language: activeLanguage }
+    )));
+  }, [activeLanguage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -391,7 +426,7 @@ export default function SegmentFormColumn({
 
   const handleAddShot = () => {
     setShots(prev => {
-      if (prev.length >= 4) return prev;
+      if (prev.length >= 5) return prev;
       const nextId = prev.length + 1;
       setShotExpansion(expansion => ({
         ...expansion,
@@ -430,11 +465,12 @@ export default function SegmentFormColumn({
   const getMentionedIds = (prompt: string) => {
     const productIds = new Set<string>();
     const characterIds = new Set<string>();
-    const regex = /@(?<type>character|product)\((?<name>[^)]*)\)/g;
     let match: RegExpExecArray | null;
-    while ((match = regex.exec(prompt)) !== null) {
-      const type = match.groups?.type;
-      const name = match.groups?.name?.trim();
+    MENTION_TOKEN_REGEX.lastIndex = 0;
+    while ((match = MENTION_TOKEN_REGEX.exec(prompt)) !== null) {
+      const parsed = parseMentionToken(match[0]);
+      const type = parsed?.type;
+      const name = parsed?.label?.trim();
       if (!type || !name) continue;
       if (type === 'product') {
         const product = productOptions.find(item => item.product_name === name);
@@ -540,7 +576,8 @@ export default function SegmentFormColumn({
         if (!initial) return true;
         return (
           shot.time_range !== initial.time_range ||
-          shot.audio !== initial.audio ||
+          shot.sfx !== initial.sfx ||
+          shot.ambient !== initial.ambient ||
           shot.style !== initial.style ||
           shot.action !== initial.action ||
           shot.subject !== initial.subject ||
@@ -572,20 +609,7 @@ export default function SegmentFormColumn({
 
   const handleRegenerate = (type: 'photo' | 'video') => {
     if (!onRegenerate) return;
-    const normalizedShots = shots.map((shot, idx) => ({
-      id: idx + 1,
-      time_range: shot.time_range.trim(),
-      audio: shot.audio.trim(),
-      style: shot.style.trim(),
-      action: shot.action.trim(),
-      subject: shot.subject.trim(),
-      dialogue: shot.dialogue.trim(),
-      language: shot.language,
-      composition: shot.composition.trim(),
-      context_environment: shot.context_environment.trim(),
-      ambiance_colour_lighting: shot.ambiance_colour_lighting.trim(),
-      camera_motion_positioning: shot.camera_motion_positioning.trim()
-    }));
+    const normalizedShots = shots.map((shot, idx) => buildShotPayloadForPersistence(shot, idx));
     const payload: SegmentPromptPayload = {
       first_frame_description: photoPrompt,
       shots: normalizedShots,
@@ -706,16 +730,16 @@ export default function SegmentFormColumn({
               </div>
               {!readOnly && (
               <div className="flex items-center gap-2">
-                {shots.length >= 4 && (
-                  <span className="clone-editor-helper text-[11px] text-[#666666]">Max 4 shots</span>
+                {shots.length >= 5 && (
+                  <span className="clone-editor-helper text-[11px] text-[#666666]">Max 5 shots</span>
                 )}
                 <button
                   type="button"
                   onClick={handleAddShot}
-                  disabled={shots.length >= 4}
+                  disabled={shots.length >= 5}
                   className={clsx(
                     'clone-editor-secondary inline-flex items-center justify-center rounded-full border text-xs font-semibold transition w-9 h-9',
-                    shots.length >= 4
+                    shots.length >= 5
                       ? 'border-[#E5E5E5] text-gray-400 cursor-not-allowed'
                       : 'border-black text-black hover:bg-black hover:text-white'
                   )}
@@ -727,11 +751,16 @@ export default function SegmentFormColumn({
               </div>
               )}
             </div>
-            {videoModel === 'kling_3' && (
-              <p className="text-xs text-[#666666]">
-                Kling 3.0 allows up to 500 characters per shot prompt. Long dialogue or detailed shot fields will be compressed automatically.
-              </p>
-            )}
+            <SegmentTimelineRuler
+              shots={shots}
+              readOnly={readOnly}
+              onChange={(nextRanges) => {
+                setShots((prev) => prev.map((shot) => {
+                  const nextRange = nextRanges.find((item) => item.id === shot.id);
+                  return nextRange ? { ...shot, time_range: nextRange.time_range } : shot;
+                }));
+              }}
+            />
             <div className="space-y-3">
               {shots.map((shot, index) => {
                 const klingEstimate = klingShotEstimates[index];
@@ -812,380 +841,329 @@ export default function SegmentFormColumn({
                         </div>
                       )}
                       <div className="space-y-4 pt-1">
-                        {/* Time Range */}
-                        <div className="group">
-                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
-                            <Clock className="w-3.5 h-3.5" />
-                            <span>Time range (relative)</span>
+                        <div className="space-y-3">
+                          <div className="clone-editor-helper flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#666666]">
+                            <Sparkles className="h-3.5 w-3.5" />
+                            <span>Core Prompt Elements</span>
                           </div>
-                          <input
-                            type="text"
-                            value={shot.time_range}
-                            onChange={e => handleShotChange(shot.id, 'time_range', e.target.value)}
-                            disabled={readOnly}
-                            readOnly={readOnly}
-                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 ${
-                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
-                            }`}
-                            placeholder="00:00 - 00:02"
-                          />
+
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            <div className="group">
+                              <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                                <User className="w-3.5 h-3.5" />
+                                <span>Subject</span>
+                              </div>
+                              <PromptMentionTextarea
+                                value={shot.subject}
+                                onChange={(value) => handleShotChange(shot.id, 'subject', value)}
+                                rows={2}
+                                disabled={readOnly}
+                                readOnly={readOnly}
+                                className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] focus:ring-0 focus:ring-offset-0 min-h-[72px] ${
+                                  readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                                }`}
+                                characterMentions={characterOptions.map(character => ({
+                                  id: character.id,
+                                  label: character.avatar_name,
+                                  imageUrl: character.photo_url,
+                                  photoCount: getCharacterPhotoCount(character)
+                                }))}
+                                productMentions={productOptions.map(product => ({
+                                  id: product.id,
+                                  label: product.product_name,
+                                  imageUrl: getProductPhotoUrl(product),
+                                  photoCount: getProductPhotoCount(product)
+                                }))}
+                                enforcePhotoCount={enforceKlingElementPhotoCount}
+                                minRequiredPhotos={2}
+                                insufficientPhotosLabel="Need 2 photos"
+                              />
+                            </div>
+
+                            <div className="group">
+                              <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                                <Clapperboard className="w-3.5 h-3.5" />
+                                <span>Action</span>
+                              </div>
+                              <PromptMentionTextarea
+                                value={shot.action}
+                                onChange={(value) => handleShotChange(shot.id, 'action', value)}
+                                rows={2}
+                                disabled={readOnly}
+                                readOnly={readOnly}
+                                className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] focus:ring-0 focus:ring-offset-0 min-h-[72px] ${
+                                  readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                                }`}
+                                characterMentions={characterOptions.map(character => ({
+                                  id: character.id,
+                                  label: character.avatar_name,
+                                  imageUrl: character.photo_url,
+                                  photoCount: getCharacterPhotoCount(character)
+                                }))}
+                                productMentions={productOptions.map(product => ({
+                                  id: product.id,
+                                  label: product.product_name,
+                                  imageUrl: getProductPhotoUrl(product),
+                                  photoCount: getProductPhotoCount(product)
+                                }))}
+                                enforcePhotoCount={enforceKlingElementPhotoCount}
+                                minRequiredPhotos={2}
+                                insufficientPhotosLabel="Need 2 photos"
+                              />
+                            </div>
+
+                            <div className="group">
+                              <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                                <Palette className="w-3.5 h-3.5" />
+                                <span>Style</span>
+                              </div>
+                              <textarea
+                                value={shot.style}
+                                rows={1}
+                                disabled={readOnly}
+                                readOnly={readOnly}
+                                onFocus={(e) => {
+                                  if (readOnly) return;
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
+                                }}
+                                onBlur={(e) => {
+                                  if (readOnly) return;
+                                  e.target.style.height = '';
+                                }}
+                                onInput={(e) => {
+                                  if (readOnly) return;
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                  handleShotChange(shot.id, 'style', target.value);
+                                }}
+                                className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                                  readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                                }`}
+                              />
+                            </div>
+                          </div>
                         </div>
 
-                        {/* Subject */}
-                        <div className="group">
-                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
-                            <User className="w-3.5 h-3.5" />
-                            <span>Subject</span>
+                        <div className="space-y-3">
+                          <div className="clone-editor-helper flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#666666]">
+                            <Camera className="h-3.5 w-3.5" />
+                            <span>Cinematography</span>
                           </div>
-                          <PromptMentionTextarea
-                            value={shot.subject}
-                            onChange={(value) => handleShotChange(shot.id, 'subject', value)}
-                            rows={2}
-                            disabled={readOnly}
-                            readOnly={readOnly}
-                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] focus:ring-1 focus:ring-offset-1 focus:ring-black/5 min-h-[72px] ${
-                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
-                            }`}
-                            characterMentions={characterOptions.map(character => ({
-                              id: character.id,
-                              label: character.avatar_name,
-                              imageUrl: character.photo_url,
-                              photoCount: getCharacterPhotoCount(character)
-                            }))}
-                            productMentions={productOptions.map(product => ({
-                              id: product.id,
-                              label: product.product_name,
-                              imageUrl: getProductPhotoUrl(product),
-                              photoCount: getProductPhotoCount(product)
-                            }))}
-                            enforcePhotoCount={enforceKlingElementPhotoCount}
-                            minRequiredPhotos={2}
-                            insufficientPhotosLabel="Need 2 photos"
-                          />
+
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            <div className="group">
+                              <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                                <Move className="w-3.5 h-3.5" />
+                                <span>Camera Motion & Positioning</span>
+                              </div>
+                              <textarea
+                                value={shot.camera_motion_positioning}
+                                rows={1}
+                                disabled={readOnly}
+                                readOnly={readOnly}
+                                onFocus={(e) => {
+                                  if (readOnly) return;
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
+                                }}
+                                onBlur={(e) => {
+                                  if (readOnly) return;
+                                  e.target.style.height = '';
+                                }}
+                                onInput={(e) => {
+                                  if (readOnly) return;
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                  handleShotChange(shot.id, 'camera_motion_positioning', target.value);
+                                }}
+                                className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                                  readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                                }`}
+                              />
+                            </div>
+
+                            <div className="group">
+                              <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                                <Camera className="w-3.5 h-3.5" />
+                                <span>Composition</span>
+                              </div>
+                              <textarea
+                                value={shot.composition}
+                                rows={1}
+                                disabled={readOnly}
+                                readOnly={readOnly}
+                                onFocus={(e) => {
+                                  if (readOnly) return;
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
+                                }}
+                                onBlur={(e) => {
+                                  if (readOnly) return;
+                                  e.target.style.height = '';
+                                }}
+                                onInput={(e) => {
+                                  if (readOnly) return;
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                  handleShotChange(shot.id, 'composition', target.value);
+                                }}
+                                className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                                  readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                                }`}
+                              />
+                            </div>
+
+                            <div className="group">
+                              <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                                <Sun className="w-3.5 h-3.5" />
+                                <span>Ambiance & Lighting</span>
+                              </div>
+                              <textarea
+                                value={shot.ambiance_colour_lighting}
+                                rows={1}
+                                disabled={readOnly}
+                                readOnly={readOnly}
+                                onFocus={(e) => {
+                                  if (readOnly) return;
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
+                                }}
+                                onBlur={(e) => {
+                                  if (readOnly) return;
+                                  e.target.style.height = '';
+                                }}
+                                onInput={(e) => {
+                                  if (readOnly) return;
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = `${target.scrollHeight}px`;
+                                  handleShotChange(shot.id, 'ambiance_colour_lighting', target.value);
+                                }}
+                                className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                                  readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                                }`}
+                              />
+                            </div>
+                          </div>
                         </div>
 
-                        {/* Action */}
-                        <div className="group">
-                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
-                            <Clapperboard className="w-3.5 h-3.5" />
-                            <span>Action</span>
+                        <div className="space-y-3">
+                          <div className="clone-editor-helper flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#666666]">
+                            <Volume2 className="h-3.5 w-3.5" />
+                            <span>Audio</span>
                           </div>
-                          <PromptMentionTextarea
-                            value={shot.action}
-                            onChange={(value) => handleShotChange(shot.id, 'action', value)}
-                            rows={2}
-                            disabled={readOnly}
-                            readOnly={readOnly}
-                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] focus:ring-1 focus:ring-offset-1 focus:ring-black/5 min-h-[72px] ${
-                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
-                            }`}
-                            characterMentions={characterOptions.map(character => ({
-                              id: character.id,
-                              label: character.avatar_name,
-                              imageUrl: character.photo_url,
-                              photoCount: getCharacterPhotoCount(character)
-                            }))}
-                            productMentions={productOptions.map(product => ({
-                              id: product.id,
-                              label: product.product_name,
-                              imageUrl: getProductPhotoUrl(product),
-                              photoCount: getProductPhotoCount(product)
-                            }))}
-                            enforcePhotoCount={enforceKlingElementPhotoCount}
-                            minRequiredPhotos={2}
-                            insufficientPhotosLabel="Need 2 photos"
-                          />
-                        </div>
 
-                        {/* Style */}
-                        <div className="group">
-                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
-                            <Palette className="w-3.5 h-3.5" />
-                            <span>Style</span>
-                          </div>
-                          <textarea
-                            value={shot.style}
-                            rows={1}
-                            disabled={readOnly}
-                            readOnly={readOnly}
-                            onFocus={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = 'auto';
-                              e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                            }}
-                            onBlur={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = '';
-                            }}
-                            onInput={(e) => {
-                              if (readOnly) return;
-                              const target = e.target as HTMLTextAreaElement;
-                              target.style.height = 'auto';
-                              target.style.height = `${target.scrollHeight}px`;
-                              handleShotChange(shot.id, 'style', target.value);
-                            }}
-                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
-                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
-                            }`}
-                          />
-                        </div>
-
-                        {/* Audio */}
-                        <div className="group">
-                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
-                            <Music className="w-3.5 h-3.5" />
-                            <span>Audio / Music</span>
-                          </div>
-                          <textarea
-                            value={shot.audio}
-                            rows={1}
-                            disabled={readOnly}
-                            readOnly={readOnly}
-                            onFocus={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = 'auto';
-                              e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                            }}
-                            onBlur={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = '';
-                            }}
-                            onInput={(e) => {
-                              if (readOnly) return;
-                              const target = e.target as HTMLTextAreaElement;
-                              target.style.height = 'auto';
-                              target.style.height = `${target.scrollHeight}px`;
-                              handleShotChange(shot.id, 'audio', target.value);
-                            }}
-                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
-                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
-                            }`}
-                          />
-                        </div>
-
-                        {/* Dialogue */}
-                        <div className="group">
-                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            <span>Dialogue / VO</span>
-                          </div>
-                          <textarea
-                            value={shot.dialogue}
-                            rows={1}
-                            disabled={readOnly}
-                            readOnly={readOnly}
-                            onFocus={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = 'auto';
-                              e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                            }}
-                            onBlur={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = '';
-                            }}
-                            onInput={(e) => {
-                              if (readOnly) return;
-                              const target = e.target as HTMLTextAreaElement;
-                              target.style.height = 'auto';
-                              target.style.height = `${target.scrollHeight}px`;
-                              handleShotChange(shot.id, 'dialogue', target.value);
-                            }}
-                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
-                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
-                            }`}
-                          />
-                        </div>
-
-                        {/* Language */}
-                        <div className="group">
-                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
-                            <Globe className="w-3.5 h-3.5" />
-                            <span>Language</span>
-                          </div>
-                          <div className="relative" data-language-dropdown>
-                            <button
-                              type="button"
-                              onClick={() => !readOnly && setOpenLanguageDropdownId(openLanguageDropdownId === shot.id ? null : shot.id)}
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                          <div className="group">
+                            <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              <span>Dialogue</span>
+                            </div>
+                            <textarea
+                              value={shot.dialogue}
+                              rows={1}
                               disabled={readOnly}
-                              className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 pr-8 text-left text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 ${
+                              readOnly={readOnly}
+                              onFocus={(e) => {
+                                if (readOnly) return;
+                                e.target.style.height = 'auto';
+                                e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
+                              }}
+                              onBlur={(e) => {
+                                if (readOnly) return;
+                                e.target.style.height = '';
+                              }}
+                              onInput={(e) => {
+                                if (readOnly) return;
+                                const target = e.target as HTMLTextAreaElement;
+                                target.style.height = 'auto';
+                                target.style.height = `${target.scrollHeight}px`;
+                                handleShotChange(shot.id, 'dialogue', target.value);
+                              }}
+                              className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
                                 readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                               }`}
-                            >
-                              <span className="flex items-center gap-2">
-                                <span
-                                  className="text-base"
-                                  style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji' }}
-                                >
-                                  {getFlagEmoji(shot.language)}
-                                </span>
-                                <span>
-                                  {LANGUAGE_OPTIONS.find(opt => opt.value === shot.language)?.native || 'Select language'}
-                                </span>
-                              </span>
-                            </button>
-                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                            {openLanguageDropdownId === shot.id && (
-                              <div className="clone-editor-dropdown absolute z-50 mt-1 w-full rounded-lg border border-gray-100 bg-white shadow-lg max-h-60 overflow-y-auto py-1 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-200">
-                                {LANGUAGE_OPTIONS.map(option => (
-                                  <button
-                                    key={option.value}
-                                    type="button"
-                                    onClick={() => {
-                                      handleShotChange(shot.id, 'language', option.value);
-                                      setOpenLanguageDropdownId(null);
-                                    }}
-                                    className={clsx(
-                                      "clone-editor-dropdown-option w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between transition-colors",
-                                      shot.language === option.value ? "bg-gray-50 font-medium text-black" : "text-[#666666]"
-                                    )}
-                                  >
-                                    <span className="flex items-center gap-2">
-                                      <span
-                                        className="text-base"
-                                        style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji' }}
-                                      >
-                                        {getFlagEmoji(option.value)}
-                                      </span>
-                                      <span>{option.native}</span>
-                                    </span>
-                                    {shot.language === option.value && <Check className="w-3.5 h-3.5" />}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
+                            />
                           </div>
-                        </div>
 
-                        {/* Composition */}
-                        <div className="group">
-                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
-                            <Camera className="w-3.5 h-3.5" />
-                            <span>Composition / Camera</span>
+                          <div className="group">
+                            <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                              <Volume2 className="w-3.5 h-3.5" />
+                              <span>SFX</span>
+                            </div>
+                            <textarea
+                              value={shot.sfx}
+                              rows={1}
+                              disabled={readOnly}
+                              readOnly={readOnly}
+                              onFocus={(e) => {
+                                if (readOnly) return;
+                                e.target.style.height = 'auto';
+                                e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
+                              }}
+                              onBlur={(e) => {
+                                if (readOnly) return;
+                                e.target.style.height = '';
+                              }}
+                              onInput={(e) => {
+                                if (readOnly) return;
+                                const target = e.target as HTMLTextAreaElement;
+                                target.style.height = 'auto';
+                                target.style.height = `${target.scrollHeight}px`;
+                                const nextValue = target.value;
+                                setShots(prev => prev.map(item => (
+                                  item.id === shot.id
+                                    ? { ...item, sfx: nextValue, audio: buildLegacyAudioField({ sfx: nextValue, ambient: item.ambient }) }
+                                    : item
+                                )));
+                              }}
+                              className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                                readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                              }`}
+                            />
                           </div>
-                          <textarea
-                            value={shot.composition}
-                            rows={1}
-                            disabled={readOnly}
-                            readOnly={readOnly}
-                            onFocus={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = 'auto';
-                              e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                            }}
-                            onBlur={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = '';
-                            }}
-                            onInput={(e) => {
-                              if (readOnly) return;
-                              const target = e.target as HTMLTextAreaElement;
-                              target.style.height = 'auto';
-                              target.style.height = `${target.scrollHeight}px`;
-                              handleShotChange(shot.id, 'composition', target.value);
-                            }}
-                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
-                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
-                            }`}
-                          />
-                        </div>
 
-                        {/* Camera Motion */}
-                        <div className="group">
-                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
-                            <Move className="w-3.5 h-3.5" />
-                            <span>Camera Motion</span>
+                          <div className="group">
+                            <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
+                              <Waves className="w-3.5 h-3.5" />
+                              <span>Ambient Noise</span>
+                            </div>
+                            <textarea
+                              value={shot.ambient}
+                              rows={1}
+                              disabled={readOnly}
+                              readOnly={readOnly}
+                              onFocus={(e) => {
+                                if (readOnly) return;
+                                e.target.style.height = 'auto';
+                                e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
+                              }}
+                              onBlur={(e) => {
+                                if (readOnly) return;
+                                e.target.style.height = '';
+                              }}
+                              onInput={(e) => {
+                                if (readOnly) return;
+                                const target = e.target as HTMLTextAreaElement;
+                                target.style.height = 'auto';
+                                target.style.height = `${target.scrollHeight}px`;
+                                const nextValue = target.value;
+                                setShots(prev => prev.map(item => (
+                                  item.id === shot.id
+                                    ? { ...item, ambient: nextValue, audio: buildLegacyAudioField({ sfx: item.sfx, ambient: nextValue }) }
+                                    : item
+                                )));
+                              }}
+                              className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                                readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
+                              }`}
+                            />
                           </div>
-                          <textarea
-                            value={shot.camera_motion_positioning}
-                            rows={1}
-                            disabled={readOnly}
-                            readOnly={readOnly}
-                            onFocus={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = 'auto';
-                              e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                            }}
-                            onBlur={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = '';
-                            }}
-                            onInput={(e) => {
-                              if (readOnly) return;
-                              const target = e.target as HTMLTextAreaElement;
-                              target.style.height = 'auto';
-                              target.style.height = `${target.scrollHeight}px`;
-                              handleShotChange(shot.id, 'camera_motion_positioning', target.value);
-                            }}
-                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
-                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
-                            }`}
-                          />
-                        </div>
-
-                        {/* Environment */}
-                        <div className="group">
-                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
-                            <MapPin className="w-3.5 h-3.5" />
-                            <span>Environment</span>
                           </div>
-                          <textarea
-                            value={shot.context_environment}
-                            rows={1}
-                            disabled={readOnly}
-                            readOnly={readOnly}
-                            onFocus={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = 'auto';
-                              e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                            }}
-                            onBlur={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = '';
-                            }}
-                            onInput={(e) => {
-                              if (readOnly) return;
-                              const target = e.target as HTMLTextAreaElement;
-                              target.style.height = 'auto';
-                              target.style.height = `${target.scrollHeight}px`;
-                              handleShotChange(shot.id, 'context_environment', target.value);
-                            }}
-                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
-                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
-                            }`}
-                          />
-                        </div>
-
-                        {/* Ambiance / Lighting */}
-                        <div className="group">
-                          <div className="clone-editor-helper flex items-center gap-2 mb-1.5 text-xs font-semibold text-[#666666]">
-                            <Sun className="w-3.5 h-3.5" />
-                            <span>Ambiance / Lighting</span>
-                          </div>
-                          <textarea
-                            value={shot.ambiance_colour_lighting}
-                            rows={1}
-                            disabled={readOnly}
-                            readOnly={readOnly}
-                            onFocus={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = 'auto';
-                              e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                            }}
-                            onBlur={(e) => {
-                              if (readOnly) return;
-                              e.target.style.height = '';
-                            }}
-                            onInput={(e) => {
-                              if (readOnly) return;
-                              const target = e.target as HTMLTextAreaElement;
-                              target.style.height = 'auto';
-                              target.style.height = `${target.scrollHeight}px`;
-                              handleShotChange(shot.id, 'ambiance_colour_lighting', target.value);
-                            }}
-                            className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-1 focus:ring-offset-1 focus:ring-black/5 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
-                              readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
-                            }`}
-                          />
                         </div>
                       </div>
                     </div>

@@ -2,24 +2,16 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ChevronDown, 
-  ChevronUp, 
-  Plus, 
-  Trash2, 
-  Eye, 
-  User, 
-  MapPin, 
-  Play, 
-  Sparkles, 
-  Video, 
-  Layout, 
-  Sun, 
+import {
+  ChevronDown,
+  Plus,
+  Trash2,
+  Eye,
   Music,
   Clock,
   Film,
   Camera,
-  MessageSquare
+  Aperture
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -250,18 +242,23 @@ export default function CompetitorShotsEditor({
                           </div>
                         </div>
 
-                        {/* Section: Visual Content */}
+                        {/* Section: Opening Frame */}
                         <div className="space-y-3">
-                          <SectionHeader icon={<Eye className="w-3.5 h-3.5" />} title="Visual Content" />
+                          <SectionHeader icon={<Eye className="w-3.5 h-3.5" />} title="Opening Frame" />
                           <ShotTextarea
-                            label="Visual Description (Prompts)"
+                            label="Opening Frame Description"
                             value={shot.first_frame_description}
                             onChange={(value) => updateShot(shot.shot_id, 'first_frame_description', value)}
                             placeholder="Describe what happens in this shot in detail..."
                             minHeight="min-h-[100px]"
                             readOnly={readOnly}
                           />
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        </div>
+
+                        {/* Section: Core Prompt Elements */}
+                        <div className="space-y-3">
+                          <SectionHeader icon={<Aperture className="w-3.5 h-3.5" />} title="Core Prompt Elements" />
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <ShotTextarea
                               label="Subject"
                               value={shot.subject}
@@ -270,21 +267,28 @@ export default function CompetitorShotsEditor({
                               readOnly={readOnly}
                             />
                             <ShotTextarea
-                              label="Environment"
-                              value={shot.context_environment}
-                              onChange={(value) => updateShot(shot.shot_id, 'context_environment', value)}
-                              placeholder="e.g. Sunny park, afternoon"
+                              label="Action"
+                              value={shot.action}
+                              onChange={(value) => updateShot(shot.shot_id, 'action', value)}
+                              placeholder="Describe the movement or behavior..."
+                              readOnly={readOnly}
+                            />
+                            <ShotTextarea
+                              label="Style"
+                              value={shot.style}
+                              onChange={(value) => updateShot(shot.shot_id, 'style', value)}
+                              placeholder="e.g. cinematic, raw UGC, photorealistic"
                               readOnly={readOnly}
                             />
                           </div>
                         </div>
 
-                        {/* Section: Style & Camera */}
+                        {/* Section: Cinematography */}
                         <div className="space-y-3">
                           <SectionHeader icon={<Camera className="w-3.5 h-3.5" />} title="Cinematography" />
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <ShotTextarea
-                              label="Camera Motion"
+                              label="Camera Motion & Positioning"
                               value={shot.camera_motion_positioning}
                               onChange={(value) => updateShot(shot.shot_id, 'camera_motion_positioning', value)}
                               placeholder="e.g. Slow pan right, close up"
@@ -298,17 +302,17 @@ export default function CompetitorShotsEditor({
                               readOnly={readOnly}
                             />
                             <ShotTextarea
-                              label="Lighting"
+                              label="Ambiance & Lighting"
                               value={shot.ambiance_colour_lighting}
                               onChange={(value) => updateShot(shot.shot_id, 'ambiance_colour_lighting', value)}
                               placeholder="e.g. Soft natural lighting, warm tones"
                               readOnly={readOnly}
                             />
                             <ShotTextarea
-                              label="Art Style"
-                              value={shot.style}
-                              onChange={(value) => updateShot(shot.shot_id, 'style', value)}
-                              placeholder="e.g. Cinematic, photorealistic, film grain"
+                              label="Focus & Lens Effects"
+                              value={shot.focus_lens_effects}
+                              onChange={(value) => updateShot(shot.shot_id, 'focus_lens_effects', value)}
+                              placeholder="e.g. shallow depth of field, soft focus, macro lens"
                               readOnly={readOnly}
                             />
                           </div>
@@ -316,27 +320,27 @@ export default function CompetitorShotsEditor({
 
                         {/* Section: Audio */}
                         <div className="space-y-3">
-                          <SectionHeader icon={<Music className="w-3.5 h-3.5" />} title="Audio & Action" />
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <ShotTextarea
-                              label="Action"
-                              value={shot.action}
-                              onChange={(value) => updateShot(shot.shot_id, 'action', value)}
-                              placeholder="Describe the movement..."
-                              readOnly={readOnly}
-                            />
-                            <ShotTextarea
-                              label="Audio Summary"
-                              value={shot.audio_summary}
-                              onChange={(value) => updateShot(shot.shot_id, 'audio_summary', value)}
-                              placeholder="Music bed, sound effects, or ambient audio"
-                              readOnly={readOnly}
-                            />
+                          <SectionHeader icon={<Music className="w-3.5 h-3.5" />} title="Audio" />
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <ShotTextarea
                               label="Dialogue"
                               value={shot.dialogue}
                               onChange={(value) => updateShot(shot.shot_id, 'dialogue', value)}
                               placeholder="Literal spoken line from this shot"
+                              readOnly={readOnly}
+                            />
+                            <ShotTextarea
+                              label="SFX"
+                              value={shot.sfx || ''}
+                              onChange={(value) => updateShot(shot.shot_id, 'sfx', value)}
+                              placeholder="Discrete sound effects"
+                              readOnly={readOnly}
+                            />
+                            <ShotTextarea
+                              label="Ambient Noise"
+                              value={shot.ambient || ''}
+                              onChange={(value) => updateShot(shot.shot_id, 'ambient', value)}
+                              placeholder="Room tone, wind, crowd, kitchen noise..."
                               readOnly={readOnly}
                             />
                           </div>

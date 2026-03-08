@@ -5,6 +5,7 @@ import { Group, Panel, Separator } from 'react-resizable-panels';
 import { Boxes, GripVertical } from 'lucide-react';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import type { SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
+import type { LanguageCode } from '@/components/ui/LanguageSelector';
 import SegmentListColumn from './SegmentListColumn';
 import SegmentPreviewColumn from './SegmentPreviewColumn';
 import SegmentFormColumn, { type SegmentPromptPayload } from './SegmentFormColumn';
@@ -16,6 +17,7 @@ interface SegmentEditorSplitPaneProps {
   videoModel?: string;
   videoDuration?: string | null;
   videoAspectRatio?: '16:9' | '9:16' | string | null;
+  selectedLanguage?: LanguageCode;
   onRegenerate?: (options: {
     segmentIndex: number;
     type: 'photo' | 'video';
@@ -37,6 +39,7 @@ export default function SegmentEditorSplitPane({
   videoModel,
   videoDuration,
   videoAspectRatio,
+  selectedLanguage,
   onRegenerate,
   onMerge,
   onDownload,
@@ -229,6 +232,7 @@ export default function SegmentEditorSplitPane({
               segmentPlanEntry={selectedSegmentPlan}
               videoModel={videoModel}
               videoDuration={videoDuration}
+              selectedLanguage={selectedLanguage}
               onRegenerate={handleRegenerate}
               isSubmitting={submittingSegments[selectedSegmentIndex] || { photo: false, video: false }}
               readOnly={readOnly}

@@ -35,6 +35,11 @@ import {
   buildKlingPromptSections,
   fitKlingPromptWithinLimit
 } from '@/lib/kling-prompt-budget';
+import {
+  MENTION_TOKEN_REGEX as SHARED_MENTION_TOKEN_REGEX,
+  parseMentionToken
+} from '@/lib/prompt-mention-tokens';
+import { normalizeAnalysisToV2 } from '@/lib/video-analysis-schema';
 
 async function retryAsync<T>(fn: () => Promise<T>, options?: { maxAttempts?: number; baseDelayMs?: number; label?: string }): Promise<T> {
   const attempts = options?.maxAttempts && options.maxAttempts > 0 ? options.maxAttempts : 3;
@@ -2221,6 +2226,10 @@ export async function analyzeCompetitorAdWithLanguage(
       schema: {
         type: "object",
         properties: {
+          schema_version: {
+            type: "number",
+            description: "Must be 2"
+          },
           name: {
             type: "string",
             description: "A concise, descriptive name for this competitor ad (e.g., 'lovevery-playkits-delivery', 'nike-running-motivation'). Use lowercase with hyphens, keep it under 40 characters, make it searchable and memorable."
@@ -2240,69 +2249,63 @@ export async function analyzeCompetitorAdWithLanguage(
                   type: "number",
                   description: "Sequential shot number starting at 1"
                 },
-                start_time: {
-                  type: "string",
-                  description: "Shot start timestamp formatted as MM:SS"
+                timing: {
+                  type: "object",
+                  properties: {
+                    start_time: { type: "string" },
+                    end_time: { type: "string" },
+                    duration_seconds: { type: "number" }
+                  },
+                  required: ["start_time", "end_time", "duration_seconds"],
+                  additionalProperties: false
                 },
-                end_time: {
-                  type: "string",
-                  description: "Shot end timestamp formatted as MM:SS"
+                opening_frame: {
+                  type: "object",
+                  properties: {
+                    description: { type: "string" }
+                  },
+                  required: ["description"],
+                  additionalProperties: false
                 },
-                duration_seconds: {
-                  type: "number",
-                  description: "Shot duration in seconds (round to nearest second)"
-                },
-                first_frame_description: {
-                  type: "string",
-                  description: "Visual description of the opening frame for this shot"
-                },
-                subject: {
-                  type: "string",
-                  description: "People, products, or hero objects featured in the shot"
-                },
-                context_environment: {
-                  type: "string",
-                  description: "Location, environment, and background details"
-                },
-                action: {
-                  type: "string",
-                  description: "What happens during the shot"
-                },
-                style: {
-                  type: "string",
-                  description: "Visual style or mood for the shot"
-                },
-                camera_motion_positioning: {
-                  type: "string",
-                  description: "Camera movement and framing specifics for the shot"
-                },
-                composition: {
-                  type: "string",
-                  description: "Shot type/framing (close-up, medium, wide, etc.)"
-                },
-                ambiance_colour_lighting: {
-                  type: "string",
-                  description: "Lighting scheme, palette, and atmosphere"
+                visual: {
+                  type: "object",
+                  properties: {
+                    subject: { type: "string" },
+                    action: { type: "string" },
+                    environment: { type: "string" },
+                    style: { type: "string" },
+                    camera: { type: "string" },
+                    composition: { type: "string" },
+                    focus_lens_effects: { type: "string" },
+                    ambiance: { type: "string" }
+                  },
+                  required: ["subject", "action", "environment", "style", "camera", "composition", "focus_lens_effects", "ambiance"],
+                  additionalProperties: false
                 },
                 audio: {
-                  type: "string",
-                  description: "Voiceover, dialogue, SFX, or music cues"
+                  type: "object",
+                  properties: {
+                    dialogue: { type: "string" },
+                    sfx: { type: "string" },
+                    ambient: { type: "string" },
+                  },
+                  required: ["dialogue", "sfx", "ambient"],
+                  additionalProperties: false
                 },
-                
+                flags: {
+                  type: "object",
+                  properties: {
+                    contains_brand: { type: "boolean" },
+                    contains_product: { type: "boolean" }
+                  },
+                  additionalProperties: false
+                }
               },
               required: [
                 "shot_id",
-                "start_time",
-                "end_time",
-                "duration_seconds",
-                "first_frame_description",
-                "subject",
-                "context_environment",
-                "action",
-                "style",
-                "camera_motion_positioning",
-                "composition",
-                "ambiance_colour_lighting",
+                "timing",
+                "opening_frame",
+                "visual",
                 "audio"
               ],
               additionalProperties: false
@@ -2314,6 +2317,7 @@ export async function analyzeCompetitorAdWithLanguage(
           }
         },
         required: [
+          "schema_version",
           "name",
           "video_duration_seconds",
           "shots",
@@ -2341,7 +2345,7 @@ export async function analyzeCompetitorAdWithLanguage(
 
 You are analyzing a competitor advertisement video${competitorAdContext.competitor_name ? ` from "${competitorAdContext.competitor_name}"` : ''}.
 
-TASK: Break down this ad into a structured shot-by-shot timeline with language detection. This is a PURE ANALYSIS - do not consider any other product or make recommendations.
+TASK: Break down this ad into a structured shot-by-shot timeline with language detection. Return schema_version 2 only. This is a PURE ANALYSIS - do not consider any other product or make recommendations.
 
 OUTPUT REQUIREMENTS:
 
@@ -2361,19 +2365,20 @@ OUTPUT REQUIREMENTS:
    - Cover the ENTIRE runtime with NO gaps
 
    For EACH shot, provide:
-   - \`shot_id\` - Sequential number starting at 1
-   - \`start_time\` - Format: MM:SS (e.g., "00:06")
-   - \`end_time\` - Format: MM:SS
-   - \`duration_seconds\` - Shot duration (round to nearest second)
-   - \`first_frame_description\` - Hyper-detailed 3-4 sentence description (minimum 45 words) of the opening frame, covering foreground, midground, background, lighting cues, and focal hierarchy. Mention left/center/right placement, props, wardrobe, and depth cues so another artist could recreate it perfectly.
-   - \`subject\` - People, products, or hero objects featured
-   - \`context_environment\` - Location, environment, and background details
-   - \`action\` - What happens during the shot
-   - \`style\` - Visual style or mood
-   - \`camera_motion_positioning\` - Camera movement and framing
-   - \`composition\` - Shot type/framing (close-up, medium, wide, etc.)
-   - \`ambiance_colour_lighting\` - Lighting scheme, palette, and atmosphere
-   - \`audio\` - Voiceover, dialogue, SFX, or music cues
+   - \`shot_id\`
+   - \`timing.start_time\`, \`timing.end_time\`, \`timing.duration_seconds\`
+   - \`opening_frame.description\` - Hyper-detailed 3-4 sentence description (minimum 45 words) of the opening frame, covering foreground, midground, background, lighting cues, and focal hierarchy. Mention left/center/right placement, props, wardrobe, and depth cues so another artist could recreate it perfectly.
+   - \`visual.subject\`
+   - \`visual.action\`
+   - \`visual.environment\`
+   - \`visual.style\`
+   - \`visual.camera\`
+   - \`visual.composition\`
+   - \`visual.focus_lens_effects\` - Required, use empty string if not inferable
+   - \`visual.ambiance\`
+   - \`audio.dialogue\`
+   - \`audio.sfx\`
+   - \`audio.ambient\`
 
    Shot requirements:
    - Timestamps must be strictly increasing (no gaps, no overlaps)
@@ -2390,23 +2395,35 @@ OUTPUT REQUIREMENTS:
 
 EXAMPLE OUTPUT STRUCTURE:
 {
+  "schema_version": 2,
   "name": "lovevery-playkits-delivery",
   "video_duration_seconds": 47,
   "shots": [
     {
       "shot_id": 1,
-      "start_time": "00:00",
-      "end_time": "00:06",
-      "duration_seconds": 6,
-      "first_frame_description": "Exterior of a modern apartment building with a package on the doorstep",
-      "subject": "Young woman",
-      "context_environment": "Urban street entrance, brick building with glass door",
-      "action": "Opens door, picks up package, walks inside",
-      "style": "Realism, candid lifestyle",
-      "camera_motion_positioning": "Static wide shot",
-      "composition": "Full body shot",
-      "ambiance_colour_lighting": "Natural daylight, soft shadows",
-      "audio": "Upbeat acoustic music starts"
+      "timing": {
+        "start_time": "00:00",
+        "end_time": "00:06",
+        "duration_seconds": 6
+      },
+      "opening_frame": {
+        "description": "Exterior of a modern apartment building with a package on the doorstep"
+      },
+      "visual": {
+        "subject": "Young woman",
+        "action": "Opens door, picks up package, walks inside",
+        "environment": "Urban street entrance, brick building with glass door",
+        "style": "Realism, candid lifestyle",
+        "camera": "Static wide shot",
+        "composition": "Full body shot",
+        "focus_lens_effects": "",
+        "ambiance": "Natural daylight, soft shadows"
+      },
+      "audio": {
+        "dialogue": "",
+        "sfx": "",
+        "ambient": "Upbeat acoustic music starts"
+      }
     }
   ],
   "detected_language": "en"
@@ -2444,12 +2461,15 @@ EXAMPLE OUTPUT STRUCTURE:
   const language: LanguageCode = rawDetectedLanguage && validLanguageCodes.includes(rawDetectedLanguage as LanguageCode)
     ? (rawDetectedLanguage as LanguageCode)
     : 'en'; // Default to English if invalid
-  const analysis = result as Record<string, unknown>;
+  const analysis = normalizeAnalysisToV2(result);
+  if (!analysis) {
+    throw new Error('Invalid competitor analysis response format');
+  }
 
   console.log('[analyzeCompetitorAdWithLanguage] ✅ Analysis complete');
   console.log('[analyzeCompetitorAdWithLanguage] 🌍 Detected language:', language);
 
-  return { analysis, language };
+  return { analysis: analysis as unknown as Record<string, unknown>, language };
 }
 
 type StructuredContentChunk =
@@ -2594,7 +2614,7 @@ async function generateImageBasedPrompts(
 - Dialogue must stay under ${dialogueWordLimit} words and be natural.
 - "first_frame_description" must provide a DETAILED visual description of the opening frame: scene setup, subject positioning, camera angle, key visual elements. This is used to generate the keyframe image. Example: "Close-up of woman's hands gently applying moisturizer to her face, soft natural lighting from the right, white marble bathroom counter in background, serene morning ambiance."
 - "is_continuation_from_prev" must be false for Segment 1, and only true when the current segment continues the exact same camera move/subject as the previous segment.
-- "shots" must contain ${minShotsPerSegment}-4 entries that evenly cover the entire ${perSegmentDuration}-second segment runtime. Each shot's "time_range" is RELATIVE to the start of the segment (e.g., "00:00 - 00:02", "00:02 - 00:04"), and the final shot must end at ${formatTimecode(perSegmentDuration)}.
+- "shots" must contain ${minShotsPerSegment}-5 entries that evenly cover the entire ${perSegmentDuration}-second segment runtime. Each shot's "time_range" is RELATIVE to the start of the segment (e.g., "00:00 - 00:02", "00:02 - 00:04"), and the final shot must end at ${formatTimecode(perSegmentDuration)}.
 
 
 Return JSON:
@@ -3956,7 +3976,7 @@ type KlingElement = {
   element_input_urls: string[];
 };
 
-const MENTION_REGEX = /@(?<type>character|product)\s*\((?<name>[^)]*)\)/g;
+const MENTION_REGEX = SHARED_MENTION_TOKEN_REGEX;
 const PLAIN_AT_REFERENCE_REGEX = /@(?<name>[a-z0-9][a-z0-9_-]*)/gi;
 const KLING_SHOT_MIN_DURATION_SECONDS = 1;
 const KLING_SHOT_MAX_DURATION_SECONDS = 12;
@@ -4071,8 +4091,9 @@ function collectKlingMentions(texts: string[]): KlingMention[] {
   texts.forEach(text => {
     if (!text) return;
     for (const match of text.matchAll(MENTION_REGEX)) {
-      const type = match.groups?.type as KlingMentionType | undefined;
-      const name = (match.groups?.name || '').trim();
+      const parsed = parseMentionToken(match[0]);
+      const type = parsed?.type as KlingMentionType | undefined;
+      const name = (parsed?.label || '').trim();
       if (!type || !name) continue;
       const key = `${type}:${name.toLowerCase()}`;
       if (!map.has(key)) {
@@ -4131,7 +4152,7 @@ function extractUnresolvedKlingReferences(text: string): string[] {
     references.add(match[0]);
   }
 
-  const shorthandMatches = text.match(/@(character|product)\b/g) || [];
+  const shorthandMatches = text.match(/@(character|product|c|p)\b/g) || [];
   shorthandMatches.forEach(match => references.add(match));
 
   return Array.from(references);
@@ -4143,10 +4164,12 @@ function replacePromptMentions(
   plainTokenMap: Record<string, string>
 ): string {
   if (!text) return text;
-  const typedReplaced = text.replace(MENTION_REGEX, (_, type: string, name: string) => {
-    const key = `${type}:${String(name || '').trim().toLowerCase()}`;
+  const typedReplaced = text.replace(MENTION_REGEX, (match) => {
+    const parsed = parseMentionToken(match);
+    if (!parsed) return match;
+    const key = `${parsed.type}:${String(parsed.label || '').trim().toLowerCase()}`;
     const mapped = tokenMap[key];
-    return mapped ? `@${mapped}` : String(name || '').trim();
+    return mapped ? `@${mapped}` : String(parsed.label || '').trim();
   });
   return typedReplaced.replace(PLAIN_AT_REFERENCE_REGEX, (match, name: string) => {
     const lowered = String(name || '').trim().toLowerCase();
@@ -4166,8 +4189,9 @@ function collectElementKeysFromText(
   if (!text) return [];
   const tags: string[] = [];
   for (const match of text.matchAll(MENTION_REGEX)) {
-    const type = match.groups?.type;
-    const name = (match.groups?.name || '').trim().toLowerCase();
+    const parsed = parseMentionToken(match[0]);
+    const type = parsed?.type;
+    const name = (parsed?.label || '').trim().toLowerCase();
     if (!type || !name) continue;
     const mapped = tokenMap[`${type}:${name}`];
     if (mapped) {

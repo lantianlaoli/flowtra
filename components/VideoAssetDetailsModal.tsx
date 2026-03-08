@@ -18,6 +18,7 @@ import { useToast } from "@/contexts/ToastContext";
 import VideoPlayer from "@/components/ui/VideoPlayer";
 import CompetitorShotsEditor from "@/components/CompetitorShotsEditor";
 import { parseShotsFromAnalysis } from "@/lib/competitor-shot-form";
+import { getAnalysisShotCount } from "@/lib/video-analysis-schema";
 
 interface VideoAsset {
   id: string;
@@ -43,6 +44,7 @@ interface VideoAssetDetailsModalProps {
   size?: "default" | "compact";
   onUseForClone?: (video: VideoAsset) => Promise<void> | void;
   cloneActionLabel?: string;
+  onDeleteVideo?: (video: VideoAsset) => Promise<void> | void;
   onVideoDeleted?: (videoId: string) => void;
 }
 
@@ -53,6 +55,7 @@ export default function VideoAssetDetailsModal({
   size = "default",
   onUseForClone,
   cloneActionLabel = "Use for Clone",
+  onDeleteVideo,
   onVideoDeleted,
 }: VideoAssetDetailsModalProps) {
   const router = useRouter();
@@ -60,15 +63,10 @@ export default function VideoAssetDetailsModal({
   const [isCreatingClone, setIsCreatingClone] = useState(false);
   const [isDeletingVideo, setIsDeletingVideo] = useState(false);
 
-  const shots = useMemo(() => {
-    const raw =
-      video?.analysis_result && typeof video.analysis_result === "object"
-        ? (video.analysis_result as { shots?: unknown }).shots
-        : null;
-    return Array.isArray(raw) ? raw : [];
-  }, [video?.analysis_result]);
-
-  const parsedShots = useMemo(() => parseShotsFromAnalysis(shots), [shots]);
+  const parsedShots = useMemo(
+    () => parseShotsFromAnalysis(video?.analysis_result || null),
+    [video?.analysis_result],
+  );
 
   const analysisName = useMemo(() => {
     if (!video?.analysis_result || typeof video.analysis_result !== "object") {
@@ -160,32 +158,14 @@ export default function VideoAssetDetailsModal({
   };
 
   const handleDeleteVideo = async () => {
-    if (!video || isDeletingVideo) return;
+    if (!video || isDeletingVideo || !onDeleteVideo) return;
 
-    const confirmed = window.confirm(
-      "Delete this video from assets? This action cannot be undone.",
-    );
-    if (!confirmed) return;
-
-    const isCompetitorAd =
-      video.source_type === "competitor_ad" || Boolean(video.competitor_ad_id);
-    const endpoint = isCompetitorAd
-      ? `/api/competitor-ads/${video.id}`
-      : `/api/creator-videos/${video.id}`;
+    onClose();
 
     try {
       setIsDeletingVideo(true);
-      const response = await fetch(endpoint, { method: "DELETE" });
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        showError((payload as { error?: string }).error || "Failed to delete video");
-        return;
-      }
-
-      showSuccess("Video deleted successfully");
+      await onDeleteVideo(video);
       onVideoDeleted?.(video.id);
-      onClose();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to delete video";
@@ -289,7 +269,7 @@ export default function VideoAssetDetailsModal({
                         <Film className="w-4 h-4 text-gray-400" />
                         Shots
                       </span>
-                      <span>{parsedShots.length || "—"}</span>
+                      <span>{getAnalysisShotCount(video.analysis_result || null) || "—"}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-2">
@@ -368,7 +348,7 @@ export default function VideoAssetDetailsModal({
                       {cloneActionLabel}
                     </span>
                   </button>
-                  {!isAgentSelectionMode ? (
+                  {!isAgentSelectionMode && onDeleteVideo ? (
                     <>
                       <button
                         onClick={handleUseInMotionSwap}

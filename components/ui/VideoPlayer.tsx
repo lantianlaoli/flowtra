@@ -47,11 +47,11 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
 
     return (
       <div 
-        className="relative group w-full h-full"
+        className="relative group w-full h-full overflow-hidden rounded-[inherit]"
       >
         <video
           ref={currentRef}
-          className={`w-full h-full object-cover ${className}`}
+          className={`w-full h-full rounded-[inherit] object-cover ${className}`}
           autoPlay={autoPlay}
           muted={!audioEnabled}
           loop={loop}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { auth } from '@clerk/nextjs/server';
+import { getAnalysisShotCount, toPersistedAnalysisV2 } from '@/lib/video-analysis-schema';
 import { parseCompetitorTimeline } from '@/lib/competitor-shots';
 import { removeStorageObjectWithFallback } from '@/lib/storage/ops';
 
@@ -37,13 +38,7 @@ export async function GET(
     }
 
     // NEW: Extract shot_count from analysis_result
-    let shotCount = 0;
-    if (competitorAd.analysis_result && typeof competitorAd.analysis_result === 'object') {
-      const analysis = competitorAd.analysis_result as Record<string, unknown>;
-      if (Array.isArray(analysis.shots)) {
-        shotCount = analysis.shots.length;
-      }
-    }
+    const shotCount = getAnalysisShotCount((competitorAd.analysis_result as Record<string, unknown> | null) || null);
 
     return NextResponse.json({
       success: true,
@@ -112,10 +107,16 @@ export async function PUT(
     }
 
     if (analysis_result && typeof analysis_result === 'object') {
-      const normalizedAnalysis = analysis_result as Record<string, unknown>;
-      updateData.analysis_result = normalizedAnalysis;
+      const normalizedAnalysis = toPersistedAnalysisV2(analysis_result as Record<string, unknown>);
+      if (!normalizedAnalysis) {
+        return NextResponse.json(
+          { error: 'Invalid analysis_result payload' },
+          { status: 400 }
+        );
+      }
+      updateData.analysis_result = normalizedAnalysis as unknown as Record<string, unknown>;
       const timeline = parseCompetitorTimeline(
-        normalizedAnalysis,
+        normalizedAnalysis as unknown as Record<string, unknown>,
         typeof video_duration_seconds === 'number' ? video_duration_seconds : undefined
       );
       updateData.video_duration_seconds = timeline.videoDurationSeconds;
@@ -150,13 +151,7 @@ export async function PUT(
     }
 
     // NEW: Extract shot_count from analysis_result
-    let shotCount = 0;
-    if (competitorAd.analysis_result && typeof competitorAd.analysis_result === 'object') {
-      const analysis = competitorAd.analysis_result as Record<string, unknown>;
-      if (Array.isArray(analysis.shots)) {
-        shotCount = analysis.shots.length;
-      }
-    }
+    const shotCount = getAnalysisShotCount((competitorAd.analysis_result as Record<string, unknown> | null) || null);
 
     return NextResponse.json({
       success: true,

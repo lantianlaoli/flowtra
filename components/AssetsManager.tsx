@@ -70,6 +70,7 @@ export default function AssetsManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [deletingAvatarId, setDeletingAvatarId] = useState<string | null>(null);
+  const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
 
   // Avatar state
   type AvatarItem = UserAvatar | SystemAvatar;
@@ -347,6 +348,45 @@ export default function AssetsManager() {
     setSelectedVideo((current) => (current?.id === videoId ? null : current));
   };
 
+  const handleDeleteVideo = async (video: VideoAsset) => {
+    if (deletingVideoId) {
+      return;
+    }
+
+    const isCompetitorAd =
+      video.source_type === 'competitor_ad' || Boolean(video.competitor_ad_id);
+    const endpoint = isCompetitorAd
+      ? `/api/competitor-ads/${video.id}`
+      : `/api/creator-videos/${video.id}`;
+
+    try {
+      setDeletingVideoId(video.id);
+
+      const response = await fetch(endpoint, { method: 'DELETE' });
+      const payload = await response.json().catch(() => ({}));
+
+      if (response.status === 404) {
+        handleVideoDeleted(video.id);
+        showSuccess('Video was already removed');
+        return;
+      }
+
+      if (!response.ok) {
+        showError((payload as { error?: string }).error || 'Failed to delete video');
+        return;
+      }
+
+      handleVideoDeleted(video.id);
+      showSuccess('Video deleted successfully');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to delete video';
+      showError(message);
+    } finally {
+      setDeletingVideoId(null);
+    }
+  };
+
   const normalizedSearch = useMemo(() => searchTerm.trim().toLowerCase(), [searchTerm]);
 
   const filteredProducts = useMemo(() => {
@@ -546,6 +586,7 @@ export default function AssetsManager() {
                   <VideoAssetCard
                     key={video.id}
                     video={video}
+                    isDeleting={deletingVideoId === video.id}
                     onViewDetails={(asset) => {
                       setSelectedVideo(asset);
                       setShowVideoDetails(true);
@@ -620,7 +661,7 @@ export default function AssetsManager() {
         isOpen={showVideoDetails}
         onClose={() => setShowVideoDetails(false)}
         video={selectedVideo}
-        onVideoDeleted={handleVideoDeleted}
+        onDeleteVideo={handleDeleteVideo}
       />
     </div>
   );
