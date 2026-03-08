@@ -43,6 +43,7 @@ import {
 } from '@/lib/project-agent/video-model';
 import { isStartVideoGenerationCommand } from '@/lib/project-agent/clone-workflow-control';
 import { buildWorkspaceScenes } from '@/lib/project-agent/workspace-scenes';
+import { analysisToLegacyFlatShots } from '@/lib/video-analysis-schema';
 
 interface SessionState {
   intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_swap';
@@ -321,17 +322,14 @@ const inferReferenceStructure = (analysis: Record<string, unknown> | null | unde
     };
   }
 
-  const shotsRaw = Array.isArray((analysis as { shots?: unknown }).shots)
-    ? ((analysis as { shots?: Array<Record<string, unknown>> }).shots ?? [])
-    : [];
-
-  const normalizedShots = shotsRaw.map((shot, index) => {
-    const subject = pickFirst(shot, ['subject', 'main_subject', 'character', 'person', 'actor']);
-    const action = pickFirst(shot, ['action', 'movement', 'shot_action']);
-    const context = pickFirst(shot, ['context_environment', 'environment', 'background', 'setting']);
-    const description = pickFirst(shot, ['shot_description', 'description', 'summary']);
-    const start = pickFirst(shot, ['start_time', 'start', 'time_start']);
-    const end = pickFirst(shot, ['end_time', 'end', 'time_end']);
+  const normalizedShots = analysisToLegacyFlatShots(analysis).map((shot, index) => {
+    const shotRecord = shot as unknown as Record<string, unknown>;
+    const subject = pickFirst(shotRecord, ['subject', 'main_subject', 'character', 'person', 'actor']);
+    const action = pickFirst(shotRecord, ['action', 'movement', 'shot_action']);
+    const context = pickFirst(shotRecord, ['context_environment', 'environment', 'background', 'setting']);
+    const description = pickFirst(shotRecord, ['shot_description', 'description', 'summary', 'first_frame_description']);
+    const start = pickFirst(shotRecord, ['start_time', 'start', 'time_start']);
+    const end = pickFirst(shotRecord, ['end_time', 'end', 'time_end']);
 
     const core = sanitize(description || [subject, action, context].filter(Boolean).join(', '));
     const timeRange = (start || end) ? `${start || '??'}-${end || '??'}` : '';
@@ -346,7 +344,7 @@ const inferReferenceStructure = (analysis: Record<string, unknown> | null | unde
     };
   });
 
-  const keyShots = shotsRaw
+  const keyShots = normalizedShots
     .map((_, index) => normalizedShots[index])
     .filter((shot) => Boolean(shot.core))
     .slice(0, 4)
@@ -387,7 +385,7 @@ const inferReferenceStructure = (analysis: Record<string, unknown> | null | unde
 
   const summary =
     keyShots.length > 0
-      ? `Parsed ${shotsRaw.length || keyShots.length} shots (${durationLabel}). Main on-screen subject appears to be ${detectedCharacter}; product/object signal: ${detectedProduct}.`
+      ? `Parsed ${normalizedShots.length || keyShots.length} shots (${durationLabel}). Main on-screen subject appears to be ${detectedCharacter}; product/object signal: ${detectedProduct}.`
       : `Reference selected (${durationLabel}), but shot-level details are limited. Detected subject: ${detectedCharacter}; product/object signal: ${detectedProduct}.`;
 
   return { summary, keyShots, detectedCharacter, detectedProduct };

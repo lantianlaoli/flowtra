@@ -1,3 +1,5 @@
+import { analysisToLegacyFlatShots } from '@/lib/video-analysis-schema';
+
 export interface CompetitorShotForm {
   shot_id: number;
   start_time: string;
@@ -11,17 +13,17 @@ export interface CompetitorShotForm {
   camera_motion_positioning: string;
   composition: string;
   ambiance_colour_lighting: string;
+  focus_lens_effects: string;
   audio_summary: string;
   dialogue: string;
+  sfx?: string;
+  ambient?: string;
 }
 
-type JsonRecord = Record<string, unknown>;
-
-const toRecord = (value: unknown): JsonRecord | null =>
-  value && typeof value === 'object' ? (value as JsonRecord) : null;
-
-const toStringValue = (value: unknown): string =>
-  typeof value === 'string' ? value : value == null ? '' : String(value);
+const clampDuration = (value: number, fallback = 6): number => {
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  return Math.max(1, Math.round(value));
+};
 
 const toNumberValue = (value: unknown, fallback = 0): number => {
   const num = Number(value);
@@ -29,77 +31,32 @@ const toNumberValue = (value: unknown, fallback = 0): number => {
   return num;
 };
 
-const clampDuration = (value: number, fallback = 6): number => {
-  if (!Number.isFinite(value) || value <= 0) return fallback;
-  return Math.max(1, Math.round(value));
-};
+export const parseShotsFromAnalysis = (analysisInput: unknown): CompetitorShotForm[] => {
+  const normalized = analysisToLegacyFlatShots(
+    (Array.isArray(analysisInput)
+      ? { shots: analysisInput }
+      : analysisInput) as Record<string, unknown> | null | undefined
+  );
 
-const formatSecondsToTime = (seconds: number): string => {
-  const safe = Math.max(0, Math.floor(seconds));
-  const mm = Math.floor(safe / 60).toString().padStart(2, '0');
-  const ss = (safe % 60).toString().padStart(2, '0');
-  return `${mm}:${ss}`;
-};
-
-const normalizeTimeValue = (value: unknown): string => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return formatSecondsToTime(value);
-  }
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) return '00:00';
-    // If model returned numeric-like string ("3", "19.5"), convert to MM:SS
-    const maybeNum = Number(trimmed);
-    if (Number.isFinite(maybeNum)) {
-      return formatSecondsToTime(maybeNum);
-    }
-    return trimmed;
-  }
-
-  return '00:00';
-};
-
-export const parseShotsFromAnalysis = (analysisShots: unknown): CompetitorShotForm[] => {
-  if (!Array.isArray(analysisShots)) return [];
-  return analysisShots.map((shot, index) => {
-    const record = toRecord(shot) || {};
-    const fallbackDescription = toStringValue(
-      record.description ?? record.visual_description ?? record.summary
-    );
-    const explicitDialogue = toStringValue(
-      record.dialogue ?? record.transcript ?? record.voiceover ?? record.spoken_words
-    );
-    const legacyAudio = toStringValue(record.audio);
-    const audioSummary = toStringValue(record.audio_summary)
-      || (!explicitDialogue ? legacyAudio : '');
-
-    const normalizedStartTime = normalizeTimeValue(record.start_time);
-    const normalizedEndTime = normalizeTimeValue(record.end_time);
-    const startSeconds = toNumberValue(record.start_time, NaN);
-    const endSeconds = toNumberValue(record.end_time, NaN);
-    const derivedDuration = Number.isFinite(startSeconds) && Number.isFinite(endSeconds)
-      ? Math.max(1, Math.round(endSeconds - startSeconds))
-      : 0;
-    const durationRaw = toNumberValue(record.duration_seconds, derivedDuration || 6);
-
-    return {
-      shot_id: clampDuration(toNumberValue(record.shot_id, index + 1), index + 1),
-      start_time: normalizedStartTime,
-      end_time: normalizedEndTime,
-      duration_seconds: clampDuration(durationRaw),
-      first_frame_description: toStringValue(record.first_frame_description) || fallbackDescription,
-      subject: toStringValue(record.subject ?? record.main_subject ?? record.hero_subject),
-      context_environment: toStringValue(record.context_environment ?? record.environment),
-      action: toStringValue(record.action) || fallbackDescription,
-      style: toStringValue(record.style ?? record.visual_style),
-      camera_motion_positioning: toStringValue(record.camera_motion_positioning ?? record.camera_motion ?? record.camera),
-      composition: toStringValue(record.composition ?? record.framing),
-      ambiance_colour_lighting: toStringValue(record.ambiance_colour_lighting ?? record.lighting),
-      audio_summary: audioSummary,
-      dialogue: explicitDialogue
-    };
-  });
+  return normalized.map((shot, index) => ({
+    shot_id: index + 1,
+    start_time: shot.start_time,
+    end_time: shot.end_time,
+    duration_seconds: clampDuration(shot.duration_seconds),
+    first_frame_description: shot.first_frame_description,
+    subject: shot.subject,
+    context_environment: shot.context_environment,
+    action: shot.action,
+    style: shot.style,
+    camera_motion_positioning: shot.camera_motion_positioning,
+    composition: shot.composition,
+    ambiance_colour_lighting: shot.ambiance_colour_lighting,
+    focus_lens_effects: shot.focus_lens_effects || '',
+    audio_summary: shot.audio_summary,
+    dialogue: shot.dialogue,
+    sfx: shot.sfx || '',
+    ambient: shot.ambient || '',
+  }));
 };
 
 export const sanitizeShotsForSave = (shots: CompetitorShotForm[]): CompetitorShotForm[] => {
@@ -117,8 +74,11 @@ export const sanitizeShotsForSave = (shots: CompetitorShotForm[]): CompetitorSho
     camera_motion_positioning: shot.camera_motion_positioning?.trim() || '',
     composition: shot.composition?.trim() || '',
     ambiance_colour_lighting: shot.ambiance_colour_lighting?.trim() || '',
+    focus_lens_effects: shot.focus_lens_effects?.trim() || '',
     audio_summary: shot.audio_summary?.trim() || '',
-    dialogue: shot.dialogue?.trim() || ''
+    dialogue: shot.dialogue?.trim() || '',
+    sfx: shot.sfx?.trim() || '',
+    ambient: shot.ambient?.trim() || ''
   }));
 };
 
@@ -135,8 +95,11 @@ export const createEmptyShot = (id: number): CompetitorShotForm => ({
   camera_motion_positioning: '',
   composition: '',
   ambiance_colour_lighting: '',
+  focus_lens_effects: '',
   audio_summary: '',
-  dialogue: ''
+  dialogue: '',
+  sfx: '',
+  ambient: ''
 });
 
 export const reindexShots = (shots: CompetitorShotForm[]): CompetitorShotForm[] =>

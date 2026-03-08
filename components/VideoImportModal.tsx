@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Link, Upload, Users, Loader2, ArrowLeft, Info, Sparkles, Shuffle, RotateCcw } from 'lucide-react';
+import { X, Link, Upload, Users, Loader2, ArrowLeft, Info, Sparkles, Shuffle, RotateCcw, Type, LayoutGrid, Languages, Clock3, Film } from 'lucide-react';
 import { SiTiktok } from 'react-icons/si';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -126,10 +126,7 @@ export default function VideoImportModal({
   }, [previewVideos, selectedVideoIds]);
 
   const processingShots = useMemo(() => {
-    const raw = processingVideo?.analysis_result && typeof processingVideo.analysis_result === 'object'
-      ? (processingVideo.analysis_result as any).shots
-      : null;
-    return parseShotsFromAnalysis(Array.isArray(raw) ? raw : []);
+    return parseShotsFromAnalysis(processingVideo?.analysis_result || null);
   }, [processingVideo?.analysis_result]);
 
   const analysisLoadingMessages = useMemo(
@@ -989,12 +986,13 @@ export default function VideoImportModal({
                   </div>
                 </div>
                 <div className="assets-video-import-panel flex min-h-0 h-full flex-col gap-4 overflow-hidden">
-                  <div className="space-y-2">
-                    <div className="space-y-2">
-                      <label htmlFor="import-video-name" className="assets-video-import-label text-xs uppercase tracking-wide text-gray-500">
-                        Name
+                  <div className="space-y-3">
+                    <div className="rounded-2xl border border-[#D9D9D9] bg-[#FAFAFA] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                      <label htmlFor="import-video-name" className="assets-video-import-label inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[#7A7A7A]">
+                        <Type className="h-3.5 w-3.5 text-[#9A9A9A]" />
+                        <span>Name</span>
                       </label>
-                      <div className="flex items-center gap-2">
+                      <div className="mt-3 flex items-center gap-2">
                         <input
                           id="import-video-name"
                           type="text"
@@ -1007,35 +1005,65 @@ export default function VideoImportModal({
                           }}
                           maxLength={120}
                           placeholder="Name this video"
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 transition-all focus:border-black focus:outline-none focus:ring-2 focus:ring-black/5"
+                          className="h-11 w-full rounded-xl border border-[#D2D2D2] bg-white px-3.5 text-sm text-[#111111] shadow-[0_1px_0_rgba(255,255,255,0.8)] transition-all placeholder:text-[#A3A3A3] focus:border-black focus:outline-none focus:ring-2 focus:ring-black/5"
                           disabled={!processingVideo?.id || isSavingVideoName}
                         />
                         <button
                           type="button"
                           onClick={() => void handleSaveVideoName()}
                           disabled={!processingVideo?.id || !videoName.trim() || isSavingVideoName || videoName.trim() === (processingVideo?.description || '').trim()}
-                          className="min-h-[40px] rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="h-11 rounded-xl border border-[#1A1A1A] bg-[#111111] px-4 text-sm font-medium text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:border-[#D2D2D2] disabled:bg-[#F1F1F1] disabled:text-[#9A9A9A]"
                         >
                           {isSavingVideoName ? 'Saving...' : 'Save'}
                         </button>
                       </div>
                     </div>
 
-                    <p className="assets-video-import-label text-xs uppercase tracking-wide text-gray-500">Overview</p>
-                    <div className="flex items-center justify-between text-sm text-gray-700">
-                      <span>Language</span>
-                      <span>{processingVideo?.analysis_language || '—'}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm text-gray-700">
-                      <span>Duration</span>
-                      <span>{processingVideo?.duration_seconds ? `${processingVideo.duration_seconds}s` : '—'}</span>
+                    <div className="rounded-2xl border border-[#D9D9D9] bg-[#F7F7F7] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+                      <p className="assets-video-import-label inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[#7A7A7A]">
+                        <LayoutGrid className="h-3.5 w-3.5 text-[#9A9A9A]" />
+                        <span>Overview</span>
+                      </p>
+                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <div className="rounded-xl border border-[#D8D8D8] bg-white px-3.5 py-3 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
+                          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[#7F7F7F]">
+                            <Languages className="h-3.5 w-3.5 text-[#9A9A9A]" />
+                            <span>Language</span>
+                          </div>
+                          <div className="mt-2 text-sm font-semibold text-[#111111]">
+                            {processingVideo?.analysis_language || '—'}
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-[#D8D8D8] bg-white px-3.5 py-3 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
+                          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[#7F7F7F]">
+                            <Clock3 className="h-3.5 w-3.5 text-[#9A9A9A]" />
+                            <span>Duration</span>
+                          </div>
+                          <div className="mt-2 text-sm font-semibold text-[#111111]">
+                            {processingVideo?.duration_seconds ? `${processingVideo.duration_seconds}s` : '—'}
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-[#D8D8D8] bg-white px-3.5 py-3 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
+                          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[#7F7F7F]">
+                            <Film className="h-3.5 w-3.5 text-[#9A9A9A]" />
+                            <span>Shot List</span>
+                          </div>
+                          <div className="mt-2 text-sm font-semibold text-[#111111]">
+                            {processingShots.length} shots
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
                   <div className="flex-1 flex flex-col gap-3 min-h-0">
-                    <p className="assets-video-import-label text-xs uppercase tracking-wide text-gray-500">Structure Analysis</p>
+                    <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-[#D9D9D9] bg-[#F7F7F7] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+                      <p className="assets-video-import-label inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[#7A7A7A]">
+                        <Sparkles className="h-3.5 w-3.5 text-[#9A9A9A]" />
+                        <span>Structure Analysis</span>
+                      </p>
                     {processingVideo?.analysis_status === 'failed' ? (
-                      <div className="assets-video-import-alert rounded-lg border border-dashed border-red-200 bg-red-50 p-4 text-sm text-red-600 space-y-3">
+                      <div className="assets-video-import-alert mt-3 rounded-xl border border-dashed border-red-200 bg-white p-4 text-sm text-red-600 space-y-3">
                         <p>Analysis failed. Retry the analysis to continue.</p>
                         {processingVideo.analysis_error && (
                           <p className="text-xs text-red-500">{processingVideo.analysis_error}</p>
@@ -1056,11 +1084,7 @@ export default function VideoImportModal({
                       </div>
                     ) : processingVideo?.analysis_result ? (
                       <>
-                        <div className="flex items-center justify-between text-sm text-gray-700">
-                          <span className="font-semibold text-gray-900">Shot List</span>
-                          <span className="assets-video-import-meta text-xs text-gray-500">{processingShots.length} shots</span>
-                        </div>
-                        <div className="assets-video-import-shots flex-1 min-h-0 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4">
+                        <div className="assets-video-import-shots mt-3 flex-1 min-h-0 overflow-y-auto rounded-2xl border border-[#D8D8D8] bg-white p-4 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
                           <CompetitorShotsEditor
                             shots={processingShots}
                             onShotsChange={() => {}}
@@ -1072,7 +1096,7 @@ export default function VideoImportModal({
                         </div>
                       </>
                     ) : (
-                      <div className="assets-video-import-alert rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500 min-h-[80px] flex items-center">
+                      <div className="assets-video-import-alert mt-3 rounded-xl border border-dashed border-[#D7D7D7] bg-white p-4 text-sm text-gray-500 min-h-[88px] flex items-center">
                         <div className="flex items-center gap-2 text-gray-600 w-full min-w-0">
                           <Loader2 className="w-4 h-4 animate-spin" />
                           <AnimatePresence mode="wait">
@@ -1090,6 +1114,7 @@ export default function VideoImportModal({
                         </div>
                       </div>
                     )}
+                    </div>
                   </div>
 
                   <div className="assets-video-import-actions mt-auto flex flex-col gap-2">

@@ -1,3 +1,5 @@
+import { analysisToLegacyFlatShots, getAnalysisShotCount } from '@/lib/video-analysis-schema';
+
 export interface CompetitorShot {
   id: number;
   startTime: string;
@@ -11,7 +13,9 @@ export interface CompetitorShot {
   cameraMotionPositioning: string;
   composition: string;
   ambianceColourLighting: string;
+  focusLensEffects?: string;
   audio: string;
+  dialogue?: string;
   startTimeSeconds: number;
   endTimeSeconds: number;
 }
@@ -73,19 +77,16 @@ export function parseCompetitorTimeline(
   fallbackDuration?: number | null
 ): CompetitorTimeline {
   const safeAnalysis = toRecord(analysisResult);
-  const rawShots = Array.isArray(safeAnalysis?.shots) ? safeAnalysis?.shots : [];
+  const rawShots = analysisToLegacyFlatShots(safeAnalysis);
   const shots: CompetitorShot[] = [];
 
   let rollingStartSeconds = 0;
 
   rawShots.forEach((rawShot, index) => {
-    const shotRecord = toRecord(rawShot);
-    if (!shotRecord) return;
-
-    const id = clampDuration(toNumber(shotRecord.shot_id), index + 1);
-    const providedStart = parseTimecode(toString(shotRecord.start_time));
-    const providedEnd = parseTimecode(toString(shotRecord.end_time));
-    const providedDuration = toNumber(shotRecord.duration_seconds);
+    const id = clampDuration(toNumber(rawShot.shot_id), index + 1);
+    const providedStart = parseTimecode(toString(rawShot.start_time));
+    const providedEnd = parseTimecode(toString(rawShot.end_time));
+    const providedDuration = toNumber(rawShot.duration_seconds);
 
     const startSeconds = providedStart ?? rollingStartSeconds;
     let durationSeconds = clampDuration(providedDuration, clampDuration(providedEnd !== null && providedStart !== null ? providedEnd - providedStart : null));
@@ -100,15 +101,17 @@ export function parseCompetitorTimeline(
       startTime: formatTimecode(startSeconds),
       endTime: formatTimecode(endSeconds),
       durationSeconds,
-      firstFrameDescription: toString(shotRecord.first_frame_description),
-      subject: toString(shotRecord.subject),
-      contextEnvironment: toString(shotRecord.context_environment),
-      action: toString(shotRecord.action),
-      style: toString(shotRecord.style),
-      cameraMotionPositioning: toString(shotRecord.camera_motion_positioning),
-      composition: toString(shotRecord.composition),
-      ambianceColourLighting: toString(shotRecord.ambiance_colour_lighting),
-      audio: toString(shotRecord.audio),
+      firstFrameDescription: toString(rawShot.first_frame_description),
+      subject: toString(rawShot.subject),
+      contextEnvironment: toString(rawShot.context_environment),
+      action: toString(rawShot.action),
+      style: toString(rawShot.style),
+      cameraMotionPositioning: toString(rawShot.camera_motion_positioning),
+      composition: toString(rawShot.composition),
+      ambianceColourLighting: toString(rawShot.ambiance_colour_lighting),
+      focusLensEffects: toString(rawShot.focus_lens_effects),
+      audio: toString(rawShot.audio_summary),
+      dialogue: toString(rawShot.dialogue),
       startTimeSeconds: startSeconds,
       endTimeSeconds: endSeconds
     });
@@ -124,6 +127,12 @@ export function parseCompetitorTimeline(
     videoDurationSeconds,
     shots
   };
+}
+
+export function getCompetitorShotCount(
+  analysisResult: JsonRecord | null | undefined
+): number {
+  return getAnalysisShotCount(analysisResult);
 }
 
 export function sumShotDurations(shots: CompetitorShot[]): number {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { auth } from '@clerk/nextjs/server';
 import { parseCompetitorTimeline } from '@/lib/competitor-shots';
+import { toPersistedAnalysisV2 } from '@/lib/video-analysis-schema';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -61,8 +62,13 @@ export async function POST(request: NextRequest) {
     // Optional source storage refs may be provided when the analyzed file is retained.
     // Analysis data remains the primary payload stored for competitor ads.
 
+    const persistedAnalysis = toPersistedAnalysisV2(analysisResult as Record<string, unknown>);
+    if (!persistedAnalysis) {
+      return NextResponse.json({ error: 'Invalid analysis result' }, { status: 400 });
+    }
+
     // Parse timeline for video duration
-    const timeline = parseCompetitorTimeline(analysisResult);
+    const timeline = parseCompetitorTimeline(persistedAnalysis as unknown as Record<string, unknown>);
 
     // Create competitor ad record with analysis results (NO file storage)
     const { data: competitorAd, error: dbError } = await supabase
@@ -71,7 +77,7 @@ export async function POST(request: NextRequest) {
         user_id: userId,
         competitor_name: competitorName.trim(),
         analysis_status: analysisStatus || 'completed',
-        analysis_result: analysisResult,
+        analysis_result: persistedAnalysis,
         language: language || 'en',
         analyzed_at: new Date().toISOString(),
         video_duration_seconds: timeline.videoDurationSeconds,

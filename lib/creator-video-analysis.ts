@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import type { LanguageCode } from '@/lib/constants';
+import { normalizeAnalysisToV2, type CanonicalAnalysisV2 } from '@/lib/video-analysis-schema';
 
 type StructuredContentChunk =
   | string
@@ -101,19 +102,10 @@ const extractJsonObjectFromText = (text: string): string | null => {
 
 const REQUIRED_SHOT_FIELDS = [
   'shot_id',
-  'start_time',
-  'end_time',
-  'duration_seconds',
-  'first_frame_description',
-  'subject',
-  'context_environment',
-  'action',
-  'style',
-  'camera_motion_positioning',
-  'composition',
-  'ambiance_colour_lighting',
-  'audio_summary',
-  'dialogue'
+  'timing',
+  'opening_frame',
+  'visual',
+  'audio'
 ] as const;
 
 const hasSpeechSignal = (value: string): boolean => {
@@ -123,8 +115,13 @@ const hasSpeechSignal = (value: string): boolean => {
   return /\b(voiceover|dialogue|dialog|narrat|says|speaks|speaking|talking|spoken|caption|subtitle|line)\b/.test(normalized);
 };
 
-const validateStrictShotSchema = (analysis: Record<string, unknown>): { valid: boolean; reason?: string } => {
-  const shots = analysis.shots;
+const validateStrictShotSchema = (analysis: Record<string, unknown> | CanonicalAnalysisV2): { valid: boolean; reason?: string } => {
+  const normalized = normalizeAnalysisToV2(analysis as Record<string, unknown>);
+  if (!normalized) {
+    return { valid: false, reason: 'Analysis payload is not a valid object.' };
+  }
+
+  const shots = normalized.shots;
   if (!Array.isArray(shots) || shots.length === 0) {
     return { valid: false, reason: 'No shots array returned.' };
   }
@@ -134,7 +131,7 @@ const validateStrictShotSchema = (analysis: Record<string, unknown>): { valid: b
     if (!shot || typeof shot !== 'object') {
       return { valid: false, reason: `Shot ${i + 1} is not an object.` };
     }
-    const record = shot as Record<string, unknown>;
+    const record = shot as unknown as CanonicalAnalysisV2['shots'][number];
 
     for (const field of REQUIRED_SHOT_FIELDS) {
       if (!(field in record)) {
@@ -142,51 +139,29 @@ const validateStrictShotSchema = (analysis: Record<string, unknown>): { valid: b
       }
     }
 
-    const requiredTextFields = [
-      'first_frame_description',
-      'subject',
-      'context_environment',
-      'action',
-      'style',
-      'camera_motion_positioning',
-      'composition',
-      'ambiance_colour_lighting',
-      'audio_summary',
-      'dialogue'
-    ] as const;
-
-    for (const field of requiredTextFields) {
-      const value = record[field];
-      if (typeof value !== 'string') {
-        return { valid: false, reason: `Shot ${i + 1} has empty "${field}".` };
-      }
-    }
-
     const nonEmptyTextFields = [
-      'first_frame_description',
-      'subject',
-      'context_environment',
-      'action',
-      'style',
-      'camera_motion_positioning',
-      'composition',
-      'ambiance_colour_lighting',
-      'audio_summary'
-    ] as const;
+      record.opening_frame.description,
+      record.visual.subject,
+      record.visual.environment,
+      record.visual.action,
+      record.visual.style,
+      record.visual.camera,
+      record.visual.composition,
+      record.visual.ambiance,
+      record.audio.ambient
+    ];
 
-    for (const field of nonEmptyTextFields) {
-      const value = record[field];
-      if (typeof value !== 'string' || !value.trim()) {
-        return { valid: false, reason: `Shot ${i + 1} has empty "${field}".` };
-      }
+    if (nonEmptyTextFields.some(value => typeof value !== 'string' || !value.trim())) {
+      return { valid: false, reason: `Shot ${i + 1} has an empty required Veo field.` };
     }
 
-    const audioSummary = typeof record.audio_summary === 'string' ? record.audio_summary : '';
-    const dialogue = typeof record.dialogue === 'string' ? record.dialogue : '';
-    if (hasSpeechSignal(audioSummary) && !dialogue.trim()) {
+    const ambient = typeof record.audio.ambient === 'string' ? record.audio.ambient : '';
+    const sfx = typeof record.audio.sfx === 'string' ? record.audio.sfx : '';
+    const dialogue = typeof record.audio.dialogue === 'string' ? record.audio.dialogue : '';
+    if (hasSpeechSignal(`${ambient} ${sfx}`) && !dialogue.trim()) {
       return {
         valid: false,
-        reason: `Shot ${i + 1} indicates spoken audio in "audio_summary" but returned empty "dialogue".`
+        reason: `Shot ${i + 1} indicates spoken audio in audio fields but returned empty "dialogue".`
       };
     }
   }
@@ -279,23 +254,26 @@ const callOpenRouterForCreatorVideo = async (params: {
               type: 'text',
               text: params.relaxedMode
                 ? `Analyze this creator reference video${params.sourceName ? ` from "${params.sourceName}"` : ''} and return ONLY one valid JSON object.
-You MUST return complete shot objects. Every shot must include ALL required fields below and none may be empty:
+You MUST return complete shot objects in schema_version 2 format. Every shot must include:
 - shot_id
-- start_time
-- end_time
-- duration_seconds
-- first_frame_description
-- subject
-- context_environment
-- action
-- style
-- camera_motion_positioning
-- composition
-- ambiance_colour_lighting
-- audio_summary
-- dialogue
+- timing.start_time
+- timing.end_time
+- timing.duration_seconds
+- opening_frame.description
+- visual.subject
+- visual.action
+- visual.environment
+- visual.style
+- visual.camera
+- visual.composition
+- visual.focus_lens_effects
+- visual.ambiance
+- audio.dialogue
+- audio.sfx
+- audio.ambient
 
 Global required fields:
+- schema_version
 - name
 - video_duration_seconds
 - shots
@@ -304,26 +282,30 @@ Global required fields:
 Rules:
 - Do not include markdown or explanations.
 - shots must be an ordered array with complete timeline coverage.
-- dialogue must be the best-effort literal spoken words for this shot.
+- audio.dialogue must be the best-effort literal spoken words for this shot.
 - Use subtitle/caption text when visible.
 - If speech is partially unclear, infer the most likely spoken words from captions and context.
-- If the shot has no speech, return dialogue as an empty string.
-- audio_summary must describe the non-dialogue audio bed, music, ambience, or SFX for the shot.
+- If the shot has no speech, return audio.dialogue as an empty string.
+- audio.ambient must describe the background environmental sound bed for the shot.
+- audio.sfx must describe distinct non-environment sound effects for the shot.
 - If language is unclear, set detected_language to "en".`
-                : `Analyze this creator reference video${params.sourceName ? ` from "${params.sourceName}"` : ''} and output a strict JSON shot breakdown.
+                : `Analyze this creator reference video${params.sourceName ? ` from "${params.sourceName}"` : ''} and output a strict JSON shot breakdown in schema_version 2 format.
 Requirements:
 - Return JSON only, matching the schema.
 - Cover the full video timeline with ordered shots.
 - Keep each field concrete and production-usable for storyboard recreation.
 - Detect primary language and output it in detected_language.
 - If language is unclear, default to "en".
-- Every shot MUST include non-empty: first_frame_description, subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_colour_lighting, audio_summary.
-- Every shot MUST include dialogue as a string.
-- dialogue = the best-effort literal spoken line for that shot, prioritizing audible speech and visible subtitles/captions.
+- Every shot MUST include non-empty: opening_frame.description, visual.subject, visual.action, visual.environment, visual.style, visual.camera, visual.composition, visual.ambiance, audio.ambient.
+- visual.focus_lens_effects must always be present and may be "" when not inferable.
+- Every shot MUST include audio.dialogue as a string.
+- audio.dialogue = the best-effort literal spoken line for that shot, prioritizing audible speech and visible subtitles/captions.
 - If spoken words continue across multiple shots, split them by the most likely shot boundary.
 - If speech is partially unclear, infer aggressively from subtitle/context and return the most likely line instead of a summary.
-- If the shot is clearly silent, set dialogue to "".
-- audio_summary = music, ambience, or SFX only. Do not use audio_summary as a transcript substitute.`
+- If the shot is clearly silent, set audio.dialogue to "".
+- audio.sfx = explicit sound effects only.
+- audio.ambient = background environment sound only.
+- If a legacy combined sound description is all you can infer, put it in audio.ambient.`
             },
             {
               type: 'video_url',
@@ -371,6 +353,7 @@ const analyzeCreatorVideoByUrl = async (input: {
       schema: {
         type: 'object',
         properties: {
+          schema_version: { type: 'number' },
           name: { type: 'string' },
           video_duration_seconds: { type: 'number' },
           shots: {
@@ -380,42 +363,71 @@ const analyzeCreatorVideoByUrl = async (input: {
               type: 'object',
               properties: {
                 shot_id: { type: 'number' },
-                start_time: { type: 'string' },
-                end_time: { type: 'string' },
-                duration_seconds: { type: 'number' },
-                first_frame_description: { type: 'string' },
-                subject: { type: 'string' },
-                context_environment: { type: 'string' },
-                action: { type: 'string' },
-                style: { type: 'string' },
-                camera_motion_positioning: { type: 'string' },
-                composition: { type: 'string' },
-                ambiance_colour_lighting: { type: 'string' },
-                audio_summary: { type: 'string' },
-                dialogue: { type: 'string' }
+                timing: {
+                  type: 'object',
+                  properties: {
+                    start_time: { type: 'string' },
+                    end_time: { type: 'string' },
+                    duration_seconds: { type: 'number' }
+                  },
+                  required: ['start_time', 'end_time', 'duration_seconds'],
+                  additionalProperties: false
+                },
+                opening_frame: {
+                  type: 'object',
+                  properties: {
+                    description: { type: 'string' }
+                  },
+                  required: ['description'],
+                  additionalProperties: false
+                },
+                visual: {
+                  type: 'object',
+                  properties: {
+                    subject: { type: 'string' },
+                    action: { type: 'string' },
+                    environment: { type: 'string' },
+                    style: { type: 'string' },
+                    camera: { type: 'string' },
+                    composition: { type: 'string' },
+                    focus_lens_effects: { type: 'string' },
+                    ambiance: { type: 'string' }
+                  },
+                  required: ['subject', 'action', 'environment', 'style', 'camera', 'composition', 'focus_lens_effects', 'ambiance'],
+                  additionalProperties: false
+                },
+                audio: {
+                  type: 'object',
+                  properties: {
+                    dialogue: { type: 'string' },
+                    sfx: { type: 'string' },
+                    ambient: { type: 'string' },
+                  },
+                  required: ['dialogue', 'sfx', 'ambient'],
+                  additionalProperties: false
+                },
+                flags: {
+                  type: 'object',
+                  properties: {
+                    contains_brand: { type: 'boolean' },
+                    contains_product: { type: 'boolean' }
+                  },
+                  additionalProperties: false
+                }
               },
               required: [
                 'shot_id',
-                'start_time',
-                'end_time',
-                'duration_seconds',
-                'first_frame_description',
-                'subject',
-                'context_environment',
-                'action',
-                'style',
-                'camera_motion_positioning',
-                'composition',
-                'ambiance_colour_lighting',
-                'audio_summary',
-                'dialogue'
+                'timing',
+                'opening_frame',
+                'visual',
+                'audio'
               ],
               additionalProperties: false
             }
           },
           detected_language: { type: 'string' }
         },
-        required: ['name', 'video_duration_seconds', 'shots', 'detected_language'],
+        required: ['schema_version', 'name', 'video_duration_seconds', 'shots', 'detected_language'],
         additionalProperties: false
       }
     }
@@ -521,7 +533,11 @@ const analyzeCreatorVideoByUrl = async (input: {
     throw new Error(parsedResult.reason);
   }
 
-  const result = parsedResult.parsed;
+  const result = normalizeAnalysisToV2(parsedResult.parsed);
+  if (!result) {
+    throw new Error('Failed to normalize creator video analysis response.');
+  }
+
   const strictValidation = validateStrictShotSchema(result);
   if (!strictValidation.valid) {
     console.error('[CreatorVideoAnalysis] Strict shot schema validation failed:', {
@@ -544,7 +560,7 @@ const analyzeCreatorVideoByUrl = async (input: {
     duration: typeof result.video_duration_seconds === 'number' ? result.video_duration_seconds : null
   });
 
-  return { analysis: result, language };
+  return { analysis: result as unknown as Record<string, unknown>, language };
 };
 
 interface CreatorVideoAnalysisInput {

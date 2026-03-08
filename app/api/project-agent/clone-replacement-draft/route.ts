@@ -15,6 +15,7 @@ import {
 } from '@/lib/project-agent/clone-replacement-plan';
 import { REPLACEMENT_CONFIRMATION_TOKEN } from '@/lib/project-agent/clone-workflow-control';
 import { injectMentionsInline, stripMentionTokens } from '@/lib/project-agent/clone-prompt-mentions';
+import { analysisToLegacyFlatShots } from '@/lib/video-analysis-schema';
 
 type ShotPrompt = {
   id: number;
@@ -114,34 +115,31 @@ const extractScenesFromAnalysis = (
   fallbackShots?: string[] | null
 ): ReferenceScene[] => {
   if (analysisResult && typeof analysisResult === 'object') {
-    const shotsRaw = Array.isArray((analysisResult as { shots?: unknown }).shots)
-      ? ((analysisResult as { shots?: Array<Record<string, unknown>> }).shots ?? [])
-      : [];
+    const shotsRaw = analysisToLegacyFlatShots(analysisResult);
 
     const fromShots = shotsRaw
       .map((shot, index) => {
         const summary =
-          (typeof shot.shot_description === 'string' && shot.shot_description.trim()) ||
-          (typeof shot.description === 'string' && shot.description.trim()) ||
-          (typeof shot.action === 'string' && shot.action.trim()) ||
-          (typeof shot.subject === 'string' && shot.subject.trim()) ||
+          shot.first_frame_description.trim() ||
+          shot.action.trim() ||
+          shot.subject.trim() ||
           '';
 
         if (!summary) return null;
 
         const sourceShot: ShotPrompt = {
-          id: Number.isFinite(Number(shot.id)) ? Number(shot.id) : 1,
-          time_range: typeof shot.time_range === 'string' ? shot.time_range : '00:00 - 00:02',
-          subject: typeof shot.subject === 'string' ? shot.subject : summary,
-          context_environment: typeof shot.context_environment === 'string' ? shot.context_environment : '',
-          action: typeof shot.action === 'string' ? shot.action : '',
-          style: typeof shot.style === 'string' ? shot.style : '',
-          camera_motion_positioning: typeof shot.camera_motion_positioning === 'string' ? shot.camera_motion_positioning : '',
-          composition: typeof shot.composition === 'string' ? shot.composition : '',
-          ambiance_colour_lighting: typeof shot.ambiance_colour_lighting === 'string' ? shot.ambiance_colour_lighting : '',
-          audio: typeof shot.audio === 'string' ? shot.audio : '',
-          dialogue: typeof shot.dialogue === 'string' ? shot.dialogue : '',
-          language: typeof shot.language === 'string' ? shot.language : undefined
+          id: Number.isFinite(Number(shot.shot_id)) ? Number(shot.shot_id) : index + 1,
+          time_range: `${shot.start_time || '00:00'} - ${shot.end_time || '00:02'}`,
+          subject: shot.subject || summary,
+          context_environment: shot.context_environment || '',
+          action: shot.action || '',
+          style: shot.style || '',
+          camera_motion_positioning: shot.camera_motion_positioning || '',
+          composition: shot.composition || '',
+          ambiance_colour_lighting: shot.ambiance_colour_lighting || '',
+          audio: shot.audio_summary || '',
+          dialogue: shot.dialogue || '',
+          language: undefined
         };
 
         return {
