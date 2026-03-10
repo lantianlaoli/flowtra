@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import { DefaultChatTransport } from 'ai';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { ByteDance, Google, Kling } from '@lobehub/icons';
+import { Kling } from '@lobehub/icons';
 import { AlertTriangle, ArrowUpRight, Check, ChevronDown, Clapperboard, History, Loader2, Lock, MessageCircle, Package, Plus, RefreshCw, Search, Sparkles, User } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
@@ -38,9 +38,10 @@ import {
   normalizeCloneSelections
 } from '@/lib/project-agent/clone-selection';
 import {
+  getProjectAgentVideoModels,
   normalizeProjectAgentVideoModel,
-  PROJECT_AGENT_VIDEO_MODELS
 } from '@/lib/project-agent/video-model';
+import { serializeProjectAgentCloneShot } from '@/lib/project-agent/clone-prompt-schema';
 import { isStartVideoGenerationCommand } from '@/lib/project-agent/clone-workflow-control';
 import { buildWorkspaceScenes } from '@/lib/project-agent/workspace-scenes';
 import { analysisToLegacyFlatShots } from '@/lib/video-analysis-schema';
@@ -83,6 +84,22 @@ interface SessionState {
   imagePrompt?: string | null;
   generatedImageUrl?: string | null;
 }
+
+const hasCloneModelLockState = (state: SessionState | null | undefined) => (
+  state?.intent === 'competitor_ugc_replication' ||
+  Boolean(state?.cloneReferenceVideo?.id) ||
+  Boolean(state?.cloneExecution?.projectId) ||
+  (state?.cloneReplacementDraft?.status != null && state.cloneReplacementDraft.status !== 'idle')
+);
+
+const resolveProjectAgentModelIntent = (
+  state: SessionState | null | undefined,
+  forceCloneContext = false
+): SessionState['intent'] => (
+  forceCloneContext || hasCloneModelLockState(state)
+    ? 'competitor_ugc_replication'
+    : state?.intent
+);
 
 type HistoryItem = {
   sessionId: string;
@@ -391,41 +408,33 @@ const inferReferenceStructure = (analysis: Record<string, unknown> | null | unde
   return { summary, keyShots, detectedCharacter, detectedProduct };
 };
 
-const normalizeVideoModel = (raw: unknown): VideoModel => {
-  return normalizeProjectAgentVideoModel(raw);
+const normalizeVideoModel = (
+  raw: unknown,
+  intent?: SessionState['intent']
+): VideoModel => {
+  return normalizeProjectAgentVideoModel(raw, 'kling_3', intent);
 };
 
-const MODEL_OPTION_META: Record<VideoModel, {
+const PROJECT_AGENT_MODEL_META: {
   description: string;
   icon: ComponentType<{ className?: string }>;
-}> = {
-  veo3_fast: {
-    description: 'Fast generation',
-    icon: Google
-  },
-  seedance_1_5_pro: {
-    description: 'Built-in audio',
-    icon: ByteDance
-  },
-  kling_3: {
-    description: 'Kling std mode',
-    icon: Kling
-  },
-  veo3: {
-    description: 'Premium quality',
-    icon: Google
-  }
+} = {
+  description: 'Kling std mode',
+  icon: Kling
 };
 
 function ProjectAgentModelSelector({
   selectedModel,
+  intent,
   onModelChange
 }: {
   selectedModel: VideoModel;
+  intent?: SessionState['intent'];
   onModelChange: (model: VideoModel) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const modelOptions = useMemo(() => getProjectAgentVideoModels(intent), [intent]);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -438,7 +447,7 @@ function ProjectAgentModelSelector({
     return () => window.removeEventListener('mousedown', handlePointerDown);
   }, []);
 
-  const selectedMeta = MODEL_OPTION_META[selectedModel];
+  const selectedMeta = PROJECT_AGENT_MODEL_META;
 
   return (
     <div ref={containerRef} className="relative">
@@ -469,8 +478,7 @@ function ProjectAgentModelSelector({
             role="listbox"
             aria-label="Video model"
           >
-            {PROJECT_AGENT_VIDEO_MODELS.map((modelOption) => {
-              const meta = MODEL_OPTION_META[modelOption];
+            {modelOptions.map((modelOption) => {
               const isSelected = modelOption === selectedModel;
 
               return (
@@ -489,7 +497,7 @@ function ProjectAgentModelSelector({
                 >
                   <span className="flex min-w-0 items-center gap-3">
                     <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#e6e6e4] bg-white">
-                      <meta.icon className="h-[18px] w-[18px] text-current" />
+                      <PROJECT_AGENT_MODEL_META.icon className="h-[18px] w-[18px] text-current" />
                     </span>
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium">{getVideoModelDisplayName(modelOption)}</span>
@@ -518,20 +526,7 @@ const workspacePromptToDraftScene = (scene: WorkspaceScene): CloneDraftScene => 
   isContinuation: scene.sceneIndex > 1 ? Boolean(scene.isContinuation) : false,
   sourceSummary: scene.sourceSummary ?? null,
   videoPrompt: {
-    shots: scene.shots.map((shot, index) => ({
-      id: Number.isFinite(shot.id) && shot.id > 0 ? shot.id : index + 1,
-      time_range: shot.time_range || '00:00 - 00:08',
-      subject: shot.subject || '',
-      context_environment: shot.context_environment || '',
-      action: shot.action || '',
-      style: shot.style || '',
-      camera_motion_positioning: shot.camera_motion_positioning || '',
-      composition: shot.composition || '',
-      ambiance_colour_lighting: shot.ambiance_colour_lighting || '',
-      audio: shot.audio || '',
-      dialogue: shot.dialogue || '',
-      language: shot.language || 'en'
-    }))
+    shots: scene.shots.map((shot, index) => serializeProjectAgentCloneShot(shot, index, shot.language || 'en'))
   }
 });
 
@@ -803,7 +798,7 @@ export default function ProjectAgentPage() {
 
   const [sessionId, setSessionId] = useState('');
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
-  const [selectedVideoModel, setSelectedVideoModel] = useState<VideoModel>('veo3_fast');
+  const [selectedVideoModel, setSelectedVideoModel] = useState<VideoModel>('kling_3');
   const [statusNote, setStatusNote] = useState('');
   const [draft, setDraft] = useState('');
   const [pendingUserText, setPendingUserText] = useState<string | null>(null);
@@ -845,10 +840,19 @@ export default function ProjectAgentPage() {
   const pendingCloneDraftPersistRef = useRef<Promise<void> | null>(null);
   const lastLocalVideoModelEditAtRef = useRef(0);
   const pendingVideoModelPersistRef = useRef<Promise<void> | null>(null);
-  const latestSelectedVideoModelRef = useRef<VideoModel>('veo3_fast');
+  const latestSelectedVideoModelRef = useRef<VideoModel>('kling_3');
   const prevAvatarStepRef = useRef<string | null>(null);
   const prevClonePhaseRef = useRef<SessionState['cloneExecution'] extends { phase: infer P } ? P : string | null>(null);
   const notificationPermissionRequestedRef = useRef(false);
+  const isCloneModelLockedContext = Boolean(
+    showCloneableVideos ||
+    showCloneReplacementSelectors ||
+    awaitingCloneEntryReply ||
+    awaitingCloneStructureReply ||
+    awaitingCloneDraftReply ||
+    hasCloneModelLockState(sessionState)
+  );
+  const modelSelectorIntent = resolveProjectAgentModelIntent(sessionState, isCloneModelLockedContext);
 
   const ensureHistoryTracked = useCallback((id: string, options?: { prependIfNew?: boolean }) => {
     const ids = readHistoryIds();
@@ -937,7 +941,11 @@ export default function ProjectAgentPage() {
       prepareSendMessagesRequest: ({ id, messages }) => {
         const draftSelection = latestCloneDraftRef.current ?? sessionState?.cloneReplacementDraft;
         const statePatch: Record<string, unknown> = {};
-        statePatch.videoModel = selectedVideoModel;
+        statePatch.videoModel = normalizeProjectAgentVideoModel(
+          selectedVideoModel,
+          'kling_3',
+          modelSelectorIntent
+        );
         const hasExplicitAvatarSelection = hasExplicitCloneAvatarSelectionState(draftSelection);
         const hasExplicitProductSelection = hasExplicitCloneProductSelectionState(draftSelection);
 
@@ -1088,6 +1096,11 @@ export default function ProjectAgentPage() {
 
   const persistVideoModel = useCallback(async (model: VideoModel) => {
     if (!sessionId) return;
+    const normalizedModel = normalizeProjectAgentVideoModel(
+      model,
+      'kling_3',
+      modelSelectorIntent
+    );
     const persistTask = (async () => {
       try {
         const response = await fetch('/api/project-agent/session', {
@@ -1096,7 +1109,7 @@ export default function ProjectAgentPage() {
           body: JSON.stringify({
             sessionId,
             statePatch: {
-              videoModel: model
+              videoModel: normalizedModel
             }
           })
         });
@@ -1118,7 +1131,7 @@ export default function ProjectAgentPage() {
         pendingVideoModelPersistRef.current = null;
       }
     }
-  }, [sessionId]);
+  }, [modelSelectorIntent, sessionId]);
 
 
   const fetchSession = useCallback(async () => {
@@ -1128,7 +1141,7 @@ export default function ProjectAgentPage() {
       if (!response.ok) {
         if (response.status === 404) {
           setSessionState(null);
-          setSelectedVideoModel('veo3_fast');
+          setSelectedVideoModel('kling_3');
         }
         return;
       }
@@ -1136,7 +1149,12 @@ export default function ProjectAgentPage() {
       const payload = await response.json();
       if (!payload?.session) return;
       const incomingState = payload.session.state || null;
-      const incomingVideoModel = normalizeProjectAgentVideoModel(incomingState?.videoModel);
+      const incomingModelIntent = resolveProjectAgentModelIntent(incomingState);
+      const incomingVideoModel = normalizeProjectAgentVideoModel(
+        incomingState?.videoModel,
+        'kling_3',
+        incomingModelIntent
+      );
       const hasVeryRecentLocalVideoModelEdit = Date.now() - lastLocalVideoModelEditAtRef.current < 5000;
       const hasPendingVideoModelPersist = Boolean(pendingVideoModelPersistRef.current);
       const shouldPreserveLocalVideoModel = (
@@ -1150,7 +1168,12 @@ export default function ProjectAgentPage() {
 
       setSessionState((prev) => {
         if (!incomingState) return null;
-        if (!prev) return incomingState;
+        if (!prev) {
+          return {
+            ...incomingState,
+            videoModel: incomingVideoModel
+          };
+        }
 
         const localDraft = prev.cloneReplacementDraft;
         const incomingDraft = incomingState.cloneReplacementDraft;
@@ -1173,10 +1196,12 @@ export default function ProjectAgentPage() {
         const nextState: SessionState = shouldPreserveLocalCloneExecution
           ? {
               ...incomingState,
+              videoModel: incomingVideoModel,
               cloneExecution: prev.cloneExecution
             }
           : {
               ...incomingState,
+              videoModel: incomingVideoModel,
               cloneExecution: mergeCloneExecutionWithLocal(prev.cloneExecution, incomingState.cloneExecution) ?? incomingState.cloneExecution
             };
 
@@ -1229,23 +1254,49 @@ export default function ProjectAgentPage() {
   }, [sessionId]);
 
   const handleVideoModelChange = useCallback((model: VideoModel) => {
+    const normalizedModel = normalizeProjectAgentVideoModel(
+      model,
+      'kling_3',
+      modelSelectorIntent
+    );
     setStatusNote('');
     lastLocalVideoModelEditAtRef.current = Date.now();
-    setSelectedVideoModel(model);
+    setSelectedVideoModel(normalizedModel);
     setSessionState((prev) => (
       prev
         ? {
             ...prev,
-            videoModel: model
+            videoModel: normalizedModel
           }
         : prev
     ));
-    void persistVideoModel(model);
-  }, [persistVideoModel]);
+    void persistVideoModel(normalizedModel);
+  }, [modelSelectorIntent, persistVideoModel]);
 
   useEffect(() => {
     latestSelectedVideoModelRef.current = selectedVideoModel;
   }, [selectedVideoModel]);
+
+  useEffect(() => {
+    const normalizedModel = normalizeProjectAgentVideoModel(
+      selectedVideoModel,
+      'kling_3',
+      modelSelectorIntent
+    );
+    if (normalizedModel === selectedVideoModel) return;
+
+    lastLocalVideoModelEditAtRef.current = Date.now();
+    setSelectedVideoModel(normalizedModel);
+    setSessionState((prev) => (
+      prev
+        ? {
+            ...prev,
+            videoModel: normalizedModel
+          }
+        : prev
+    ));
+    void persistVideoModel(normalizedModel);
+  }, [modelSelectorIntent, persistVideoModel, selectedVideoModel]);
 
   useEffect(() => {
     const nextStep = sessionState?.step ?? null;
@@ -1569,6 +1620,7 @@ export default function ProjectAgentPage() {
     const referencePatch = {
       intent: 'competitor_ugc_replication' as const,
       step: 'collecting',
+      videoModel: 'kling_3' as const,
       avatar: null,
       product: null,
       cloneReferenceVideo: {
@@ -1598,6 +1650,7 @@ export default function ProjectAgentPage() {
       ...(prev ?? {}),
       ...referencePatch
     }));
+    setSelectedVideoModel('kling_3');
     setShowCloneableVideos(false);
     setAwaitingCloneEntryReply(false);
     setCloneEntryReplyBaseline(0);
@@ -1675,7 +1728,7 @@ export default function ProjectAgentPage() {
     const nextId = createSessionId();
     setSessionId(nextId);
     setSessionState(null);
-    setSelectedVideoModel('veo3_fast');
+    setSelectedVideoModel('kling_3');
     setDraft('');
     setPendingUserText(null);
     setStatusNote('');
@@ -1704,7 +1757,7 @@ export default function ProjectAgentPage() {
   const selectHistory = useCallback((targetSessionId: string) => {
     setSessionId(targetSessionId);
     setSessionState(null);
-    setSelectedVideoModel('veo3_fast');
+    setSelectedVideoModel('kling_3');
     setPendingUserText(null);
     setStatusNote('');
     setMessages([]);
@@ -2494,7 +2547,7 @@ export default function ProjectAgentPage() {
     return {
       projectId,
       phase: mapStatusToClonePhase(payload as Record<string, unknown>),
-      model: normalizeVideoModel(data.videoModel),
+      model: normalizeVideoModel(data.videoModel, 'competitor_ugc_replication'),
       duration: typeof data.videoDuration === 'string' ? data.videoDuration : undefined,
       creditsCost: typeof data.creditsUsed === 'number' ? data.creditsUsed : undefined,
       mergedVideoUrl:
@@ -2551,14 +2604,20 @@ export default function ProjectAgentPage() {
   }, [sessionId]);
 
   const handleCloneDraftChange = useCallback((scenes: CloneDraftScene[]) => {
+    const baseDraft = latestCloneDraftRef.current ?? sessionState?.cloneReplacementDraft;
+    if (!baseDraft) return;
+
+    const nextDraft: ClonePromptDraft = {
+      ...baseDraft,
+      scenes
+    };
+
+    // Keep the in-flight send/generate path aligned with the latest workspace
+    // edits even if React state has not committed yet.
+    latestCloneDraftRef.current = nextDraft;
     lastLocalCloneDraftEditAtRef.current = Date.now();
     setSessionState((prev) => {
       if (!prev?.cloneReplacementDraft) return prev;
-      const nextDraft: ClonePromptDraft = {
-        ...prev.cloneReplacementDraft,
-        scenes
-      };
-      latestCloneDraftRef.current = nextDraft;
 
       if (draftPersistTimerRef.current) {
         clearTimeout(draftPersistTimerRef.current);
@@ -2579,7 +2638,7 @@ export default function ProjectAgentPage() {
         cloneReplacementDraft: nextDraft
       };
     });
-  }, [persistCloneState]);
+  }, [persistCloneState, sessionState?.cloneReplacementDraft]);
 
   useEffect(() => () => {
     if (draftPersistTimerRef.current) {
@@ -3174,6 +3233,7 @@ export default function ProjectAgentPage() {
                 <div className="flex items-start justify-between gap-3">
                   <ProjectAgentModelSelector
                     selectedModel={selectedVideoModel}
+                    intent={modelSelectorIntent}
                     onModelChange={handleVideoModelChange}
                   />
                 </div>

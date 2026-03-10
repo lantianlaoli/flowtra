@@ -15,6 +15,7 @@
     "@ai-sdk/react": "^3.0.110",
     "@clerk/nextjs": "^6.39.0",
     "@fal-ai/client": "^1.9.4",
+    "@fontsource/plus-jakarta-sans": "^5.2.8",
     "@heroicons/react": "^2.2.0",
     "@lobehub/icons": "^4.0.3",
     "@openrouter/sdk": "^0.9.11",

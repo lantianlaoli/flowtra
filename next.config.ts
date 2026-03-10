@@ -6,6 +6,9 @@ const shouldDisableImageOptimization =
 
 const nextConfig: NextConfig = {
   compress: true,
+  // Allow local dev access from both localhost and 127.0.0.1 so Next.js
+  // does not treat asset requests as cross-origin during development.
+  allowedDevOrigins: ['127.0.0.1', 'localhost'],
   skipTrailingSlashRedirect: true, // Disable automatic trailing slash redirects.
   images: {
     // In some environments (e.g. local dev behind a browser proxy), the Next.js

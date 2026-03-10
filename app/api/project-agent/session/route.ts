@@ -1,9 +1,21 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { normalizeProjectAgentVideoModel, type ProjectAgentIntent } from '@/lib/project-agent/video-model';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+const normalizeSessionPatchState = (state: Record<string, unknown>) => {
+  const intent = typeof state.intent === 'string'
+    ? state.intent as ProjectAgentIntent
+    : undefined;
+
+  return {
+    ...state,
+    videoModel: normalizeProjectAgentVideoModel(state.videoModel, 'kling_3', intent)
+  };
+};
 
 export async function GET(request: Request) {
   try {
@@ -68,6 +80,8 @@ export async function PATCH(request: Request) {
     }
 
     const supabase = getSupabaseAdmin();
+    // Schema verified via Supabase MCP (2026-03-09):
+    // project_agent_sessions columns: id, user_id, project_id, intent, status, state, messages, created_at, updated_at
     const { data: session, error: fetchError } = await supabase
       .from('project_agent_sessions')
       .select('state')
@@ -84,7 +98,7 @@ export async function PATCH(request: Request) {
     }
 
     if (!session) {
-      const nextState = { ...(statePatch || {}) };
+      const nextState = normalizeSessionPatchState({ ...(statePatch || {}) });
       const insertPayload: Record<string, unknown> = {
         id: sessionId,
         user_id: userId,
@@ -105,17 +119,60 @@ export async function PATCH(request: Request) {
         .insert(insertPayload);
 
       if (insertError) {
-        console.error('[Project Agent] Failed to create session on patch:', insertError);
-        return NextResponse.json(
-          { error: 'Failed to create session', details: insertError.message },
-          { status: 500 }
-        );
+        if (insertError.code !== '23505') {
+          console.error('[Project Agent] Failed to create session on patch:', insertError);
+          return NextResponse.json(
+            { error: 'Failed to create session', details: insertError.message },
+            { status: 500 }
+          );
+        }
+
+        const { data: racedSession, error: raceError } = await supabase
+          .from('project_agent_sessions')
+          .select('user_id')
+          .eq('id', sessionId)
+          .maybeSingle();
+
+        if (raceError) {
+          console.error('[Project Agent] Failed to resolve duplicate session race on patch:', raceError);
+          return NextResponse.json(
+            { error: 'Failed to create session', details: raceError.message },
+            { status: 500 }
+          );
+        }
+
+        if (!racedSession || racedSession.user_id !== userId) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
+        const nextStateForRace = normalizeSessionPatchState({
+          ...(statePatch || {})
+        });
+
+        const { error: updateAfterRaceError } = await supabase
+          .from('project_agent_sessions')
+          .update({
+            state: nextStateForRace,
+            messages: messages ?? undefined,
+            project_id: projectId ?? undefined,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', sessionId)
+          .eq('user_id', userId);
+
+        if (updateAfterRaceError) {
+          console.error('[Project Agent] Failed to update raced session on patch:', updateAfterRaceError);
+          return NextResponse.json(
+            { error: 'Failed to update session', details: updateAfterRaceError.message },
+            { status: 500 }
+          );
+        }
       }
     } else {
-      const nextState = {
+      const nextState = normalizeSessionPatchState({
         ...(session.state as Record<string, unknown> | undefined),
         ...(statePatch || {})
-      };
+      });
 
       const { error: updateError } = await supabase
         .from('project_agent_sessions')

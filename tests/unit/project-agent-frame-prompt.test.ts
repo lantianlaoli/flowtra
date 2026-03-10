@@ -85,3 +85,80 @@ test('Kling prompt scene duration follows the scene shot time range end', () => 
     11
   );
 });
+
+test('Kling multi-shot durations preserve explicit workspace shot timing', () => {
+  assert.deepEqual(
+    __test__.deriveKlingShotDurationsFromSourceShots(
+      [
+        {
+          time_range: '00:00 - 00:03',
+          subject: '',
+          context_environment: '',
+          action: '',
+          style: '',
+          camera_motion_positioning: '',
+          composition: '',
+          ambiance_colour_lighting: '',
+          audio: '',
+          dialogue: '',
+          language: 'en'
+        },
+        {
+          time_range: '00:03 - 00:06',
+          subject: '',
+          context_environment: '',
+          action: '',
+          style: '',
+          camera_motion_positioning: '',
+          composition: '',
+          ambiance_colour_lighting: '',
+          audio: '',
+          dialogue: '',
+          language: 'en'
+        },
+        {
+          time_range: '00:06 - 00:09',
+          subject: '',
+          context_environment: '',
+          action: '',
+          style: '',
+          camera_motion_positioning: '',
+          composition: '',
+          ambiance_colour_lighting: '',
+          audio: '',
+          dialogue: '',
+          language: 'en'
+        },
+        {
+          time_range: '00:09 - 00:11',
+          subject: '',
+          context_environment: '',
+          action: '',
+          style: '',
+          camera_motion_positioning: '',
+          composition: '',
+          ambiance_colour_lighting: '',
+          audio: '',
+          dialogue: '',
+          language: 'en'
+        },
+        {
+          time_range: '00:11 - 00:13',
+          subject: '',
+          context_environment: '',
+          action: '',
+          style: '',
+          camera_motion_positioning: '',
+          composition: '',
+          ambiance_colour_lighting: '',
+          audio: '',
+          dialogue: '',
+          language: 'en'
+        }
+      ],
+      5,
+      13
+    ),
+    [3, 3, 3, 2, 2]
+  );
+});

@@ -5,6 +5,10 @@ import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { PHProvider, PostHogPageView } from '@/providers/posthog';
 import { ToastProvider } from '@/contexts/ToastContext';
+import "@fontsource/plus-jakarta-sans/400.css";
+import "@fontsource/plus-jakarta-sans/500.css";
+import "@fontsource/plus-jakarta-sans/600.css";
+import "@fontsource/plus-jakarta-sans/700.css";
 import "./globals.css";
 
 export const metadata: Metadata = {

@@ -16,7 +16,9 @@ test('prefers draft editable fields while preserving execution runtime metadata'
           time_range: '00:00 - 00:08',
           subject: 'draft subject',
           action: 'draft action',
-          context_environment: 'draft context'
+          context_environment: 'draft context',
+          sfx: 'draft click',
+          ambient: 'draft room tone'
         }]
       }
     }],
@@ -32,7 +34,9 @@ test('prefers draft editable fields while preserving execution runtime metadata'
           time_range: '00:00 - 00:08',
           subject: 'segment subject',
           action: 'segment action',
-          context_environment: 'segment context'
+          context_environment: 'segment context',
+          sfx: 'segment click',
+          ambient: 'segment room tone'
         }]
       }
     }]
@@ -42,6 +46,9 @@ test('prefers draft editable fields while preserving execution runtime metadata'
   assert.equal(scenes[0].imagePrompt, 'draft image prompt');
   assert.equal(scenes[0].shots[0].subject, 'draft subject');
   assert.equal(scenes[0].shots[0].action, 'draft action');
+  assert.equal(scenes[0].shots[0].sfx, 'draft click');
+  assert.equal(scenes[0].shots[0].ambient, 'draft room tone');
+  assert.equal(scenes[0].shots[0].audio, 'SFX: draft click | Ambient: draft room tone');
   assert.equal(scenes[0].frameUrl, 'https://cdn.example/frame.png');
   assert.equal(scenes[0].videoUrl, 'https://cdn.example/video.mp4');
 });

@@ -8,10 +8,12 @@ import {
   Layout,
   MapPin,
   MessageSquare,
-  Music,
   Palette,
+  Sparkles,
   Sun,
   User,
+  Volume2,
+  Waves,
   Zap
 } from 'lucide-react';
 
@@ -23,7 +25,8 @@ export type ClonePromptShotFieldKey =
   | 'camera_motion_positioning'
   | 'composition'
   | 'ambiance_colour_lighting'
-  | 'audio'
+  | 'sfx'
+  | 'ambient'
   | 'dialogue';
 
 export type ClonePromptShotFieldMeta = {
@@ -32,17 +35,58 @@ export type ClonePromptShotFieldMeta = {
   icon: ComponentType<{ className?: string }>;
 };
 
-export const CLONE_PROMPT_SHOT_FIELDS: ClonePromptShotFieldMeta[] = [
+export type ClonePromptShotFieldGroup = {
+  key: 'core' | 'cinematography' | 'audio';
+  label: string;
+  description: string;
+  icon: ComponentType<{ className?: string }>;
+  fields: ClonePromptShotFieldMeta[];
+};
+
+const CORE_FIELDS: ClonePromptShotFieldMeta[] = [
   { key: 'subject', label: 'Subject', icon: User },
   { key: 'context_environment', label: 'Context & Environment', icon: MapPin },
-  { key: 'action', label: 'Action', icon: Zap },
+  { key: 'action', label: 'Action', icon: Zap }
+];
+
+const CINEMATOGRAPHY_FIELDS: ClonePromptShotFieldMeta[] = [
   { key: 'style', label: 'Style', icon: Palette },
   { key: 'camera_motion_positioning', label: 'Camera Motion & Positioning', icon: Camera },
   { key: 'composition', label: 'Composition', icon: Layout },
-  { key: 'ambiance_colour_lighting', label: 'Ambiance / Colour / Lighting', icon: Sun },
-  { key: 'audio', label: 'Audio', icon: Music },
+  { key: 'ambiance_colour_lighting', label: 'Ambiance / Colour / Lighting', icon: Sun }
+];
+
+const AUDIO_FIELDS: ClonePromptShotFieldMeta[] = [
+  { key: 'sfx', label: 'SFX', icon: Volume2 },
+  { key: 'ambient', label: 'Ambient Noise', icon: Waves },
   { key: 'dialogue', label: 'Dialogue', icon: MessageSquare }
 ];
+
+export const CLONE_PROMPT_SHOT_FIELD_GROUPS: ClonePromptShotFieldGroup[] = [
+  {
+    key: 'core',
+    label: 'Core Prompt Elements',
+    description: 'Keep the replacement subject, setting, and motion aligned to the reference scene.',
+    icon: Sparkles,
+    fields: CORE_FIELDS
+  },
+  {
+    key: 'cinematography',
+    label: 'Cinematography',
+    description: 'Preserve the reference framing language while tailoring details to Kling 3.',
+    icon: Camera,
+    fields: CINEMATOGRAPHY_FIELDS
+  },
+  {
+    key: 'audio',
+    label: 'Audio',
+    description: 'Separate sound effects, ambient bed, and spoken dialogue for better Kling control.',
+    icon: Volume2,
+    fields: AUDIO_FIELDS
+  }
+];
+
+export const CLONE_PROMPT_SHOT_FIELDS = CLONE_PROMPT_SHOT_FIELD_GROUPS.flatMap((group) => group.fields);
 
 export const promptUi = {
   frame: 'w-full rounded-2xl border border-[#e6e6e4] bg-white p-4 space-y-4',
@@ -79,4 +123,26 @@ export const PromptTimeLabel = ({ children }: { children: ReactNode }) => (
     <Clock className="h-3.5 w-3.5" />
     {children}
   </span>
+);
+
+export const PromptSectionHeading = ({
+  icon: Icon,
+  title,
+  description
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description?: string;
+}) => (
+  <div className="space-y-1">
+    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#525251] inline-flex items-center gap-1.5">
+      <Icon className="h-3.5 w-3.5" />
+      {title}
+    </p>
+    {description ? (
+      <p className="text-[11px] leading-5 text-[#7a7a77]">
+        {description}
+      </p>
+    ) : null}
+  </div>
 );

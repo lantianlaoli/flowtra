@@ -1379,15 +1379,19 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     // ALL models: PAID generation, FREE download
     let generationCost = 0;
     const duration = request.videoDuration;
+    const requestedQuality = request.requestSource === 'project_agent_clone'
+      ? 'standard'
+      : (request.videoQuality || getDefaultCloneVideoQuality(actualVideoModel));
     const quality = normalizeCloneVideoQualityForModel(
       actualVideoModel,
-      request.videoQuality || getDefaultCloneVideoQuality(actualVideoModel)
+      requestedQuality
     );
 
     console.log(`💳 [CREDITS DEBUG] Calculating generation cost:`, {
       model: actualVideoModel,
       duration,
       quality,
+      requestedQuality,
       videoDuration: request.videoDuration
     });
     if (isReplicaMode) {
@@ -4488,6 +4492,81 @@ function allocateKlingShotDurations(totalDuration: number, shotCount: number): n
   return durations;
 }
 
+function getTimeRangeDurationSeconds(value: string): number | null {
+  const parts = String(value || '').split('-').map((part) => part.trim());
+  if (parts.length !== 2) return null;
+
+  const [startMinutesPart, startSecondsPart] = parts[0].split(':');
+  const [endMinutesPart, endSecondsPart] = parts[1].split(':');
+  const startMinutes = Number(startMinutesPart);
+  const startSeconds = Number(startSecondsPart);
+  const endMinutes = Number(endMinutesPart);
+  const endSeconds = Number(endSecondsPart);
+
+  if (
+    !Number.isFinite(startMinutes) ||
+    !Number.isFinite(startSeconds) ||
+    !Number.isFinite(endMinutes) ||
+    !Number.isFinite(endSeconds)
+  ) {
+    return null;
+  }
+
+  const start = (startMinutes * 60) + startSeconds;
+  const end = (endMinutes * 60) + endSeconds;
+  if (end <= start) return null;
+
+  return end - start;
+}
+
+function deriveKlingShotDurationsFromSourceShots(
+  sourceShots: NormalizedVideoShot[],
+  desiredShotCount: number,
+  totalDuration: number
+): number[] | null {
+  if (sourceShots.length < desiredShotCount) {
+    return null;
+  }
+
+  const parsedDurations = sourceShots
+    .map((shot) => getTimeRangeDurationSeconds(shot.time_range))
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
+
+  if (parsedDurations.length !== sourceShots.length) {
+    return null;
+  }
+
+  const nextDurations = sourceShots.length > desiredShotCount
+    ? [
+        ...parsedDurations.slice(0, desiredShotCount - 1),
+        parsedDurations.slice(desiredShotCount - 1).reduce((sum, value) => sum + value, 0)
+      ]
+    : parsedDurations.slice(0, desiredShotCount);
+
+  if (nextDurations.length !== desiredShotCount) {
+    return null;
+  }
+
+  if (nextDurations.some((duration) => duration < KLING_SHOT_MIN_DURATION_SECONDS || duration > KLING_SHOT_MAX_DURATION_SECONDS)) {
+    return null;
+  }
+
+  const totalFromShots = nextDurations.reduce((sum, value) => sum + value, 0);
+  const diff = totalDuration - totalFromShots;
+  if (diff === 0) {
+    return nextDurations;
+  }
+
+  const lastIndex = nextDurations.length - 1;
+  const adjustedLast = nextDurations[lastIndex] + diff;
+  if (adjustedLast < KLING_SHOT_MIN_DURATION_SECONDS || adjustedLast > KLING_SHOT_MAX_DURATION_SECONDS) {
+    return null;
+  }
+
+  nextDurations[lastIndex] = adjustedLast;
+  return nextDurations;
+}
+
 function buildKlingMultiPrompt(
   segmentPrompt: SegmentPrompt,
   normalizedShots: NormalizedVideoShot[],
@@ -4532,7 +4611,8 @@ function buildKlingMultiPrompt(
     mergedShots.push({ ...mergedShots[mergedShots.length - 1] });
   }
 
-  const shotDurations = allocateKlingShotDurations(totalDuration, desiredShotCount);
+  const shotDurations = deriveKlingShotDurationsFromSourceShots(sourceShots, desiredShotCount, totalDuration)
+    ?? allocateKlingShotDurations(totalDuration, desiredShotCount);
   return mergedShots.map((shot, index) => ({
     ...buildKlingShotPrompt(segmentPrompt, shot, index, tokenMap, plainTokenMap, replaceMention),
     duration: shotDurations[index]
@@ -4881,5 +4961,7 @@ export const __test__ = {
   buildStructuredVideoPromptPayload,
   buildKlingVideoRequestBody,
   getPromptSegmentDurationSeconds,
+  getTimeRangeDurationSeconds,
+  deriveKlingShotDurationsFromSourceShots,
   buildKlingElementName
 };

@@ -1,19 +1,11 @@
 import type { WorkspaceScene, WorkspaceShot } from '@/components/project-agent/CloneSceneWorkspaceStep';
+import {
+  createProjectAgentCloneShot,
+  normalizeProjectAgentCloneShot,
+  type ProjectAgentCloneShot,
+} from '@/lib/project-agent/clone-prompt-schema';
 
-type DraftVideoShotLike = {
-  id?: number;
-  time_range?: string;
-  subject?: string;
-  context_environment?: string;
-  action?: string;
-  style?: string;
-  camera_motion_positioning?: string;
-  composition?: string;
-  ambiance_colour_lighting?: string;
-  audio?: string;
-  dialogue?: string;
-  language?: string;
-};
+type DraftVideoShotLike = Partial<ProjectAgentCloneShot>;
 
 type DraftSceneLike = {
   sceneIndex: number;
@@ -39,34 +31,10 @@ type ExecutionSegmentLike = {
   prompt?: SegmentPromptLike;
 };
 
-const DEFAULT_SHOT: WorkspaceShot = {
-  id: 1,
-  time_range: '00:00 - 00:08',
-  subject: '',
-  context_environment: '',
-  action: '',
-  style: '',
-  camera_motion_positioning: '',
-  composition: '',
-  ambiance_colour_lighting: '',
-  audio: '',
-  dialogue: '',
-  language: 'en'
-};
+const DEFAULT_SHOT: WorkspaceShot = createProjectAgentCloneShot(1);
 
 const normalizeShot = (shot: DraftVideoShotLike, index: number, fallbackLanguage: string): WorkspaceShot => ({
-  id: Number.isFinite(shot.id) && Number(shot.id) > 0 ? Number(shot.id) : index + 1,
-  time_range: shot.time_range || '00:00 - 00:08',
-  subject: shot.subject || '',
-  context_environment: shot.context_environment || '',
-  action: shot.action || '',
-  style: shot.style || '',
-  camera_motion_positioning: shot.camera_motion_positioning || '',
-  composition: shot.composition || '',
-  ambiance_colour_lighting: shot.ambiance_colour_lighting || '',
-  audio: shot.audio || '',
-  dialogue: shot.dialogue || '',
-  language: shot.language || fallbackLanguage
+  ...normalizeProjectAgentCloneShot(shot, index, fallbackLanguage)
 });
 
 const segmentPromptToWorkspaceShots = (prompt: SegmentPromptLike | undefined, fallbackLanguage: string): WorkspaceShot[] => {

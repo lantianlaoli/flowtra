@@ -23,21 +23,12 @@ import {
   PromptTimeLabel,
   promptUi
 } from '@/components/project-agent/prompt-ui';
+import {
+  buildProjectAgentLegacyAudioField,
+  type ProjectAgentCloneShot
+} from '@/lib/project-agent/clone-prompt-schema';
 
-export type CloneDraftShot = {
-  id: number;
-  time_range: string;
-  subject: string;
-  context_environment: string;
-  action: string;
-  style: string;
-  camera_motion_positioning: string;
-  composition: string;
-  ambiance_colour_lighting: string;
-  audio: string;
-  dialogue: string;
-  language?: string;
-};
+export type CloneDraftShot = ProjectAgentCloneShot;
 
 export type CloneDraftScene = {
   sceneIndex: number;
@@ -146,6 +137,8 @@ const emptyShot = (id: number, text = ''): CloneDraftShot => ({
   composition: '',
   ambiance_colour_lighting: '',
   audio: '',
+  sfx: '',
+  ambient: '',
   dialogue: '',
   language: 'en'
 });
@@ -368,12 +361,16 @@ export default function ClonePromptDraftStep({
   ), []);
 
   const signature = useMemo(() => sceneSignature(draft), [draft]);
+  const normalizedDraftScenes = useMemo(
+    () => sanitizeScenesForModel(normalizeScenes(draft?.scenes || [])),
+    [draft?.scenes, sanitizeScenesForModel]
+  );
 
   useEffect(() => {
-    setLocalScenes(sanitizeScenesForModel(normalizeScenes(draft?.scenes || [])));
+    setLocalScenes(normalizedDraftScenes);
     setPendingSyncVersion(0);
     setOpenScenes({});
-  }, [signature, sanitizeScenesForModel]);
+  }, [normalizedDraftScenes, signature]);
 
   useEffect(() => {
     if (!onDraftChange || pendingSyncVersion === 0) return;
@@ -422,6 +419,7 @@ export default function ClonePromptDraftStep({
           ...patch,
           id: normalized.shots[shotIndex].id || shotIndex + 1
         };
+        normalized.shots[shotIndex].audio = buildProjectAgentLegacyAudioField(normalized.shots[shotIndex]);
 
         return {
           ...scene,
