@@ -35,6 +35,11 @@ import {
   getEffectiveProjectAgentVideoModel,
   normalizeProjectAgentVideoModel
 } from '@/lib/project-agent/video-model';
+import {
+  cloneDraftSceneToSegmentPrompt,
+  getProjectAgentSegmentPromptDurationSeconds,
+} from '@/lib/project-agent/clone-segment-prompt';
+import type { ProjectAgentCloneShot } from '@/lib/project-agent/clone-prompt-schema';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -96,20 +101,7 @@ type SessionState = {
       imagePrompt: string;
       isContinuation?: boolean;
       videoPrompt: {
-        shots: Array<{
-          id: number;
-          time_range: string;
-          subject: string;
-          context_environment: string;
-          action: string;
-          style: string;
-          camera_motion_positioning: string;
-          composition: string;
-          ambiance_colour_lighting: string;
-          audio: string;
-          dialogue: string;
-          language?: string;
-        }>;
+        shots: ProjectAgentCloneShot[];
       };
       sourceSummary?: string | null;
     }>;
@@ -160,63 +152,6 @@ const DEFAULT_STATE: SessionState = {
 };
 
 type CloneDraftScene = NonNullable<SessionState['cloneReplacementDraft']>['scenes'][number];
-
-const cloneDraftSceneToSegmentPrompt = (
-  scene: CloneDraftScene,
-  fallbackLanguage: string
-) => {
-  const shots = Array.isArray(scene.videoPrompt?.shots)
-    ? scene.videoPrompt.shots.map((shot, index) => ({
-        id: Number.isFinite(Number(shot.id)) ? Number(shot.id) : index + 1,
-        time_range: typeof shot.time_range === 'string' ? shot.time_range : '00:00 - 00:08',
-        subject: shot.subject || '',
-        context_environment: shot.context_environment || '',
-        action: shot.action || '',
-        style: shot.style || '',
-        camera_motion_positioning: shot.camera_motion_positioning || '',
-        composition: shot.composition || '',
-        ambiance_colour_lighting: shot.ambiance_colour_lighting || '',
-        audio: shot.audio || '',
-        dialogue: shot.dialogue || '',
-        language: shot.language || fallbackLanguage
-      }))
-    : [];
-
-  return {
-    first_frame_description: scene.imagePrompt || '',
-    shots,
-    is_continuation_from_prev: (scene.sceneIndex ?? 1) > 1
-      ? (typeof scene.isContinuation === 'boolean' ? scene.isContinuation : true)
-      : false
-  };
-};
-
-const parseTimecodeToSeconds = (value: string): number | null => {
-  const [minutesPart, secondsPart] = value.trim().split(':');
-  const minutes = Number(minutesPart);
-  const seconds = Number(secondsPart);
-  if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
-  return (minutes * 60) + seconds;
-};
-
-const getSegmentPromptDurationSeconds = (
-  segment: ReturnType<typeof cloneDraftSceneToSegmentPrompt>
-): number => {
-  const shots = Array.isArray(segment.shots) ? segment.shots : [];
-  const endTimes = shots
-    .map((shot) => {
-      const parts = String(shot.time_range || '').split('-').map((part) => part.trim());
-      if (parts.length !== 2) return null;
-      return parseTimecodeToSeconds(parts[1]);
-    })
-    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
-
-  if (endTimes.length === 0) {
-    return 8;
-  }
-
-  return Math.max(1, Math.round(Math.max(...endTimes)));
-};
 
 type ProductRow = {
   id: string;
@@ -626,7 +561,7 @@ const buildSystemPrompt = (state: SessionState) => {
   const pendingMergeConfirmation = state.pendingMergeConfirmation?.projectId
     ? `${state.pendingMergeConfirmation.token} (${state.pendingMergeConfirmation.projectId})`
     : 'none';
-  const selectedVideoModel = normalizeProjectAgentVideoModel(state.videoModel);
+  const selectedVideoModel = normalizeProjectAgentVideoModel(state.videoModel, 'veo3_fast', state.intent);
   const effectiveVideoModel = getEffectiveProjectAgentVideoModel(state.intent, state.videoModel);
 
   return `You are Flowgen, the Flowtra growth agent. Core mission: "Make virality accessible."
@@ -700,7 +635,7 @@ Workflow rules:
   7) After Reference Video is selected, your first sentence must explicitly confirm you understood the video structure using the provided summary and key shots.
   8) In the same reply, naturally recommend replacement directions and ask user to choose replacement avatars and/or products.
   9) Keep this as a normal conversational reply; do not rely on UI labels or step headers in the wording.
-  10) If cloneReplacementDraft.status is "ready", reply naturally that replacement prompts are prepared from the reference structure, briefly summarize selected replacements, and ask the user to review/edit Scene and shot-level fields (subject, background, action, style, camera, composition, lighting, audio, dialogue) in Step 3.
+  10) If cloneReplacementDraft.status is "ready", reply naturally that replacement prompts are prepared from the reference structure, briefly summarize selected replacements, and ask the user to review/edit Scene and shot-level fields (subject, background, action, style, camera, composition, lighting, SFX, ambient noise, dialogue, timing) in Step 3.
   11) If cloneReplacementDraft.status is "generating", tell the user you are preparing prompt drafts now and to wait briefly.
   12) If cloneReplacementDraft.status is "failed", explain the failure briefly and ask whether to retry draft generation.
   13) If user asks to regenerate this step, acknowledge you are re-running the same replacement step with current selections and respond as a normal assistant turn (no technical wording like "draft schema").
@@ -718,7 +653,7 @@ Workflow rules:
   21.1) Only ask for explicit product name if there is no selected product in current state.
   21.2) Do not infer execution confirmation from vague wording like "continue" or "looks good". Execution confirmation is valid only when user sends "${REPLACEMENT_CONFIRMATION_TOKEN}" and confirmCloneSelections succeeds.
   22) Until selection confirmation is complete, do not call execution tools. Respond with concise guidance and expected next command.
-  23) In confirmed state, guide the user to review/edit Scene and shot fields (subject, context/background, action, style, camera, composition, lighting, audio, dialogue), then tell them to send a chat command to start frame generation.
+  23) In confirmed state, guide the user to review/edit Scene and shot fields (subject, context/background, action, style, camera, composition, lighting, SFX, ambient noise, dialogue, timing), then tell them to send a chat command to start frame generation.
   24) If cloneReplacementDraft.status is ready and cloneExecutionPhase is still idle, never tell the user to start video generation yet. At this stage, always guide them to start frame generation first.
   25) Never instruct clicking any "confirm" control on the left panel. Replacement confirmation is chat-only via token "${REPLACEMENT_CONFIRMATION_TOKEN}". During clone execution phases, never instruct clicking removed buttons. Use command-style guidance.
   26) If cloneReplacementDraft.status is ready and user asks to start generation, call startCloneGenerationFromDraft only after confirmation gate passes. If user asks to regenerate frames, call regenerateCloneFrames. If user asks to regenerate scene videos, call regenerateCloneVideos. If user asks to start video generation after frame review, call startCloneVideoGeneration.
@@ -765,14 +700,22 @@ Stay concise, ask one clarification at a time, and prefer explicit confirmations
 };
 
 const getOrigin = (request: Request) => new URL(request.url).origin;
-const mergeState = (state: SessionState, patch: Partial<SessionState>) => ({
-  ...state,
-  ...patch
-});
+const mergeState = (state: SessionState, patch: Partial<SessionState>) => {
+  const nextState = {
+    ...state,
+    ...patch
+  };
+
+  return {
+    ...nextState,
+    videoModel: normalizeProjectAgentVideoModel(nextState.videoModel, 'veo3_fast', nextState.intent)
+  };
+};
 
 const buildFreshCloneState = (state: SessionState): SessionState => ({
   ...state,
   intent: 'competitor_ugc_replication',
+  videoModel: 'kling_3',
   cloneReferenceVideo: undefined,
   cloneReplacementDraft: undefined,
   cloneExecution: null,
@@ -802,7 +745,7 @@ const toCloneExecutionFromStatusPayload = (projectId: string, payload: Record<st
   }));
 
   const videoModel = data.videoModel;
-  const normalizedModel = normalizeProjectAgentVideoModel(videoModel);
+  const normalizedModel = normalizeProjectAgentVideoModel(videoModel, 'veo3_fast', 'competitor_ugc_replication');
 
   return {
     projectId,
@@ -1032,21 +975,44 @@ export async function POST(request: Request) {
     };
 
     if (!existingSession) {
+      const insertPayload = {
+        id: resolvedSessionId,
+        user_id: userId,
+        intent: 'avatar_ads',
+        state: sessionState,
+        messages: conversationMessages,
+        status: 'active',
+        updated_at: new Date().toISOString()
+      };
       const { error: insertError } = await supabase
         .from('project_agent_sessions')
-        .insert({
-          id: resolvedSessionId,
-          user_id: userId,
-          intent: 'avatar_ads',
-          state: sessionState,
-          messages: conversationMessages,
-          status: 'active',
-          updated_at: new Date().toISOString()
-        });
+        .insert(insertPayload);
 
       if (insertError) {
-        console.error('[Project Agent] Failed to create session:', insertError);
-        return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
+        if (insertError.code !== '23505') {
+          console.error('[Project Agent] Failed to create session:', insertError);
+          return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
+        }
+
+        const { data: racedSession, error: racedSessionError } = await supabase
+          .from('project_agent_sessions')
+          .select('id,user_id')
+          .eq('id', resolvedSessionId)
+          .maybeSingle();
+
+        if (racedSessionError) {
+          console.error('[Project Agent] Failed to resolve duplicate session race:', racedSessionError);
+          return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
+        }
+
+        if (!racedSession || racedSession.user_id !== userId) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
+        await persistMessagesOnly(
+          conversationMessages,
+          statePatch && typeof statePatch === 'object' ? sessionState : undefined
+        );
       }
     } else {
       await persistMessagesOnly(
@@ -2177,10 +2143,10 @@ export async function POST(request: Request) {
               cloneDraftSceneToSegmentPrompt(scene, sessionState.language ?? 'en')
             ));
             const videoDuration = String(segmentPrompts.reduce(
-              (total, segment) => total + getSegmentPromptDurationSeconds(segment),
+              (total, segment) => total + getProjectAgentSegmentPromptDurationSeconds(segment),
               0
             ));
-            const normalizedModel = normalizeProjectAgentVideoModel(sessionState.videoModel);
+            const normalizedModel = 'kling_3' as const;
             const cloneReferenceVideo = sessionState.cloneReferenceVideo;
             if (!cloneReferenceVideo) {
               return { success: false, message: 'Reference video is missing.' };

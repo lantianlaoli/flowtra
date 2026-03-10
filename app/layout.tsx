@@ -1,19 +1,15 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
 import Script from 'next/script';
 import { ClerkProvider } from '@clerk/nextjs';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { PHProvider, PostHogPageView } from '@/providers/posthog';
 import { ToastProvider } from '@/contexts/ToastContext';
+import "@fontsource/plus-jakarta-sans/400.css";
+import "@fontsource/plus-jakarta-sans/500.css";
+import "@fontsource/plus-jakarta-sans/600.css";
+import "@fontsource/plus-jakarta-sans/700.css";
 import "./globals.css";
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  variable: '--font-plus-jakarta-sans',
-  display: 'swap',
-  weight: ['400', '500', '600', '700']
-});
 
 export const metadata: Metadata = {
   title: "Turn Viral Videos Into Your Own with AI - Flowtra | Clone TikTok & Instagram Ads",
@@ -237,7 +233,7 @@ export default function RootLayout({
             }}
           />
         </head>
-        <body className={`${plusJakartaSans.variable} font-sans antialiased`}>
+        <body className="font-sans antialiased">
           <Script
             src="https://www.googletagmanager.com/gtag/js?id=G-CP7HSQFTCP"
             strategy="lazyOnload"

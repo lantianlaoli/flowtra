@@ -14,23 +14,18 @@ import {
   type CloneSceneAssignment
 } from '@/lib/project-agent/clone-replacement-plan';
 import { REPLACEMENT_CONFIRMATION_TOKEN } from '@/lib/project-agent/clone-workflow-control';
+import {
+  buildProjectAgentCloneDraftSeeds,
+  type ProjectAgentDraftSeedScene,
+} from '@/lib/project-agent/clone-draft-planning';
+import {
+  buildProjectAgentLegacyAudioField,
+  normalizeProjectAgentCloneShot,
+  type ProjectAgentCloneShot,
+} from '@/lib/project-agent/clone-prompt-schema';
 import { injectMentionsInline, stripMentionTokens } from '@/lib/project-agent/clone-prompt-mentions';
-import { analysisToLegacyFlatShots } from '@/lib/video-analysis-schema';
 
-type ShotPrompt = {
-  id: number;
-  time_range: string;
-  subject: string;
-  context_environment: string;
-  action: string;
-  style: string;
-  camera_motion_positioning: string;
-  composition: string;
-  ambiance_colour_lighting: string;
-  audio: string;
-  dialogue: string;
-  language?: string;
-};
+type ShotPrompt = ProjectAgentCloneShot;
 
 type ScenePrompt = {
   sceneIndex: number;
@@ -77,6 +72,7 @@ type CloneReplacementDraft = {
 
 type SessionState = {
   videoModel?: 'veo3' | 'veo3_fast' | 'seedance_1_5_pro' | 'kling_3';
+  language?: string;
   cloneReferenceVideo?: {
     id: string;
     name?: string | null;
@@ -84,99 +80,11 @@ type SessionState = {
     sourceId?: string | null;
     analysisSummary?: string | null;
     keyShots?: string[] | null;
+    language?: string | null;
+    videoUrl?: string | null;
+    cdnUrl?: string | null;
   };
   cloneReplacementDraft?: CloneReplacementDraft;
-};
-
-type ReferenceScene = {
-  sceneIndex: number;
-  sourceSummary: string;
-  sourceShots: ShotPrompt[];
-};
-
-const emptyShot = (subject: string, id = 1): ShotPrompt => ({
-  id,
-  time_range: '00:00 - 00:02',
-  subject,
-  context_environment: '',
-  action: '',
-  style: '',
-  camera_motion_positioning: '',
-  composition: '',
-  ambiance_colour_lighting: '',
-  audio: '',
-  dialogue: '',
-  language: 'en'
-});
-
-const extractScenesFromAnalysis = (
-  analysisResult: Record<string, unknown> | null | undefined,
-  fallbackSummary?: string | null,
-  fallbackShots?: string[] | null
-): ReferenceScene[] => {
-  if (analysisResult && typeof analysisResult === 'object') {
-    const shotsRaw = analysisToLegacyFlatShots(analysisResult);
-
-    const fromShots = shotsRaw
-      .map((shot, index) => {
-        const summary =
-          shot.first_frame_description.trim() ||
-          shot.action.trim() ||
-          shot.subject.trim() ||
-          '';
-
-        if (!summary) return null;
-
-        const sourceShot: ShotPrompt = {
-          id: Number.isFinite(Number(shot.shot_id)) ? Number(shot.shot_id) : index + 1,
-          time_range: `${shot.start_time || '00:00'} - ${shot.end_time || '00:02'}`,
-          subject: shot.subject || summary,
-          context_environment: shot.context_environment || '',
-          action: shot.action || '',
-          style: shot.style || '',
-          camera_motion_positioning: shot.camera_motion_positioning || '',
-          composition: shot.composition || '',
-          ambiance_colour_lighting: shot.ambiance_colour_lighting || '',
-          audio: shot.audio_summary || '',
-          dialogue: shot.dialogue || '',
-          language: undefined
-        };
-
-        return {
-          sceneIndex: index + 1,
-          sourceSummary: summary,
-          sourceShots: [sourceShot]
-        } satisfies ReferenceScene;
-      })
-      .filter((scene): scene is ReferenceScene => Boolean(scene));
-
-    if (fromShots.length > 0) {
-      return fromShots.slice(0, 8);
-    }
-  }
-
-  const fromFallbackShots = Array.isArray(fallbackShots)
-    ? fallbackShots
-        .map((shot, index) => {
-          if (!shot || !shot.trim()) return null;
-          return {
-            sceneIndex: index + 1,
-            sourceSummary: shot.trim(),
-            sourceShots: [emptyShot(shot.trim())]
-          } satisfies ReferenceScene;
-        })
-        .filter((scene): scene is ReferenceScene => Boolean(scene))
-    : [];
-
-  if (fromFallbackShots.length > 0) {
-    return fromFallbackShots.slice(0, 8);
-  }
-
-  return [{
-    sceneIndex: 1,
-    sourceSummary: fallbackSummary?.trim() || 'Keep the original reference structure and pacing.',
-    sourceShots: [emptyShot(fallbackSummary?.trim() || 'Main subject in frame.')]
-  }];
 };
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -289,9 +197,9 @@ const parseModelScenes = (raw: unknown): ScenePrompt[] => {
     sourceSummary: typeof scene.sourceSummary === 'string' ? scene.sourceSummary : null,
     videoPrompt: {
       shots: Array.isArray(scene.videoPrompt?.shots)
-        ? scene.videoPrompt!.shots.map((shot, shotIndex) => ({
+        ? scene.videoPrompt!.shots.map((shot, shotIndex) => normalizeProjectAgentCloneShot({
             id: Number.isFinite(Number(shot.id)) ? Number(shot.id) : shotIndex + 1,
-            time_range: typeof shot.time_range === 'string' ? shot.time_range : '00:00 - 00:02',
+            time_range: typeof shot.time_range === 'string' ? shot.time_range : undefined,
             subject: typeof shot.subject === 'string' ? shot.subject : '',
             context_environment: typeof shot.context_environment === 'string' ? shot.context_environment : '',
             action: typeof shot.action === 'string' ? shot.action : '',
@@ -300,16 +208,18 @@ const parseModelScenes = (raw: unknown): ScenePrompt[] => {
             composition: typeof shot.composition === 'string' ? shot.composition : '',
             ambiance_colour_lighting: typeof shot.ambiance_colour_lighting === 'string' ? shot.ambiance_colour_lighting : '',
             audio: typeof shot.audio === 'string' ? shot.audio : '',
+            sfx: typeof shot.sfx === 'string' ? shot.sfx : '',
+            ambient: typeof shot.ambient === 'string' ? shot.ambient : '',
             dialogue: typeof shot.dialogue === 'string' ? shot.dialogue : '',
             language: typeof shot.language === 'string' ? shot.language : undefined
-          }))
+          }, shotIndex, 'en'))
         : []
     }
   }));
 };
 
 const generateReplacementDraft = async (input: {
-  scenes: ReferenceScene[];
+  scenes: ProjectAgentDraftSeedScene[];
   referenceSummary: string;
   avatarName?: string;
   productName?: string;
@@ -367,6 +277,8 @@ const generateReplacementDraft = async (input: {
                               composition: { type: 'string' },
                               ambiance_colour_lighting: { type: 'string' },
                               audio: { type: 'string' },
+                              sfx: { type: 'string' },
+                              ambient: { type: 'string' },
                               dialogue: { type: 'string' },
                               language: { type: 'string' }
                             },
@@ -381,6 +293,8 @@ const generateReplacementDraft = async (input: {
                               'composition',
                               'ambiance_colour_lighting',
                               'audio',
+                              'sfx',
+                              'ambient',
                               'dialogue'
                             ],
                             additionalProperties: false
@@ -405,8 +319,8 @@ const generateReplacementDraft = async (input: {
         {
           role: 'system',
           content: [
-            'You are rewriting clone prompts while preserving original shot structure.',
-            'Output must preserve scene order and source intent.',
+            'You are rewriting clone prompts while preserving original Kling scene structure.',
+            'Output must preserve scene order, shot count per scene, and the exact time_range of every shot.',
             avatarToken
               ? `Character replacement must explicitly use token in imagePrompt and shot fields: ${avatarToken}.`
               : 'Do not use any @character(...) token.',
@@ -417,7 +331,8 @@ const generateReplacementDraft = async (input: {
             'imagePrompt must stay scene-specific (subject + environment + action) and must not repeat the same boilerplate sentence across scenes.',
             'Do not use trailing templates like ", featuring @character(...) interacting with @product(...)".',
             'Write a normal fluent prompt first, then embed mention tokens only at the noun phrase positions.',
-            'Each shot must include: subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_colour_lighting, audio, dialogue, time_range.',
+            'Do not invent extra shots, do not merge scenes, and do not change any provided time_range.',
+            'Each shot must include: subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_colour_lighting, audio, sfx, ambient, dialogue, time_range.',
             'Apply avatar/product replacement inside video shot fields too. Do not leave original role words (e.g. woman/man) when replacement is selected.',
             'Keep fields concise but specific.'
           ].join(' ')
@@ -456,46 +371,75 @@ const generateReplacementDraft = async (input: {
     throw new Error('Model returned empty scene draft list.');
   }
 
-  return parsedContent.map((scene, index) => {
-    let imagePrompt = scene.imagePrompt || '';
-    let shots = scene.videoPrompt.shots.length > 0
-      ? scene.videoPrompt.shots
-      : (input.scenes[index]?.sourceShots ?? []);
+  return input.scenes.map((seedScene, index) => {
+    const scene = parsedContent[index] || {
+      sceneIndex: seedScene.sceneIndex,
+      imagePrompt: seedScene.imagePrompt,
+      isContinuation: seedScene.isContinuation,
+      sourceSummary: seedScene.sourceSummary || '',
+      videoPrompt: {
+        shots: seedScene.videoPrompt.shots,
+      },
+    };
+    const seedShots = seedScene.videoPrompt.shots || [];
+    const aiShots = scene.videoPrompt.shots || [];
+    let imagePrompt = scene.imagePrompt || seedScene.imagePrompt || '';
     imagePrompt = injectMentionsInline({
       imagePrompt,
-      fallbackSummary: scene.sourceSummary || input.scenes[index]?.sourceSummary || '',
+      fallbackSummary: scene.sourceSummary || seedScene.sourceSummary || seedScene.imagePrompt || '',
       avatarToken,
       productToken,
       avatarName: input.avatarName,
       productName: input.productName
     });
 
-    shots = shots.map((shot) => ({
-      ...shot,
-      subject: buildShotSubject({
-        subject: shot.subject || '',
-        sourceSummary: scene.sourceSummary || input.scenes[index]?.sourceSummary || '',
-        avatarToken,
-        productToken,
-        avatarName: input.avatarName,
-        productName: input.productName
-      }),
-      context_environment: transformShotFieldInline(shot.context_environment || '', mentionContext),
-      action: transformShotFieldInline(shot.action || '', mentionContext, { forceAvatar: Boolean(input.avatarName), forceProduct: Boolean(input.productName) }),
-      style: transformShotFieldInline(shot.style || '', mentionContext),
-      camera_motion_positioning: transformShotFieldInline(shot.camera_motion_positioning || '', mentionContext),
-      composition: transformShotFieldInline(shot.composition || '', mentionContext),
-      ambiance_colour_lighting: transformShotFieldInline(shot.ambiance_colour_lighting || '', mentionContext),
-      audio: transformShotFieldInline(shot.audio || '', mentionContext),
-      dialogue: transformShotFieldInline(shot.dialogue || '', mentionContext)
-    }));
+    const shotCount = Math.max(1, seedShots.length || aiShots.length || 1);
+    const shots = Array.from({ length: shotCount }, (_, shotIndex) => {
+      const seedShot = seedShots[shotIndex] || seedShots[seedShots.length - 1];
+      const aiShot = aiShots[shotIndex] || aiShots[aiShots.length - 1] || seedShot;
+      const sourceSummary = scene.sourceSummary || seedScene.sourceSummary || seedScene.imagePrompt || '';
+      const sfx = transformShotFieldInline(aiShot?.sfx || seedShot?.sfx || '', mentionContext);
+      const ambient = transformShotFieldInline(aiShot?.ambient || seedShot?.ambient || '', mentionContext);
+      const normalizedShot = normalizeProjectAgentCloneShot({
+        ...seedShot,
+        ...aiShot,
+        id: shotIndex + 1,
+        time_range: seedShot?.time_range || aiShot?.time_range,
+        subject: buildShotSubject({
+          subject: aiShot?.subject || seedShot?.subject || '',
+          sourceSummary,
+          avatarToken,
+          productToken,
+          avatarName: input.avatarName,
+          productName: input.productName
+        }),
+        context_environment: transformShotFieldInline(aiShot?.context_environment || seedShot?.context_environment || '', mentionContext),
+        action: transformShotFieldInline(aiShot?.action || seedShot?.action || '', mentionContext, {
+          forceAvatar: Boolean(input.avatarName),
+          forceProduct: Boolean(input.productName)
+        }),
+        style: transformShotFieldInline(aiShot?.style || seedShot?.style || '', mentionContext),
+        camera_motion_positioning: transformShotFieldInline(aiShot?.camera_motion_positioning || seedShot?.camera_motion_positioning || '', mentionContext),
+        composition: transformShotFieldInline(aiShot?.composition || seedShot?.composition || '', mentionContext),
+        ambiance_colour_lighting: transformShotFieldInline(aiShot?.ambiance_colour_lighting || seedShot?.ambiance_colour_lighting || '', mentionContext),
+        sfx,
+        ambient,
+        audio: buildProjectAgentLegacyAudioField({ sfx, ambient }),
+        dialogue: transformShotFieldInline(aiShot?.dialogue || seedShot?.dialogue || '', mentionContext),
+        language: aiShot?.language || seedShot?.language || 'en',
+      }, shotIndex, seedShot?.language || aiShot?.language || 'en');
+      return {
+        ...normalizedShot,
+        audio: buildProjectAgentLegacyAudioField(normalizedShot),
+      };
+    });
 
     return {
-      sceneIndex: scene.sceneIndex,
+      sceneIndex: seedScene.sceneIndex,
       imagePrompt,
-      isContinuation: typeof scene.isContinuation === 'boolean' ? scene.isContinuation : index > 0,
+      isContinuation: typeof seedScene.isContinuation === 'boolean' ? seedScene.isContinuation : index > 0,
       videoPrompt: { shots },
-      sourceSummary: scene.sourceSummary || input.scenes[index]?.sourceSummary || null
+      sourceSummary: scene.sourceSummary || seedScene.sourceSummary || null
     } satisfies ScenePrompt;
   });
 };
@@ -530,28 +474,38 @@ const applySceneAssignmentsToGeneratedScenes = (input: {
       productName: productName || undefined
     });
 
-    const shots = (scene.videoPrompt?.shots || []).map((shot) => ({
-      ...shot,
+    const shots = (scene.videoPrompt?.shots || []).map((shot, shotIndex) => {
+      const normalizedShot = normalizeProjectAgentCloneShot(shot, shotIndex, shot.language || 'en');
+      const sfx = transformShotFieldInline(normalizedShot.sfx || '', mentionContext);
+      const ambient = transformShotFieldInline(normalizedShot.ambient || '', mentionContext);
+      return {
+      ...normalizedShot,
       subject: buildShotSubject({
-        subject: shot.subject || '',
+        subject: normalizedShot.subject || '',
         sourceSummary: scene.sourceSummary || scene.imagePrompt || '',
         avatarToken,
         productToken,
         avatarName,
         productName
       }),
-      context_environment: transformShotFieldInline(shot.context_environment || '', mentionContext),
-      action: transformShotFieldInline(shot.action || '', mentionContext, {
+      context_environment: transformShotFieldInline(normalizedShot.context_environment || '', mentionContext),
+      action: transformShotFieldInline(normalizedShot.action || '', mentionContext, {
         forceAvatar: Boolean(avatarToken),
         forceProduct: Boolean(productToken)
       }),
-      style: transformShotFieldInline(shot.style || '', mentionContext),
-      camera_motion_positioning: transformShotFieldInline(shot.camera_motion_positioning || '', mentionContext),
-      composition: transformShotFieldInline(shot.composition || '', mentionContext),
-      ambiance_colour_lighting: transformShotFieldInline(shot.ambiance_colour_lighting || '', mentionContext),
-      audio: transformShotFieldInline(shot.audio || '', mentionContext),
-      dialogue: transformShotFieldInline(shot.dialogue || '', mentionContext)
-    }));
+      style: transformShotFieldInline(normalizedShot.style || '', mentionContext),
+      camera_motion_positioning: transformShotFieldInline(normalizedShot.camera_motion_positioning || '', mentionContext),
+      composition: transformShotFieldInline(normalizedShot.composition || '', mentionContext),
+      ambiance_colour_lighting: transformShotFieldInline(normalizedShot.ambiance_colour_lighting || '', mentionContext),
+      sfx,
+      ambient,
+      dialogue: transformShotFieldInline(normalizedShot.dialogue || '', mentionContext),
+      audio: buildProjectAgentLegacyAudioField({
+        sfx,
+        ambient,
+      })
+    };
+    });
 
     return {
       ...scene,
@@ -743,10 +697,65 @@ export async function POST(request: NextRequest) {
 
     const avatarSelection = getPrimaryCloneSelection(avatarSelections);
     const productSelection = getPrimaryCloneSelection(productSelections);
-    const sceneCount = Math.max(
-      Array.isArray(state.cloneReplacementDraft?.scenes) ? state.cloneReplacementDraft.scenes.length : 0,
-      1
-    );
+    const avatarById = new Map(avatarSelections.map((avatar) => [avatar.id, { name: avatar.name }] as const));
+    const productById = new Map(productSelections.map((product) => [product.id, { name: product.name }] as const));
+
+    const referenceSourceType = reference.sourceType || 'creator';
+    const referenceSourceId = reference.sourceId || reference.id;
+    const referenceVideoId = reference.id || reference.sourceId;
+
+    let analysisResult: Record<string, unknown> | null = null;
+    let referenceDurationSeconds: number | null = null;
+
+    if (referenceSourceType === 'competitor_ad') {
+      // Schema verified via Supabase MCP (2026-02-11): competitor_ads includes id,user_id,analysis_result.
+      const { data: competitorAd } = await supabase
+        .from('competitor_ads')
+        .select('id,analysis_result,video_duration_seconds')
+        .eq('id', referenceSourceId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      analysisResult = (competitorAd?.analysis_result as Record<string, unknown> | null) || null;
+      referenceDurationSeconds = Number(competitorAd?.video_duration_seconds || 0) || null;
+    } else {
+      // Schema verified via Supabase MCP (2026-02-11): creator_source_videos includes id,user_id,source_id,analysis_result.
+      let creatorVideo: { id: string; analysis_result: unknown; duration_seconds?: number | null } | null = null;
+      if (referenceVideoId) {
+        const { data } = await supabase
+          .from('creator_source_videos')
+          .select('id,analysis_result,duration_seconds')
+          .eq('id', referenceVideoId)
+          .eq('user_id', userId)
+          .maybeSingle();
+        creatorVideo = data as { id: string; analysis_result: unknown; duration_seconds?: number | null } | null;
+      }
+
+      // Backward compatibility for sessions that mistakenly persisted source_id.
+      if (!creatorVideo && referenceSourceId) {
+        const { data } = await supabase
+          .from('creator_source_videos')
+          .select('id,analysis_result,duration_seconds')
+          .eq('source_id', referenceSourceId)
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        creatorVideo = data as { id: string; analysis_result: unknown; duration_seconds?: number | null } | null;
+      }
+
+      analysisResult = (creatorVideo?.analysis_result as Record<string, unknown> | null) || null;
+      referenceDurationSeconds = Number(creatorVideo?.duration_seconds || 0) || null;
+    }
+
+    const seedPlan = buildProjectAgentCloneDraftSeeds({
+      analysisResult,
+      fallbackSummary: reference.analysisSummary,
+      fallbackShots: reference.keyShots,
+      referenceDurationSeconds,
+      language: state.language || reference.language || 'en'
+    });
+    const scenes = seedPlan.scenes;
+    const sceneCount = Math.max(scenes.length, 1);
     const sceneAssignments = (
       incomingAssignments.length > 0
         ? incomingAssignments
@@ -756,58 +765,6 @@ export async function POST(request: NextRequest) {
             productIds: productSelections.map((product) => product.id),
             existingAssignments: existingSceneAssignments
           })
-    );
-    const avatarById = new Map(avatarSelections.map((avatar) => [avatar.id, { name: avatar.name }] as const));
-    const productById = new Map(productSelections.map((product) => [product.id, { name: product.name }] as const));
-
-    const referenceSourceType = reference.sourceType || 'creator';
-    const referenceSourceId = reference.sourceId || reference.id;
-    const referenceVideoId = reference.id || reference.sourceId;
-
-    let analysisResult: Record<string, unknown> | null = null;
-
-    if (referenceSourceType === 'competitor_ad') {
-      // Schema verified via Supabase MCP (2026-02-11): competitor_ads includes id,user_id,analysis_result.
-      const { data: competitorAd } = await supabase
-        .from('competitor_ads')
-        .select('id,analysis_result')
-        .eq('id', referenceSourceId)
-        .eq('user_id', userId)
-        .maybeSingle();
-      analysisResult = (competitorAd?.analysis_result as Record<string, unknown> | null) || null;
-    } else {
-      // Schema verified via Supabase MCP (2026-02-11): creator_source_videos includes id,user_id,source_id,analysis_result.
-      let creatorVideo: { id: string; analysis_result: unknown } | null = null;
-      if (referenceVideoId) {
-        const { data } = await supabase
-          .from('creator_source_videos')
-          .select('id,analysis_result')
-          .eq('id', referenceVideoId)
-          .eq('user_id', userId)
-          .maybeSingle();
-        creatorVideo = data as { id: string; analysis_result: unknown } | null;
-      }
-
-      // Backward compatibility for sessions that mistakenly persisted source_id.
-      if (!creatorVideo && referenceSourceId) {
-        const { data } = await supabase
-          .from('creator_source_videos')
-          .select('id,analysis_result')
-          .eq('source_id', referenceSourceId)
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        creatorVideo = data as { id: string; analysis_result: unknown } | null;
-      }
-
-      analysisResult = (creatorVideo?.analysis_result as Record<string, unknown> | null) || null;
-    }
-
-    const scenes = extractScenesFromAnalysis(
-      analysisResult,
-      reference.analysisSummary,
-      reference.keyShots
     );
 
     const generatedScenes = await generateReplacementDraft({
@@ -846,6 +803,7 @@ export async function POST(request: NextRequest) {
 
     const nextState: SessionState = {
       ...state,
+      videoModel: 'kling_3',
       cloneReplacementDraft
     };
 
@@ -868,9 +826,11 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Project Agent] clone-replacement-draft error:', error);
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    const status = /up to 60 seconds|required|not found/i.test(message) ? 400 : 500;
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }

@@ -5,12 +5,15 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { CheckCircle2, ChevronDown, Clapperboard, Image as ImageIcon, Loader2, Sparkles } from 'lucide-react';
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
 import {
-  CLONE_PROMPT_SHOT_FIELDS,
+  CLONE_PROMPT_SHOT_FIELD_GROUPS,
   PromptFieldLabel,
+  PromptSectionHeading,
   PromptShotLabel,
+  PromptTimeLabel,
   promptUi
 } from '@/components/project-agent/prompt-ui';
 import type { CloneExecutionSegment, CloneExecutionSegmentPrompt } from '@/components/project-agent/CloneSceneReviewStep';
+import { createProjectAgentCloneShot } from '@/lib/project-agent/clone-prompt-schema';
 
 type MentionOption = {
   id: string;
@@ -37,20 +40,7 @@ const normalizePrompt = (segment: CloneExecutionSegment): CloneExecutionSegmentP
   return {
     first_frame_description: '',
     is_continuation_from_prev: segment.segmentIndex > 0,
-    shots: [{
-      id: 1,
-      time_range: '00:00 - 00:08',
-      subject: '',
-      context_environment: '',
-      action: '',
-      style: '',
-      camera_motion_positioning: '',
-      composition: '',
-      ambiance_colour_lighting: '',
-      audio: '',
-      dialogue: '',
-      language: 'en'
-    }]
+    shots: [createProjectAgentCloneShot(1)]
   };
 };
 
@@ -79,11 +69,11 @@ export default function CloneMergedVideoReviewStep({
           <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Step 5</p>
           <p className="text-sm font-semibold text-[#2a2a28] inline-flex items-center gap-1.5">
             <Clapperboard className="h-4 w-4" />
-            Final Video Merge Review
+            Final Video Review
           </p>
           <p className="text-xs text-[#787876] mt-1">
             {isCompleted
-              ? 'Final merged video is ready. Download is available in My Ads.'
+              ? 'Final video is ready. Download is available in My Ads.'
               : 'Final video creation is in progress. Please wait a few seconds, then check My Ads for details and download.'}
           </p>
         </div>
@@ -93,7 +83,7 @@ export default function CloneMergedVideoReviewStep({
           ) : (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           )}
-          <span>{isCompleted ? 'Ready' : 'Merging'}</span>
+          <span>{isCompleted ? 'Ready' : 'Creating final video'}</span>
         </div>
       </div>
 
@@ -109,8 +99,8 @@ export default function CloneMergedVideoReviewStep({
               />
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center px-6 text-center text-[#8d8d8a]">
-                <Loader2 className="h-5 w-5 animate-spin mb-2" />
-                <p className="text-sm font-medium text-[#5d5d5a]">Merging final video...</p>
+                <Loader2 className="mb-2 h-5 w-5 animate-spin" />
+                <p className="text-sm font-medium text-[#5d5d5a]">Creating final video...</p>
                 <p className="mt-1 text-xs">The merged preview will appear here automatically.</p>
               </div>
             )}
@@ -118,12 +108,12 @@ export default function CloneMergedVideoReviewStep({
         </div>
 
         <div className="flex min-h-[420px] flex-col gap-2 lg:min-h-0 lg:h-full">
-          <PromptShotLabel>All Scene Prompts (Image + Video)</PromptShotLabel>
-          <div className="max-h-[620px] overflow-y-auto pr-1 space-y-3 lg:max-h-none lg:min-h-0 lg:flex-1">
+          <PromptShotLabel>All Scene Prompts</PromptShotLabel>
+          <div className="max-h-[620px] space-y-3 overflow-y-auto pr-1 lg:max-h-none lg:min-h-0 lg:flex-1">
             {segments.map((segment) => {
               const prompt = normalizePrompt(segment);
               return (
-                <div key={segment.segmentIndex} className={`${promptUi.sectionCard} p-3 space-y-2`}>
+                <div key={segment.segmentIndex} className={`${promptUi.sectionCard} p-3 space-y-3`}>
                   <div className="inline-flex items-center gap-1.5">
                     <Sparkles className="h-3.5 w-3.5 text-[#454543]" />
                     <span className="text-sm font-semibold text-[#1f1f1e]">Scene {segment.segmentIndex + 1}</span>
@@ -144,7 +134,6 @@ export default function CloneMergedVideoReviewStep({
                     />
                   </div>
 
-                  <PromptShotLabel>Video Prompt (Shot Fields)</PromptShotLabel>
                   <div className="space-y-2">
                     {prompt.shots.map((shot, shotIndex) => {
                       const shotKey = `${segment.segmentIndex}-${shotIndex}`;
@@ -155,10 +144,15 @@ export default function CloneMergedVideoReviewStep({
                           <button
                             type="button"
                             onClick={() => toggleShot(segment.segmentIndex, shotIndex)}
-                            className="group w-full text-left inline-flex items-center justify-between gap-2"
+                            className="group flex w-full items-center justify-between gap-2 text-left"
                             aria-expanded={shotExpanded}
                           >
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6f6f6d]">Shot {shotIndex + 1}</p>
+                            <div className="space-y-1">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6f6f6d]">
+                                Shot {shotIndex + 1}
+                              </p>
+                              <PromptTimeLabel>{shot.time_range}</PromptTimeLabel>
+                            </div>
                             <ChevronDown className={`h-4 w-4 text-[#787876] transition-transform duration-200 ease-out group-hover:text-[#1f1f1e] ${shotExpanded ? 'rotate-180' : 'rotate-0'}`} />
                           </button>
                           <AnimatePresence initial={false}>
@@ -173,21 +167,32 @@ export default function CloneMergedVideoReviewStep({
                                   : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                                 className="overflow-hidden"
                               >
-                                <div className="mt-2 grid gap-2 md:grid-cols-2">
-                                  {CLONE_PROMPT_SHOT_FIELDS.map((field) => (
-                                    <div key={`${segment.segmentIndex}-${shot.id}-${field.key}`} className="min-w-0">
-                                      <PromptFieldLabel icon={field.icon}>{field.label}</PromptFieldLabel>
-                                      <PromptMentionTextarea
-                                        value={String(shot[field.key] ?? '')}
-                                        onChange={() => undefined}
-                                        readOnly
-                                        rows={2}
-                                        allowWrappedMentions
-                                        preventHorizontalScroll
-                                        className={promptUi.fieldInput}
-                                        characterMentions={characterMentions}
-                                        productMentions={productMentions}
+                                <div className="mt-2 space-y-3">
+                                  {CLONE_PROMPT_SHOT_FIELD_GROUPS.map((group) => (
+                                    <div key={`${segment.segmentIndex}-${shot.id}-${group.key}`} className="rounded-2xl border border-[#e8e8e5] bg-white p-3 space-y-3">
+                                      <PromptSectionHeading
+                                        icon={group.icon}
+                                        title={group.label}
+                                        description={group.description}
                                       />
+                                      <div className="grid gap-2 md:grid-cols-2">
+                                        {group.fields.map((field) => (
+                                          <div key={`${segment.segmentIndex}-${shot.id}-${field.key}`} className="min-w-0">
+                                            <PromptFieldLabel icon={field.icon}>{field.label}</PromptFieldLabel>
+                                            <PromptMentionTextarea
+                                              value={String(shot[field.key] ?? '')}
+                                              onChange={() => undefined}
+                                              readOnly
+                                              rows={2}
+                                              allowWrappedMentions
+                                              preventHorizontalScroll
+                                              className={promptUi.shotFieldInput}
+                                              characterMentions={characterMentions}
+                                              productMentions={productMentions}
+                                            />
+                                          </div>
+                                        ))}
+                                      </div>
                                     </div>
                                   ))}
                                 </div>

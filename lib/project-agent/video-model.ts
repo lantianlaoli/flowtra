@@ -9,15 +9,31 @@ export const PROJECT_AGENT_VIDEO_MODELS: VideoModel[] = [
   'veo3'
 ];
 
-export function isProjectAgentVideoModel(value: unknown): value is VideoModel {
-  return typeof value === 'string' && PROJECT_AGENT_VIDEO_MODELS.includes(value as VideoModel);
+export const PROJECT_AGENT_CLONE_VIDEO_MODELS: VideoModel[] = ['kling_3'];
+
+export function getProjectAgentVideoModels(intent?: ProjectAgentIntent): VideoModel[] {
+  if (intent === 'competitor_ugc_replication') {
+    return PROJECT_AGENT_CLONE_VIDEO_MODELS;
+  }
+  return PROJECT_AGENT_VIDEO_MODELS;
+}
+
+export function isProjectAgentVideoModel(
+  value: unknown,
+  intent?: ProjectAgentIntent
+): value is VideoModel {
+  return typeof value === 'string' && getProjectAgentVideoModels(intent).includes(value as VideoModel);
 }
 
 export function normalizeProjectAgentVideoModel(
   value: unknown,
-  fallback: VideoModel = 'veo3_fast'
+  fallback: VideoModel = 'veo3_fast',
+  intent?: ProjectAgentIntent
 ): VideoModel {
-  return isProjectAgentVideoModel(value) ? value : fallback;
+  if (intent === 'competitor_ugc_replication') {
+    return 'kling_3';
+  }
+  return isProjectAgentVideoModel(value, intent) ? value : fallback;
 }
 
 export function getEffectiveProjectAgentVideoModel(
@@ -27,12 +43,21 @@ export function getEffectiveProjectAgentVideoModel(
   if (intent === 'avatar_ads') {
     return 'veo3_fast';
   }
-  return normalizeProjectAgentVideoModel(preferredModel);
+  if (intent === 'competitor_ugc_replication') {
+    return 'kling_3';
+  }
+  return normalizeProjectAgentVideoModel(preferredModel, 'veo3_fast', intent);
 }
 
 export function isProjectAgentModelDisabledForIntent(
   model: VideoModel,
   intent: ProjectAgentIntent | undefined
 ): boolean {
-  return intent === 'avatar_ads' && model !== 'veo3_fast';
+  if (intent === 'avatar_ads') {
+    return model !== 'veo3_fast';
+  }
+  if (intent === 'competitor_ugc_replication') {
+    return model !== 'kling_3';
+  }
+  return false;
 }
