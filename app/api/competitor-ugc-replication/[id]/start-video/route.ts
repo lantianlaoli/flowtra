@@ -211,7 +211,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (!creditCheck.hasEnoughCredits) {
         return NextResponse.json(
           {
-            error: `Insufficient credits: need ${generationCost}, have ${creditCheck.currentCredits || 0}`
+            error: 'Insufficient credits',
+            requiredCredits: generationCost,
+            currentCredits: creditCheck.currentCredits || 0,
+            details: `Need ${generationCost} credits, have ${creditCheck.currentCredits || 0}`
           },
           { status: 402 }
         );
@@ -393,6 +396,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json({
       success: true,
+      generationCost,
       startedCount,
       inProgressCount,
       readyCount,
