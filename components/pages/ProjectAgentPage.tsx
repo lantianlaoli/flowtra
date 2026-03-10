@@ -41,6 +41,7 @@ import {
   getProjectAgentVideoModels,
   normalizeProjectAgentVideoModel,
 } from '@/lib/project-agent/video-model';
+import { getProjectAgentPromptChips } from '@/lib/project-agent/prompt-chips';
 import { serializeProjectAgentCloneShot } from '@/lib/project-agent/clone-prompt-schema';
 import { isStartVideoGenerationCommand } from '@/lib/project-agent/clone-workflow-control';
 import { buildWorkspaceScenes } from '@/lib/project-agent/workspace-scenes';
@@ -830,6 +831,7 @@ export default function ProjectAgentPage() {
   const [cloneDraftReplyBaseline, setCloneDraftReplyBaseline] = useState(0);
   const [retryableUserMessageId, setRetryableUserMessageId] = useState<string | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const historyPopoverRef = useRef<HTMLDivElement | null>(null);
   const isStreamingRef = useRef(false);
   const lastPersistedMessagesSignatureRef = useRef('');
@@ -853,6 +855,27 @@ export default function ProjectAgentPage() {
     hasCloneModelLockState(sessionState)
   );
   const modelSelectorIntent = resolveProjectAgentModelIntent(sessionState, isCloneModelLockedContext);
+  const promptChipSuggestions = useMemo(() => getProjectAgentPromptChips({
+    intent: sessionState?.intent,
+    step: sessionState?.step,
+    projectId: sessionState?.projectId,
+    cloneReferenceVideo: sessionState?.cloneReferenceVideo
+      ? { id: sessionState.cloneReferenceVideo.id }
+      : null,
+    cloneReplacementDraft: sessionState?.cloneReplacementDraft
+      ? {
+          status: sessionState.cloneReplacementDraft.status,
+          scenes: sessionState.cloneReplacementDraft.scenes
+        }
+      : null,
+    cloneExecution: sessionState?.cloneExecution
+      ? {
+          projectId: sessionState.cloneExecution.projectId,
+          phase: sessionState.cloneExecution.phase,
+          mergedVideoUrl: sessionState.cloneExecution.mergedVideoUrl
+        }
+      : null
+  }), [sessionState]);
 
   const ensureHistoryTracked = useCallback((id: string, options?: { prependIfNew?: boolean }) => {
     const ids = readHistoryIds();
@@ -1780,6 +1803,32 @@ export default function ProjectAgentPage() {
   }, [ensureHistoryTracked, setMessages]);
 
   const isReady = Boolean(sessionId);
+  const handlePromptChipClick = useCallback((value: string) => {
+    if (
+      !isReady ||
+      Boolean(pendingUserText) ||
+      isStreaming ||
+      awaitingCloneEntryReply ||
+      awaitingCloneStructureReply ||
+      awaitingCloneDraftReply ||
+      isGeneratingCloneProject
+    ) {
+      return;
+    }
+    setDraft(value);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(value.length, value.length);
+    });
+  }, [
+    awaitingCloneDraftReply,
+    awaitingCloneEntryReply,
+    awaitingCloneStructureReply,
+    isGeneratingCloneProject,
+    isReady,
+    isStreaming,
+    pendingUserText
+  ]);
   const displayMessages = useMemo(() => dedupeConversationMessages(messages), [messages]);
   const persistVisibleMessages = useCallback(async (sourceMessages: UIMessage[]) => {
     if (!sessionId) return;
@@ -3230,6 +3279,21 @@ export default function ProjectAgentPage() {
               </div>
 
               <div className="border-t border-[#e6e6e4] px-4 py-4">
+                {promptChipSuggestions.chips.length > 0 ? (
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    {promptChipSuggestions.chips.map((chip) => (
+                      <button
+                        key={`${promptChipSuggestions.stageKey}:${chip}`}
+                        type="button"
+                        onClick={() => handlePromptChipClick(chip)}
+                        disabled={!isReady || awaitingAssistantTurn}
+                        className="inline-flex items-center rounded-full border border-[#d9d9d7] bg-[#f7f7f5] px-3 py-1.5 text-xs font-medium text-[#4c4c49] transition hover:border-[#bfbfbb] hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="flex items-start justify-between gap-3">
                   <ProjectAgentModelSelector
                     selectedModel={selectedVideoModel}
@@ -3242,6 +3306,7 @@ export default function ProjectAgentPage() {
                   className="mt-3 flex items-center gap-2 rounded-[26px] border border-[#d9d9d7] bg-white p-2 shadow-[0_18px_40px_rgba(15,15,15,0.06)]"
                 >
                   <input
+                    ref={inputRef}
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
                     placeholder="Ask Flowgen what to make viral next..."
