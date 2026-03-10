@@ -1454,7 +1454,11 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
       // Clone projects now seed prompts for manual editing first.
       // Defer billing until the user explicitly starts video generation.
-      if (generationCost > 0 && !isReferenceCloneCreate) {
+      if (
+        generationCost > 0 &&
+        !isReferenceCloneCreate &&
+        request.requestSource !== 'project_agent_clone'
+      ) {
         // Check if user has enough credits
         const creditCheck = await checkCredits(request.userId, generationCost);
         if (!creditCheck.success) {

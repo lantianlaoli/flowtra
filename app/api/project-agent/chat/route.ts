@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { convertToModelMessages, generateText, jsonSchema, stepCountIs, streamText, tool, type UIMessage } from 'ai';
+import {
+  convertToModelMessages,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  generateText,
+  jsonSchema,
+  stepCountIs,
+  streamText,
+  tool,
+  type UIMessage
+} from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { getSupabaseAdmin, normalizeAvatarPhotoSet } from '@/lib/supabase';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
@@ -35,6 +45,11 @@ import {
   getEffectiveProjectAgentVideoModel,
   normalizeProjectAgentVideoModel
 } from '@/lib/project-agent/video-model';
+import {
+  decideNextCloneFollowup,
+  getNextCloneCanonicalGuidance,
+  getNextCloneClarificationReply
+} from '@/lib/project-agent/next-clone-intent';
 import {
   cloneDraftSceneToSegmentPrompt,
   getProjectAgentSegmentPromptDurationSeconds,
@@ -222,29 +237,51 @@ const isRegenerateFrameCommand = (text: string) => {
   return /regenerate\s+(scene|shot|frame)\s*#?\s*\d+|regenerate\s*#?\s*\d+\s*(scene|shot|frame)/i.test(normalized);
 };
 
+const CLONE_WORKSPACE_STATUS_KEYWORD_REGEX = /\b(frame|frames|image|images|photo|photos|video|videos|scene|scenes|shot|shots|prompt|prompts|timing|preview|regenerate|retry|render|ready|start)\b/i;
+
+const shouldSyncCloneWorkspaceStatus = (state: SessionState, text: string) => {
+  if (state.intent !== 'competitor_ugc_replication') {
+    return false;
+  }
+
+  const hasWorkspaceContext = Boolean(
+    state.cloneExecution?.projectId ||
+    (state.cloneReplacementDraft?.status === 'ready' &&
+      Array.isArray(state.cloneReplacementDraft?.scenes) &&
+      state.cloneReplacementDraft.scenes.length > 0)
+  );
+  if (!hasWorkspaceContext) {
+    return false;
+  }
+
+  return (
+    CLONE_WORKSPACE_STATUS_KEYWORD_REGEX.test(text) ||
+    isStartFrameGenerationCommand(text) ||
+    isStartVideoGenerationCommand(text) ||
+    isRegenerateFrameCommand(text) ||
+    isRegenerateVideoCommand(text) ||
+    isMergeIntentCommand(text)
+  );
+};
+
+const summarizeCloneExecutionSegments = (state: SessionState) => {
+  const segments = Array.isArray(state.cloneExecution?.segments) ? state.cloneExecution.segments : [];
+  if (segments.length === 0) {
+    return 'none';
+  }
+
+  return segments.map((segment) => {
+    const frameState = segment.firstFrameUrl ? 'ready' : 'missing';
+    const videoState = segment.videoUrl ? 'ready' : 'missing';
+    const errorState = segment.errorMessage ? `, error=${segment.errorMessage}` : '';
+    return `scene ${segment.segmentIndex + 1}: status=${segment.status}, frame=${frameState}, video=${videoState}${errorState}`;
+  }).join(' | ');
+};
+
 const isReferenceSelectionMessage = (text: string) => {
   const normalized = text.trim();
   if (!normalized) return false;
   return /^i selected ".*" as the reference video for clone\.$/i.test(normalized);
-};
-
-const isFreshCloneIntentMessage = (text: string) => {
-  const normalized = text.trim().toLowerCase();
-  if (!normalized) return false;
-  if (isReferenceSelectionMessage(text)) return false;
-  if (
-    isMergeIntentCommand(text) ||
-    isMergeConfirmationCommand(text) ||
-    isReplacementConfirmationCommand(text) ||
-    isRegenerateVideoCommand(text) ||
-    isStartVideoGenerationCommand(text) ||
-    isStartFrameGenerationCommand(text) ||
-    isRegenerateFrameCommand(text)
-  ) {
-    return false;
-  }
-
-  return /\b(clone|viral|competitor|ugc)\b/i.test(normalized);
 };
 
 const hasVideoGenerationSignal = (state: SessionState) => {
@@ -334,9 +371,13 @@ const buildWorkflowFallbackReply = async (input: {
       'Do not use canned or template wording.',
       'Always provide clear next actions.',
       'Reply in English only.',
+      'Never mention Export buttons, Rerun buttons, or any removed controls.',
       'When replacements are confirmed and draft/scene workspace is available, tell the user exactly what to do next:',
       'review/edit scene prompts on the left, then say "start frame generation", then after frame review say "start video generation".',
-      'If generation is already running, summarize progress and the next valid command.'
+      'If generation is already running, summarize progress and the next valid command.',
+      `If scene videos are generating or partially ready, explicitly tell the user that once all scene videos are ready, the next chat command is "${MERGE_CONFIRMATION_TOKEN}" to create the final video.`,
+      `If all scene videos are ready, explicitly tell the user to reply "${MERGE_CONFIRMATION_TOKEN}" so you can create the final video.`,
+      `If the final video is already created or being created, always add this guidance: ${getNextCloneCanonicalGuidance()}`
     ].join(' '),
     prompt: JSON.stringify({
       latestUserTurn: input.latestUserTurnText,
@@ -558,6 +599,7 @@ const buildSystemPrompt = (state: SessionState) => {
   const cloneExecutionPhase = state.cloneExecution?.phase || 'idle';
   const cloneExecutionSegments = Array.isArray(state.cloneExecution?.segments) ? state.cloneExecution?.segments.length : 0;
   const cloneExecutionMergedVideo = state.cloneExecution?.mergedVideoUrl || 'not ready';
+  const cloneExecutionSegmentSummary = summarizeCloneExecutionSegments(state);
   const pendingMergeConfirmation = state.pendingMergeConfirmation?.projectId
     ? `${state.pendingMergeConfirmation.token} (${state.pendingMergeConfirmation.projectId})`
     : 'none';
@@ -607,6 +649,12 @@ Workflow rules:
 - Terminology rule (strict): never use "brand", "your brand", "branding", or "brand identity" in user-facing copy for this flow.
 - Terminology rule (strict): frame replacements as avatar/person and/or product based on user intent.
 - Terminology rule (strict): avoid technical words like "merge" in user-facing replies; use "create final video" or "finish video" instead.
+- UI guidance rule (strict): never tell the user to click "Export", "Rerun", or any removed clone controls. Clone execution commands must be chat-based.
+- Billing rule (strict): in project-agent clone flow, frame generation is free and must never be blocked for insufficient user credits. Video generation is the paid step; when video generation or scene-video regeneration starts, clearly state the exact credits required if the tool result includes that amount.
+- Tool result rule (strict): never claim an action has started, completed, or succeeded when the tool result says success=false.
+- Tool result rule (strict): if a clone video tool fails because credits are insufficient, explicitly say video generation did not start, then state the exact required credits and current credits from the tool result.
+- Next-clone rule (strict): after a clone is finished, only start a new clone when the user clearly asks for a new one, such as "clone another video" or "show more reference videos".
+- Next-clone rule (strict): vague follow-ups like "again", "another one", or "next" must not reset the current case automatically. Ask a short clarification instead.
 - Positioning rule: speak like a growth operator who helps users ship viral ads quickly, not like a generic tech support bot.
 - If the user uses "brand" in their input, reinterpret it to product/avatar intent and confirm that selection using product/avatar wording.
 - Collect missing required inputs before execution.
@@ -658,9 +706,11 @@ Workflow rules:
   25) Never instruct clicking any "confirm" control on the left panel. Replacement confirmation is chat-only via token "${REPLACEMENT_CONFIRMATION_TOKEN}". During clone execution phases, never instruct clicking removed buttons. Use command-style guidance.
   26) If cloneReplacementDraft.status is ready and user asks to start generation, call startCloneGenerationFromDraft only after confirmation gate passes. If user asks to regenerate frames, call regenerateCloneFrames. If user asks to regenerate scene videos, call regenerateCloneVideos. If user asks to start video generation after frame review, call startCloneVideoGeneration.
   25.1) For final-video requests in clone flow: first ask for confirmation token "${MERGE_CONFIRMATION_TOKEN}" and do not start final-video creation immediately. Only call mergeCloneVideos after the user sends the confirmation token.
+  26.1) If cloneExecutionPhase is "generating_videos", "reviewing_frames", or "awaiting_merge", always make the final step explicit: after all scene videos are ready, the user must send "${MERGE_CONFIRMATION_TOKEN}" in chat so you can create the final video.
+  26.2) If a single scene video is regenerated while others are already ready, explain that once the regenerated scene finishes and all scene videos look good, the next chat command is "${MERGE_CONFIRMATION_TOKEN}" to create the final video.
   27) Download guidance rule: after final-video creation starts or when cloneExecutionPhase is "completed", explicitly tell the user to check "My Ads" to view/download the final video.
-  27.1) When final-video creation starts for a clone project, say it has started, ask the user to wait about 10-20 seconds, send them to "My Ads" for details/download, and invite them to start cloning the next video.
-  28) If user asks where to download the finished clone video, answer directly: "Please go to My Ads to view and download it."
+  27.1) When final-video creation starts for a clone project, say it has started, ask the user to wait about 10-20 seconds, send them to "My Ads" for details/download, and add this exact guidance: "${getNextCloneCanonicalGuidance()}"
+  28) If user asks where to download the finished clone video, answer directly: "Please go to My Ads to view and download it." Then add: "${getNextCloneCanonicalGuidance()}"
   29) If matching is uncertain, present top likely candidates and ask a short clarification question; do not proceed to generation.
 - If the user picks motion_swap, collect requirements and guide to the existing workflow entrypoint.
 - When user asks what workflows are available, always list ALL three:
@@ -685,6 +735,7 @@ Current state:
 - Replacement Confirmation Token: ${REPLACEMENT_CONFIRMATION_TOKEN}
 - Clone Execution Phase: ${cloneExecutionPhase}
 - Clone Execution Segments: ${cloneExecutionSegments}
+- Clone Execution Segment Summary: ${cloneExecutionSegmentSummary}
 - Clone Execution Merged Video URL: ${cloneExecutionMergedVideo}
 - Pending Merge Confirmation: ${pendingMergeConfirmation}
 - Custom Dialogue: ${dialogueLabel}
@@ -929,11 +980,18 @@ export async function POST(request: Request) {
       )
     ]);
 
-    const shouldResetCloneSession = (
+    const nextCloneFollowupDecision = (
       sessionState.intent === 'competitor_ugc_replication' &&
       Boolean(sessionState.cloneReferenceVideo?.id) &&
-      isFreshCloneIntentMessage(messageText(normalizedIncomingMessage))
-    );
+      !isReferenceSelectionMessage(messageText(normalizedIncomingMessage))
+    )
+      ? decideNextCloneFollowup(messageText(normalizedIncomingMessage), {
+          phase: sessionState.cloneExecution?.phase,
+          mergedVideoUrl: sessionState.cloneExecution?.mergedVideoUrl
+        })
+      : 'none';
+
+    const shouldResetCloneSession = nextCloneFollowupDecision === 'reset';
 
     if (shouldResetCloneSession) {
       sessionState = buildFreshCloneState(sessionState);
@@ -972,6 +1030,26 @@ export async function POST(request: Request) {
       } catch (retryPersistError) {
         console.error('[Project Agent] Retry persist session messages failed:', retryPersistError);
       }
+    };
+
+    const sendDirectAssistantReply = async (replyText: string, nextState?: SessionState) => {
+      const assistantMessage: UIMessage = {
+        id: `assistant-direct-${Date.now().toString(36)}`,
+        role: 'assistant',
+        parts: [{ type: 'text', text: replyText }]
+      };
+      const messagesToPersist = dedupeMessages([...conversationMessages, assistantMessage]);
+      await persistMessagesOnly(messagesToPersist, nextState);
+
+      const stream = createUIMessageStream<UIMessage>({
+        execute: ({ writer }) => {
+          writer.write({ type: 'text-start', id: assistantMessage.id });
+          writer.write({ type: 'text-delta', id: assistantMessage.id, delta: replyText });
+          writer.write({ type: 'text-end', id: assistantMessage.id });
+        }
+      });
+
+      return createUIMessageStreamResponse({ stream });
     };
 
     if (!existingSession) {
@@ -1018,6 +1096,12 @@ export async function POST(request: Request) {
       await persistMessagesOnly(
         conversationMessages,
         statePatch && typeof statePatch === 'object' ? sessionState : undefined
+      );
+    }
+
+    if (nextCloneFollowupDecision === 'clarify-finished' || nextCloneFollowupDecision === 'clarify-in-progress') {
+      return sendDirectAssistantReply(
+        getNextCloneClarificationReply(nextCloneFollowupDecision)
       );
     }
 
@@ -1150,6 +1234,33 @@ export async function POST(request: Request) {
         photo_url: resolveAvatarPrimaryPhotoUrl(avatar)
       }));
     };
+
+    if (shouldSyncCloneWorkspaceStatus(sessionState, latestUserTurnText)) {
+      const cloneProjectId = await resolveCloneProjectId();
+      if (cloneProjectId) {
+        const internalHeaders: HeadersInit = {
+          'x-project-agent-internal': '1',
+          'x-project-agent-user-id': userId
+        };
+        const workspaceStatusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${cloneProjectId}/status`, {
+          cache: 'no-store',
+          headers: internalHeaders
+        });
+        const workspaceStatusPayload = await workspaceStatusResponse.json().catch(() => ({}));
+        if (workspaceStatusResponse.ok && workspaceStatusPayload?.data) {
+          const syncedCloneExecution = toCloneExecutionFromStatusPayload(
+            cloneProjectId,
+            workspaceStatusPayload as Record<string, unknown>
+          );
+          sessionState = mergeState(sessionState, {
+            cloneExecution: syncedCloneExecution
+          });
+          await persistSession({
+            cloneExecution: syncedCloneExecution
+          });
+        }
+      }
+    }
 
     const modelContextMessages = conversationMessages.slice(-MODEL_CONTEXT_WINDOW_MESSAGES);
     const modelMessages = await convertToModelMessages(modelContextMessages);
@@ -2328,8 +2439,28 @@ export async function POST(request: Request) {
               headers: internalHeaders
             });
             const startPayload = await startResponse.json().catch(() => ({}));
+            const generationCost = typeof startPayload?.generationCost === 'number'
+              ? startPayload.generationCost
+              : undefined;
 
             if (!startResponse.ok) {
+              if (startResponse.status === 402) {
+                const requiredCredits = typeof startPayload?.requiredCredits === 'number'
+                  ? startPayload.requiredCredits
+                  : generationCost;
+                const currentCredits = typeof startPayload?.currentCredits === 'number'
+                  ? startPayload.currentCredits
+                  : undefined;
+                if (typeof requiredCredits === 'number') {
+                  return {
+                    success: false,
+                    message: typeof currentCredits === 'number'
+                      ? `Video generation did not start. It needs ${requiredCredits} credits, but you currently have ${currentCredits}. Please top up and then send "start video generation" again.`
+                      : `Video generation did not start. It needs ${requiredCredits} credits. Please top up and then send "start video generation" again.`
+                  };
+                }
+              }
+
               return { success: false, message: startPayload?.error || 'Failed to start clone video generation.' };
             }
 
@@ -2343,7 +2474,7 @@ export async function POST(request: Request) {
                 phase: 'generating_videos',
                 model: previousExecution?.model,
                 duration: previousExecution?.duration,
-                creditsCost: previousExecution?.creditsCost,
+                creditsCost: generationCost ?? previousExecution?.creditsCost,
                 error: null,
                 mergedVideoUrl: previousExecution?.mergedVideoUrl ?? null,
                 segments: previousExecution?.segments ?? []
@@ -2366,7 +2497,13 @@ export async function POST(request: Request) {
               });
             }
 
-            return { success: true, message: 'Clone video generation has started.' };
+            return {
+              success: true,
+              generationCost,
+              message: typeof generationCost === 'number'
+                ? `Clone video generation has started. This run will use ${generationCost} credits.`
+                : 'Clone video generation has started.'
+            };
           }
         }),
         regenerateCloneFrames: tool({
@@ -2699,7 +2836,7 @@ export async function POST(request: Request) {
 
             return {
               success: true,
-              message: 'Final video creation has started. Please wait about 10-20 seconds, then go to My Ads to view details and download it. If you want, you can start cloning the next video now.'
+              message: `Final video creation has started. Please wait about 10-20 seconds, then go to My Ads to view details and download it. ${getNextCloneCanonicalGuidance()}`
             };
           }
         }),
