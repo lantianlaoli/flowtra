@@ -613,19 +613,6 @@ export default function CloneSceneWorkspaceStep({
                               />
                             </div>
 
-                            <div className="rounded-2xl border border-[#ececea] bg-[#f8f8f7] p-3 space-y-2">
-                              <PromptSectionHeading
-                                icon={Sparkles}
-                                title="Kling 3 Notes"
-                                description="Keep each scene within a single 15-second generation window."
-                              />
-                              <p className="text-[11px] leading-5 text-[#6f6f6d]">
-                                Mentioned characters and products work best when they have at least 2 photos available.
-                              </p>
-                              <p className="text-[11px] leading-5 text-[#6f6f6d]">
-                                Use the ruler below to keep shot timing contiguous before frame generation starts.
-                              </p>
-                            </div>
                           </div>
 
                           <div className="space-y-3">

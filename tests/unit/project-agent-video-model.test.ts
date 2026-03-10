@@ -8,7 +8,8 @@ import {
   normalizeProjectAgentVideoModel,
 } from '@/lib/project-agent/video-model';
 
-test('clone mode exposes Kling 3 as the only selectable model', () => {
+test('project agent exposes Kling 3 as the only selectable model', () => {
+  assert.deepEqual(getProjectAgentVideoModels(), ['kling_3']);
   assert.deepEqual(getProjectAgentVideoModels('competitor_ugc_replication'), ['kling_3']);
   assert.equal(
     normalizeProjectAgentVideoModel('veo3_fast', 'veo3_fast', 'competitor_ugc_replication'),
@@ -16,6 +17,10 @@ test('clone mode exposes Kling 3 as the only selectable model', () => {
   );
   assert.equal(
     normalizeProjectAgentVideoModel('seedance_1_5_pro', 'veo3_fast', 'competitor_ugc_replication'),
+    'kling_3'
+  );
+  assert.equal(
+    normalizeProjectAgentVideoModel('veo3_fast', 'veo3_fast'),
     'kling_3'
   );
 });

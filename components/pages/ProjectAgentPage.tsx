@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import { DefaultChatTransport } from 'ai';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { ByteDance, Google, Kling } from '@lobehub/icons';
+import { Kling } from '@lobehub/icons';
 import { AlertTriangle, ArrowUpRight, Check, ChevronDown, Clapperboard, History, Loader2, Lock, MessageCircle, Package, Plus, RefreshCw, Search, Sparkles, User } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
@@ -412,29 +412,15 @@ const normalizeVideoModel = (
   raw: unknown,
   intent?: SessionState['intent']
 ): VideoModel => {
-  return normalizeProjectAgentVideoModel(raw, 'veo3_fast', intent);
+  return normalizeProjectAgentVideoModel(raw, 'kling_3', intent);
 };
 
-const MODEL_OPTION_META: Record<VideoModel, {
+const PROJECT_AGENT_MODEL_META: {
   description: string;
   icon: ComponentType<{ className?: string }>;
-}> = {
-  veo3_fast: {
-    description: 'Fast generation',
-    icon: Google
-  },
-  seedance_1_5_pro: {
-    description: 'Built-in audio',
-    icon: ByteDance
-  },
-  kling_3: {
-    description: 'Kling std mode',
-    icon: Kling
-  },
-  veo3: {
-    description: 'Premium quality',
-    icon: Google
-  }
+} = {
+  description: 'Kling std mode',
+  icon: Kling
 };
 
 function ProjectAgentModelSelector({
@@ -448,12 +434,7 @@ function ProjectAgentModelSelector({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const modelOptions = useMemo(() => {
-    if (selectedModel === 'kling_3' || intent === 'competitor_ugc_replication') {
-      return ['kling_3'] as VideoModel[];
-    }
-    return getProjectAgentVideoModels(intent);
-  }, [intent, selectedModel]);
+  const modelOptions = useMemo(() => getProjectAgentVideoModels(intent), [intent]);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -466,7 +447,7 @@ function ProjectAgentModelSelector({
     return () => window.removeEventListener('mousedown', handlePointerDown);
   }, []);
 
-  const selectedMeta = MODEL_OPTION_META[selectedModel];
+  const selectedMeta = PROJECT_AGENT_MODEL_META;
 
   return (
     <div ref={containerRef} className="relative">
@@ -498,7 +479,6 @@ function ProjectAgentModelSelector({
             aria-label="Video model"
           >
             {modelOptions.map((modelOption) => {
-              const meta = MODEL_OPTION_META[modelOption];
               const isSelected = modelOption === selectedModel;
 
               return (
@@ -517,7 +497,7 @@ function ProjectAgentModelSelector({
                 >
                   <span className="flex min-w-0 items-center gap-3">
                     <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#e6e6e4] bg-white">
-                      <meta.icon className="h-[18px] w-[18px] text-current" />
+                      <PROJECT_AGENT_MODEL_META.icon className="h-[18px] w-[18px] text-current" />
                     </span>
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium">{getVideoModelDisplayName(modelOption)}</span>
@@ -818,7 +798,7 @@ export default function ProjectAgentPage() {
 
   const [sessionId, setSessionId] = useState('');
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
-  const [selectedVideoModel, setSelectedVideoModel] = useState<VideoModel>('veo3_fast');
+  const [selectedVideoModel, setSelectedVideoModel] = useState<VideoModel>('kling_3');
   const [statusNote, setStatusNote] = useState('');
   const [draft, setDraft] = useState('');
   const [pendingUserText, setPendingUserText] = useState<string | null>(null);
@@ -860,7 +840,7 @@ export default function ProjectAgentPage() {
   const pendingCloneDraftPersistRef = useRef<Promise<void> | null>(null);
   const lastLocalVideoModelEditAtRef = useRef(0);
   const pendingVideoModelPersistRef = useRef<Promise<void> | null>(null);
-  const latestSelectedVideoModelRef = useRef<VideoModel>('veo3_fast');
+  const latestSelectedVideoModelRef = useRef<VideoModel>('kling_3');
   const prevAvatarStepRef = useRef<string | null>(null);
   const prevClonePhaseRef = useRef<SessionState['cloneExecution'] extends { phase: infer P } ? P : string | null>(null);
   const notificationPermissionRequestedRef = useRef(false);
@@ -963,7 +943,7 @@ export default function ProjectAgentPage() {
         const statePatch: Record<string, unknown> = {};
         statePatch.videoModel = normalizeProjectAgentVideoModel(
           selectedVideoModel,
-          'veo3_fast',
+          'kling_3',
           modelSelectorIntent
         );
         const hasExplicitAvatarSelection = hasExplicitCloneAvatarSelectionState(draftSelection);
@@ -1118,7 +1098,7 @@ export default function ProjectAgentPage() {
     if (!sessionId) return;
     const normalizedModel = normalizeProjectAgentVideoModel(
       model,
-      'veo3_fast',
+      'kling_3',
       modelSelectorIntent
     );
     const persistTask = (async () => {
@@ -1161,7 +1141,7 @@ export default function ProjectAgentPage() {
       if (!response.ok) {
         if (response.status === 404) {
           setSessionState(null);
-          setSelectedVideoModel('veo3_fast');
+          setSelectedVideoModel('kling_3');
         }
         return;
       }
@@ -1172,7 +1152,7 @@ export default function ProjectAgentPage() {
       const incomingModelIntent = resolveProjectAgentModelIntent(incomingState);
       const incomingVideoModel = normalizeProjectAgentVideoModel(
         incomingState?.videoModel,
-        'veo3_fast',
+        'kling_3',
         incomingModelIntent
       );
       const hasVeryRecentLocalVideoModelEdit = Date.now() - lastLocalVideoModelEditAtRef.current < 5000;
@@ -1276,7 +1256,7 @@ export default function ProjectAgentPage() {
   const handleVideoModelChange = useCallback((model: VideoModel) => {
     const normalizedModel = normalizeProjectAgentVideoModel(
       model,
-      'veo3_fast',
+      'kling_3',
       modelSelectorIntent
     );
     setStatusNote('');
@@ -1300,7 +1280,7 @@ export default function ProjectAgentPage() {
   useEffect(() => {
     const normalizedModel = normalizeProjectAgentVideoModel(
       selectedVideoModel,
-      'veo3_fast',
+      'kling_3',
       modelSelectorIntent
     );
     if (normalizedModel === selectedVideoModel) return;
@@ -1748,7 +1728,7 @@ export default function ProjectAgentPage() {
     const nextId = createSessionId();
     setSessionId(nextId);
     setSessionState(null);
-    setSelectedVideoModel('veo3_fast');
+    setSelectedVideoModel('kling_3');
     setDraft('');
     setPendingUserText(null);
     setStatusNote('');
@@ -1777,7 +1757,7 @@ export default function ProjectAgentPage() {
   const selectHistory = useCallback((targetSessionId: string) => {
     setSessionId(targetSessionId);
     setSessionState(null);
-    setSelectedVideoModel('veo3_fast');
+    setSelectedVideoModel('kling_3');
     setPendingUserText(null);
     setStatusNote('');
     setMessages([]);
@@ -2624,14 +2604,20 @@ export default function ProjectAgentPage() {
   }, [sessionId]);
 
   const handleCloneDraftChange = useCallback((scenes: CloneDraftScene[]) => {
+    const baseDraft = latestCloneDraftRef.current ?? sessionState?.cloneReplacementDraft;
+    if (!baseDraft) return;
+
+    const nextDraft: ClonePromptDraft = {
+      ...baseDraft,
+      scenes
+    };
+
+    // Keep the in-flight send/generate path aligned with the latest workspace
+    // edits even if React state has not committed yet.
+    latestCloneDraftRef.current = nextDraft;
     lastLocalCloneDraftEditAtRef.current = Date.now();
     setSessionState((prev) => {
       if (!prev?.cloneReplacementDraft) return prev;
-      const nextDraft: ClonePromptDraft = {
-        ...prev.cloneReplacementDraft,
-        scenes
-      };
-      latestCloneDraftRef.current = nextDraft;
 
       if (draftPersistTimerRef.current) {
         clearTimeout(draftPersistTimerRef.current);
@@ -2652,7 +2638,7 @@ export default function ProjectAgentPage() {
         cloneReplacementDraft: nextDraft
       };
     });
-  }, [persistCloneState]);
+  }, [persistCloneState, sessionState?.cloneReplacementDraft]);
 
   useEffect(() => () => {
     if (draftPersistTimerRef.current) {

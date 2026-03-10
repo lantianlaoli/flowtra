@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import type { VideoModel } from '@/lib/constants';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 import {
   getPrimaryCloneSelection,
@@ -71,7 +72,7 @@ type CloneReplacementDraft = {
 };
 
 type SessionState = {
-  videoModel?: 'veo3' | 'veo3_fast' | 'seedance_1_5_pro' | 'kling_3';
+  videoModel?: VideoModel;
   language?: string;
   cloneReferenceVideo?: {
     id: string;

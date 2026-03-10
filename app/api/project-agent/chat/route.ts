@@ -148,7 +148,7 @@ const DEFAULT_STATE: SessionState = {
   language: 'en',
   videoDurationSeconds: 16,
   videoAspectRatio: '9:16',
-  videoModel: 'veo3_fast'
+  videoModel: 'kling_3'
 };
 
 type CloneDraftScene = NonNullable<SessionState['cloneReplacementDraft']>['scenes'][number];
@@ -561,7 +561,7 @@ const buildSystemPrompt = (state: SessionState) => {
   const pendingMergeConfirmation = state.pendingMergeConfirmation?.projectId
     ? `${state.pendingMergeConfirmation.token} (${state.pendingMergeConfirmation.projectId})`
     : 'none';
-  const selectedVideoModel = normalizeProjectAgentVideoModel(state.videoModel, 'veo3_fast', state.intent);
+  const selectedVideoModel = normalizeProjectAgentVideoModel(state.videoModel, 'kling_3', state.intent);
   const effectiveVideoModel = getEffectiveProjectAgentVideoModel(state.intent, state.videoModel);
 
   return `You are Flowgen, the Flowtra growth agent. Core mission: "Make virality accessible."
@@ -708,7 +708,7 @@ const mergeState = (state: SessionState, patch: Partial<SessionState>) => {
 
   return {
     ...nextState,
-    videoModel: normalizeProjectAgentVideoModel(nextState.videoModel, 'veo3_fast', nextState.intent)
+    videoModel: normalizeProjectAgentVideoModel(nextState.videoModel, 'kling_3', nextState.intent)
   };
 };
 
@@ -745,7 +745,7 @@ const toCloneExecutionFromStatusPayload = (projectId: string, payload: Record<st
   }));
 
   const videoModel = data.videoModel;
-  const normalizedModel = normalizeProjectAgentVideoModel(videoModel, 'veo3_fast', 'competitor_ugc_replication');
+  const normalizedModel = normalizeProjectAgentVideoModel(videoModel, 'kling_3', 'competitor_ugc_replication');
 
   return {
     projectId,
@@ -2160,6 +2160,7 @@ export async function POST(request: Request) {
               selectedAvatarIds,
               selectedProductIds,
               videoModel: normalizedModel,
+              videoQuality: 'standard',
               videoAspectRatio: sessionState.videoAspectRatio || '9:16',
               videoDuration,
               language: sessionState.language || 'en',

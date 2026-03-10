@@ -2,19 +2,9 @@ import type { VideoModel } from '@/lib/constants';
 
 export type ProjectAgentIntent = 'avatar_ads' | 'competitor_ugc_replication' | 'motion_swap';
 
-export const PROJECT_AGENT_VIDEO_MODELS: VideoModel[] = [
-  'veo3_fast',
-  'seedance_1_5_pro',
-  'kling_3',
-  'veo3'
-];
-
-export const PROJECT_AGENT_CLONE_VIDEO_MODELS: VideoModel[] = ['kling_3'];
+export const PROJECT_AGENT_VIDEO_MODELS: VideoModel[] = ['kling_3'];
 
 export function getProjectAgentVideoModels(intent?: ProjectAgentIntent): VideoModel[] {
-  if (intent === 'competitor_ugc_replication') {
-    return PROJECT_AGENT_CLONE_VIDEO_MODELS;
-  }
   return PROJECT_AGENT_VIDEO_MODELS;
 }
 
@@ -27,13 +17,13 @@ export function isProjectAgentVideoModel(
 
 export function normalizeProjectAgentVideoModel(
   value: unknown,
-  fallback: VideoModel = 'veo3_fast',
+  fallback: VideoModel = 'kling_3',
   intent?: ProjectAgentIntent
 ): VideoModel {
-  if (intent === 'competitor_ugc_replication') {
-    return 'kling_3';
+  if (isProjectAgentVideoModel(value, intent)) {
+    return value;
   }
-  return isProjectAgentVideoModel(value, intent) ? value : fallback;
+  return 'kling_3';
 }
 
 export function getEffectiveProjectAgentVideoModel(
@@ -46,7 +36,7 @@ export function getEffectiveProjectAgentVideoModel(
   if (intent === 'competitor_ugc_replication') {
     return 'kling_3';
   }
-  return normalizeProjectAgentVideoModel(preferredModel, 'veo3_fast', intent);
+  return normalizeProjectAgentVideoModel(preferredModel, 'kling_3', intent);
 }
 
 export function isProjectAgentModelDisabledForIntent(
@@ -56,8 +46,5 @@ export function isProjectAgentModelDisabledForIntent(
   if (intent === 'avatar_ads') {
     return model !== 'veo3_fast';
   }
-  if (intent === 'competitor_ugc_replication') {
-    return model !== 'kling_3';
-  }
-  return false;
+  return model !== 'kling_3';
 }

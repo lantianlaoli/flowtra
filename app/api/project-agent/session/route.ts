@@ -13,7 +13,7 @@ const normalizeSessionPatchState = (state: Record<string, unknown>) => {
 
   return {
     ...state,
-    videoModel: normalizeProjectAgentVideoModel(state.videoModel, 'veo3_fast', intent)
+    videoModel: normalizeProjectAgentVideoModel(state.videoModel, 'kling_3', intent)
   };
 };
 
