@@ -43,6 +43,10 @@ import {
 } from '@/lib/project-agent/video-model';
 import { getProjectAgentPromptChips } from '@/lib/project-agent/prompt-chips';
 import { serializeProjectAgentCloneShot } from '@/lib/project-agent/clone-prompt-schema';
+import {
+  resolveProjectAgentCloneMergedVideoUrl,
+  shouldShowProjectAgentCloneMergedReview,
+} from '@/lib/project-agent/clone-execution';
 import { isStartVideoGenerationCommand } from '@/lib/project-agent/clone-workflow-control';
 import { buildWorkspaceScenes } from '@/lib/project-agent/workspace-scenes';
 import { analysisToLegacyFlatShots } from '@/lib/video-analysis-schema';
@@ -175,6 +179,23 @@ const renderUIMessageText = (message: UIMessage) => {
     .join('');
 };
 
+export const hasVisibleAssistantReplyAfterLatestUserTurn = (messages: UIMessage[]) => {
+  let lastUserIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role === 'user' && renderUIMessageText(message).trim().length > 0) {
+      lastUserIndex = index;
+      break;
+    }
+  }
+
+  if (lastUserIndex < 0) return false;
+
+  return messages
+    .slice(lastUserIndex + 1)
+    .some((message) => message.role === 'assistant' && renderUIMessageText(message).trim().length > 0);
+};
+
 const isWorkflowCommandMessage = (text: string) => {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
@@ -266,6 +287,26 @@ const dedupeConversationMessages = (messages: UIMessage[]) => {
   });
 
   return collapsed;
+};
+
+const removeTrailingDuplicateUserMessages = (messages: UIMessage[], text: string) => {
+  const normalizedTarget = text.trim();
+  if (!normalizedTarget) return messages;
+
+  const next = [...messages];
+  while (next.length > 0) {
+    const lastMessage = next[next.length - 1];
+    if (lastMessage.role !== 'user') {
+      break;
+    }
+    const lastText = renderUIMessageText(lastMessage).trim();
+    if (lastText !== normalizedTarget) {
+      break;
+    }
+    next.pop();
+  }
+
+  return next;
 };
 
 const buildHistoryTitle = (messages: Array<{ role: string; parts?: Array<{ type?: string; text?: string }>; content?: string }>) => {
@@ -1043,14 +1084,20 @@ export default function ProjectAgentPage() {
     onFinish: () => {
       void refreshHistory();
     },
-    onError: () => {
+    onError: (chatError) => {
+      const errorMessage = chatError instanceof Error ? chatError.message : String(chatError ?? '');
+      console.error('[Project Agent] Chat transport failed:', chatError);
       setPendingUserText(null);
       setPendingBaselineCount(0);
       const lastUser = [...messages].reverse().find((message) => message.role === 'user');
       if (lastUser?.id) {
         setRetryableUserMessageId(lastUser.id);
       }
-      setStatusNote('');
+      setStatusNote(
+        /failed to fetch|networkerror|load failed|abort/i.test(errorMessage)
+          ? 'The message failed in the browser before reaching the server. Please retry.'
+          : (errorMessage || 'Flowgen hit an error. Please retry.')
+      );
     }
   });
 
@@ -1087,10 +1134,9 @@ export default function ProjectAgentPage() {
       return true;
     } catch (sendError) {
       const message = sendError instanceof Error ? sendError.message : String(sendError ?? '');
-      const isNetworkError = /failed to fetch|networkerror|load failed/i.test(message);
-
-      if (!isNetworkError) {
-        console.error('Failed to send chat message:', sendError);
+      console.error('[Project Agent] Failed to send chat message:', sendError);
+      if (/failed to fetch|networkerror|load failed|abort/i.test(message)) {
+        setStatusNote('The message failed in the browser before reaching the server. Please retry.');
       }
       return false;
     }
@@ -1560,6 +1606,7 @@ export default function ProjectAgentPage() {
     clearError();
     setStatusNote('');
     setRetryableUserMessageId(null);
+    setMessages((prev) => removeTrailingDuplicateUserMessages(prev, retryText));
     setPendingUserText(retryText);
     setPendingBaselineCount(visibleMessages.length);
     maybeRequestNotificationPermissionOnUserAction(retryText);
@@ -1573,7 +1620,7 @@ export default function ProjectAgentPage() {
     }
 
     return true;
-  }, [clearError, isStreaming, messages, maybeRequestNotificationPermissionOnUserAction, sendMessageSafely]);
+  }, [clearError, isStreaming, messages, maybeRequestNotificationPermissionOnUserAction, sendMessageSafely, setMessages]);
 
   const handleRetryLatestUserMessage = useCallback(() => {
     void retryLastUserMessage();
@@ -2501,6 +2548,16 @@ export default function ProjectAgentPage() {
     pendingUserText
   ]);
 
+  const shouldShowAssistantPlaceholder = useMemo(() => (
+    awaitingAssistantTurn &&
+    !retryableUserMessageId &&
+    !hasVisibleAssistantReplyAfterLatestUserTurn(displayMessages)
+  ), [
+    awaitingAssistantTurn,
+    displayMessages,
+    retryableUserMessageId
+  ]);
+
   useEffect(() => {
     if (!awaitingAssistantTurn) {
       setThinkingMessageIndex(0);
@@ -2599,10 +2656,13 @@ export default function ProjectAgentPage() {
       model: normalizeVideoModel(data.videoModel, 'competitor_ugc_replication'),
       duration: typeof data.videoDuration === 'string' ? data.videoDuration : undefined,
       creditsCost: typeof data.creditsUsed === 'number' ? data.creditsUsed : undefined,
-      mergedVideoUrl:
-        (typeof data.videoUrl === 'string' && data.videoUrl) ||
-        (typeof segmentStatus?.mergedVideoUrl === 'string' && segmentStatus.mergedVideoUrl) ||
-        null,
+      mergedVideoUrl: resolveProjectAgentCloneMergedVideoUrl({
+        videoUrl: typeof data.videoUrl === 'string' ? data.videoUrl : null,
+        segmentStatusMergedVideoUrl: typeof segmentStatus?.mergedVideoUrl === 'string'
+          ? segmentStatus.mergedVideoUrl
+          : null,
+        segments,
+      }),
       segments
     };
   }, []);
@@ -2837,12 +2897,7 @@ export default function ProjectAgentPage() {
   );
   const showCloneMergedResultStep = Boolean(
     showCloneSceneWorkspaceStep &&
-    sessionState?.cloneExecution &&
-    (
-      sessionState.cloneExecution.phase === 'merging' ||
-      sessionState.cloneExecution.phase === 'completed' ||
-      Boolean(sessionState.cloneExecution.mergedVideoUrl)
-    )
+    shouldShowProjectAgentCloneMergedReview(sessionState?.cloneExecution)
   );
   const isCloneFlowContext = (
     isCloneIntentTurn ||
@@ -2958,7 +3013,7 @@ export default function ProjectAgentPage() {
                     </div>
                     )}
 
-                    {showCloneReplacementSelectors && (
+                    {showCloneReplacementSelectors && !showCloneSceneWorkspaceStep && (
                     <div className="w-full rounded-xl border border-[#e6e6e4] bg-white p-4 space-y-4">
                       <div>
                         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Step 2</p>
@@ -3255,7 +3310,7 @@ export default function ProjectAgentPage() {
                       </div>
                     ) : null}
 
-                    {awaitingAssistantTurn && !retryableUserMessageId ? (
+                    {shouldShowAssistantPlaceholder ? (
                       <div className="max-w-[94%] rounded-xl px-4 py-3 text-sm bg-[#efefed] text-[#787876]">
                         <div className="flex items-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin" />

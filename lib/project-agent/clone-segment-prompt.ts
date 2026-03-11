@@ -3,9 +3,9 @@ import type { SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 import { parseTimelineRange } from '@/lib/segment-shot-timeline';
 import {
   createProjectAgentCloneShot,
-  serializeProjectAgentCloneShot,
   type ProjectAgentCloneShot,
 } from '@/lib/project-agent/clone-prompt-schema';
+import { validateProjectAgentKlingShots } from '@/lib/project-agent/kling-shot-normalization';
 
 export type ProjectAgentCloneDraftSceneLike = {
   sceneIndex?: number;
@@ -27,13 +27,13 @@ export function cloneDraftSceneToSegmentPrompt(
     : Array.isArray(scene.videoPrompt?.shots)
       ? scene.videoPrompt.shots
       : [];
-  const shots = (rawShots.length > 0 ? rawShots : [fallbackShot]).map((shot, index) => {
-    const normalizedShot = serializeProjectAgentCloneShot(shot, index, fallbackLanguage);
-    return {
-      ...normalizedShot,
-      language: normalizedShot.language || fallbackLanguage
-    };
-  });
+  const shots = validateProjectAgentKlingShots(
+    rawShots.length > 0 ? rawShots : [fallbackShot],
+    fallbackLanguage
+  ).map((shot) => ({
+    ...shot,
+    language: shot.language || fallbackLanguage
+  }));
   const primaryShot = shots[0] || fallbackShot;
 
   return {

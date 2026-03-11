@@ -55,3 +55,21 @@ test('clone segment duration follows the last shot time_range end', () => {
 
   assert.equal(getProjectAgentSegmentPromptDurationSeconds(segmentPrompt), 12);
 });
+
+test('clone draft scene conversion rejects oversized Kling shot lists so planning must split them earlier', () => {
+  assert.throws(
+    () => cloneDraftSceneToSegmentPrompt({
+      sceneIndex: 1,
+      imagePrompt: 'Dense scene',
+      videoPrompt: {
+        shots: Array.from({ length: 7 }, (_, index) => ({
+          id: index + 1,
+          time_range: `00:0${index} - 00:0${index + 1}`,
+          subject: `Beat ${index + 1}`,
+          action: `Action ${index + 1}`,
+        })),
+      },
+    }, 'en'),
+    /at most 6 shots/i
+  );
+});

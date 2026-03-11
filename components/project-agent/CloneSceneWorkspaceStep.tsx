@@ -132,6 +132,7 @@ const sceneProgressLabel = (kind: 'frame' | 'video', state: SceneProgressState) 
   if (kind === 'frame') {
     if (state === 'ready') return 'Frame ready';
     if (state === 'generating') return 'Frame generating';
+    if (state === 'waiting') return 'Frame waiting';
     if (state === 'failed') return 'Frame failed';
     return 'Frame queued';
   }
@@ -222,14 +223,29 @@ export default function CloneSceneWorkspaceStep({
       }
     });
 
-    localScenes.forEach((scene) => {
+    localScenes.forEach((scene, sceneArrayIndex) => {
       const sceneIndex = scene.sceneIndex;
       const isGenerating = scene.segmentStatus === 'generating_first_frame';
+      const previousScene = sceneArrayIndex > 0 ? localScenes[sceneArrayIndex - 1] : null;
+      const isWaitingForContinuationKickoff = Boolean(
+        scene.isContinuation &&
+        !scene.frameUrl &&
+        (
+          scene.segmentStatus === 'awaiting_prev_first_frame' ||
+          scene.segmentStatus === 'queued' ||
+          scene.segmentStatus === null
+        ) &&
+        previousScene?.frameUrl
+      );
       const matchesPreferred = (
         preferredFrameRegeneratingSceneIndex === null ||
         sceneIndex === preferredFrameRegeneratingSceneIndex
       );
-      const shouldShowOverlay = isFrameGenerationPhase && isGenerating && (hasPreferredTarget ? matchesPreferred : true);
+      const shouldShowOverlay = (
+        isFrameGenerationPhase &&
+        (isGenerating || isWaitingForContinuationKickoff) &&
+        (hasPreferredTarget ? matchesPreferred : true)
+      );
 
       if (shouldShowOverlay) {
         if (hideTimers[sceneIndex]) {
@@ -365,22 +381,21 @@ export default function CloneSceneWorkspaceStep({
             ) &&
             previousScene?.frameUrl
           );
-          const hasSubmittedFrameTask = typeof scene.firstFrameTaskId === 'string' && scene.firstFrameTaskId.trim().length > 0;
           const shouldShowFrameGenerating = (
-            (
-              phase === 'generating_frames' &&
-              scene.segmentStatus === 'generating_first_frame' &&
-              hasSubmittedFrameTask
-            ) ||
-            (
-              isWaitingForContinuationKickoff &&
-              hasSubmittedFrameTask
-            )
+            phase === 'generating_frames' &&
+            scene.segmentStatus === 'generating_first_frame'
+          );
+          const shouldShowFrameWaiting = (
+            phase === 'generating_frames' &&
+            isWaitingForContinuationKickoff
           );
           const shouldShowVideoGenerating = (
             phase === 'generating_videos' &&
+            Boolean(scene.frameUrl) &&
             !scene.videoUrl &&
-            scene.segmentStatus !== 'failed'
+            scene.segmentStatus !== 'failed' &&
+            scene.segmentStatus !== 'generating_first_frame' &&
+            scene.segmentStatus !== 'awaiting_prev_first_frame'
           ) || scene.segmentStatus === 'generating_video';
           const frameState: SceneProgressState =
             scene.segmentStatus === 'failed' && !scene.frameUrl
@@ -389,6 +404,8 @@ export default function CloneSceneWorkspaceStep({
                 ? 'ready'
                 : shouldShowFrameGenerating
                   ? 'generating'
+                  : shouldShowFrameWaiting
+                    ? 'waiting'
                   : 'queued';
           const videoState: SceneProgressState =
             scene.segmentStatus === 'failed' && Boolean(scene.frameUrl) && !scene.videoUrl
@@ -422,7 +439,7 @@ export default function CloneSceneWorkspaceStep({
                         <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${badgeClassForState(frameState)}`}>
                           {frameState === 'ready' ? (
                             <CheckCircle2 className="h-3 w-3" />
-                          ) : frameState === 'generating' ? (
+                          ) : frameState === 'generating' || frameState === 'waiting' ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : frameState === 'failed' ? (
                             <AlertCircle className="h-3 w-3" />
@@ -506,11 +523,11 @@ export default function CloneSceneWorkspaceStep({
                               </div>
                             ) : (
                               <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-[#d9d9d7] bg-[#f7f7f5] px-4 text-center text-xs text-[#8d8d8a]">
-                                {shouldShowFrameGenerating ? (
+                                {shouldShowFrameGenerating || shouldShowFrameWaiting ? (
                                   <>
                                     <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                                    {isWaitingForContinuationKickoff && hasSubmittedFrameTask
-                                      ? 'Frame generation is starting from the previous frame...'
+                                    {shouldShowFrameWaiting
+                                      ? 'Frame generation is lining up from the previous scene...'
                                       : 'Frame is generating...'}
                                   </>
                                 ) : (

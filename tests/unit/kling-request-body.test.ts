@@ -83,6 +83,27 @@ test('single-shot Kling request body does not include multi_prompt', () => {
   assert.equal(requestBody.input.prompt, 'One shot only.');
 });
 
+test('Kling request body rejects multi-shot scenes above the provider item limit', () => {
+  assert.throws(
+    () => __test__.buildKlingVideoRequestBody({
+      projectId: 'project-123',
+      segmentIndex: 0,
+      aspectRatio: '16:9',
+      quality: '720p',
+      imageUrls: ['https://example.com/frame-1.png'],
+      boundedDuration: 12,
+      hasMultipleShots: true,
+      multiPrompt: Array.from({ length: 7 }, (_, index) => ({
+        prompt: `Shot ${index + 1}`,
+        duration: 1,
+      })),
+      prompt: '',
+      elements: []
+    }),
+    /at most 6 shots/i
+  );
+});
+
 test('Kling element names stay within the 20 character API limit', () => {
   const name = __test__.buildKlingElementName(
     'Nutritional supplements1',

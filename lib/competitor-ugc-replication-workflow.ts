@@ -40,6 +40,7 @@ import {
   buildKlingPromptSections,
   fitKlingPromptWithinLimit
 } from '@/lib/kling-prompt-budget';
+import { KLING_MAX_MULTI_SHOT_ITEMS } from '@/lib/kling-shot-limits';
 import {
   MENTION_TOKEN_REGEX as SHARED_MENTION_TOKEN_REGEX,
   parseMentionToken
@@ -4711,7 +4712,10 @@ function buildKlingMultiPrompt(
   ];
 
   const minShotCount = Math.ceil(totalDuration / KLING_SHOT_MAX_DURATION_SECONDS);
-  const desiredShotCount = Math.max(minShotCount, Math.min(totalDuration, sourceShots.length));
+  const desiredShotCount = Math.min(
+    KLING_MAX_MULTI_SHOT_ITEMS,
+    Math.max(minShotCount, Math.min(totalDuration, sourceShots.length))
+  );
   const mergedShots: NormalizedVideoShot[] = sourceShots.slice(0, desiredShotCount);
 
   if (sourceShots.length > desiredShotCount) {
@@ -4913,6 +4917,9 @@ function buildKlingVideoRequestBody(input: {
   };
 
   if (input.hasMultipleShots) {
+    if (input.multiPrompt.length > KLING_MAX_MULTI_SHOT_ITEMS) {
+      throw new Error(`Kling 3.0 scenes support at most ${KLING_MAX_MULTI_SHOT_ITEMS} shots per generation.`);
+    }
     (requestBody.input as Record<string, unknown>).multi_prompt = input.multiPrompt;
   } else {
     (requestBody.input as Record<string, unknown>).prompt = input.prompt;

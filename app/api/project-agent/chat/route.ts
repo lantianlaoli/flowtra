@@ -55,6 +55,8 @@ import {
   getProjectAgentSegmentPromptDurationSeconds,
 } from '@/lib/project-agent/clone-segment-prompt';
 import type { ProjectAgentCloneShot } from '@/lib/project-agent/clone-prompt-schema';
+import { buildProjectAgentCloneDraftSeeds } from '@/lib/project-agent/clone-draft-planning';
+import { resolveProjectAgentCloneMergedVideoUrl } from '@/lib/project-agent/clone-execution';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -119,6 +121,7 @@ type SessionState = {
         shots: ProjectAgentCloneShot[];
       };
       sourceSummary?: string | null;
+      sourceShotIds?: number[];
     }>;
   };
   cloneExecution?: {
@@ -805,10 +808,14 @@ const toCloneExecutionFromStatusPayload = (projectId: string, payload: Record<st
     duration: typeof data.videoDuration === 'string' ? data.videoDuration : undefined,
     creditsCost: typeof data.creditsUsed === 'number' ? data.creditsUsed : undefined,
     error: typeof data.errorMessage === 'string' ? data.errorMessage : null,
-    mergedVideoUrl:
-      (typeof data.videoUrl === 'string' && data.videoUrl) ||
-      (typeof segmentStatus?.mergedVideoUrl === 'string' && segmentStatus.mergedVideoUrl) ||
-      null,
+    mergedVideoUrl: resolveProjectAgentCloneMergedVideoUrl({
+      videoUrl: typeof data.videoUrl === 'string' ? data.videoUrl : null,
+      segmentStatusMergedVideoUrl: typeof segmentStatus?.mergedVideoUrl === 'string'
+        ? segmentStatus.mergedVideoUrl
+        : null,
+      segments,
+      model: normalizedModel,
+    }),
     segments
   };
 };
@@ -1198,6 +1205,94 @@ export async function POST(request: Request) {
       }
 
       return latestCloneProject?.id || null;
+    };
+
+    let plannedCloneSceneCountPromise: Promise<number> | null = null;
+    const resolvePlannedCloneSceneCount = async (): Promise<number> => {
+      if (Array.isArray(sessionState.cloneReplacementDraft?.scenes) && sessionState.cloneReplacementDraft.scenes.length > 0) {
+        return Math.max(sessionState.cloneReplacementDraft.scenes.length, 1);
+      }
+      if (!sessionState.cloneReferenceVideo?.id) {
+        return 1;
+      }
+      if (plannedCloneSceneCountPromise) {
+        return plannedCloneSceneCountPromise;
+      }
+
+      plannedCloneSceneCountPromise = (async () => {
+        const reference = sessionState.cloneReferenceVideo;
+        if (!reference) return 1;
+
+        try {
+          // Schema verified via Supabase MCP (2026-03-11):
+          // competitor_ads has id,user_id,analysis_result,video_duration_seconds.
+          // creator_source_videos has id,user_id,source_id,analysis_result,duration_seconds.
+          let analysisResult: Record<string, unknown> | null = null;
+          let referenceDurationSeconds: number | null = null;
+
+          if (reference.sourceType === 'competitor_ad') {
+            const { data } = await supabase
+              .from('competitor_ads')
+              .select('id,analysis_result,video_duration_seconds')
+              .eq('id', reference.sourceId || reference.id)
+              .eq('user_id', userId)
+              .maybeSingle();
+            const competitorAd = data as {
+              id: string;
+              analysis_result: unknown;
+              video_duration_seconds?: number | null;
+            } | null;
+            analysisResult = (competitorAd?.analysis_result as Record<string, unknown> | null) || null;
+            referenceDurationSeconds = Number(competitorAd?.video_duration_seconds || 0) || null;
+          } else {
+            type CreatorSourceVideoRow = {
+              id: string;
+              analysis_result: unknown;
+              duration_seconds?: number | null;
+            };
+            let creatorVideo: CreatorSourceVideoRow | null = null;
+            const primaryId = reference.id;
+            if (primaryId) {
+              const { data } = await supabase
+                .from('creator_source_videos')
+                .select('id,analysis_result,duration_seconds')
+                .eq('id', primaryId)
+                .eq('user_id', userId)
+                .maybeSingle();
+              creatorVideo = data as CreatorSourceVideoRow | null;
+            }
+            if (!creatorVideo && reference.sourceId) {
+              const { data } = await supabase
+                .from('creator_source_videos')
+                .select('id,analysis_result,duration_seconds')
+                .eq('source_id', reference.sourceId)
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              creatorVideo = data as CreatorSourceVideoRow | null;
+            }
+            analysisResult = (creatorVideo?.analysis_result as Record<string, unknown> | null) || null;
+            referenceDurationSeconds = Number(creatorVideo?.duration_seconds || 0) || null;
+          }
+
+          const plan = buildProjectAgentCloneDraftSeeds({
+            analysisResult,
+            fallbackSummary: reference.analysisSummary,
+            fallbackShots: reference.keyShots,
+            referenceDurationSeconds,
+            language: sessionState.language || reference.language || 'en',
+          });
+          return Math.max(plan.scenes.length, 1);
+        } catch {
+          return Math.max(
+            Array.isArray(sessionState.cloneReplacementDraft?.scenes) ? sessionState.cloneReplacementDraft.scenes.length : 0,
+            1
+          );
+        }
+      })();
+
+      return plannedCloneSceneCountPromise;
     };
 
     const origin = getOrigin(request);
@@ -1598,11 +1693,7 @@ export async function POST(request: Request) {
               ? normalizeCloneSelections([...currentSelectedProducts, ...resolvedProductSelections])
               : normalizeCloneSelections(resolvedProductSelections);
 
-            const sceneCount = Math.max(
-              Array.isArray(sessionState.cloneReplacementDraft?.scenes) ? sessionState.cloneReplacementDraft.scenes.length : 0,
-              Array.isArray(sessionState.cloneReferenceVideo?.keyShots) ? sessionState.cloneReferenceVideo?.keyShots.length || 0 : 0,
-              1
-            );
+            const sceneCount = await resolvePlannedCloneSceneCount();
             const sceneAssignments = buildCartesianSceneAssignments({
               sceneCount,
               avatarIds: selectedAvatars.map((avatar) => avatar.id),
@@ -1668,8 +1759,9 @@ export async function POST(request: Request) {
                   sessionState.cloneReplacementDraft?.selectedProduct
                 );
 
+            const sceneCount = await resolvePlannedCloneSceneCount();
             const sceneAssignments = buildCartesianSceneAssignments({
-              sceneCount: Math.max(Array.isArray(sessionState.cloneReplacementDraft?.scenes) ? sessionState.cloneReplacementDraft.scenes.length : 1, 1),
+              sceneCount,
               avatarIds: selectedAvatars.map((avatar) => avatar.id),
               productIds: selectedProducts.map((product) => product.id),
               existingAssignments: sessionState.cloneReplacementDraft?.sceneAssignments
@@ -1714,11 +1806,7 @@ export async function POST(request: Request) {
               return { success: false, message: 'Please select at least one replacement product first.' };
             }
 
-            const sceneCount = Math.max(
-              Array.isArray(sessionState.cloneReplacementDraft?.scenes) ? sessionState.cloneReplacementDraft.scenes.length : 0,
-              Array.isArray(sessionState.cloneReferenceVideo?.keyShots) ? sessionState.cloneReferenceVideo?.keyShots.length || 0 : 0,
-              1
-            );
+            const sceneCount = await resolvePlannedCloneSceneCount();
             const sceneAssignments = buildCartesianSceneAssignments({
               sceneCount,
               avatarIds: selectedAvatars.map((avatar) => avatar.id),
@@ -1767,10 +1855,7 @@ export async function POST(request: Request) {
               return { success: false, message: 'The selected avatar is not in the current replacement set.' };
             }
 
-            const sceneCount = Math.max(
-              Array.isArray(sessionState.cloneReplacementDraft?.scenes) ? sessionState.cloneReplacementDraft.scenes.length : 1,
-              1
-            );
+            const sceneCount = await resolvePlannedCloneSceneCount();
             const autoAssignments = buildCartesianSceneAssignments({
               sceneCount,
               avatarIds: selectedAvatars.map((avatar) => avatar.id),
@@ -1829,11 +1914,7 @@ export async function POST(request: Request) {
             if (selectedProducts.length === 0) {
               return { success: false, message: 'Please select at least one replacement product first.' };
             }
-            const sceneCount = Math.max(
-              Array.isArray(sessionState.cloneReplacementDraft?.scenes) ? sessionState.cloneReplacementDraft.scenes.length : 0,
-              Array.isArray(sessionState.cloneReferenceVideo?.keyShots) ? sessionState.cloneReferenceVideo?.keyShots.length || 0 : 0,
-              1
-            );
+            const sceneCount = await resolvePlannedCloneSceneCount();
             const sceneAssignments = buildCartesianSceneAssignments({
               sceneCount,
               avatarIds: selectedAvatars.map((avatar) => avatar.id),
@@ -2624,9 +2705,23 @@ export async function POST(request: Request) {
             });
             const refreshedStatusPayload = await refreshedStatusResponse.json().catch(() => ({}));
             if (refreshedStatusResponse.ok && refreshedStatusPayload?.data) {
+              const refreshedExecution = toCloneExecutionFromStatusPayload(projectId, refreshedStatusPayload as Record<string, unknown>);
+              const targetSceneIndexes = new Set(targetIndices);
               await persistSession({
                 pendingMergeConfirmation: null,
-                cloneExecution: toCloneExecutionFromStatusPayload(projectId, refreshedStatusPayload as Record<string, unknown>)
+                cloneExecution: {
+                  ...refreshedExecution,
+                  phase: 'generating_frames',
+                  segments: (refreshedExecution.segments ?? []).map((segment) => (
+                    targetSceneIndexes.has(segment.segmentIndex)
+                      ? {
+                          ...segment,
+                          status: 'generating_first_frame',
+                          videoUrl: null,
+                        }
+                      : segment
+                  ))
+                }
               });
             }
 
@@ -2871,17 +2966,44 @@ export async function POST(request: Request) {
     });
 
     const finalizeNonce = Date.now().toString(36);
+    let finalMessagesFromStream: UIMessage[] = [];
+    let streamedAssistantTextVisible = false;
+    let resolveStreamFinish: (() => void) | null = null;
+    const streamFinished = new Promise<void>((resolve) => {
+      resolveStreamFinish = resolve;
+    });
 
-    return result.toUIMessageStreamResponse({
-      onFinish: async ({ messages: finalMessages }) => {
-        const normalizedFinalMessages = dedupeMessages(
+    const mergedStream = result.toUIMessageStream<UIMessage>({
+      onFinish: ({ messages: finalMessages }) => {
+        finalMessagesFromStream = dedupeMessages(
           finalMessages.map((message, index) => normalizeUIMessage(message, `final-${finalizeNonce}-${index}`))
         );
+        resolveStreamFinish?.();
+      }
+    });
+
+    const stream = createUIMessageStream<UIMessage>({
+      execute: async ({ writer }) => {
+        const reader = mergedStream.getReader();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          if (value.type === 'text-delta' && typeof value.delta === 'string' && value.delta.trim().length > 0) {
+            streamedAssistantTextVisible = true;
+          }
+
+          writer.write(value);
+        }
+
+        await streamFinished;
+
         // Preserve existing timeline exactly as-is, and only append genuinely new
         // streamed messages. Never overwrite prior history by id.
         const existingIds = new Set(conversationMessages.map((message) => message.id));
         const messagesToPersist = [...conversationMessages];
-        for (const message of normalizedFinalMessages) {
+        for (const message of finalMessagesFromStream) {
           if (existingIds.has(message.id)) {
             continue;
           }
@@ -2898,7 +3020,8 @@ export async function POST(request: Request) {
         }
 
         // Guardrail: certain tool-heavy turns may finish without a visible assistant text.
-        // In that case we generate one contextual AI reply to avoid silent turns.
+        // In that case we generate one contextual AI reply, stream it to the client,
+        // and persist it so the UI never gets stuck waiting on a silent turn.
         const hasAssistantAfterLatestUser = (() => {
           let latestUserIndex = -1;
           let latestAssistantIndex = -1;
@@ -2909,15 +3032,20 @@ export async function POST(request: Request) {
           return latestAssistantIndex > latestUserIndex;
         })();
 
-        if (!hasAssistantAfterLatestUser) {
+        if (!hasAssistantAfterLatestUser && !streamedAssistantTextVisible) {
           const fallbackReply = await buildWorkflowFallbackReply({
             latestUserTurnText,
             state: sessionState,
             model
           });
           if (fallbackReply) {
+            const fallbackId = `assistant-fallback-${Date.now().toString(36)}`;
+            writer.write({ type: 'text-start', id: fallbackId });
+            writer.write({ type: 'text-delta', id: fallbackId, delta: fallbackReply });
+            writer.write({ type: 'text-end', id: fallbackId });
+
             messagesToPersist.push({
-              id: `assistant-fallback-${Date.now().toString(36)}`,
+              id: fallbackId,
               role: 'assistant',
               parts: [{ type: 'text', text: fallbackReply }]
             });
@@ -2927,6 +3055,8 @@ export async function POST(request: Request) {
         await persistMessagesOnly(messagesToPersist);
       }
     });
+
+    return createUIMessageStreamResponse({ stream });
   } catch (error) {
     console.error('[Project Agent] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

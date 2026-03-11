@@ -24,6 +24,8 @@ import {
   normalizeProjectAgentCloneShot,
   type ProjectAgentCloneShot,
 } from '@/lib/project-agent/clone-prompt-schema';
+import { normalizeProjectAgentKlingShots } from '@/lib/project-agent/kling-shot-normalization';
+import { KLING_MAX_MULTI_SHOT_ITEMS } from '@/lib/kling-shot-limits';
 import { injectMentionsInline, stripMentionTokens } from '@/lib/project-agent/clone-prompt-mentions';
 
 type ShotPrompt = ProjectAgentCloneShot;
@@ -36,6 +38,7 @@ type ScenePrompt = {
     shots: ShotPrompt[];
   };
   sourceSummary?: string | null;
+  sourceShotIds?: number[];
 };
 
 type CloneReplacementDraft = {
@@ -265,6 +268,7 @@ const generateReplacementDraft = async (input: {
                       properties: {
                         shots: {
                           type: 'array',
+                          maxItems: KLING_MAX_MULTI_SHOT_ITEMS,
                           items: {
                             type: 'object',
                             properties: {
@@ -320,8 +324,9 @@ const generateReplacementDraft = async (input: {
         {
           role: 'system',
           content: [
-            'You are rewriting clone prompts while preserving original Kling scene structure.',
-            'Output must preserve scene order, shot count per scene, and the exact time_range of every shot.',
+            'You are rewriting clone prompts into a Kling 3.0-safe clone draft.',
+            'Output must preserve scene order, scene timing, and the narrative flow of each scene.',
+            `Each scene must contain at most ${KLING_MAX_MULTI_SHOT_ITEMS} shots.`,
             avatarToken
               ? `Character replacement must explicitly use token in imagePrompt and shot fields: ${avatarToken}.`
               : 'Do not use any @character(...) token.',
@@ -332,10 +337,11 @@ const generateReplacementDraft = async (input: {
             'imagePrompt must stay scene-specific (subject + environment + action) and must not repeat the same boilerplate sentence across scenes.',
             'Do not use trailing templates like ", featuring @character(...) interacting with @product(...)".',
             'Write a normal fluent prompt first, then embed mention tokens only at the noun phrase positions.',
-            'Do not invent extra shots, do not merge scenes, and do not change any provided time_range.',
+            'Do not merge away original source shots inside a scene. Preserve the provided shot inventory and rewrite each planned shot in order.',
+            'Keep the total duration of each scene unchanged and keep shot time_range values contiguous from start to end.',
             'Each shot must include: subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_colour_lighting, audio, sfx, ambient, dialogue, time_range.',
             'Apply avatar/product replacement inside video shot fields too. Do not leave original role words (e.g. woman/man) when replacement is selected.',
-            'Keep fields concise but specific.'
+            'Keep fields concise, provider-safe, and short enough for Kling 3.0 prompt limits.'
           ].join(' ')
         },
         {
@@ -395,7 +401,7 @@ const generateReplacementDraft = async (input: {
     });
 
     const shotCount = Math.max(1, seedShots.length || aiShots.length || 1);
-    const shots = Array.from({ length: shotCount }, (_, shotIndex) => {
+    const normalizedCandidateShots = Array.from({ length: shotCount }, (_, shotIndex) => {
       const seedShot = seedShots[shotIndex] || seedShots[seedShots.length - 1];
       const aiShot = aiShots[shotIndex] || aiShots[aiShots.length - 1] || seedShot;
       const sourceSummary = scene.sourceSummary || seedScene.sourceSummary || seedScene.imagePrompt || '';
@@ -434,13 +440,18 @@ const generateReplacementDraft = async (input: {
         audio: buildProjectAgentLegacyAudioField(normalizedShot),
       };
     });
+    const shots = normalizeProjectAgentKlingShots(
+      normalizedCandidateShots,
+      seedShots[0]?.language || aiShots[0]?.language || 'en'
+    );
 
     return {
       sceneIndex: seedScene.sceneIndex,
       imagePrompt,
       isContinuation: typeof seedScene.isContinuation === 'boolean' ? seedScene.isContinuation : index > 0,
       videoPrompt: { shots },
-      sourceSummary: scene.sourceSummary || seedScene.sourceSummary || null
+      sourceSummary: scene.sourceSummary || seedScene.sourceSummary || null,
+      sourceShotIds: seedScene.sourceShotIds ?? []
     } satisfies ScenePrompt;
   });
 };
@@ -510,6 +521,7 @@ const applySceneAssignmentsToGeneratedScenes = (input: {
 
     return {
       ...scene,
+      sourceShotIds: scene.sourceShotIds ?? [],
       imagePrompt,
       videoPrompt: { shots }
     };
