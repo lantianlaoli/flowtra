@@ -187,6 +187,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
   const [resolutionMenuOpen, setResolutionMenuOpen] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
   const [showTikTokPanel, setShowTikTokPanel] = useState(false);
+  const supportsUpgradeableExport = item?.videoModel === 'veo3_fast';
   const isSeedanceModel = item?.videoModel === 'seedance_1_5_pro';
 
   const toggleShot = (shotKey: string) => {
@@ -529,8 +530,8 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
   };
   const supportsHighRes = useMemo(() => {
     if (!item) return false;
-    return (isCompetitorUgcReplication(item) || isCharacterAds(item)) && item.videoModel !== 'sora2';
-  }, [item]);
+    return (isCompetitorUgcReplication(item) || isCharacterAds(item)) && supportsUpgradeableExport;
+  }, [item, supportsUpgradeableExport]);
 
   const segmentCount = useMemo(() => {
     if (!item) return 1;
