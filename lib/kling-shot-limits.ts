@@ -1,0 +1,1 @@
+export const KLING_MAX_MULTI_SHOT_ITEMS = 6;

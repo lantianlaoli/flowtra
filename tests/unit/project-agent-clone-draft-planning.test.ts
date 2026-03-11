@@ -110,3 +110,58 @@ test('project agent clone draft planning rejects reference videos longer than Kl
     /up to 60 seconds/i
   );
 });
+
+test('project agent clone draft planning preserves all original shots by splitting into multiple scenes when needed', () => {
+  const result = buildProjectAgentCloneDraftSeeds({
+    referenceDurationSeconds: 7,
+    language: 'en',
+    analysisResult: {
+      schema_version: 2,
+      name: 'Dense reference',
+      detected_language: 'en',
+      video_duration_seconds: 7,
+      shots: Array.from({ length: 7 }, (_, index) => ({
+        shot_id: index + 1,
+        timing: {
+          start_time: `00:0${index}`,
+          end_time: `00:0${index + 1}`,
+          duration_seconds: 1
+        },
+        opening_frame: { description: `Frame ${index + 1}` },
+        visual: {
+          subject: `Subject ${index + 1}`,
+          action: `Action ${index + 1}`,
+          environment: 'Kitchen',
+          style: 'UGC',
+          camera: 'Close handheld',
+          composition: 'Centered',
+          focus_lens_effects: '',
+          ambiance: 'Bright daylight',
+        },
+        audio: { dialogue: '', sfx: '', ambient: '' },
+        flags: {},
+      })),
+    },
+  });
+
+  assert.equal(result.scenes.length, 2);
+  assert.deepEqual(
+    result.scenes.map((scene) => scene.videoPrompt.shots.length),
+    [4, 3]
+  );
+  assert.deepEqual(
+    result.scenes.map((scene) => scene.sourceShotIds),
+    [[1, 2, 3, 4], [5, 6, 7]]
+  );
+  assert.equal(
+    result.scenes.reduce((sum, scene) => sum + scene.videoPrompt.shots.length, 0),
+    7
+  );
+  assert.ok(result.scenes.every((scene) => scene.videoPrompt.shots.length <= 6));
+  assert.ok(result.scenes.every((scene) => {
+    const endTimes = scene.videoPrompt.shots
+      .map((shot) => parseTimelineRange(shot.time_range)?.endSec ?? 0);
+    const duration = Math.max(...endTimes);
+    return duration >= 3 && duration <= 15;
+  }));
+});

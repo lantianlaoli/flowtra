@@ -1,26 +1,21 @@
 import {
-  getSegmentCountFromDuration,
   KLING_MAX_PROJECT_DURATION_SECONDS,
+  KLING_MAX_TASK_DURATION_SECONDS,
   KLING_MIN_TASK_DURATION_SECONDS,
   snapDurationToModel,
   type VideoDuration,
 } from '@/lib/constants';
-import { parseCompetitorTimeline, formatTimecode, sumShotDurations, type CompetitorShot } from '@/lib/competitor-shots';
-import {
-  buildManualCloneSeedPrompts,
-  type SegmentPrompt,
-} from '@/lib/competitor-ugc-replication-workflow';
-import {
-  buildProjectAgentLegacyAudioField,
-  normalizeProjectAgentCloneShot,
-  type ProjectAgentCloneShot,
-} from '@/lib/project-agent/clone-prompt-schema';
+import { formatTimecode, parseCompetitorTimeline, sumShotDurations, type CompetitorShot } from '@/lib/competitor-shots';
+import { KLING_MAX_MULTI_SHOT_ITEMS } from '@/lib/kling-shot-limits';
+import { buildProjectAgentLegacyAudioField, type ProjectAgentCloneShot } from '@/lib/project-agent/clone-prompt-schema';
+import { normalizeProjectAgentKlingShots } from '@/lib/project-agent/kling-shot-normalization';
 
 export type ProjectAgentDraftSeedScene = {
   sceneIndex: number;
   imagePrompt: string;
   isContinuation: boolean;
   sourceSummary?: string | null;
+  sourceShotIds?: number[];
   videoPrompt: {
     shots: ProjectAgentCloneShot[];
   };
@@ -33,6 +28,19 @@ type BuildProjectAgentCloneDraftSeedsInput = {
   referenceDurationSeconds?: number | null;
   fallbackDurationSeconds?: number | null;
   language?: string | null;
+};
+
+type PlannedShotPart = {
+  shot: CompetitorShot;
+  durationSeconds: number;
+};
+
+type PlannedSceneBucket = {
+  sceneIndex: number;
+  isContinuation: boolean;
+  durationSeconds: number;
+  shotParts: PlannedShotPart[];
+  sourceShotIds: number[];
 };
 
 function buildFallbackCompetitorShots(fallbackShots?: string[] | null, fallbackSummary?: string | null): CompetitorShot[] {
@@ -118,45 +126,209 @@ function resolveKlingDuration(
   return snapDurationToModel('kling_3', preferredDuration);
 }
 
-function segmentPromptToDraftSeedScene(prompt: SegmentPrompt, index: number, fallbackLanguage: string): ProjectAgentDraftSeedScene {
-  const shots = Array.isArray(prompt.shots) && prompt.shots.length > 0
-    ? prompt.shots.map((shot, shotIndex) => normalizeProjectAgentCloneShot({
-        id: typeof shot.id === 'number' ? shot.id : shotIndex + 1,
-        time_range: shot.time_range,
-        audio: shot.audio || '',
-        sfx: shot.sfx || '',
-        ambient: shot.ambient || '',
-        style: shot.style || '',
-        action: shot.action || '',
-        subject: shot.subject || '',
-        dialogue: shot.dialogue || '',
-        language: shot.language || fallbackLanguage,
-        composition: shot.composition || '',
-        context_environment: shot.context_environment || '',
-        ambiance_colour_lighting: shot.ambiance_colour_lighting || '',
-        camera_motion_positioning: shot.camera_motion_positioning || '',
-      }, shotIndex, fallbackLanguage))
-    : [normalizeProjectAgentCloneShot(undefined, 0, fallbackLanguage)];
+function normalizeShotDurations(shots: CompetitorShot[], targetTotalSeconds: number): PlannedShotPart[] {
+  if (!shots.length) return [];
 
-  const sourceSummary = (
-    prompt.first_frame_description?.trim() ||
-    shots[0]?.action?.trim() ||
-    shots[0]?.subject?.trim() ||
-    null
+  const sourceDurations = shots.map((shot) => Math.max(1, Math.round(shot.durationSeconds || 1)));
+  const sourceTotal = sourceDurations.reduce((sum, value) => sum + value, 0);
+  if (sourceTotal <= 0) {
+    return shots.map((shot) => ({ shot, durationSeconds: 1 }));
+  }
+
+  const safeTargetTotal = Math.max(shots.length, Math.round(targetTotalSeconds));
+  const scaled = sourceDurations.map((value) => Math.max(1, Math.floor((value / sourceTotal) * safeTargetTotal)));
+  let allocated = scaled.reduce((sum, value) => sum + value, 0);
+  let cursor = 0;
+
+  while (allocated < safeTargetTotal) {
+    scaled[cursor % scaled.length] += 1;
+    allocated += 1;
+    cursor += 1;
+  }
+
+  while (allocated > safeTargetTotal) {
+    const index = scaled.findIndex((value) => value > 1);
+    if (index === -1) break;
+    scaled[index] -= 1;
+    allocated -= 1;
+  }
+
+  return shots.map((shot, index) => ({
+    shot,
+    durationSeconds: scaled[index] || 1,
+  }));
+}
+
+function hasHardContinuityBreak(previous: CompetitorShot | null, next: CompetitorShot) {
+  if (!previous) return false;
+  const gapSeconds = Math.round(next.startTimeSeconds - previous.endTimeSeconds);
+  return gapSeconds > 1 || gapSeconds < 0;
+}
+
+function canRemainingShotsFitIntoScenes(remainingParts: PlannedShotPart[]) {
+  if (remainingParts.length === 0) return true;
+
+  const remainingShotCount = remainingParts.length;
+  const remainingDuration = remainingParts.reduce((sum, part) => sum + part.durationSeconds, 0);
+  const minimumSceneCountFromShots = Math.ceil(remainingShotCount / KLING_MAX_MULTI_SHOT_ITEMS);
+  const minimumSceneCountFromDuration = Math.ceil(remainingDuration / KLING_MAX_TASK_DURATION_SECONDS);
+  const minimumRequiredScenes = Math.max(minimumSceneCountFromShots, minimumSceneCountFromDuration, 1);
+
+  return remainingDuration >= minimumRequiredScenes * KLING_MIN_TASK_DURATION_SECONDS;
+}
+
+function partitionSceneBuckets(parts: PlannedShotPart[]): PlannedSceneBucket[] {
+  if (parts.length === 0) {
+    return [{
+      sceneIndex: 1,
+      isContinuation: false,
+      durationSeconds: KLING_MIN_TASK_DURATION_SECONDS,
+      shotParts: [],
+      sourceShotIds: [],
+    }];
+  }
+
+  const prefixDurations = [0];
+  parts.forEach((part) => {
+    prefixDurations.push(prefixDurations[prefixDurations.length - 1] + part.durationSeconds);
+  });
+  const hardBreakBefore = parts.map((part, index) => (
+    index > 0 ? hasHardContinuityBreak(parts[index - 1]?.shot || null, part.shot) : false
+  ));
+
+  const memo = new Map<number, Array<{ start: number; end: number }> | null>();
+  const choose = (startIndex: number): Array<{ start: number; end: number }> | null => {
+    if (startIndex >= parts.length) {
+      return [];
+    }
+    if (memo.has(startIndex)) {
+      return memo.get(startIndex) ?? null;
+    }
+
+    let best: Array<{ start: number; end: number }> | null = null;
+
+    for (let endIndex = Math.min(parts.length - 1, startIndex + KLING_MAX_MULTI_SHOT_ITEMS - 1); endIndex >= startIndex; endIndex -= 1) {
+      let crossedHardBreak = false;
+      for (let probe = startIndex + 1; probe <= endIndex; probe += 1) {
+        if (hardBreakBefore[probe]) {
+          crossedHardBreak = true;
+          break;
+        }
+      }
+      if (crossedHardBreak) {
+        continue;
+      }
+
+      const bucketDuration = prefixDurations[endIndex + 1] - prefixDurations[startIndex];
+      if (bucketDuration > KLING_MAX_TASK_DURATION_SECONDS) {
+        continue;
+      }
+      if (bucketDuration < KLING_MIN_TASK_DURATION_SECONDS) {
+        continue;
+      }
+
+      const remaining = parts.slice(endIndex + 1);
+      if (!canRemainingShotsFitIntoScenes(remaining)) {
+        continue;
+      }
+
+      const tail = choose(endIndex + 1);
+      if (tail === null) {
+        continue;
+      }
+
+      const candidate = [{ start: startIndex, end: endIndex }, ...tail];
+      if (
+        !best ||
+        candidate.length < best.length ||
+        (candidate.length === best.length && (endIndex - startIndex) > (best[0].end - best[0].start))
+      ) {
+        best = candidate;
+      }
+    }
+
+    memo.set(startIndex, best);
+    return best;
+  };
+
+  const boundaries = choose(0);
+  if (!boundaries) {
+    throw new Error('Unable to fit the reference shots into Kling 3.0 scene limits without dropping source shots.');
+  }
+
+  return boundaries.map((boundary, index) => {
+    const shotParts = parts.slice(boundary.start, boundary.end + 1);
+    return {
+      sceneIndex: index + 1,
+      isContinuation: index > 0,
+      durationSeconds: shotParts.reduce((sum, part) => sum + part.durationSeconds, 0),
+      shotParts,
+      sourceShotIds: shotParts.map((part) => part.shot.id),
+    };
+  });
+}
+
+function buildSceneImagePrompt(bucket: PlannedSceneBucket) {
+  return (
+    bucket.shotParts.find((part) => part.shot.firstFrameDescription?.trim())?.shot.firstFrameDescription?.trim() ||
+    bucket.shotParts.find((part) => part.shot.action?.trim())?.shot.action?.trim() ||
+    bucket.shotParts.find((part) => part.shot.subject?.trim())?.shot.subject?.trim() ||
+    'Reference scene prompt'
   );
+}
+
+function buildSceneSourceSummary(bucket: PlannedSceneBucket) {
+  const subjects = bucket.shotParts
+    .map((part) => part.shot.subject?.trim())
+    .filter((value): value is string => Boolean(value));
+  const actions = bucket.shotParts
+    .map((part) => part.shot.action?.trim())
+    .filter((value): value is string => Boolean(value));
+
+  if (subjects.length > 0 && actions.length > 0) {
+    return `${subjects[0]} -> ${actions[actions.length - 1]}`;
+  }
+  return subjects[0] || actions[0] || buildSceneImagePrompt(bucket);
+}
+
+function bucketToDraftSeedScene(bucket: PlannedSceneBucket, fallbackLanguage: string): ProjectAgentDraftSeedScene {
+  let cursor = 0;
+  const rawShots = bucket.shotParts.map((part, index) => {
+    const startSec = cursor;
+    const endSec = cursor + Math.max(1, Math.round(part.durationSeconds));
+    cursor = endSec;
+
+    return {
+      id: index + 1,
+      time_range: `${formatTimecode(startSec)} - ${formatTimecode(endSec)}`,
+      audio: buildProjectAgentLegacyAudioField(part.shot),
+      sfx: part.shot.sfx || '',
+      ambient: part.shot.ambient || '',
+      style: part.shot.style || '',
+      action: part.shot.action || '',
+      subject: part.shot.subject || '',
+      dialogue: part.shot.dialogue || '',
+      language: fallbackLanguage,
+      composition: part.shot.composition || '',
+      context_environment: part.shot.contextEnvironment || '',
+      ambiance_colour_lighting: part.shot.ambianceColourLighting || '',
+      camera_motion_positioning: part.shot.cameraMotionPositioning || '',
+    } satisfies Partial<ProjectAgentCloneShot>;
+  });
+
+  const shots = normalizeProjectAgentKlingShots(rawShots, fallbackLanguage).map((shot, index) => ({
+    ...shot,
+    id: index + 1,
+    audio: buildProjectAgentLegacyAudioField(shot),
+  }));
 
   return {
-    sceneIndex: index + 1,
-    imagePrompt: prompt.first_frame_description || sourceSummary || '',
-    isContinuation: Boolean(prompt.is_continuation_from_prev),
-    sourceSummary,
-    videoPrompt: {
-      shots: shots.map((shot, shotIndex) => ({
-        ...shot,
-        id: shotIndex + 1,
-        audio: buildProjectAgentLegacyAudioField(shot),
-      })),
-    },
+    sceneIndex: bucket.sceneIndex,
+    imagePrompt: buildSceneImagePrompt(bucket),
+    isContinuation: bucket.isContinuation,
+    sourceSummary: buildSceneSourceSummary(bucket),
+    sourceShotIds: bucket.sourceShotIds,
+    videoPrompt: { shots },
   };
 }
 
@@ -177,18 +349,11 @@ export function buildProjectAgentCloneDraftSeeds(
     parsedTimeline.videoDurationSeconds,
     competitorShots
   );
-
-  const segmentPrompts = buildManualCloneSeedPrompts({
-    videoModel: 'kling_3',
-    segmentCount: getSegmentCountFromDuration(resolvedDuration, 'kling_3'),
-    videoDuration: resolvedDuration,
-    language: fallbackLanguage,
-    competitorShots,
-    competitorTotalDurationSeconds: parsedTimeline.videoDurationSeconds ?? undefined,
-  });
+  const normalizedParts = normalizeShotDurations(competitorShots, Number(resolvedDuration));
+  const sceneBuckets = partitionSceneBuckets(normalizedParts);
 
   return {
     duration: resolvedDuration,
-    scenes: segmentPrompts.map((prompt, index) => segmentPromptToDraftSeedScene(prompt, index, fallbackLanguage)),
+    scenes: sceneBuckets.map((bucket) => bucketToDraftSeedScene(bucket, fallbackLanguage)),
   };
 }

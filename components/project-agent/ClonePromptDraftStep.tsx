@@ -36,6 +36,7 @@ export type CloneDraftScene = {
   isContinuation?: boolean;
   videoPrompt: string | { shots: CloneDraftShot[] };
   sourceSummary?: string | null;
+  sourceShotIds?: number[];
 };
 
 export type ClonePromptDraft = {

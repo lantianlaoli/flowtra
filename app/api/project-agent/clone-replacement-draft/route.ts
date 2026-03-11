@@ -24,8 +24,9 @@ import {
   normalizeProjectAgentCloneShot,
   type ProjectAgentCloneShot,
 } from '@/lib/project-agent/clone-prompt-schema';
+import { normalizeProjectAgentKlingShots } from '@/lib/project-agent/kling-shot-normalization';
+import { KLING_MAX_MULTI_SHOT_ITEMS } from '@/lib/kling-shot-limits';
 import { injectMentionsInline, stripMentionTokens } from '@/lib/project-agent/clone-prompt-mentions';
-import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 
 type ShotPrompt = ProjectAgentCloneShot;
 
@@ -37,6 +38,7 @@ type ScenePrompt = {
     shots: ShotPrompt[];
   };
   sourceSummary?: string | null;
+  sourceShotIds?: number[];
 };
 
 type CloneReplacementDraft = {
@@ -237,123 +239,137 @@ const generateReplacementDraft = async (input: {
     productName: input.productName
   };
 
-  const payload = await sendOpenRouterChat({
-    model: modelName,
-    response_format: {
-      type: 'json_schema',
-      json_schema: {
-        name: 'clone_replacement_draft',
-        strict: true,
-        schema: {
-          type: 'object',
-          properties: {
-            scenes: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  sceneIndex: { type: 'integer' },
-                  imagePrompt: { type: 'string' },
-                  sourceSummary: { type: 'string' },
-                  videoPrompt: {
-                    type: 'object',
-                    properties: {
-                      shots: {
-                        type: 'array',
-                        items: {
-                          type: 'object',
-                          properties: {
-                            id: { type: 'integer' },
-                            time_range: { type: 'string' },
-                            subject: { type: 'string' },
-                            context_environment: { type: 'string' },
-                            action: { type: 'string' },
-                            style: { type: 'string' },
-                            camera_motion_positioning: { type: 'string' },
-                            composition: { type: 'string' },
-                            ambiance_colour_lighting: { type: 'string' },
-                            audio: { type: 'string' },
-                            sfx: { type: 'string' },
-                            ambient: { type: 'string' },
-                            dialogue: { type: 'string' },
-                            language: { type: 'string' }
-                          },
-                          required: [
-                            'id',
-                            'time_range',
-                            'subject',
-                            'context_environment',
-                            'action',
-                            'style',
-                            'camera_motion_positioning',
-                            'composition',
-                            'ambiance_colour_lighting',
-                            'audio',
-                            'sfx',
-                            'ambient',
-                            'dialogue'
-                          ],
-                          additionalProperties: false
-                        }
-                      }
-                    },
-                    required: ['shots'],
-                    additionalProperties: false
-                  }
-                },
-                required: ['sceneIndex', 'imagePrompt', 'videoPrompt', 'sourceSummary'],
-                additionalProperties: false
-              }
-            }
-          },
-          required: ['scenes'],
-          additionalProperties: false
-        }
-      }
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json'
     },
-    messages: [
-      {
-        role: 'system',
-        content: [
-          'You are rewriting clone prompts while preserving original Kling scene structure.',
-          'Output must preserve scene order, shot count per scene, and the exact time_range of every shot.',
-          avatarToken
-            ? `Character replacement must explicitly use token in imagePrompt and shot fields: ${avatarToken}.`
-            : 'Do not use any @character(...) token.',
-          productToken
-            ? `Product replacement must explicitly use token in imagePrompt and shot fields: ${productToken}.`
-            : 'Do not use any @product(...) token.',
-          'For each scene output imagePrompt and videoPrompt.shots.',
-          'imagePrompt must stay scene-specific (subject + environment + action) and must not repeat the same boilerplate sentence across scenes.',
-          'Do not use trailing templates like ", featuring @character(...) interacting with @product(...)".',
-          'Write a normal fluent prompt first, then embed mention tokens only at the noun phrase positions.',
-          'Do not invent extra shots, do not merge scenes, and do not change any provided time_range.',
-          'Each shot must include: subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_colour_lighting, audio, sfx, ambient, dialogue, time_range.',
-          'Apply avatar/product replacement inside video shot fields too. Do not leave original role words (e.g. woman/man) when replacement is selected.',
-          'Keep fields concise but specific.'
-        ].join(' ')
-      },
-      {
-        role: 'user',
-        content: JSON.stringify({
-          referenceSummary: input.referenceSummary,
-          scenes: input.scenes,
-          replacement: {
-            avatarToken,
-            productToken
+    body: JSON.stringify({
+      model: modelName,
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'clone_replacement_draft',
+          strict: true,
+          schema: {
+            type: 'object',
+            properties: {
+              scenes: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    sceneIndex: { type: 'integer' },
+                    imagePrompt: { type: 'string' },
+                    sourceSummary: { type: 'string' },
+                    videoPrompt: {
+                      type: 'object',
+                      properties: {
+                        shots: {
+                          type: 'array',
+                          maxItems: KLING_MAX_MULTI_SHOT_ITEMS,
+                          items: {
+                            type: 'object',
+                            properties: {
+                              id: { type: 'integer' },
+                              time_range: { type: 'string' },
+                              subject: { type: 'string' },
+                              context_environment: { type: 'string' },
+                              action: { type: 'string' },
+                              style: { type: 'string' },
+                              camera_motion_positioning: { type: 'string' },
+                              composition: { type: 'string' },
+                              ambiance_colour_lighting: { type: 'string' },
+                              audio: { type: 'string' },
+                              sfx: { type: 'string' },
+                              ambient: { type: 'string' },
+                              dialogue: { type: 'string' },
+                              language: { type: 'string' }
+                            },
+                            required: [
+                              'id',
+                              'time_range',
+                              'subject',
+                              'context_environment',
+                              'action',
+                              'style',
+                              'camera_motion_positioning',
+                              'composition',
+                              'ambiance_colour_lighting',
+                              'audio',
+                              'sfx',
+                              'ambient',
+                              'dialogue'
+                            ],
+                            additionalProperties: false
+                          }
+                        }
+                      },
+                      required: ['shots'],
+                      additionalProperties: false
+                    }
+                  },
+                  required: ['sceneIndex', 'imagePrompt', 'videoPrompt', 'sourceSummary'],
+                  additionalProperties: false
+                }
+              }
+            },
+            required: ['scenes'],
+            additionalProperties: false
           }
-        })
-      }
-    ]
-  }, {
-    timeoutMs: 45000,
-    maxRetries: 3
-  }) as {
-    choices?: Array<{ message?: { content?: unknown } }>;
+        }
+      },
+      messages: [
+        {
+          role: 'system',
+          content: [
+            'You are rewriting clone prompts into a Kling 3.0-safe clone draft.',
+            'Output must preserve scene order, scene timing, and the narrative flow of each scene.',
+            `Each scene must contain at most ${KLING_MAX_MULTI_SHOT_ITEMS} shots.`,
+            avatarToken
+              ? `Character replacement must explicitly use token in imagePrompt and shot fields: ${avatarToken}.`
+              : 'Do not use any @character(...) token.',
+            productToken
+              ? `Product replacement must explicitly use token in imagePrompt and shot fields: ${productToken}.`
+              : 'Do not use any @product(...) token.',
+            'For each scene output imagePrompt and videoPrompt.shots.',
+            'imagePrompt must stay scene-specific (subject + environment + action) and must not repeat the same boilerplate sentence across scenes.',
+            'Do not use trailing templates like ", featuring @character(...) interacting with @product(...)".',
+            'Write a normal fluent prompt first, then embed mention tokens only at the noun phrase positions.',
+            'Do not merge away original source shots inside a scene. Preserve the provided shot inventory and rewrite each planned shot in order.',
+            'Keep the total duration of each scene unchanged and keep shot time_range values contiguous from start to end.',
+            'Each shot must include: subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_colour_lighting, audio, sfx, ambient, dialogue, time_range.',
+            'Apply avatar/product replacement inside video shot fields too. Do not leave original role words (e.g. woman/man) when replacement is selected.',
+            'Keep fields concise, provider-safe, and short enough for Kling 3.0 prompt limits.'
+          ].join(' ')
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            referenceSummary: input.referenceSummary,
+            scenes: input.scenes,
+            replacement: {
+              avatarToken,
+              productToken
+            }
+          })
+        }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Draft generation failed: ${response.status} ${errorText}`);
+  }
+
+  const payload = await response.json() as {
+    choices?: Array<{ message?: { content?: string } }>;
   };
 
-  const content = extractOpenRouterTextContent(payload.choices?.[0]?.message?.content);
-  if (!content) {
+  const content = payload.choices?.[0]?.message?.content;
+  if (!content || typeof content !== 'string') {
     throw new Error('Model returned empty draft content.');
   }
 
@@ -385,7 +401,7 @@ const generateReplacementDraft = async (input: {
     });
 
     const shotCount = Math.max(1, seedShots.length || aiShots.length || 1);
-    const shots = Array.from({ length: shotCount }, (_, shotIndex) => {
+    const normalizedCandidateShots = Array.from({ length: shotCount }, (_, shotIndex) => {
       const seedShot = seedShots[shotIndex] || seedShots[seedShots.length - 1];
       const aiShot = aiShots[shotIndex] || aiShots[aiShots.length - 1] || seedShot;
       const sourceSummary = scene.sourceSummary || seedScene.sourceSummary || seedScene.imagePrompt || '';
@@ -424,13 +440,18 @@ const generateReplacementDraft = async (input: {
         audio: buildProjectAgentLegacyAudioField(normalizedShot),
       };
     });
+    const shots = normalizeProjectAgentKlingShots(
+      normalizedCandidateShots,
+      seedShots[0]?.language || aiShots[0]?.language || 'en'
+    );
 
     return {
       sceneIndex: seedScene.sceneIndex,
       imagePrompt,
       isContinuation: typeof seedScene.isContinuation === 'boolean' ? seedScene.isContinuation : index > 0,
       videoPrompt: { shots },
-      sourceSummary: scene.sourceSummary || seedScene.sourceSummary || null
+      sourceSummary: scene.sourceSummary || seedScene.sourceSummary || null,
+      sourceShotIds: seedScene.sourceShotIds ?? []
     } satisfies ScenePrompt;
   });
 };
@@ -500,6 +521,7 @@ const applySceneAssignmentsToGeneratedScenes = (input: {
 
     return {
       ...scene,
+      sourceShotIds: scene.sourceShotIds ?? [],
       imagePrompt,
       videoPrompt: { shots }
     };
