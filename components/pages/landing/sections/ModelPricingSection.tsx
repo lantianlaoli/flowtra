@@ -1,4 +1,5 @@
 import { Google, ByteDance, Kling } from '@lobehub/icons';
+import { BadgeDollarSign, Boxes, Coins, ScanLine } from 'lucide-react';
 
 export default function ModelPricingSection() {
   // Credit to USD conversion rate
@@ -98,6 +99,13 @@ export default function ModelPricingSection() {
     return `$${usdPerSecond.toFixed(2)}`;
   };
 
+  const formatCreditsPerSecond = (creditsPerMinute: number) => {
+    const creditsPerSecond = creditsPerMinute / 60;
+    return Number.isInteger(creditsPerSecond)
+      ? String(creditsPerSecond)
+      : creditsPerSecond.toFixed(2);
+  };
+
   return (
     <section
       id="model-pricing"
@@ -114,20 +122,36 @@ export default function ModelPricingSection() {
       <div className="mx-auto hidden max-w-6xl overflow-x-auto rounded-[28px] border border-[#E7E7E7] bg-white shadow-[0_18px_50px_rgba(0,0,0,0.04)] md:block">
         <table className="w-full table-fixed">
           <colgroup>
-            <col className="w-[44%]" />
-            <col className="w-[23%]" />
-            <col className="w-[33%]" />
+            <col className="w-[40%]" />
+            <col className="w-[18%]" />
+            <col className="w-[18%]" />
+            <col className="w-[24%]" />
           </colgroup>
           <thead>
             <tr className="border-b border-[#E7E7E7] bg-[linear-gradient(180deg,#fcfcfc_0%,#f7f7f7_100%)]">
-              <th className="px-8 py-6 text-left text-[11px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
-                Model
+              <th className="px-8 py-6 text-left text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
+                <span className="inline-flex items-center gap-2">
+                  <Boxes className="h-4 w-4 text-[#555555]" />
+                  <span>Model</span>
+                </span>
               </th>
-              <th className="border-l border-[#E7E7E7] px-8 py-6 text-left text-[11px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
-                Resolution
+              <th className="border-l border-[#E7E7E7] px-8 py-6 text-left text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
+                <span className="inline-flex items-center gap-2">
+                  <ScanLine className="h-4 w-4 text-[#555555]" />
+                  <span>Resolution</span>
+                </span>
               </th>
-              <th className="border-l border-[#E7E7E7] px-8 py-6 text-left text-[11px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
-                Generation Cost / Sec
+              <th className="border-l border-[#E7E7E7] px-8 py-6 text-left text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
+                <span className="inline-flex items-center gap-2">
+                  <Coins className="h-4 w-4 text-[#555555]" />
+                  <span>Credits / Sec</span>
+                </span>
+              </th>
+              <th className="border-l border-[#E7E7E7] px-8 py-6 text-left text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
+                <span className="inline-flex items-center gap-2">
+                  <BadgeDollarSign className="h-4 w-4 text-[#555555]" />
+                  <span>Generation Cost / Sec</span>
+                </span>
               </th>
             </tr>
           </thead>
@@ -177,6 +201,13 @@ export default function ModelPricingSection() {
                       </span>
                     </td>
 
+                    {/* Credits / Sec */}
+                    <td className="border-l border-[#E7E7E7] px-8 py-6 align-middle lg:px-9 lg:py-6">
+                      <div className="text-[17px] font-bold tracking-tight text-black">
+                        {isComingSoon ? 'Coming soon' : (isFree ? 'Free' : formatCreditsPerSecond(option.credits))}
+                      </div>
+                    </td>
+
                     {/* Generation Cost */}
                     <td className="border-l border-[#E7E7E7] px-8 py-6 align-middle lg:px-9 lg:py-6">
                       <div className="text-[17px] font-bold tracking-tight text-black">
@@ -223,18 +254,30 @@ export default function ModelPricingSection() {
               <div className="space-y-3.5">
                 {model.pricingOptions.map((option, idx) => (
                   <div key={idx} className="rounded-2xl border border-[#ECECEC] bg-[linear-gradient(180deg,#fbfbfb_0%,#f7f7f7_100%)] p-4">
-                    <div className="mb-2.5 flex items-start justify-between">
-                      <span className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#666666]">
-                        Generation Cost / Sec
-                      </span>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                      <div>
+                        <span className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#666666]">
+                          Credits / Sec
+                        </span>
+                        <div className="mt-1 text-[18px] font-bold tracking-tight text-black">
+                          {option.comingSoon
+                            ? 'Coming soon'
+                            : option.credits === 0
+                            ? 'Free'
+                            : formatCreditsPerSecond(option.credits)}
+                        </div>
+                      </div>
                       <div className="text-right">
-                        <span className="block text-[18px] font-bold tracking-tight text-black">
+                        <span className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#666666]">
+                          Generation Cost / Sec
+                        </span>
+                        <div className="mt-1 text-[18px] font-bold tracking-tight text-black">
                           {option.comingSoon
                             ? 'Coming soon'
                             : option.credits === 0
                             ? 'Free'
                             : formatUsdPerSecond(option.credits)}
-                        </span>
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center justify-between border-t border-[#E9E9E9] pt-3 text-xs text-[#666666]">

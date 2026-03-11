@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { BadgeDollarSign, Check, FolderKanban, Layers3 } from "lucide-react";
 
 export default function ComparisonSection() {
   return (
@@ -10,7 +10,7 @@ export default function ComparisonSection() {
 
       <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Desktop Table View */}
-        <div className="hidden lg:block overflow-x-auto rounded-xl border border-[#E5E5E5] shadow-[0_20px_40px_rgba(0,0,0,0.05)]">
+        <div className="hidden overflow-x-auto rounded-[28px] border border-[#E7E7E7] bg-white shadow-[0_18px_50px_rgba(0,0,0,0.04)] lg:block">
           <table className="w-full text-left border-collapse table-fixed">
             <colgroup>
               <col className="w-[28%]" />
@@ -18,22 +18,37 @@ export default function ComparisonSection() {
               <col className="w-[54%]" />
             </colgroup>
             <thead>
-              <tr className="bg-[#F7F7F7] border-b border-[#E5E5E5] text-[12px] font-bold text-black uppercase tracking-wider">
-                <th className="px-5 py-5">Platform</th>
-                <th className="px-5 py-5">Cost</th>
-                <th className="px-5 py-5 pl-10">Included</th>
+              <tr className="border-b border-[#E7E7E7] bg-[linear-gradient(180deg,#fcfcfc_0%,#f7f7f7_100%)] text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111]">
+                <th className="px-8 py-6">
+                  <span className="inline-flex items-center gap-2">
+                    <FolderKanban className="h-4 w-4 text-[#555555]" />
+                    <span>Platform</span>
+                  </span>
+                </th>
+                <th className="border-l border-[#E7E7E7] px-8 py-6">
+                  <span className="inline-flex items-center gap-2">
+                    <BadgeDollarSign className="h-4 w-4 text-[#555555]" />
+                    <span>Cost</span>
+                  </span>
+                </th>
+                <th className="border-l border-[#E7E7E7] px-8 py-6">
+                  <span className="inline-flex items-center gap-2">
+                    <Layers3 className="h-4 w-4 text-[#555555]" />
+                    <span>Included</span>
+                  </span>
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E5E5E5]">
+            <tbody className="divide-y divide-[#EEEEEE] bg-white">
               {/* Flowtra AI */}
-              <tr className="bg-white hover:bg-[#F7F7F7] transition-colors">
-                <td className="px-5 py-8 align-top">
-                  <div className="font-semibold text-[16px] text-black">Flowtra</div>
+              <tr className="bg-white transition-colors duration-200 hover:bg-[#FCFCFC]">
+                <td className="px-8 py-6 align-top">
+                  <div className="text-[18px] font-bold tracking-tight text-black">Flowtra</div>
                 </td>
-                <td className="px-5 py-8 align-top font-bold text-black text-[18px]">
+                <td className="border-l border-[#E7E7E7] px-8 py-6 align-top text-[18px] font-bold tracking-tight text-black">
                   Basic $59/mo
                 </td>
-                <td className="px-5 py-8 align-top text-[#666666] text-[14px] pl-10">
+                <td className="border-l border-[#E7E7E7] px-8 py-6 align-top text-[14px] text-[#666666]">
                   <ul className="space-y-2">
                     {[
                       "3,930 credits",
@@ -58,14 +73,14 @@ export default function ComparisonSection() {
               </tr>
 
               {/* Arcads */}
-              <tr className="bg-white hover:bg-[#F7F7F7] transition-colors">
-                <td className="px-5 py-8 align-top">
-                  <div className="font-semibold text-[16px] text-black">Arcads</div>
+              <tr className="bg-white transition-colors duration-200 hover:bg-[#FCFCFC]">
+                <td className="px-8 py-6 align-top">
+                  <div className="text-[18px] font-bold tracking-tight text-black">Arcads</div>
                 </td>
-                <td className="px-5 py-8 align-top font-semibold text-black text-[16px]">
+                <td className="border-l border-[#E7E7E7] px-8 py-6 align-top text-[18px] font-bold tracking-tight text-black">
                   Creator $220/mo
                 </td>
-                <td className="px-5 py-8 align-top text-[#666666] text-[14px] pl-10">
+                <td className="border-l border-[#E7E7E7] px-8 py-6 align-top text-[14px] text-[#666666]">
                   <ul className="space-y-2">
                     {[
                       "20 credits per month",
@@ -89,7 +104,7 @@ export default function ComparisonSection() {
         {/* Mobile Card View */}
         <div className="lg:hidden space-y-5">
           {/* Flowtra Card */}
-          <div className="bg-white rounded-xl border-2 border-black p-6 sm:p-8 space-y-5 relative shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
+          <div className="relative space-y-5 rounded-[24px] border border-black bg-white p-6 shadow-[0_18px_40px_rgba(0,0,0,0.08)] sm:p-8">
              <div className="absolute top-0 right-0 bg-black text-white text-[10px] font-bold px-4 py-1.5 uppercase tracking-widest rounded-bl-xl">
               BEST VALUE
             </div>
@@ -130,7 +145,7 @@ export default function ComparisonSection() {
           </div>
 
            {/* Arcads Card */}
-           <div className="bg-white rounded-xl border border-[#E5E5E5] p-6 sm:p-7 space-y-5">
+           <div className="space-y-5 rounded-[24px] border border-[#E7E7E7] bg-white p-6 shadow-[0_14px_36px_rgba(0,0,0,0.04)] sm:p-7">
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="text-[20px] font-semibold text-black">Arcads</h3>
