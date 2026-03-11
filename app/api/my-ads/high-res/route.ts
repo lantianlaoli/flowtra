@@ -81,12 +81,12 @@ export async function POST(request: NextRequest) {
     const perSegmentCost = RESOLUTION_COSTS[resolution];
 
     if (adType === 'competitor-ugc-replication') {
-      // Schema verified via Supabase MCP (2026-01-25): competitor_ugc_replication_projects columns include
+      // Schema verified via Supabase MCP (2026-03-11): competitor_ugc_replication_projects columns include
       // id, user_id, status, video_url, video_aspect_ratio, segment_count, is_segmented,
-      // merged_video_1080p_url, merged_video_4k_url, fal_merge_1080p_task_id, fal_merge_4k_task_id.
+      // video_model, merged_video_1080p_url, merged_video_4k_url, fal_merge_1080p_task_id, fal_merge_4k_task_id.
       const { data: project, error: projectError } = await supabase
         .from('competitor_ugc_replication_projects')
-        .select('id, user_id, status, video_url, video_aspect_ratio, segment_count, is_segmented, merged_video_1080p_url, merged_video_4k_url, fal_merge_1080p_task_id, fal_merge_4k_task_id')
+        .select('id, user_id, status, video_url, video_aspect_ratio, segment_count, is_segmented, video_model, merged_video_1080p_url, merged_video_4k_url, fal_merge_1080p_task_id, fal_merge_4k_task_id')
         .eq('id', historyId)
         .eq('user_id', userId)
         .single();
@@ -97,6 +97,13 @@ export async function POST(request: NextRequest) {
 
       if (project.status !== 'completed' || !project.video_url) {
         return NextResponse.json({ error: 'Video not ready for download' }, { status: 400 });
+      }
+
+      if (project.video_model !== 'veo3_fast') {
+        return NextResponse.json(
+          { error: 'Higher-quality export is only available for Veo3.1 fast projects. This video downloads in its original generated quality.' },
+          { status: 400 }
+        );
       }
 
       // Schema verified via Supabase MCP (2026-01-25): competitor_ugc_replication_segments columns include
@@ -277,12 +284,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Avatar Ads
-    // Schema verified via Supabase MCP (2026-01-25): avatar_ads_projects columns include
+    // Schema verified via Supabase MCP (2026-03-11): avatar_ads_projects columns include
     // id, user_id, status, video_aspect_ratio, merged_video_url,
-    // merged_video_1080p_url, merged_video_4k_url, fal_merge_1080p_task_id, fal_merge_4k_task_id.
+    // video_model, merged_video_1080p_url, merged_video_4k_url, fal_merge_1080p_task_id, fal_merge_4k_task_id.
     const { data: project, error: projectError } = await supabase
       .from('avatar_ads_projects')
-      .select('id, user_id, status, video_aspect_ratio, merged_video_url, merged_video_1080p_url, merged_video_4k_url, fal_merge_1080p_task_id, fal_merge_4k_task_id')
+      .select('id, user_id, status, video_aspect_ratio, merged_video_url, video_model, merged_video_1080p_url, merged_video_4k_url, fal_merge_1080p_task_id, fal_merge_4k_task_id')
       .eq('id', historyId)
       .eq('user_id', userId)
       .single();
@@ -293,6 +300,13 @@ export async function POST(request: NextRequest) {
 
     if (project.status !== 'completed') {
       return NextResponse.json({ error: 'Video not ready for download' }, { status: 400 });
+    }
+
+    if (project.video_model !== 'veo3_fast') {
+      return NextResponse.json(
+        { error: 'Higher-quality export is only available for Veo3.1 fast projects. This video downloads in its original generated quality.' },
+        { status: 400 }
+      );
     }
 
     // Schema verified via Supabase MCP (2026-01-25): avatar_ads_scenes columns include
