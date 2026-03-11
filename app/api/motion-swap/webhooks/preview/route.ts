@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createMotionSwapVideoTask, MOTION_SWAP_MODE } from '@/lib/motion-swap-workflow';
+import { createMotionSwapVideoTask } from '@/lib/motion-swap-workflow';
 import { refundCredits } from '@/lib/credits';
+import { normalizeMotionSwapQuality } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -111,7 +112,7 @@ export async function POST(request: NextRequest) {
         const videoTaskId = await createMotionSwapVideoTask({
           previewImageUrl: previewUrl,
           referenceVideoUrl,
-          mode: MOTION_SWAP_MODE,
+          mode: normalizeMotionSwapQuality(project.mode),
           prompt: project.video_prompt || undefined
         }, callbackUrl);
 

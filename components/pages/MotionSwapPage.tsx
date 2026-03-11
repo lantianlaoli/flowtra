@@ -25,6 +25,11 @@ import * as Dialog from "@radix-ui/react-dialog";
 import type { Format } from "@/components/ui/FormatSelector";
 import { useSearchParams } from "next/navigation";
 import { MENTION_TOKEN_REGEX, buildMentionToken, parseMentionToken } from "@/lib/prompt-mention-tokens";
+import {
+  getMotionSwapGenerationCost,
+  normalizeMotionSwapQuality,
+  type CloneVideoQuality,
+} from "@/lib/constants";
 
 interface MotionSwapVideo {
   id: string;
@@ -43,6 +48,7 @@ interface MotionSwapProject {
   id: string;
   status: string;
   progress_percentage: number;
+  mode?: string | null;
   creator_source_id?: string | null;
   creator_source_video_id?: string | null;
   avatar_id?: string | null;
@@ -58,11 +64,14 @@ interface MotionSwapProject {
   created_at?: string | null;
 }
 
-const CREDIT_RATE_PER_SECOND = 9;
 const TUTORIAL_TIKTOK_URL =
   "https://www.tiktok.com/@laolilantian/video/7600705503555095816?lang=en";
 const TUTORIAL_TIKTOK_ID = "7600705503555095816";
 const SESSION_STORAGE_KEY = "motion_swap_session_state";
+const MOTION_SWAP_QUALITY_OPTIONS = [
+  { value: "720p" as const, label: "720p", creditsPerSecondLabel: "12 credits / s" },
+  { value: "1080p" as const, label: "1080p", creditsPerSecondLabel: "20 credits / s" },
+];
 
 export default function MotionSwapPage() {
   const searchParams = useSearchParams();
@@ -78,6 +87,8 @@ export default function MotionSwapPage() {
   const [projects, setProjects] = useState<MotionSwapProject[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<Format>("9:16");
+  const [selectedVideoQuality, setSelectedVideoQuality] =
+    useState<CloneVideoQuality>("720p");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editAction, setEditAction] = useState<"image" | "video" | null>(null);
   const [editPhotoPrompt, setEditPhotoPrompt] = useState("");
@@ -135,9 +146,10 @@ export default function MotionSwapPage() {
   const editAvatarId = mentionSelections.characterIds[0] || "";
   const editProductId = mentionSelections.productIds[0] || "";
 
-  const estimatedCredits = selectedVideo?.duration_seconds
-    ? selectedVideo.duration_seconds * CREDIT_RATE_PER_SECOND
-    : null;
+  const estimatedCredits = getMotionSwapGenerationCost(
+    selectedVideo?.duration_seconds,
+    selectedVideoQuality,
+  );
 
   const loadAssets = useCallback(async () => {
     try {
@@ -196,6 +208,7 @@ export default function MotionSwapPage() {
         activeProjectId?: string | null;
         selectedVideoId?: string;
         selectedSize?: Format;
+        selectedVideoQuality?: CloneVideoQuality;
       };
       if (parsed.activeProjectId) {
         setActiveProjectId(parsed.activeProjectId);
@@ -205,6 +218,11 @@ export default function MotionSwapPage() {
       }
       if (parsed.selectedSize) {
         setSelectedSize(parsed.selectedSize);
+      }
+      if (parsed.selectedVideoQuality) {
+        setSelectedVideoQuality(
+          normalizeMotionSwapQuality(parsed.selectedVideoQuality),
+        );
       }
     } catch (error) {
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
@@ -293,6 +311,11 @@ export default function MotionSwapPage() {
   }, [projects, activeProjectId]);
 
   useEffect(() => {
+    if (!activeProject) return;
+    setSelectedVideoQuality(normalizeMotionSwapQuality(activeProject.mode));
+  }, [activeProject?.id, activeProject?.mode, activeProject]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     if (!activeProject) {
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
@@ -302,6 +325,7 @@ export default function MotionSwapPage() {
       activeProjectId: activeProject.id,
       selectedVideoId,
       selectedSize,
+      selectedVideoQuality,
     };
     try {
       window.sessionStorage.setItem(
@@ -311,7 +335,7 @@ export default function MotionSwapPage() {
     } catch (error) {
       console.error("Failed to persist Motion Swap session state:", error);
     }
-  }, [activeProject, selectedVideoId, selectedSize]);
+  }, [activeProject, selectedVideoId, selectedSize, selectedVideoQuality]);
 
   useEffect(() => {
     if (!activeProject?.id) return;
@@ -399,6 +423,7 @@ export default function MotionSwapPage() {
     if (targetProject.creator_source_video_id) {
       setSelectedVideoId(targetProject.creator_source_video_id);
     }
+    setSelectedVideoQuality(normalizeMotionSwapQuality(targetProject.mode));
     if (!editPhotoPrompt) {
       const avatarName =
         avatars.find((avatar) => avatar.id === targetProject.avatar_id)
@@ -526,9 +551,10 @@ export default function MotionSwapPage() {
     typeof activeProject?.credits_cost === "number" &&
     activeProject.credits_cost > 0
       ? activeProject.credits_cost
-      : displayDurationSeconds
-        ? displayDurationSeconds * CREDIT_RATE_PER_SECOND
-        : null;
+      : getMotionSwapGenerationCost(
+          displayDurationSeconds,
+          activeProject?.mode || selectedVideoQuality,
+        ) || null;
 
   const displayedGenerations = useMemo<Generation[]>(() => {
     return projects.map((item) => {
@@ -561,9 +587,10 @@ export default function MotionSwapPage() {
       const creditsCost =
         typeof item.credits_cost === "number" && item.credits_cost > 0
           ? item.credits_cost
-          : durationSeconds
-            ? durationSeconds * CREDIT_RATE_PER_SECOND
-            : undefined;
+          : getMotionSwapGenerationCost(
+              durationSeconds,
+              item.mode || selectedVideoQuality,
+            ) || undefined;
 
       return {
         id: item.id,
@@ -596,6 +623,7 @@ export default function MotionSwapPage() {
     selectedVideo?.duration_seconds,
     selectedVideo?.cover_url,
     selectedSize,
+    selectedVideoQuality,
   ]);
 
   const emptyStateSteps = useMemo(
@@ -661,6 +689,7 @@ export default function MotionSwapPage() {
             product_id: editProductId,
             photo_prompt: editPhotoPrompt,
             video_prompt: editVideoPrompt,
+            mode: selectedVideoQuality,
             action: action,
           }),
         },
@@ -832,9 +861,14 @@ export default function MotionSwapPage() {
             <ConfigPopover
               videoDuration="8"
               onDurationChange={() => {}}
-              selectedModel="veo3_fast"
+              selectedModel="kling_3"
               onModelChange={() => {}}
               userCredits={userCredits || 0}
+              selectedVideoQuality={selectedVideoQuality}
+              onVideoQualityChange={(value) =>
+                setSelectedVideoQuality(normalizeMotionSwapQuality(value))
+              }
+              videoQualityOptions={MOTION_SWAP_QUALITY_OPTIONS}
               hideModelSelector
               hideLanguageSelector
               hideDurationSelector
@@ -900,7 +934,7 @@ export default function MotionSwapPage() {
                 <MotionSwapEditorSplitPane
                   segment={editSegment}
                   videoAspectRatio="9:16"
-                  videoModel="kling-2.6/motion-control"
+                  videoModel="kling-3.0/motion-control"
                   form={
                     <MotionSwapEditorFormColumn
                       photoPrompt={editPhotoPrompt}
@@ -915,6 +949,7 @@ export default function MotionSwapPage() {
                       canGenerateVideo={canGenerateVideo}
                       isGeneratingImage={editAction === "image"}
                       isGeneratingVideo={editAction === "video"}
+                      videoCreditsCost={displayCreditsCost || estimatedCredits}
                       errorMessage={editError}
                     />
                   }

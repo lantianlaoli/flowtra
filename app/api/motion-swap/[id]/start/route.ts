@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createMotionSwapPreviewTask, createMotionSwapVideoTask, buildMotionSwapPreviewPrompt, buildMotionSwapVideoPrompt, MOTION_SWAP_MODE } from '@/lib/motion-swap-workflow';
+import { createMotionSwapPreviewTask, createMotionSwapVideoTask, buildMotionSwapPreviewPrompt, buildMotionSwapVideoPrompt } from '@/lib/motion-swap-workflow';
 import { checkCredits, deductCredits, recordCreditTransaction, refundCredits } from '@/lib/credits';
 import { fetchTikTokVideoUrl } from '@/lib/fetch-tiktok-video';
 import { downloadVideoBuffer, uploadCreatorVideoCoverToStorage } from '@/lib/creator-videos-storage';
 import { fetchTikTokCoverByUrl } from '@/lib/tiktok-creator-source';
+import { getMotionSwapGenerationCost, normalizeMotionSwapQuality } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-
-const CREDIT_RATE_PER_SECOND = 9;
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -44,6 +43,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     if (projectError || !project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
+
+    const selectedQuality = normalizeMotionSwapQuality(
+      typeof body?.mode === 'string' ? body.mode : project.mode
+    );
 
     // Allow editing from 'pending' or 'preview_ready' status
     if (project.status !== 'pending' && project.status !== 'preview_ready') {
@@ -171,7 +174,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       return NextResponse.json({ error: 'Cover image is missing' }, { status: 400 });
     }
 
-    const creditsCost = durationSeconds * CREDIT_RATE_PER_SECOND;
+    const creditsCost = getMotionSwapGenerationCost(durationSeconds, selectedQuality);
     const creditCheck = await checkCredits(userId, creditsCost);
 
     if (!creditCheck.success) {
@@ -203,7 +206,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         const videoTaskId = await createMotionSwapVideoTask({
           previewImageUrl: project.preview_image_url,
           referenceVideoUrl: videoCdnUrl,
-          mode: MOTION_SWAP_MODE,
+          mode: selectedQuality,
           prompt: videoPrompt || buildMotionSwapVideoPrompt({ hasAvatar, hasProduct })
         }, callbackUrl);
 
@@ -213,6 +216,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
             video_task_id: videoTaskId,
             video_prompt: videoPrompt || buildMotionSwapVideoPrompt({ hasAvatar, hasProduct }),
             auto_generate_video: true,
+            mode: selectedQuality,
             status: 'generating_video',
             progress_percentage: 75
           })
@@ -253,7 +257,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         userId,
         'usage',
         creditsCost,
-        `Motion Swap generation (${durationSeconds}s @ 1080p)`,
+        `Motion Swap generation (${durationSeconds}s @ ${selectedQuality})`,
         project.id,
         true
       );
@@ -287,7 +291,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           auto_generate_video: autoGenerateVideo,
           status: 'generating_preview',
           progress_percentage: 40,
-          mode: MOTION_SWAP_MODE
+          mode: selectedQuality
         })
         .eq('id', project.id)
         .select('*')

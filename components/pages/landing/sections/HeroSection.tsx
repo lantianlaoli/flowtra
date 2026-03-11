@@ -62,6 +62,10 @@ export default function HeroSection({ activatedUserCount }: HeroSectionProps) {
             label="Kling 3.0 is live"
           />
           <LiveModelBadge
+            icon={<Kling className="w-3.5 h-3.5 text-[#37352f]" />}
+            label="Kling 3.0 Motion Control is live"
+          />
+          <LiveModelBadge
             icon={<Google className="w-3.5 h-3.5 text-[#37352f]" />}
             label="Nano Banana 2 is live"
           />

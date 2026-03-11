@@ -18,6 +18,7 @@ interface VideoQualitySelectorProps {
   onQualityChange: (quality: CloneVideoQuality) => void;
   className?: string;
   disabled?: boolean;
+  qualityOptionsOverride?: QualityOption[];
 }
 
 type QualityOption = {
@@ -81,13 +82,17 @@ export default function VideoQualitySelector({
   selectedQuality,
   onQualityChange,
   className,
-  disabled = false
+  disabled = false,
+  qualityOptionsOverride
 }: VideoQualitySelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
   const normalizedSelectedQuality = normalizeCloneVideoQualityForModel(selectedModel, selectedQuality);
-  const qualityOptions = useMemo(() => getQualityOptions(selectedModel), [selectedModel]);
+  const qualityOptions = useMemo(
+    () => qualityOptionsOverride || getQualityOptions(selectedModel),
+    [qualityOptionsOverride, selectedModel]
+  );
   const selectedOption = qualityOptions.find((option) => option.value === normalizedSelectedQuality) || qualityOptions[0];
 
   useEffect(() => {

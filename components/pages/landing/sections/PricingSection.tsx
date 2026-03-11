@@ -8,10 +8,10 @@ type PlanFeatureItem = {
   badges?: string[];
 };
 
-const planFeatureItems = {
+const planFeatureItems: Record<"lite" | "basic" | "pro", PlanFeatureItem[]> = {
   lite: [
     { label: "1,930 Credits", bold: true },
-    { label: "AI Agent", bold: true, badges: ["Free"] },
+    { label: "AI Agent", bold: true },
     { label: "Avatar Ads" },
     { label: "Clone viral videos" },
     { label: "Motion Swap" },
@@ -22,7 +22,7 @@ const planFeatureItems = {
   ],
   basic: [
     { label: "3,930 Credits", bold: true },
-    { label: "AI Agent", bold: true, badges: ["Free"] },
+    { label: "AI Agent", bold: true },
     { label: "Avatar Ads" },
     { label: "Clone viral videos" },
     { label: "Motion Swap" },
@@ -33,7 +33,7 @@ const planFeatureItems = {
   ],
   pro: [
     { label: "6,600 Credits", bold: true },
-    { label: "AI Agent", bold: true, badges: ["Free"] },
+    { label: "AI Agent", bold: true },
     { label: "Avatar Ads" },
     { label: "Clone viral videos" },
     { label: "Motion Swap" },
@@ -42,7 +42,7 @@ const planFeatureItems = {
     { label: "Latest video models" },
     { label: "TikTok publishing support" },
   ],
-} satisfies Record<"lite" | "basic" | "pro", PlanFeatureItem[]>;
+};
 
 export default function PricingSection({
   showTitle = true,
@@ -91,7 +91,7 @@ export default function PricingSection({
 
             <ul className="space-y-4 mb-10 flex-grow">
               {[
-                "AI Agent · Free access",
+                "AI Agent",
                 "Avatar Ads",
                 "Clone viral video",
                 "Motion Swap",

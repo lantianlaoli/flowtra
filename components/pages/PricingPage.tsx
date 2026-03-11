@@ -9,14 +9,6 @@ import { CREDIT_COSTS } from '@/lib/constants';
 import { handleCreemCheckout } from '@/lib/payment';
 import type { ReactNode } from 'react';
 
-const agentBadges = (
-  <>
-    <span className="inline-flex items-center rounded-full border border-[#16A34A] bg-[#F0FDF4] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#15803D]">
-      Free
-    </span>
-  </>
-);
-
 const pricingPlanItems = {
   lite: [
     { key: 'credits', content: (videos: number) => <><span className="font-bold text-gray-900">1,930</span> credits/month</> },
@@ -26,7 +18,6 @@ const pricingPlanItems = {
       content: () => (
         <span className="flex flex-wrap items-center gap-2">
           <span className="font-bold text-gray-900">AI Agent</span>
-          {agentBadges}
         </span>
       ),
     },
@@ -44,7 +35,6 @@ const pricingPlanItems = {
       content: () => (
         <span className="flex flex-wrap items-center gap-2">
           <span className="font-bold text-gray-900">AI Agent</span>
-          {agentBadges}
         </span>
       ),
     },
@@ -62,7 +52,6 @@ const pricingPlanItems = {
       content: () => (
         <span className="flex flex-wrap items-center gap-2">
           <span className="font-bold text-gray-900">AI Agent</span>
-          {agentBadges}
         </span>
       ),
     },

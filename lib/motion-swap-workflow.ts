@@ -4,7 +4,7 @@ import { NON_AGENT_IMAGE_MODEL, NON_AGENT_IMAGE_OUTPUT_FORMAT, NON_AGENT_IMAGE_R
 const KIE_CREATE_TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const KIE_FILE_URL_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-url-upload';
 
-export const MOTION_SWAP_MODE = '1080p' as const;
+export const MOTION_SWAP_MODE = '720p' as const;
 
 export interface MotionSwapPreviewInput {
   coverUrl: string;
@@ -160,17 +160,13 @@ export const createMotionSwapVideoTask = async (
     'video'
   );
 
-  const requestBody = {
-    model: 'kling-2.6/motion-control',
-    input: {
-      prompt: input.prompt || buildMotionSwapVideoPrompt(),
-      input_urls: [previewImageUrl],
-      video_urls: [referenceVideoUrl],
-      character_orientation: 'video',
-      mode: input.mode || MOTION_SWAP_MODE
-    },
-    callBackUrl: callbackUrl
-  };
+  const requestBody = buildMotionSwapVideoRequestBody({
+    previewImageUrl,
+    referenceVideoUrl,
+    mode: input.mode,
+    prompt: input.prompt,
+    callbackUrl
+  });
 
   const response = await fetchWithRetry(KIE_CREATE_TASK_URL, {
     method: 'POST',
@@ -191,4 +187,34 @@ export const createMotionSwapVideoTask = async (
   }
 
   return data.data.taskId as string;
+};
+
+export const buildMotionSwapVideoRequestBody = ({
+  previewImageUrl,
+  referenceVideoUrl,
+  mode,
+  prompt,
+  callbackUrl
+}: {
+  previewImageUrl: string;
+  referenceVideoUrl: string;
+  mode?: '720p' | '1080p';
+  prompt?: string;
+  callbackUrl: string;
+}) => {
+  return {
+    model: 'kling-3.0/motion-control',
+    input: {
+      prompt: prompt || buildMotionSwapVideoPrompt(),
+      input_urls: [previewImageUrl],
+      video_urls: [referenceVideoUrl],
+      character_orientation: 'video',
+      mode: mode || MOTION_SWAP_MODE
+    },
+    callBackUrl: callbackUrl
+  };
+};
+
+export const __test__ = {
+  buildMotionSwapVideoRequestBody
 };

@@ -18,6 +18,7 @@ interface MotionSwapEditorFormColumnProps {
   canGenerateVideo: boolean;
   isGeneratingImage: boolean;
   isGeneratingVideo: boolean;
+  videoCreditsCost: number;
   errorMessage?: string | null;
 }
 
@@ -34,6 +35,7 @@ export default function MotionSwapEditorFormColumn({
   canGenerateVideo,
   isGeneratingImage,
   isGeneratingVideo,
+  videoCreditsCost,
   errorMessage
 }: MotionSwapEditorFormColumnProps) {
   const characterMentions = useMemo(() => (
@@ -133,7 +135,7 @@ export default function MotionSwapEditorFormColumn({
             {isGeneratingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <VideoIcon className="w-4 h-4" />}
             Generate Video
             <span className="ml-1 inline-flex items-center rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
-              FREE
+              {videoCreditsCost} credits
             </span>
           </button>
         </div>

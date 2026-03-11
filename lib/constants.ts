@@ -15,6 +15,11 @@ export const KLING_QUALITY_COSTS = {
   '1080p': 40
 } as const;
 
+export const MOTION_SWAP_QUALITY_COSTS = {
+  '720p': 12,
+  '1080p': 20
+} as const;
+
 export const SEEDANCE_AUDIO_ENABLED_COSTS = {
   '480p': {
     4: 14,
@@ -394,6 +399,27 @@ export function getCloneSegmentVideoGenerationCost(
   }
 
   return GENERATION_COSTS[model];
+}
+
+export type MotionSwapQuality = keyof typeof MOTION_SWAP_QUALITY_COSTS;
+
+export function normalizeMotionSwapQuality(
+  quality?: string | null
+): MotionSwapQuality {
+  return quality === '1080p' ? '1080p' : '720p';
+}
+
+export function getMotionSwapGenerationCost(
+  durationSeconds?: number | null,
+  quality?: string | null
+): number {
+  const normalizedQuality = normalizeMotionSwapQuality(quality);
+  const duration = Number(durationSeconds);
+  const effectiveDuration = Number.isFinite(duration) && duration > 0
+    ? Math.ceil(duration)
+    : 0;
+
+  return effectiveDuration * MOTION_SWAP_QUALITY_COSTS[normalizedQuality];
 }
 
 interface ModelCapabilities {

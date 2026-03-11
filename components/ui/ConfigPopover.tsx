@@ -12,6 +12,14 @@ import LanguageSelector, { LanguageCode } from './LanguageSelector';
 import FormatSelector, { type Format } from './FormatSelector';
 import type { CloneVideoQuality, VideoDuration, VideoModel } from '@/lib/constants';
 
+type QualityOptionOverride = {
+  value: CloneVideoQuality;
+  label: string;
+  creditsPerSecondLabel?: string;
+  disabled?: boolean;
+  disabledReason?: string;
+};
+
 interface ConfigPopoverProps {
   // Duration props
   videoDuration?: VideoDuration;
@@ -33,6 +41,7 @@ interface ConfigPopoverProps {
   selectedVideoQuality?: CloneVideoQuality;
   onVideoQualityChange?: (quality: CloneVideoQuality) => void;
   hideVideoQualitySelector?: boolean;
+  videoQualityOptions?: QualityOptionOverride[];
 
   // Language props
   selectedLanguage?: LanguageCode;
@@ -75,6 +84,7 @@ export default function ConfigPopover({
   selectedVideoQuality,
   onVideoQualityChange,
   hideVideoQualitySelector = false,
+  videoQualityOptions,
   selectedLanguage,
   onLanguageChange,
   hideLanguageSelector = false,
@@ -282,6 +292,7 @@ export default function ConfigPopover({
           selectedQuality={selectedVideoQuality}
           onQualityChange={onVideoQualityChange}
           disabled={disabled}
+          qualityOptionsOverride={videoQualityOptions}
         />
       )}
 
