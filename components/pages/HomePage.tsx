@@ -197,6 +197,12 @@ interface DiscoverItem {
   createdAt?: string;
 }
 
+const VIDEO_URL_PATTERN = /\.(mp4|mov|webm|m4v)(?:[?#].*)?$/i;
+
+function isVideoLikeUrl(url?: string) {
+  return typeof url === "string" && VIDEO_URL_PATTERN.test(url);
+}
+
 function DiscoverSection() {
   const [filter, setFilter] = useState<DiscoverType>("all");
   const [items, setItems] = useState<DiscoverItem[]>([]);
@@ -207,7 +213,9 @@ function DiscoverSection() {
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
 
   const filtered = useMemo(() => {
-    const validItems = items.filter((i) => !brokenImageIds.has(i.id));
+    const validItems = items.filter(
+      (i) => i.videoUrl || !brokenImageIds.has(i.id),
+    );
     if (filter === "all") return validItems;
     return validItems.filter((i) => i.type === filter);
   }, [items, filter, brokenImageIds]);
@@ -332,39 +340,61 @@ function DiscoverSection() {
           </div>
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {filtered.map((item) => (
-            <div key={item.id} className="break-inside-avoid">
-              <div
-                className="group relative w-full rounded-xl overflow-hidden border border-border/60 bg-muted hover:border-border transition-all duration-200"
-                onMouseEnter={() => item.videoUrl && handleMouseEnter(item.id)}
-                onMouseLeave={() => item.videoUrl && handleMouseLeave(item.id)}
-              >
-                {/* Cover image */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={item.coverImageUrl}
-                  alt="ad"
-                  loading="lazy"
-                  className="w-full h-auto block"
-                  onError={() => handleImageError(item.id)}
-                />
+          {filtered.map((item) => {
+            const hasWorkingImage =
+              Boolean(item.coverImageUrl) &&
+              !brokenImageIds.has(item.id) &&
+              !isVideoLikeUrl(item.coverImageUrl);
+            const fallbackToVideo = Boolean(item.videoUrl) && !hasWorkingImage;
 
-                {/* Hover-playing video overlay (if present) */}
-                {item.videoUrl && (
-                  <video
-                    ref={(el) => setVideoRef(item.id, el)}
-                    src={item.videoUrl}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    playsInline
-                    muted={audibleId !== item.id}
-                    loop
-                    preload="metadata"
-                    style={{ pointerEvents: "none" }}
-                  />
-                )}
+            return (
+              <div key={item.id} className="break-inside-avoid">
+                <div
+                  className="group relative w-full rounded-xl overflow-hidden border border-border/60 bg-muted hover:border-border transition-all duration-200"
+                  onMouseEnter={() => item.videoUrl && handleMouseEnter(item.id)}
+                  onMouseLeave={() => item.videoUrl && handleMouseLeave(item.id)}
+                >
+                  {fallbackToVideo ? (
+                    <video
+                      ref={(el) => setVideoRef(item.id, el)}
+                      src={item.videoUrl}
+                      className="w-full h-auto block"
+                      playsInline
+                      muted={audibleId !== item.id}
+                      loop
+                      preload="metadata"
+                    />
+                  ) : (
+                    <>
+                      {/* Cover image */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={item.coverImageUrl}
+                        alt="ad"
+                        loading="lazy"
+                        className="w-full h-auto block"
+                        onError={() => handleImageError(item.id)}
+                      />
+
+                      {/* Hover-playing video overlay (if present) */}
+                      {item.videoUrl && (
+                        <video
+                          ref={(el) => setVideoRef(item.id, el)}
+                          src={item.videoUrl}
+                          className="absolute inset-0 w-full h-full object-cover"
+                          playsInline
+                          muted={audibleId !== item.id}
+                          loop
+                          preload="metadata"
+                          style={{ pointerEvents: "none" }}
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </Card>
