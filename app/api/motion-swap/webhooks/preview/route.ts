@@ -3,6 +3,11 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { createMotionSwapVideoTask } from '@/lib/motion-swap-workflow';
 import { refundCredits } from '@/lib/credits';
 import { normalizeMotionSwapQuality } from '@/lib/constants';
+import {
+  buildKlingElementsFromMentions,
+  collectKlingMentions,
+  replacePromptMentionsWithKlingElements,
+} from '@/lib/kling-elements';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -108,12 +113,24 @@ export async function POST(request: NextRequest) {
       }
 
       try {
+        const mentions = collectKlingMentions([project.video_prompt || '']);
+        const { elements, tokenMap, plainTokenMap } =
+          await buildKlingElementsFromMentions(project.user_id, mentions);
+        const compiledVideoPrompt = project.video_prompt
+          ? replacePromptMentionsWithKlingElements(
+              project.video_prompt,
+              tokenMap,
+              plainTokenMap,
+            )
+          : undefined;
+
         const callbackUrl = new URL('/api/motion-swap/webhooks/video', baseUrl).toString();
         const videoTaskId = await createMotionSwapVideoTask({
           previewImageUrl: previewUrl,
           referenceVideoUrl,
           mode: normalizeMotionSwapQuality(project.mode),
-          prompt: project.video_prompt || undefined
+          prompt: compiledVideoPrompt,
+          elements: elements.length > 0 ? elements : undefined,
         }, callbackUrl);
 
         await supabase

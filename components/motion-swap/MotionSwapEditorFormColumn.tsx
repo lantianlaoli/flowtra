@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { Image as ImageIcon, Video as VideoIcon, Sparkles, Loader2 } from 'lucide-react';
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
@@ -19,7 +20,7 @@ interface MotionSwapEditorFormColumnProps {
   isGeneratingImage: boolean;
   isGeneratingVideo: boolean;
   videoCreditsCost: number;
-  errorMessage?: string | null;
+  creditsIcon?: ReactNode;
 }
 
 export default function MotionSwapEditorFormColumn({
@@ -36,7 +37,7 @@ export default function MotionSwapEditorFormColumn({
   isGeneratingImage,
   isGeneratingVideo,
   videoCreditsCost,
-  errorMessage
+  creditsIcon,
 }: MotionSwapEditorFormColumnProps) {
   const characterMentions = useMemo(() => (
     avatars.map(avatar => ({
@@ -61,58 +62,63 @@ export default function MotionSwapEditorFormColumn({
   return (
     <div className="motion-swap-editor-form flex h-full flex-col bg-white">
       {/* Header */}
-      <div className="motion-swap-editor-form-header flex items-center gap-2 border-b border-[#E5E5E5] bg-gray-50 px-4 py-3">
-        <Sparkles className="motion-swap-editor-form-icon h-4 w-4 text-black" />
-        <h2 className="motion-swap-editor-form-title text-sm font-semibold text-black">Prompts</h2>
+      <div className="motion-swap-editor-form-header flex items-center justify-between gap-3 border-b border-[#E5E5E5] bg-gray-50 px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <Sparkles className="motion-swap-editor-form-icon h-4 w-4 text-black" />
+          <h2 className="motion-swap-editor-form-title text-sm font-semibold text-black">Prompts</h2>
+        </div>
+        <p className="text-right text-[11px] font-medium text-[#666666]">
+          Use @ in both prompts for characters or products.
+        </p>
       </div>
 
       {/* Scrollable Content Area */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4">
-        <div className="motion-swap-editor-card rounded-lg border border-[#E5E5E5] bg-white p-4 space-y-3 shrink-0">
-          <div className="flex items-center gap-2 justify-between">
+      <div className="flex-1 min-h-0 overflow-hidden p-3">
+        <div className="flex h-full min-h-0 flex-col gap-3">
+          <div className="motion-swap-editor-card flex min-h-0 flex-1 flex-col rounded-lg border border-[#E5E5E5] bg-white p-3">
             <div className="flex items-center gap-2">
               <ImageIcon className="motion-swap-editor-label-icon w-4 h-4 text-black" />
-              <p className="motion-swap-editor-label text-sm font-semibold text-black">First Frame Prompt</p>
+              <p className="motion-swap-editor-label text-sm font-semibold text-black">Image Prompt</p>
             </div>
-            <span className="motion-swap-editor-helper text-xs text-[#666666]">Type @ to insert a character or product</span>
-          </div>
-          <PromptMentionTextarea
-            value={photoPrompt}
-            onChange={onPhotoPromptChange}
-            rows={5}
-            placeholder="Describe the exact first frame you want..."
-            characterMentions={characterMentions}
-            productMentions={productMentions}
-          />
-        </div>
-
-        <div className="motion-swap-editor-card rounded-lg border border-[#E5E5E5] bg-white p-4 space-y-3 flex flex-col flex-1 min-h-[220px]">
-          <div className="flex items-center gap-2 justify-between">
-            <div className="flex items-center gap-2">
-              <VideoIcon className="motion-swap-editor-label-icon w-4 h-4 text-black" />
-              <p className="motion-swap-editor-label text-sm font-semibold text-black">Video Prompt</p>
+            <div className="mt-2.5 flex-1 min-h-0">
+              <PromptMentionTextarea
+                value={photoPrompt}
+                onChange={onPhotoPromptChange}
+                rows={4}
+                placeholder="Describe the subject swap you want while keeping the same scene..."
+                characterMentions={characterMentions}
+                productMentions={productMentions}
+                className="h-full min-h-[170px]"
+                preventHorizontalScroll
+              />
             </div>
           </div>
-          <PromptMentionTextarea
-            value={videoPrompt}
-            onChange={onVideoPromptChange}
-            rows={8}
-            placeholder="Describe how the video should behave..."
-            characterMentions={characterMentions}
-            productMentions={productMentions}
-            className="flex-1 min-h-[200px]"
-          />
-        </div>
 
-        {errorMessage && (
-          <div className="motion-swap-editor-error text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-            {errorMessage}
+          <div className="motion-swap-editor-card flex min-h-0 flex-1 flex-col rounded-lg border border-[#E5E5E5] bg-white p-3">
+            <div className="flex items-center gap-2 justify-between">
+              <div className="flex items-center gap-2">
+                <VideoIcon className="motion-swap-editor-label-icon w-4 h-4 text-black" />
+                <p className="motion-swap-editor-label text-sm font-semibold text-black">Video Prompt</p>
+              </div>
+            </div>
+            <div className="mt-2.5 flex-1 min-h-0">
+              <PromptMentionTextarea
+                value={videoPrompt}
+                onChange={onVideoPromptChange}
+                rows={5}
+                placeholder="Describe how the video should behave..."
+                characterMentions={characterMentions}
+                productMentions={productMentions}
+                preventHorizontalScroll
+                className="h-full min-h-[190px]"
+              />
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Fixed Footer with Buttons */}
-      <div className="motion-swap-editor-footer border-t border-[#E5E5E5] bg-white p-4">
+      <div className="motion-swap-editor-footer border-t border-[#E5E5E5] bg-white p-3">
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
@@ -121,7 +127,7 @@ export default function MotionSwapEditorFormColumn({
             onClick={onGenerateImage}
           >
             {isGeneratingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
-            Generate Image
+            {isGeneratingImage ? 'Generating Image...' : 'Generate Image'}
             <span className="ml-1 inline-flex items-center rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
               FREE
             </span>
@@ -133,9 +139,10 @@ export default function MotionSwapEditorFormColumn({
             onClick={onGenerateVideo}
           >
             {isGeneratingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <VideoIcon className="w-4 h-4" />}
-            Generate Video
-            <span className="ml-1 inline-flex items-center rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
-              {videoCreditsCost} credits
+            {isGeneratingVideo ? 'Generating Video...' : 'Generate Video'}
+            <span className="ml-1 inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-[#F7F7F7] px-2.5 py-1 text-[11px] font-semibold text-gray-900">
+              {creditsIcon}
+              <span>{videoCreditsCost}</span>
             </span>
           </button>
         </div>

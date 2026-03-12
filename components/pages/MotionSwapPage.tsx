@@ -6,6 +6,7 @@ import {
   Image as ImageIcon,
   Video as VideoIcon,
   ArrowRight,
+  Coins,
 } from "lucide-react";
 import GenerationProgressDisplay, {
   type Generation,
@@ -64,6 +65,34 @@ interface MotionSwapProject {
   created_at?: string | null;
 }
 
+type PersistedMotionSwapProject = Pick<
+  MotionSwapProject,
+  | "id"
+  | "status"
+  | "progress_percentage"
+  | "mode"
+  | "creator_source_video_id"
+  | "avatar_id"
+  | "product_id"
+  | "reference_cover_url"
+  | "preview_image_url"
+  | "output_video_url"
+  | "reference_duration_seconds"
+  | "photo_prompt"
+  | "video_prompt"
+  | "credits_cost"
+  | "error_message"
+  | "created_at"
+>;
+
+interface MotionSwapSessionState {
+  projects?: PersistedMotionSwapProject[];
+  activeProjectId?: string | null;
+  selectedVideoId?: string;
+  selectedSize?: Format;
+  selectedVideoQuality?: CloneVideoQuality;
+}
+
 const TUTORIAL_TIKTOK_URL =
   "https://www.tiktok.com/@laolilantian/video/7600705503555095816?lang=en";
 const TUTORIAL_TIKTOK_ID = "7600705503555095816";
@@ -72,6 +101,45 @@ const MOTION_SWAP_QUALITY_OPTIONS = [
   { value: "720p" as const, label: "720p", creditsPerSecondLabel: "12 credits / s" },
   { value: "1080p" as const, label: "1080p", creditsPerSecondLabel: "20 credits / s" },
 ];
+const DEFAULT_FEMALE_MENTION = buildMentionToken({
+  type: "character",
+  label: "Default Female",
+});
+const DEFAULT_IMAGE_PROMPT_TEMPLATE = `Replace the man in the reference video with ${DEFAULT_FEMALE_MENTION}. Keep the same framing, lighting, background, and overall look.`;
+const DEFAULT_VIDEO_PROMPT =
+  "Keep all elements the same as the reference video. Only swap the person and product.";
+
+const serializeMotionSwapProject = (
+  project: MotionSwapProject,
+): PersistedMotionSwapProject => ({
+  id: project.id,
+  status: project.status,
+  progress_percentage: project.progress_percentage,
+  mode: project.mode ?? null,
+  creator_source_video_id: project.creator_source_video_id ?? null,
+  avatar_id: project.avatar_id ?? null,
+  product_id: project.product_id ?? null,
+  reference_cover_url: project.reference_cover_url ?? null,
+  preview_image_url: project.preview_image_url ?? null,
+  output_video_url: project.output_video_url ?? null,
+  reference_duration_seconds: project.reference_duration_seconds ?? null,
+  photo_prompt: project.photo_prompt ?? null,
+  video_prompt: project.video_prompt ?? null,
+  credits_cost: project.credits_cost ?? null,
+  error_message: project.error_message ?? null,
+  created_at: project.created_at ?? null,
+});
+
+const isPersistedMotionSwapProject = (
+  value: unknown,
+): value is PersistedMotionSwapProject => {
+  if (!value || typeof value !== "object") return false;
+  const project = value as Record<string, unknown>;
+  return (
+    typeof project.id === "string" &&
+    typeof project.status === "string"
+  );
+};
 
 export default function MotionSwapPage() {
   const searchParams = useSearchParams();
@@ -93,7 +161,6 @@ export default function MotionSwapPage() {
   const [editAction, setEditAction] = useState<"image" | "video" | null>(null);
   const [editPhotoPrompt, setEditPhotoPrompt] = useState("");
   const [editVideoPrompt, setEditVideoPrompt] = useState("");
-  const [editError, setEditError] = useState<string | null>(null);
   const invalidSelectionToastRef = useRef<string | null>(null);
 
   const selectedVideo = useMemo(
@@ -139,10 +206,21 @@ export default function MotionSwapPage() {
       productIds: Array.from(productIds),
     };
   };
-  const mentionSelections = useMemo(
-    () => getMentionedIds(editPhotoPrompt),
-    [editPhotoPrompt, avatars, products],
-  );
+  const mentionSelections = useMemo(() => {
+    const characterIds = new Set<string>();
+    const productIds = new Set<string>();
+
+    [editPhotoPrompt, editVideoPrompt].forEach((prompt) => {
+      const ids = getMentionedIds(prompt);
+      ids.characterIds.forEach((id) => characterIds.add(id));
+      ids.productIds.forEach((id) => productIds.add(id));
+    });
+
+    return {
+      characterIds: Array.from(characterIds),
+      productIds: Array.from(productIds),
+    };
+  }, [editPhotoPrompt, editVideoPrompt, avatars, products]);
   const editAvatarId = mentionSelections.characterIds[0] || "";
   const editProductId = mentionSelections.productIds[0] || "";
 
@@ -180,36 +258,21 @@ export default function MotionSwapPage() {
     }
   }, []);
 
-  const loadProjects = useCallback(async () => {
-    try {
-      const response = await fetch("/api/motion-swap/list", {
-        cache: "no-store",
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setProjects(data.projects || []);
-      }
-    } catch (error) {
-      console.error("[Motion Swap] Failed to load projects:", error);
-    }
-  }, []);
-
   useEffect(() => {
     loadAssets();
-    loadProjects();
-  }, [loadAssets, loadProjects]);
+  }, [loadAssets]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const saved = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (!saved) return;
     try {
-      const parsed = JSON.parse(saved) as {
-        activeProjectId?: string | null;
-        selectedVideoId?: string;
-        selectedSize?: Format;
-        selectedVideoQuality?: CloneVideoQuality;
-      };
+      const parsed = JSON.parse(saved) as MotionSwapSessionState;
+      if (Array.isArray(parsed.projects)) {
+        setProjects(
+          parsed.projects.filter(isPersistedMotionSwapProject),
+        );
+      }
       if (parsed.activeProjectId) {
         setActiveProjectId(parsed.activeProjectId);
       }
@@ -301,11 +364,13 @@ export default function MotionSwapPage() {
   }, [selectedVideoId, selectedVideo, showError]);
 
   useEffect(() => {
-    if (!projects.length) return;
-    if (
-      !activeProjectId ||
-      !projects.some((item) => item.id === activeProjectId)
-    ) {
+    if (!projects.length) {
+      if (activeProjectId !== null) {
+        setActiveProjectId(null);
+      }
+      return;
+    }
+    if (!activeProjectId || !projects.some((item) => item.id === activeProjectId)) {
       setActiveProjectId(projects[0].id);
     }
   }, [projects, activeProjectId]);
@@ -317,12 +382,19 @@ export default function MotionSwapPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!activeProject) {
-      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
-      return;
+    if (!projects.length) {
+      if (
+        !selectedVideoId &&
+        selectedSize === "9:16" &&
+        selectedVideoQuality === "720p"
+      ) {
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        return;
+      }
     }
-    const payload = {
-      activeProjectId: activeProject.id,
+    const payload: MotionSwapSessionState = {
+      projects: projects.map(serializeMotionSwapProject),
+      activeProjectId: activeProject?.id ?? activeProjectId ?? null,
       selectedVideoId,
       selectedSize,
       selectedVideoQuality,
@@ -335,7 +407,14 @@ export default function MotionSwapPage() {
     } catch (error) {
       console.error("Failed to persist Motion Swap session state:", error);
     }
-  }, [activeProject, selectedVideoId, selectedSize, selectedVideoQuality]);
+  }, [
+    projects,
+    activeProject?.id,
+    activeProjectId,
+    selectedVideoId,
+    selectedSize,
+    selectedVideoQuality,
+  ]);
 
   useEffect(() => {
     if (!activeProject?.id) return;
@@ -405,11 +484,13 @@ export default function MotionSwapPage() {
     avatarName?: string | null,
     productName?: string | null,
   ) => {
+    if (!avatarName && !productName) {
+      return DEFAULT_IMAGE_PROMPT_TEMPLATE;
+    }
     const tokens = [];
     if (avatarName) tokens.push(buildMentionToken({ type: "character", label: avatarName }));
     if (productName) tokens.push(buildMentionToken({ type: "product", label: productName }));
-    if (tokens.length === 0) return "";
-    return `Swap ${tokens.join(" and ")} in the reference video.`;
+    return `Replace the subject in the reference video with ${tokens.join(" and ")}. Keep the same framing, lighting, background, and overall look.`;
   };
 
   const openEditModal = (projectToEdit?: MotionSwapProject | null) => {
@@ -439,11 +520,9 @@ export default function MotionSwapPage() {
     }
     if (!editVideoPrompt) {
       setEditVideoPrompt(
-        targetProject.video_prompt ||
-          "Keep all elements the same as the reference video. Only swap the person and product.",
+        targetProject.video_prompt || DEFAULT_VIDEO_PROMPT,
       );
     }
-    setEditError(null);
     setEditDialogOpen(true);
   };
 
@@ -485,24 +564,17 @@ export default function MotionSwapPage() {
     activeProject?.reference_cover_url ||
     selectedVideo?.cover_url ||
     null;
-  const editVideoUrl =
-    activeProject?.output_video_url || selectedVideo?.video_cdn_url || null;
   const effectiveSegmentStatus = useMemo(() => {
     if (activeProject?.status === "generating_preview")
       return "generating_first_frame";
     if (activeProject?.status === "preview_ready") return "first_frame_ready";
     return activeProject?.status || "pending";
   }, [activeProject?.status]);
-  const editSegment = useMemo(
-    () => ({
-      index: 0,
-      status: effectiveSegmentStatus,
-      firstFrameUrl: editFirstFrameUrl,
-      videoUrl: editVideoUrl,
-      prompt: {},
-    }),
-    [editFirstFrameUrl, editVideoUrl, effectiveSegmentStatus],
-  );
+  const showGeneratingImageState =
+    editAction === "image" || effectiveSegmentStatus === "generating_first_frame";
+  const displayFirstFramePreviewUrl = showGeneratingImageState
+    ? null
+    : editFirstFrameUrl;
   const isSubmittingEdit = editAction !== null;
   const hasSwapTarget = Boolean(editAvatarId || editProductId);
   const isPreviewReady = activeProject?.status === "preview_ready";
@@ -639,11 +711,11 @@ export default function MotionSwapPage() {
       },
       {
         number: 3,
-        description: "Select avatar and product in Edit",
+        description: "Use @ to select the character or product in Edit",
       },
       {
         number: 4,
-        description: "Start generation and confirm",
+        description: "Generate image or video",
       },
     ],
     [],
@@ -652,30 +724,29 @@ export default function MotionSwapPage() {
   const handleStartEditPreview = async (action: "image" | "video") => {
     if (!activeProject?.id) return;
     if (!editPhotoPrompt.trim()) {
-      setEditError("Enter a first frame prompt to continue.");
+      showError("Enter an image prompt to continue.");
       return;
     }
-    if (!editVideoPrompt.trim()) {
-      setEditError("Enter a video prompt to continue.");
+    if (action === "video" && !editVideoPrompt.trim()) {
+      showError("Enter a video prompt to continue.");
       return;
     }
     if (!selectedVideoId) {
-      setEditError("Select a reference video to continue.");
+      showError("Select a reference video to continue.");
       return;
     }
     if (!selectedVideoHasFirstFrame) {
-      setEditError("This video needs a first-frame image before Motion Swap.");
+      showError("This video needs a first-frame image before Motion Swap.");
       return;
     }
     if (!hasSwapTarget) {
-      setEditError(
-        "Use @character or @product in the first frame prompt to select a swap target.",
+      showError(
+        "Use @character or @product in the image or video prompt to select a swap target.",
       );
       return;
     }
 
     setEditAction(action);
-    setEditError(null);
 
     try {
       const response = await fetch(
@@ -713,7 +784,7 @@ export default function MotionSwapPage() {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to start Motion Swap";
-      setEditError(message);
+      showError(message);
     } finally {
       setEditAction(null);
     }
@@ -882,40 +953,40 @@ export default function MotionSwapPage() {
           isGenerating={isGenerating}
           generationCost={estimatedCredits || 0}
           userCredits={userCredits}
-          generateButtonText="Generate"
+          generateButtonText="Start"
         />
 
         <Dialog.Root open={editDialogOpen} onOpenChange={setEditDialogOpen}>
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-            <Dialog.Content className="motion-swap-editor-dialog fixed left-[50%] top-[50%] z-50 h-[62vh] w-[calc(100%-2rem)] max-w-7xl translate-x-[-50%] translate-y-[-50%] bg-background shadow-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] overflow-hidden rounded-2xl">
-              <div className="motion-swap-editor-header flex items-center justify-between border-b border-border px-6 py-3">
+            <Dialog.Content className="motion-swap-editor-dialog fixed left-[50%] top-[50%] z-50 h-[61vh] w-[calc(100vw-3rem)] max-w-[1680px] translate-x-[-50%] translate-y-[-50%] bg-background shadow-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] overflow-hidden rounded-2xl">
+              <div className="motion-swap-editor-header flex items-center justify-between border-b border-border px-5 py-2.5">
                 <div className="flex items-center gap-4">
                   <Dialog.Title className="motion-swap-editor-title text-lg font-semibold text-foreground">
                     Edit Motion Swap
                   </Dialog.Title>
                   <div className="motion-swap-editor-steps flex items-center gap-4">
-                    {/* Step 1: Edit First Frame */}
+                    {/* Step 1: Image Prompt */}
                     <div className="flex items-center gap-2">
                       <span className="motion-swap-editor-step-badge flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
                         1
                       </span>
                       <div className="motion-swap-editor-step-text flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                         <ImageIcon className="w-3.5 h-3.5" />
-                        <span>Edit first frame</span>
+                        <span>Edit image prompt + generate image</span>
                       </div>
                     </div>
 
                     <ArrowRight className="motion-swap-editor-step-divider w-3 h-3 text-gray-300" />
 
-                    {/* Step 2: Generate Video */}
+                    {/* Step 2: Video Prompt */}
                     <div className="flex items-center gap-2">
                       <span className="motion-swap-editor-step-badge flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
                         2
                       </span>
                       <div className="motion-swap-editor-step-text flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                         <VideoIcon className="w-3.5 h-3.5" />
-                        <span>Generate video</span>
+                        <span>Edit video prompt + generate video</span>
                       </div>
                     </div>
                   </div>
@@ -930,11 +1001,17 @@ export default function MotionSwapPage() {
                   </button>
                 </Dialog.Close>
               </div>
-              <div className="h-[calc(62vh-64px)]">
+              <div className="h-[calc(61vh-58px)]">
                 <MotionSwapEditorSplitPane
-                  segment={editSegment}
+                  firstFrameUrl={displayFirstFramePreviewUrl}
+                  originalVideoUrl={selectedVideo?.video_cdn_url || null}
+                  generatedVideoUrl={activeProject?.output_video_url || null}
                   videoAspectRatio="9:16"
-                  videoModel="kling-3.0/motion-control"
+                  isGeneratingImage={showGeneratingImageState}
+                  isGeneratingVideo={
+                    editAction === "video" ||
+                    effectiveSegmentStatus === "generating_video"
+                  }
                   form={
                     <MotionSwapEditorFormColumn
                       photoPrompt={editPhotoPrompt}
@@ -950,7 +1027,7 @@ export default function MotionSwapPage() {
                       isGeneratingImage={editAction === "image"}
                       isGeneratingVideo={editAction === "video"}
                       videoCreditsCost={displayCreditsCost || estimatedCredits}
-                      errorMessage={editError}
+                      creditsIcon={<Coins className="h-3.5 w-3.5" />}
                     />
                   }
                 />

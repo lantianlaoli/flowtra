@@ -58,6 +58,31 @@ interface AssetsData {
   };
 }
 
+const dedupeVideoAssets = (videos: VideoAsset[]): VideoAsset[] => {
+  const uniqueVideos = new Map<string, VideoAsset>();
+
+  videos.forEach((video) => {
+    if (!video?.id) return;
+    if (!uniqueVideos.has(video.id)) {
+      uniqueVideos.set(video.id, video);
+      return;
+    }
+
+    const existing = uniqueVideos.get(video.id)!;
+    const existingUpdatedAt = existing.updated_at || existing.created_at || '';
+    const nextUpdatedAt = video.updated_at || video.created_at || '';
+
+    if (nextUpdatedAt >= existingUpdatedAt) {
+      uniqueVideos.set(video.id, {
+        ...existing,
+        ...video,
+      });
+    }
+  });
+
+  return Array.from(uniqueVideos.values());
+};
+
 export default function AssetsManager() {
   const { showSuccess, showError } = useToast();
   const [assetsData, setAssetsData] = useState<AssetsData>({
@@ -105,15 +130,16 @@ export default function AssetsManager() {
       const response = await fetch('/api/assets', { cache: 'no-store' });
       if (response.ok) {
         const data = await response.json();
+        const dedupedVideos = dedupeVideoAssets(data.videos || []);
         setAssetsData({
           ...data,
           creatorSources: data.creatorSources || [],
           products: data.products || [],
-          videos: data.videos || [],
+          videos: dedupedVideos,
           stats: {
             totalProducts: data.stats?.totalProducts || 0,
             totalCreatorSources: data.stats?.totalCreatorSources || 0,
-            totalCreatorVideos: data.stats?.totalCreatorVideos || 0
+            totalCreatorVideos: dedupedVideos.length
           }
         });
       }
@@ -320,14 +346,18 @@ export default function AssetsManager() {
     options?: { message?: string; skipRefresh?: boolean }
   ) => {
     if (newVideos.length > 0) {
-      setAssetsData(prev => ({
-        ...prev,
-        videos: [...newVideos, ...prev.videos],
-        stats: {
-          ...prev.stats,
-          totalCreatorVideos: (prev.stats.totalCreatorVideos || 0) + newVideos.length
-        }
-      }));
+      const dedupedNewVideos = dedupeVideoAssets(newVideos);
+      setAssetsData(prev => {
+        const nextVideos = dedupeVideoAssets([...dedupedNewVideos, ...prev.videos]);
+        return {
+          ...prev,
+          videos: nextVideos,
+          stats: {
+            ...prev.stats,
+            totalCreatorVideos: nextVideos.length
+          }
+        };
+      });
     }
     showSuccess(options?.message || 'Videos imported successfully');
     if (!options?.skipRefresh) {
@@ -336,14 +366,18 @@ export default function AssetsManager() {
   };
 
   const handleVideoDeleted = (videoId: string) => {
-    setAssetsData((prev) => ({
-      ...prev,
-      videos: prev.videos.filter((video) => video.id !== videoId),
-      stats: {
-        ...prev.stats,
-        totalCreatorVideos: Math.max((prev.stats.totalCreatorVideos || 0) - 1, 0),
-      },
-    }));
+    setAssetsData((prev) => {
+      const nextVideos = prev.videos.filter((video) => video.id !== videoId);
+
+      return {
+        ...prev,
+        videos: nextVideos,
+        stats: {
+          ...prev.stats,
+          totalCreatorVideos: nextVideos.length,
+        },
+      };
+    });
 
     setSelectedVideo((current) => (current?.id === videoId ? null : current));
   };
