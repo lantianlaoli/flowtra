@@ -17,6 +17,12 @@ import { replaceMentionsForPlainText } from '@/lib/competitor-ugc-replication-pr
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+const EDITABLE_MOTION_SWAP_STATUSES = new Set([
+  'pending',
+  'preview_ready',
+  'completed',
+  'failed',
+]);
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -39,7 +45,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     const supabase = getSupabaseAdmin();
 
-    // Schema verified via Supabase MCP (2026-02-01): motion_swap_projects
+    // Schema verified via Supabase MCP (2026-03-12): motion_swap_projects
+    // Columns used below are confirmed to exist:
+    // preview_task_id, preview_image_url, preview_webhook_received_at,
+    // video_task_id, output_video_url, video_webhook_received_at,
+    // status, progress_percentage, credits_cost, generation_credits_used,
+    // mode, error_message, auto_generate_video
     const { data: project, error: projectError } = await supabase
       .from('motion_swap_projects')
       .select('*')
@@ -55,8 +66,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       typeof body?.mode === 'string' ? body.mode : project.mode
     );
 
-    // Allow editing from 'pending' or 'preview_ready' status
-    if (project.status !== 'pending' && project.status !== 'preview_ready') {
+    // Allow regenerating from idle states, but never while a task is already running.
+    if (!EDITABLE_MOTION_SWAP_STATUSES.has(project.status)) {
       return NextResponse.json({ error: 'Project is not ready for editing' }, { status: 409 });
     }
 
@@ -203,6 +214,18 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     const creditsCost = getMotionSwapGenerationCost(durationSeconds, selectedQuality);
     const shouldChargeForGeneration = action === 'video';
+    const resetVideoGenerationState = {
+      video_task_id: null,
+      output_video_url: null,
+      video_webhook_received_at: null,
+      error_message: null,
+    };
+    const resetPreviewGenerationState = {
+      preview_task_id: null,
+      preview_image_url: null,
+      preview_webhook_received_at: null,
+      ...resetVideoGenerationState,
+    };
 
     if (shouldChargeForGeneration) {
       const creditCheck = await checkCredits(userId, creditsCost);
@@ -224,10 +247,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     if (!baseUrl) {
       return NextResponse.json({ error: 'NEXT_PUBLIC_SITE_URL is not configured' }, { status: 500 });
     }
+    const canReuseExistingPreview =
+      action === 'video' &&
+      typeof project.preview_image_url === 'string' &&
+      project.preview_image_url.length > 0;
 
-    // Special case: If project is in preview_ready status and action is 'video',
-    // skip preview generation and go directly to video generation
-    if (project.status === 'preview_ready' && action === 'video') {
+    // Reuse an existing preview whenever the user is only regenerating video.
+    if (canReuseExistingPreview) {
       let creditsDeducted = false;
       try {
         if (!project.preview_image_url) {
@@ -261,10 +287,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         const { data: updatedProject, error: updateError } = await supabase
           .from('motion_swap_projects')
           .update({
+            ...resetVideoGenerationState,
             video_task_id: videoTaskId,
             photo_prompt: photoPrompt || project.photo_prompt || null,
             video_prompt: videoPrompt || buildMotionSwapVideoPrompt({ hasAvatar, hasProduct }),
             avatar_id: persistableAvatarId,
+            product_id: product?.id || null,
+            product_photo_id: productPhoto?.id || null,
             auto_generate_video: true,
             credits_cost: creditsCost,
             generation_credits_used: creditsCost,
@@ -334,6 +363,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       const { data: updatedProject, error: updateError } = await supabase
         .from('motion_swap_projects')
         .update({
+          ...resetPreviewGenerationState,
           creator_source_id: referenceVideo.source_id,
           creator_source_video_id: referenceVideo.id,
           avatar_id: persistableAvatarId,

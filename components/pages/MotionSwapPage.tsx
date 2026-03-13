@@ -62,6 +62,7 @@ interface MotionSwapProject {
   video_prompt?: string | null;
   credits_cost?: number | null;
   error_message?: string | null;
+  downloaded?: boolean | null;
   created_at?: string | null;
 }
 
@@ -82,6 +83,7 @@ type PersistedMotionSwapProject = Pick<
   | "video_prompt"
   | "credits_cost"
   | "error_message"
+  | "downloaded"
   | "created_at"
 >;
 
@@ -91,6 +93,11 @@ interface MotionSwapSessionState {
   selectedVideoId?: string;
   selectedSize?: Format;
   selectedVideoQuality?: CloneVideoQuality;
+}
+
+interface MotionSwapPromptDraft {
+  photoPrompt: string;
+  videoPrompt: string;
 }
 
 const TUTORIAL_TIKTOK_URL =
@@ -108,6 +115,12 @@ const DEFAULT_FEMALE_MENTION = buildMentionToken({
 const DEFAULT_IMAGE_PROMPT_TEMPLATE = `Replace the man in the reference video with ${DEFAULT_FEMALE_MENTION}. Keep the same framing, lighting, background, and overall look.`;
 const DEFAULT_VIDEO_PROMPT =
   "Keep all elements the same as the reference video. Only swap the person and product.";
+const EDITABLE_MOTION_SWAP_STATUSES = [
+  "pending",
+  "preview_ready",
+  "completed",
+  "failed",
+] as const;
 
 const serializeMotionSwapProject = (
   project: MotionSwapProject,
@@ -127,6 +140,7 @@ const serializeMotionSwapProject = (
   video_prompt: project.video_prompt ?? null,
   credits_cost: project.credits_cost ?? null,
   error_message: project.error_message ?? null,
+  downloaded: project.downloaded ?? null,
   created_at: project.created_at ?? null,
 });
 
@@ -145,7 +159,7 @@ export default function MotionSwapPage() {
   const searchParams = useSearchParams();
   const { showError, showSuccess } = useToast();
   const { user } = useUser();
-  const { credits: userCredits, creditsData } = useCredits();
+  const { credits: userCredits, creditsData, refetchCredits } = useCredits();
   const [isLoading, setIsLoading] = useState(true);
   const [videos, setVideos] = useState<MotionSwapVideo[]>([]);
   const [avatars, setAvatars] = useState<UserAvatar[]>([]);
@@ -154,6 +168,7 @@ export default function MotionSwapPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [projects, setProjects] = useState<MotionSwapProject[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<Format>("9:16");
   const [selectedVideoQuality, setSelectedVideoQuality] =
     useState<CloneVideoQuality>("720p");
@@ -161,6 +176,12 @@ export default function MotionSwapPage() {
   const [editAction, setEditAction] = useState<"image" | "video" | null>(null);
   const [editPhotoPrompt, setEditPhotoPrompt] = useState("");
   const [editVideoPrompt, setEditVideoPrompt] = useState("");
+  const [promptDrafts, setPromptDrafts] = useState<
+    Record<string, MotionSwapPromptDraft>
+  >({});
+  const [downloadStates, setDownloadStates] = useState<
+    Record<string, "idle" | "processing" | "success">
+  >({});
   const invalidSelectionToastRef = useRef<string | null>(null);
 
   const selectedVideo = useMemo(
@@ -174,6 +195,11 @@ export default function MotionSwapPage() {
     }
     return projects[0] || null;
   }, [projects, activeProjectId]);
+  const editingProject = useMemo(() => {
+    if (!editingProjectId) return null;
+    return projects.find((item) => item.id === editingProjectId) || null;
+  }, [projects, editingProjectId]);
+  const projectInEditor = editingProject || activeProject;
   const videoById = useMemo(
     () => new Map(videos.map((video) => [video.id, video])),
     [videos],
@@ -182,7 +208,7 @@ export default function MotionSwapPage() {
     () => new Map(products.map((product) => [product.id, product])),
     [products],
   );
-  const getMentionedIds = (text: string) => {
+  const getMentionedIds = useCallback((text: string) => {
     const characterIds = new Set<string>();
     const productIds = new Set<string>();
     let match: RegExpExecArray | null;
@@ -205,7 +231,7 @@ export default function MotionSwapPage() {
       characterIds: Array.from(characterIds),
       productIds: Array.from(productIds),
     };
-  };
+  }, [avatars, products]);
   const mentionSelections = useMemo(() => {
     const characterIds = new Set<string>();
     const productIds = new Set<string>();
@@ -220,7 +246,7 @@ export default function MotionSwapPage() {
       characterIds: Array.from(characterIds),
       productIds: Array.from(productIds),
     };
-  }, [editPhotoPrompt, editVideoPrompt, avatars, products]);
+  }, [editPhotoPrompt, editVideoPrompt, getMentionedIds]);
   const editAvatarId = mentionSelections.characterIds[0] || "";
   const editProductId = mentionSelections.productIds[0] || "";
 
@@ -376,9 +402,20 @@ export default function MotionSwapPage() {
   }, [projects, activeProjectId]);
 
   useEffect(() => {
-    if (!activeProject) return;
-    setSelectedVideoQuality(normalizeMotionSwapQuality(activeProject.mode));
-  }, [activeProject?.id, activeProject?.mode, activeProject]);
+    if (!projectInEditor) return;
+    setSelectedVideoQuality(normalizeMotionSwapQuality(projectInEditor.mode));
+  }, [projectInEditor?.id, projectInEditor?.mode, projectInEditor]);
+
+  useEffect(() => {
+    if (!editDialogOpen || !editingProjectId) return;
+    setPromptDrafts((prev) => ({
+      ...prev,
+      [editingProjectId]: {
+        photoPrompt: editPhotoPrompt,
+        videoPrompt: editVideoPrompt,
+      },
+    }));
+  }, [editDialogOpen, editingProjectId, editPhotoPrompt, editVideoPrompt]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -416,8 +453,10 @@ export default function MotionSwapPage() {
     selectedVideoQuality,
   ]);
 
+  const watchedProjectId = editingProjectId || activeProject?.id || null;
+
   useEffect(() => {
-    if (!activeProject?.id) return;
+    if (!watchedProjectId) return;
 
     const supabase = getSupabase();
     let channel: RealtimeChannel | null = null;
@@ -425,7 +464,7 @@ export default function MotionSwapPage() {
 
     const fetchStatus = async () => {
       const response = await fetch(
-        `/api/motion-swap/${activeProject.id}/status`,
+        `/api/motion-swap/${watchedProjectId}/status`,
       );
       if (!response.ok) return null;
       return response.json();
@@ -445,14 +484,14 @@ export default function MotionSwapPage() {
     init();
 
     channel = supabase
-      .channel(`motion-swap-${activeProject.id}`)
+      .channel(`motion-swap-${watchedProjectId}`)
       .on(
         "postgres_changes",
         {
           event: "UPDATE",
           schema: "public",
           table: "motion_swap_projects",
-          filter: `id=eq.${activeProject.id}`,
+          filter: `id=eq.${watchedProjectId}`,
         },
         async () => {
           const payload = await fetchStatus();
@@ -473,12 +512,7 @@ export default function MotionSwapPage() {
         supabase.removeChannel(channel);
       }
     };
-  }, [activeProject?.id]);
-
-  useEffect(() => {
-    setEditPhotoPrompt("");
-    setEditVideoPrompt("");
-  }, [activeProject?.id]);
+  }, [watchedProjectId]);
 
   const buildDefaultPrompt = (
     avatarName?: string | null,
@@ -493,36 +527,40 @@ export default function MotionSwapPage() {
     return `Replace the subject in the reference video with ${tokens.join(" and ")}. Keep the same framing, lighting, background, and overall look.`;
   };
 
+  const isNewPendingProject = (project: MotionSwapProject) =>
+    project.status === "pending" &&
+    !project.photo_prompt &&
+    !project.video_prompt &&
+    !project.preview_image_url &&
+    !project.output_video_url;
+
   const openEditModal = (projectToEdit?: MotionSwapProject | null) => {
     const targetProject = projectToEdit || activeProject;
     if (!targetProject) return;
-    if (targetProject.id !== activeProject?.id) {
-      setEditPhotoPrompt("");
-      setEditVideoPrompt("");
-    }
-    setActiveProjectId(targetProject.id);
+    setEditingProjectId(targetProject.id);
     if (targetProject.creator_source_video_id) {
       setSelectedVideoId(targetProject.creator_source_video_id);
     }
     setSelectedVideoQuality(normalizeMotionSwapQuality(targetProject.mode));
-    if (!editPhotoPrompt) {
-      const avatarName =
-        avatars.find((avatar) => avatar.id === targetProject.avatar_id)
-          ?.avatar_name || null;
-      const productName =
-        products.find((product) => product.id === targetProject.product_id)
-          ?.product_name || null;
-      const defaultPrompt = buildDefaultPrompt(avatarName, productName);
-      const nextPrompt = targetProject.photo_prompt || defaultPrompt;
-      if (nextPrompt) {
-        setEditPhotoPrompt(nextPrompt);
-      }
-    }
-    if (!editVideoPrompt) {
-      setEditVideoPrompt(
-        targetProject.video_prompt || DEFAULT_VIDEO_PROMPT,
-      );
-    }
+    const avatarName =
+      avatars.find((avatar) => avatar.id === targetProject.avatar_id)
+        ?.avatar_name || null;
+    const productName =
+      products.find((product) => product.id === targetProject.product_id)
+        ?.product_name || null;
+    const defaultPrompt = buildDefaultPrompt(avatarName, productName);
+    const draft = promptDrafts[targetProject.id];
+    const initialPhotoPrompt = draft
+      ? draft.photoPrompt
+      : targetProject.photo_prompt ||
+        (isNewPendingProject(targetProject) ? defaultPrompt : "");
+    const initialVideoPrompt = draft
+      ? draft.videoPrompt
+      : targetProject.video_prompt ||
+        (isNewPendingProject(targetProject) ? DEFAULT_VIDEO_PROMPT : "");
+
+    setEditPhotoPrompt(initialPhotoPrompt);
+    setEditVideoPrompt(initialVideoPrompt);
     setEditDialogOpen(true);
   };
 
@@ -560,16 +598,16 @@ export default function MotionSwapPage() {
   const canEditProject = projects.length > 0;
 
   const editFirstFrameUrl =
-    activeProject?.preview_image_url ||
-    activeProject?.reference_cover_url ||
+    projectInEditor?.preview_image_url ||
+    projectInEditor?.reference_cover_url ||
     selectedVideo?.cover_url ||
     null;
   const effectiveSegmentStatus = useMemo(() => {
-    if (activeProject?.status === "generating_preview")
+    if (projectInEditor?.status === "generating_preview")
       return "generating_first_frame";
-    if (activeProject?.status === "preview_ready") return "first_frame_ready";
-    return activeProject?.status || "pending";
-  }, [activeProject?.status]);
+    if (projectInEditor?.status === "preview_ready") return "first_frame_ready";
+    return projectInEditor?.status || "pending";
+  }, [projectInEditor?.status]);
   const showGeneratingImageState =
     editAction === "image" || effectiveSegmentStatus === "generating_first_frame";
   const displayFirstFramePreviewUrl = showGeneratingImageState
@@ -577,55 +615,59 @@ export default function MotionSwapPage() {
     : editFirstFrameUrl;
   const isSubmittingEdit = editAction !== null;
   const hasSwapTarget = Boolean(editAvatarId || editProductId);
-  const isPreviewReady = activeProject?.status === "preview_ready";
+  const isEditableMotionSwapStatus = projectInEditor
+    ? EDITABLE_MOTION_SWAP_STATUSES.includes(
+        projectInEditor.status as (typeof EDITABLE_MOTION_SWAP_STATUSES)[number],
+      )
+    : false;
   const canGenerateImage = Boolean(
-    activeProject?.id &&
+    projectInEditor?.id &&
       selectedVideoId &&
       selectedVideoHasFirstFrame &&
       editPhotoPrompt.trim().length > 0 &&
       hasSwapTarget &&
       !isSubmittingEdit &&
-      (activeProject?.status === "pending" || isPreviewReady),
+      isEditableMotionSwapStatus,
   );
   const canGenerateVideo = Boolean(
-    activeProject?.id &&
+    projectInEditor?.id &&
       selectedVideoId &&
       selectedVideoHasFirstFrame &&
       editPhotoPrompt.trim().length > 0 &&
       editVideoPrompt.trim().length > 0 &&
       hasSwapTarget &&
       !isSubmittingEdit &&
-      (activeProject?.status === "pending" || isPreviewReady),
+      isEditableMotionSwapStatus,
   );
 
   const productDisplayName = useMemo(() => {
-    if (!activeProject?.product_id) return null;
-    const product = productById.get(activeProject.product_id);
+    if (!projectInEditor?.product_id) return null;
+    const product = productById.get(projectInEditor.product_id);
     return product?.product_name || null;
-  }, [productById, activeProject?.product_id]);
+  }, [productById, projectInEditor?.product_id]);
 
   const projectVideo = useMemo(() => {
-    if (!activeProject?.creator_source_video_id) return null;
+    if (!projectInEditor?.creator_source_video_id) return null;
     return (
       videos.find(
-        (video) => video.id === activeProject.creator_source_video_id,
+        (video) => video.id === projectInEditor.creator_source_video_id,
       ) || null
     );
-  }, [videos, activeProject?.creator_source_video_id]);
+  }, [videos, projectInEditor?.creator_source_video_id]);
 
   const displayDurationSeconds =
-    activeProject?.reference_duration_seconds ??
+    projectInEditor?.reference_duration_seconds ??
     projectVideo?.duration_seconds ??
     selectedVideo?.duration_seconds ??
     null;
 
   const displayCreditsCost =
-    typeof activeProject?.credits_cost === "number" &&
-    activeProject.credits_cost > 0
-      ? activeProject.credits_cost
+    typeof projectInEditor?.credits_cost === "number" &&
+    projectInEditor.credits_cost > 0
+      ? projectInEditor.credits_cost
       : getMotionSwapGenerationCost(
           displayDurationSeconds,
-          activeProject?.mode || selectedVideoQuality,
+          projectInEditor?.mode || selectedVideoQuality,
         ) || null;
 
   const displayedGenerations = useMemo<Generation[]>(() => {
@@ -670,7 +712,8 @@ export default function MotionSwapPage() {
         status,
         progress: item.progress_percentage || 0,
         stage,
-        videoUrl: item.output_video_url || undefined,
+        videoUrl:
+          item.status === "completed" ? item.output_video_url || undefined : undefined,
         coverUrl:
           item.preview_image_url ||
           item.reference_cover_url ||
@@ -682,6 +725,8 @@ export default function MotionSwapPage() {
         product: item.product_id
           ? productById.get(item.product_id)?.product_name || undefined
           : undefined,
+        downloaded: Boolean(item.downloaded),
+        isDownloading: downloadStates[item.id] === "processing",
         videoAspectRatio: selectedSize,
         videoDuration: durationSeconds ? String(durationSeconds) : null,
         creditsCost,
@@ -692,6 +737,7 @@ export default function MotionSwapPage() {
     videoById,
     productById,
     activeProject?.id,
+    downloadStates,
     selectedVideo?.duration_seconds,
     selectedVideo?.cover_url,
     selectedSize,
@@ -722,7 +768,7 @@ export default function MotionSwapPage() {
   );
 
   const handleStartEditPreview = async (action: "image" | "video") => {
-    if (!activeProject?.id) return;
+    if (!projectInEditor?.id) return;
     if (!editPhotoPrompt.trim()) {
       showError("Enter an image prompt to continue.");
       return;
@@ -750,7 +796,7 @@ export default function MotionSwapPage() {
 
     try {
       const response = await fetch(
-        `/api/motion-swap/${activeProject.id}/start`,
+        `/api/motion-swap/${projectInEditor.id}/start`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -775,7 +821,14 @@ export default function MotionSwapPage() {
       setProjects((prev) =>
         prev.map((item) => (item.id === data.project.id ? data.project : item)),
       );
-      setActiveProjectId(data.project.id);
+      setPromptDrafts((prev) => ({
+        ...prev,
+        [data.project.id]: {
+          photoPrompt: editPhotoPrompt,
+          videoPrompt: editVideoPrompt,
+        },
+      }));
+      setEditingProjectId(data.project.id);
       const successMessage =
         action === "image"
           ? "Generating preview image..."
@@ -789,6 +842,108 @@ export default function MotionSwapPage() {
       setEditAction(null);
     }
   };
+
+  const startDownloadForm = useCallback(
+    (action: string, fields: Record<string, string>) => {
+      if (typeof document === "undefined") return;
+
+      let iframe = document.getElementById("download-iframe") as
+        | HTMLIFrameElement
+        | null;
+      if (!iframe) {
+        iframe = document.createElement("iframe");
+        iframe.id = "download-iframe";
+        iframe.name = "download-iframe";
+        iframe.style.display = "none";
+        document.body.appendChild(iframe);
+      }
+
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = action;
+      form.target = "download-iframe";
+      form.style.display = "none";
+
+      Object.entries(fields).forEach(([name, value]) => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+      });
+
+      document.body.appendChild(form);
+      form.submit();
+      document.body.removeChild(form);
+    },
+    [],
+  );
+
+  const handleDownload = useCallback(
+    async (generation: Generation) => {
+      if (!user?.id) {
+        showError("Please sign in to download videos.");
+        return;
+      }
+
+      const project = projects.find((item) => item.id === generation.id);
+      if (!project?.output_video_url || project.status !== "completed") {
+        showError("Video generation is not completed yet.");
+        return;
+      }
+
+      const historyId = project.id;
+      const isFirstDownload = !project.downloaded;
+
+      setDownloadStates((prev) => ({ ...prev, [historyId]: "processing" }));
+
+      try {
+        const validationResponse = await fetch("/api/download-video", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            historyId,
+            userId: user.id,
+            validateOnly: true,
+          }),
+        });
+        const result = await validationResponse.json();
+
+        if (!validationResponse.ok) {
+          showError(result.message || "Failed to authorize download.");
+          setDownloadStates((prev) => ({ ...prev, [historyId]: "idle" }));
+          return;
+        }
+
+        startDownloadForm("/api/download-video", {
+          historyId,
+          userId: user.id,
+        });
+
+        setProjects((prev) =>
+          prev.map((item) =>
+            item.id === historyId ? { ...item, downloaded: true } : item,
+          ),
+        );
+        setDownloadStates((prev) => ({ ...prev, [historyId]: "success" }));
+
+        if (isFirstDownload) {
+          await refetchCredits();
+        }
+
+        window.setTimeout(() => {
+          setDownloadStates((prev) => ({ ...prev, [historyId]: "idle" }));
+        }, 2500);
+      } catch (error) {
+        console.error("[Motion Swap] Download failed:", error);
+        showError("An error occurred while downloading the video.");
+        setDownloadStates((prev) => ({ ...prev, [historyId]: "idle" }));
+      }
+    },
+    [projects, refetchCredits, showError, startDownloadForm, user?.id],
+  );
 
   if (isLoading) {
     return (
@@ -832,6 +987,7 @@ export default function MotionSwapPage() {
                 <div className="flex-1 overflow-hidden min-h-0">
                   <GenerationProgressDisplay
                     generations={displayedGenerations}
+                    onDownload={handleDownload}
                     emptyStateSteps={emptyStateSteps}
                     emptyStateRightContent={
                       <blockquote
@@ -956,7 +1112,18 @@ export default function MotionSwapPage() {
           generateButtonText="Start"
         />
 
-        <Dialog.Root open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <Dialog.Root
+          open={editDialogOpen}
+          onOpenChange={(open) => {
+            setEditDialogOpen(open);
+            if (!open) {
+              setEditingProjectId(null);
+              setEditAction(null);
+              setEditPhotoPrompt("");
+              setEditVideoPrompt("");
+            }
+          }}
+        >
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
             <Dialog.Content className="motion-swap-editor-dialog fixed left-[50%] top-[50%] z-50 h-[61vh] w-[calc(100vw-3rem)] max-w-[1680px] translate-x-[-50%] translate-y-[-50%] bg-background shadow-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] overflow-hidden rounded-2xl">
@@ -1005,7 +1172,11 @@ export default function MotionSwapPage() {
                 <MotionSwapEditorSplitPane
                   firstFrameUrl={displayFirstFramePreviewUrl}
                   originalVideoUrl={selectedVideo?.video_cdn_url || null}
-                  generatedVideoUrl={activeProject?.output_video_url || null}
+                  generatedVideoUrl={
+                    projectInEditor?.status === "completed"
+                      ? projectInEditor.output_video_url || null
+                      : null
+                  }
                   videoAspectRatio="9:16"
                   isGeneratingImage={showGeneratingImageState}
                   isGeneratingVideo={
