@@ -73,6 +73,16 @@ const toNumberValue = (value: unknown, fallback = 0): number => {
   return num;
 };
 
+const firstNonEmptyString = (...values: unknown[]): string => {
+  for (const value of values) {
+    const normalized = toStringValue(value);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return '';
+};
+
 const clampDuration = (value: number, fallback = 6): number => {
   if (!Number.isFinite(value) || value <= 0) return fallback;
   return Math.max(1, Math.round(value));
@@ -93,6 +103,10 @@ const normalizeTimeValue = (value: unknown): string => {
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed) return '00:00';
+    const timecodeSeconds = parseTimecodeToSeconds(trimmed);
+    if (timecodeSeconds !== null) {
+      return formatSecondsToTime(timecodeSeconds);
+    }
     const maybeNum = Number(trimmed);
     if (Number.isFinite(maybeNum)) {
       return formatSecondsToTime(maybeNum);
@@ -107,6 +121,91 @@ const compactParts = (parts: Array<string | null | undefined>) =>
   parts.map(part => (part || '').trim()).filter(Boolean);
 
 const joinAudioParts = (parts: Array<string | null | undefined>) => compactParts(parts).join(' | ');
+
+const getShotTimingRecord = (shotRecord: JsonRecord): JsonRecord => {
+  const timing = toRecord(shotRecord.timing);
+  if (timing) {
+    return timing;
+  }
+
+  const startTime = shotRecord.start_time ?? shotRecord.timecode_start;
+  const endTime = shotRecord.end_time ?? shotRecord.timecode_end;
+  const derivedDuration = (() => {
+    const startSeconds = parseTimecodeToSeconds(startTime);
+    const endSeconds = parseTimecodeToSeconds(endTime);
+    if (startSeconds === null || endSeconds === null || endSeconds <= startSeconds) {
+      return undefined;
+    }
+    return endSeconds - startSeconds;
+  })();
+
+  return {
+    start_time: startTime,
+    end_time: endTime,
+    duration_seconds: shotRecord.duration_seconds ?? derivedDuration,
+  };
+};
+
+const parseTimecodeToSeconds = (value: unknown): number | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const parts = trimmed.split(':').map(part => Number(part.trim()));
+  if (parts.length < 2 || parts.length > 4 || parts.some(part => !Number.isFinite(part) || part < 0)) {
+    return null;
+  }
+
+  if (parts.length === 2) {
+    return (parts[0] * 60) + parts[1];
+  }
+
+  if (parts.length === 4) {
+    return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+  }
+
+  return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+};
+
+const deriveVideoDurationSeconds = (record: JsonRecord): number => {
+  const explicitDuration = toNumberValue(record.video_duration_seconds ?? record.duration_seconds, 0);
+  if (Number.isFinite(explicitDuration) && explicitDuration > 0) {
+    return clampDuration(explicitDuration, 1);
+  }
+
+  const rawShots = Array.isArray(record.shots) ? record.shots : [];
+  let maxEndSeconds = 0;
+  let summedDurationSeconds = 0;
+
+  rawShots.forEach((shot) => {
+    const shotRecord = toRecord(shot) || {};
+    const timing = getShotTimingRecord(shotRecord);
+    const endSeconds = parseTimecodeToSeconds(timing.end_time);
+    const durationSeconds = toNumberValue(timing.duration_seconds, 0);
+
+    if (endSeconds !== null && endSeconds > maxEndSeconds) {
+      maxEndSeconds = endSeconds;
+    }
+    if (Number.isFinite(durationSeconds) && durationSeconds > 0) {
+      summedDurationSeconds += Math.round(durationSeconds);
+    }
+  });
+
+  if (maxEndSeconds > 0) {
+    return clampDuration(maxEndSeconds, 1);
+  }
+
+  if (summedDurationSeconds > 0) {
+    return clampDuration(summedDurationSeconds, 1);
+  }
+
+  return 1;
+};
 
 export const isCanonicalAnalysisV2 = (value: unknown): value is CanonicalAnalysisV2 => {
   const record = toRecord(value);
@@ -134,6 +233,14 @@ const legacyShotToV2 = (shot: unknown, index: number): CanonicalShotV2 => {
     ? Math.max(1, Math.round(endSeconds - startSeconds))
     : 0;
   const durationRaw = toNumberValue(record.duration_seconds, derivedDuration || 6);
+  const environment = firstNonEmptyString(record.context_environment, record.environment, record.scene, record.setting);
+  const action = firstNonEmptyString(record.action, fallbackDescription, record.summary);
+  const style = firstNonEmptyString(record.style, record.visual_style, 'Naturalistic video');
+  const camera = firstNonEmptyString(record.camera_motion_positioning, record.camera_motion, record.camera, 'Static shot');
+  const composition = firstNonEmptyString(record.composition, record.framing, fallbackDescription);
+  const focusLensEffects = firstNonEmptyString(record.focus_lens_effects, record.focus, record.lens_effects);
+  const ambiance = firstNonEmptyString(record.ambiance_colour_lighting, record.ambiance_color_lighting, record.lighting, environment, fallbackDescription);
+  const ambientAudio = firstNonEmptyString(record.ambient, audioBed, explicitDialogue ? 'Speech-dominant production audio.' : '');
 
   return {
     shot_id: clampDuration(toNumberValue(record.shot_id ?? record.id, index + 1), index + 1),
@@ -143,22 +250,22 @@ const legacyShotToV2 = (shot: unknown, index: number): CanonicalShotV2 => {
       duration_seconds: clampDuration(durationRaw),
     },
     opening_frame: {
-      description: toStringValue(record.first_frame_description) || fallbackDescription,
+      description: firstNonEmptyString(record.first_frame_description, fallbackDescription, action, environment),
     },
     visual: {
-      subject: toStringValue(record.subject ?? record.main_subject ?? record.hero_subject),
-      action: toStringValue(record.action) || fallbackDescription,
-      environment: toStringValue(record.context_environment ?? record.environment),
-      style: toStringValue(record.style ?? record.visual_style),
-      camera: toStringValue(record.camera_motion_positioning ?? record.camera_motion ?? record.camera),
-      composition: toStringValue(record.composition ?? record.framing),
-      focus_lens_effects: toStringValue(record.focus_lens_effects ?? record.focus ?? record.lens_effects),
-      ambiance: toStringValue(record.ambiance_colour_lighting ?? record.ambiance_color_lighting ?? record.lighting),
+      subject: firstNonEmptyString(record.subject, record.main_subject, record.hero_subject, fallbackDescription),
+      action,
+      environment,
+      style,
+      camera,
+      composition,
+      focus_lens_effects: focusLensEffects,
+      ambiance,
     },
     audio: {
       dialogue: explicitDialogue,
       sfx: toStringValue(record.sfx),
-      ambient: toStringValue(record.ambient) || audioBed,
+      ambient: ambientAudio,
     },
     flags: {
       contains_brand: typeof record.contains_brand === 'boolean' ? record.contains_brand : undefined,
@@ -176,19 +283,29 @@ export const normalizeAnalysisToV2 = (
   if (isCanonicalAnalysisV2(record)) {
     return {
       schema_version: 2,
-      name: toStringValue(record.name),
+      name: toStringValue(record.name ?? record.title ?? record.video_title ?? record.project_id ?? record.video_id),
       detected_language: toStringValue(record.detected_language) || 'en',
-      video_duration_seconds: clampDuration(toNumberValue(record.video_duration_seconds, 0), 1),
+      video_duration_seconds: deriveVideoDurationSeconds(record),
       shots: (record.shots as unknown[]).map((shot, index) => {
         const shotRecord = toRecord(shot) || {};
-        const timing = toRecord(shotRecord.timing) || {};
+        const timing = getShotTimingRecord(shotRecord);
         const openingFrame = toRecord(shotRecord.opening_frame) || {};
         const visual = toRecord(shotRecord.visual) || {};
         const audio = toRecord(shotRecord.audio) || {};
         const flags = toRecord(shotRecord.flags) || {};
+        const environment = firstNonEmptyString(visual.environment, shotRecord.environment, shotRecord.context_environment, openingFrame.description);
+        const action = firstNonEmptyString(visual.action, shotRecord.action, openingFrame.description);
+        const style = firstNonEmptyString(visual.style, shotRecord.style, 'Naturalistic video');
+        const camera = firstNonEmptyString(visual.camera, shotRecord.camera, 'Static shot');
+        const composition = firstNonEmptyString(visual.composition, shotRecord.composition, openingFrame.description);
+        const ambiance = firstNonEmptyString(visual.ambiance, shotRecord.ambiance, shotRecord.lighting, environment, openingFrame.description);
+        const focusLensEffects = firstNonEmptyString(visual.focus_lens_effects, shotRecord.focus_lens_effects, shotRecord.lens_effects);
+        const audioAmbient = firstNonEmptyString(audio.ambient, shotRecord.audio_summary, audio.sfx, action ? `Production audio around: ${action}` : '');
+        const openingDescription = firstNonEmptyString(openingFrame.description, action, environment, composition);
+        const subject = firstNonEmptyString(visual.subject, shotRecord.subject, openingDescription);
 
         return {
-          shot_id: clampDuration(toNumberValue(shotRecord.shot_id, index + 1), index + 1),
+          shot_id: clampDuration(toNumberValue(shotRecord.shot_id ?? shotRecord.shot_number, index + 1), index + 1),
           timing: {
             start_time: normalizeTimeValue(timing.start_time),
             end_time: normalizeTimeValue(timing.end_time),
@@ -198,22 +315,22 @@ export const normalizeAnalysisToV2 = (
             ),
           },
           opening_frame: {
-            description: toStringValue(openingFrame.description),
+            description: openingDescription,
           },
           visual: {
-            subject: toStringValue(visual.subject),
-            action: toStringValue(visual.action),
-            environment: toStringValue(visual.environment),
-            style: toStringValue(visual.style),
-            camera: toStringValue(visual.camera),
-            composition: toStringValue(visual.composition),
-            focus_lens_effects: toStringValue(visual.focus_lens_effects),
-            ambiance: toStringValue(visual.ambiance),
+            subject,
+            action,
+            environment,
+            style,
+            camera,
+            composition,
+            focus_lens_effects: focusLensEffects,
+            ambiance,
           },
           audio: {
             dialogue: toStringValue(audio.dialogue),
             sfx: toStringValue(audio.sfx),
-            ambient: toStringValue(audio.ambient),
+            ambient: audioAmbient,
           },
           flags: {
             contains_brand: typeof flags.contains_brand === 'boolean' ? flags.contains_brand : undefined,
@@ -227,9 +344,9 @@ export const normalizeAnalysisToV2 = (
   const rawShots = Array.isArray(record.shots) ? record.shots : [];
   return {
     schema_version: 2,
-    name: toStringValue(record.name),
+    name: toStringValue(record.name ?? record.title ?? record.video_title ?? record.project_id ?? record.video_id),
     detected_language: toStringValue(record.detected_language) || 'en',
-    video_duration_seconds: clampDuration(toNumberValue(record.video_duration_seconds, 0), 1),
+    video_duration_seconds: deriveVideoDurationSeconds(record),
     shots: rawShots.map((shot, index) => legacyShotToV2(shot, index)),
   };
 };

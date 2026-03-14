@@ -13,13 +13,33 @@ test('fresh state returns starter clone prompts', () => {
   assert.equal(stage, 'starter');
   assert.deepEqual(getProjectAgentPromptChipPool(stage), [
     'I want to clone a viral video',
-    'Show me reference videos',
-    'Find a video to clone',
-    'Help me choose a reference video'
+    'I want to make an avatar ad',
+    'I want to use motion swap'
   ]);
 });
 
-test('workspace-ready state returns frame generation guidance', () => {
+test('visible reference selection returns clone reference chips', () => {
+  const stage = getProjectAgentPromptChipStage({
+    showCloneableVideos: true
+  });
+  assert.equal(stage, 'clone_reference_selection');
+  assert.deepEqual(getProjectAgentPromptChipPool(stage), [
+    'Show me reference videos',
+    'Help me choose a reference video',
+    'What makes a good reference video?'
+  ]);
+});
+
+test('visible replacement selection returns clone replacement chips', () => {
+  const stage = getProjectAgentPromptChipStage({
+    intent: 'competitor_ugc_replication',
+    cloneReferenceVideo: { id: 'ref-1' },
+    showCloneReplacementSelectors: true
+  });
+  assert.equal(stage, 'clone_replacement_selection');
+});
+
+test('workspace-ready state returns draft review guidance', () => {
   const stage = getProjectAgentPromptChipStage({
     intent: 'competitor_ugc_replication',
     cloneReferenceVideo: { id: 'ref-1' },
@@ -27,6 +47,18 @@ test('workspace-ready state returns frame generation guidance', () => {
       status: 'ready',
       scenes: [{}, {}]
     }
+  });
+  assert.equal(stage, 'draft_review');
+});
+
+test('awaiting confirmation in visible workspace stays on draft review chips', () => {
+  const stage = getProjectAgentPromptChipStage({
+    intent: 'competitor_ugc_replication',
+    cloneReferenceVideo: { id: 'ref-1' },
+    cloneReplacementDraft: {
+      status: 'awaiting_confirmation'
+    },
+    showCloneSceneWorkspaceStep: true
   });
   assert.equal(stage, 'draft_review');
 });
@@ -101,6 +133,12 @@ test('chip selection stays stable for the same stage key and changes when stage 
   const second = getProjectAgentPromptChips(baseState);
   assert.equal(getProjectAgentPromptChipStageKey(baseState), first.stageKey);
   assert.deepEqual(first.chips, second.chips);
+
+  const referenceSelectionState = {
+    showCloneableVideos: true
+  };
+  const referenceSelection = getProjectAgentPromptChips(referenceSelectionState);
+  assert.notEqual(first.stageKey, referenceSelection.stageKey);
 
   const completedState = {
     intent: 'competitor_ugc_replication' as const,

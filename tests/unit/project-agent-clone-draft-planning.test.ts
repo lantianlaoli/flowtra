@@ -165,3 +165,66 @@ test('project agent clone draft planning preserves all original shots by splitti
     return duration >= 3 && duration <= 15;
   }));
 });
+
+test('project agent clone draft planning can cross continuity breaks when strict buckets would strand short scenes', () => {
+  const result = buildProjectAgentCloneDraftSeeds({
+    referenceDurationSeconds: 9,
+    language: 'en',
+    analysisResult: {
+      schema_version: 2,
+      name: 'Gapped reference',
+      detected_language: 'en',
+      video_duration_seconds: 9,
+      shots: [
+        ...Array.from({ length: 8 }, (_, index) => ({
+          shot_id: index + 1,
+          timing: {
+            start_time: `00:0${index}`,
+            end_time: `00:0${index + 1}`,
+            duration_seconds: 1
+          },
+          opening_frame: { description: `Frame ${index + 1}` },
+          visual: {
+            subject: `Subject ${index + 1}`,
+            action: `Action ${index + 1}`,
+            environment: 'Kitchen',
+            style: 'UGC',
+            camera: 'Close handheld',
+            composition: 'Centered',
+            focus_lens_effects: '',
+            ambiance: 'Bright daylight',
+          },
+          audio: { dialogue: '', sfx: '', ambient: '' },
+          flags: {},
+        })),
+        {
+          shot_id: 9,
+          timing: {
+            start_time: '00:10',
+            end_time: '00:11',
+            duration_seconds: 1
+          },
+          opening_frame: { description: 'Frame 9' },
+          visual: {
+            subject: 'Subject 9',
+            action: 'Action 9',
+            environment: 'Kitchen',
+            style: 'UGC',
+            camera: 'Close handheld',
+            composition: 'Centered',
+            focus_lens_effects: '',
+            ambiance: 'Bright daylight',
+          },
+          audio: { dialogue: '', sfx: '', ambient: '' },
+          flags: {},
+        }
+      ],
+    },
+  });
+
+  assert.equal(result.scenes.length, 2);
+  assert.deepEqual(
+    result.scenes.map((scene) => scene.sourceShotIds),
+    [[1, 2, 3, 4, 5, 6], [7, 8, 9]]
+  );
+});

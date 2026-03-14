@@ -99,7 +99,7 @@ test('creator video analysis validation allows empty dialogue for silent shots',
   const result = __test__.validateStrictShotSchema({
     schema_version: 2,
     name: 'protein-mix-demo',
-    video_duration_seconds: 12,
+    video_duration_seconds: 6,
     detected_language: 'en',
     shots: [{
       shot_id: 1,
@@ -125,6 +125,70 @@ test('creator video analysis validation allows empty dialogue for silent shots',
         dialogue: '',
         sfx: '',
         ambient: 'Soft ambient kitchen tone with a low instrumental bed.'
+      },
+      flags: {}
+    }]
+  });
+
+  assert.equal(result.valid, true);
+});
+
+test('creator video analysis validation allows small duration mismatch within tolerance', () => {
+  const result = __test__.validateStrictShotSchema({
+    schema_version: 2,
+    name: 'protein-mix-demo',
+    video_duration_seconds: 15,
+    detected_language: 'en',
+    shots: [{
+      shot_id: 1,
+      timing: {
+        start_time: '00:00',
+        end_time: '00:08',
+        duration_seconds: 8
+      },
+      opening_frame: {
+        description: 'A creator holds a shaker bottle near the camera.'
+      },
+      visual: {
+        subject: 'Creator and shaker bottle',
+        action: 'The creator introduces the product while gesturing to camera.',
+        environment: 'Car interior in daylight.',
+        style: 'Natural handheld UGC.',
+        camera: 'Static front-facing medium close-up.',
+        composition: 'Centered talking-head frame.',
+        focus_lens_effects: '',
+        ambiance: 'Soft daylight through the windshield.'
+      },
+      audio: {
+        dialogue: 'This is the one I keep in my car every day.',
+        sfx: '',
+        ambient: 'Light road ambience underneath the voice.'
+      },
+      flags: {}
+    }, {
+      shot_id: 2,
+      timing: {
+        start_time: '00:08',
+        end_time: '00:17',
+        duration_seconds: 9
+      },
+      opening_frame: {
+        description: 'The creator lifts the bottle and points to the label.'
+      },
+      visual: {
+        subject: 'Creator, bottle, product label',
+        action: 'He rotates the bottle and points at the packaging.',
+        environment: 'Same car interior setting.',
+        style: 'Conversational product endorsement.',
+        camera: 'Locked medium close-up.',
+        composition: 'Subject centered with bottle in foreground.',
+        focus_lens_effects: '',
+        ambiance: 'Balanced natural interior light.'
+      },
+      audio: {
+        dialogue: 'It gives me exactly what I need before the gym.',
+        sfx: '',
+        ambient: 'Quiet in-car ambience with subtle traffic noise.'
       },
       flags: {}
     }]

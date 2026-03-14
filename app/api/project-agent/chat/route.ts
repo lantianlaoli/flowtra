@@ -333,6 +333,57 @@ const shouldGenerateWorkflowFallback = (latestUserTurnText: string, state: Sessi
   return state.intent === 'competitor_ugc_replication';
 };
 
+const isCloneDraftPreviewIntent = (text: string) => {
+  const normalized = text.trim();
+  if (!normalized) return false;
+  return /\b(scene\s+)?assignment(s)?\b/i.test(normalized) || /\b(prompt\s+)?draft(s)?\b/i.test(normalized);
+};
+
+const isCloneDraftProgressIntent = (text: string) => {
+  return (
+    isReferenceSelectionMessage(text) ||
+    isSelectionContinueIntent(text) ||
+    isCloneDraftPreviewIntent(text) ||
+    isReplacementConfirmationCommand(text) ||
+    isStartFrameGenerationCommand(text) ||
+    isStartVideoGenerationCommand(text)
+  );
+};
+
+const hasAnyCloneReplacementSelection = (state: SessionState) => {
+  const selectedAvatars = normalizeCloneSelections(
+    state.cloneReplacementDraft?.selectedAvatars,
+    state.cloneReplacementDraft?.selectedAvatar
+  );
+  const selectedProducts = normalizeCloneSelections(
+    state.cloneReplacementDraft?.selectedProducts,
+    state.cloneReplacementDraft?.selectedProduct
+  );
+
+  return (
+    selectedAvatars.length > 0 ||
+    selectedProducts.length > 0 ||
+    Boolean(state.avatar?.id) ||
+    Boolean(state.product?.id)
+  );
+};
+
+const hasAvatarOnlyCloneSelection = (state: SessionState) => {
+  const selectedAvatars = normalizeCloneSelections(
+    state.cloneReplacementDraft?.selectedAvatars,
+    state.cloneReplacementDraft?.selectedAvatar
+  );
+  const selectedProducts = normalizeCloneSelections(
+    state.cloneReplacementDraft?.selectedProducts,
+    state.cloneReplacementDraft?.selectedProduct
+  );
+
+  const hasAvatarSelection = selectedAvatars.length > 0 || Boolean(state.avatar?.id);
+  const hasProductSelection = selectedProducts.length > 0 || Boolean(state.product?.id);
+
+  return hasAvatarSelection && !hasProductSelection;
+};
+
 const buildWorkflowFallbackReply = async (input: {
   latestUserTurnText: string;
   state: SessionState;
@@ -367,6 +418,16 @@ const buildWorkflowFallbackReply = async (input: {
   const framesReady = segments.filter((segment) => Boolean(segment.firstFrameUrl)).length;
   const videosReady = segments.filter((segment) => Boolean(segment.videoUrl)).length;
 
+  if (
+    input.state.intent === 'competitor_ugc_replication' &&
+    input.state.cloneReferenceVideo?.id &&
+    draftStatus !== 'generating' &&
+    draftStatus !== 'ready' &&
+    !hasAnyCloneReplacementSelection(input.state)
+  ) {
+    return `${formatCloneReferenceGrounding(input.state)} Draft generation has not started yet because no replacement is selected. Choose an avatar, a product, or both in Step 2 first.`;
+  }
+
   const { text } = await generateText({
     model: input.model,
     system: [
@@ -375,6 +436,11 @@ const buildWorkflowFallbackReply = async (input: {
       'Always provide clear next actions.',
       'Reply in English only.',
       'Never mention Export buttons, Rerun buttons, or any removed controls.',
+      'If no replacement avatar or product is selected yet, explicitly say draft generation has not started and ask for at least one replacement next.',
+      'If only avatars are selected, make it clear avatar-only replacement can continue and product replacement is optional.',
+      'If no products are available in Assets, do not treat that as a blocker; tell the user they can continue with avatar-only replacement or import a product if they also want product replacement.',
+      'Never say you are building scene assignments or preparing drafts unless draftStatus is "generating" or "ready".',
+      'If only avatars are selected and the user asks to continue, keep going, go ahead, or show the draft, do not ask for a product. Avatar-only replacement can continue as-is.',
       'When replacements are confirmed and draft/scene workspace is available, tell the user exactly what to do next:',
       'review/edit scene prompts on the left, then say "start frame generation", then after frame review say "start video generation".',
       'If generation is already running, summarize progress and the next valid command.',
@@ -406,6 +472,33 @@ const buildWorkflowFallbackReply = async (input: {
 
 const getClonePlanStatus = (state: SessionState): ClonePlanStatus => {
   return state.cloneReplacementDraft?.planStatus || 'collecting';
+};
+
+const formatCloneReferenceGrounding = (state: SessionState) => {
+  const summary = state.cloneReferenceVideo?.analysisSummary?.trim();
+  const keyShots = Array.isArray(state.cloneReferenceVideo?.keyShots)
+    ? state.cloneReferenceVideo.keyShots
+        .filter((shot): shot is string => typeof shot === 'string' && shot.trim().length > 0)
+        .slice(0, 2)
+    : [];
+
+  if (summary && keyShots.length >= 2) {
+    return `I understand the reference structure: ${summary} Key shots include ${keyShots[0]} and ${keyShots[1]}.`;
+  }
+  if (summary && keyShots.length === 1) {
+    return `I understand the reference structure: ${summary} One key shot is ${keyShots[0]}.`;
+  }
+  if (summary) {
+    return `I understand the reference structure: ${summary}.`;
+  }
+  if (keyShots.length >= 2) {
+    return `I understand the reference structure. Key shots include ${keyShots[0]} and ${keyShots[1]}.`;
+  }
+  if (keyShots.length === 1) {
+    return `I understand the reference structure. One key shot is ${keyShots[0]}.`;
+  }
+
+  return 'I understand the reference structure, but the saved summary details are limited right now.';
 };
 
 const resolveCloneDraftSelections = (state: SessionState) => {
@@ -488,7 +581,7 @@ const classifyToolIntent = async (input: {
   latestUserTurnText: string;
   clonePhase?: SessionState['cloneExecution'] extends { phase: infer P } ? P : string;
   hasCloneProject: boolean;
-  hasSelectedProducts: boolean;
+  hasSelectedReplacements: boolean;
   cloneDraftStatus?: SessionState['cloneReplacementDraft'] extends { status: infer S } ? S : string;
   pendingMergeConfirmation?: SessionState['pendingMergeConfirmation'] | null;
 }): Promise<ForcedToolChoice> => {
@@ -496,8 +589,8 @@ const classifyToolIntent = async (input: {
   if (!userText) return undefined;
 
   if (
-    isSelectionContinueIntent(userText) &&
-    input.hasSelectedProducts &&
+    (isSelectionContinueIntent(userText) || isCloneDraftPreviewIntent(userText)) &&
+    input.hasSelectedReplacements &&
     input.cloneDraftStatus !== 'generating' &&
     input.cloneDraftStatus !== 'ready'
   ) {
@@ -671,8 +764,8 @@ Workflow rules:
 - When the user confirms prompts, use confirmVideoGeneration.
 - If the user picks competitor_ugc_replication, run the executable clone flow end-to-end in chat:
   - Step 1: choose reference video.
-  - Step 2: collect multi-avatar and multi-product selections (avatar and product are both optional at planning stage).
-  - Step 3: build and review deterministic scene assignments (cartesian preview).
+  - Step 2: collect replacement selections. Avatar and product are both optional individually, but at least one replacement is required before confirmation or draft generation.
+  - Step 3: prepare and review the replacement draft workspace. If product replacement is selected, include deterministic scene assignments preview too.
   - Step 4: wait for explicit replacement confirmation token "${REPLACEMENT_CONFIRMATION_TOKEN}".
   - Step 5: after replacement confirmation, start frame generation and continue execution phases.
   - Step 6: after all scene videos are ready, allow frame/video regeneration before creating the final video; final-video creation requires explicit chat confirmation token.
@@ -681,10 +774,10 @@ Workflow rules:
   1) First ask user to select ONE reference video.
   2) Do not ask for product before a reference video is selected.
   3) Ask for product only as a later step.
-  4) In step 1 responses, never mention product requirements yet.
+  4) Before a reference video is selected, do not mention product requirements yet.
   6) If Reference Video is already selected in current state, do not ask for reference video again; continue to the next required step.
   7) After Reference Video is selected, your first sentence must explicitly confirm you understood the video structure using the provided summary and key shots.
-  8) In the same reply, naturally recommend replacement directions and ask user to choose replacement avatars and/or products.
+  8) In the same reply, naturally recommend replacement directions and ask the user to choose replacement avatars and/or products. Avatar-only or product-only replacement is allowed, but at least one replacement must be selected before draft generation can start.
   9) Keep this as a normal conversational reply; do not rely on UI labels or step headers in the wording.
   10) If cloneReplacementDraft.status is "ready", reply naturally that replacement prompts are prepared from the reference structure, briefly summarize selected replacements, and ask the user to review/edit Scene and shot-level fields (subject, background, action, style, camera, composition, lighting, SFX, ambient noise, dialogue, timing) in Step 3.
   11) If cloneReplacementDraft.status is "generating", tell the user you are preparing prompt drafts now and to wait briefly.
@@ -696,14 +789,20 @@ Workflow rules:
   17) Step 2 auto-match rule: when reference video is selected and user describes replacements in natural language (including multiple avatars/products), resolve matches from existing options by calling listAvatars and listProducts, then apply selection tools.
   18) You may only claim something is "preselected" after a successful selectAvatar/selectProduct tool call in this turn (tool result must be success=true). If a tool returns success=false, do not claim any preselection and ask a short clarification instead.
   19) Selection priority rule: if current state already contains selected avatars/products from the left panel, treat those selections as authoritative user intent.
-  20) After successful auto-match, read back selected avatars/products and ask user to review scene assignments.
+  20) After successful auto-match, only ask the user to review scene assignments when at least one replacement avatar or product is selected. If no replacement is selected yet, ask for a replacement next.
   20.1) Use planCloneAssignments to build deterministic cartesian scene assignments preview.
   20.2) Allow updateSceneAssignment for per-scene manual overrides before confirmation.
   20.3) If user requests to clear or replace current selections, call clearCloneSelections or setCloneSelections instead of silently keeping previous values.
   21) Continue rule: if the user says done/selected/continue/next and state already has selections, do not ask for names again. Read back selected avatars/products + assignment summary, then proceed to draft generation.
-  21.1) Only ask for explicit product name if there is no selected product in current state.
+  21.1) Only ask for an explicit avatar/product name when the user wants that replacement type and none is selected in current state.
+  21.1.1) If only avatars are selected and the user says things like "yes, keep going", "go ahead", "continue", or asks to see the draft, treat that as valid avatar-only continuation and proceed without asking for a product.
   21.2) Do not infer execution confirmation from vague wording like "continue" or "looks good". Execution confirmation is valid only when user sends "${REPLACEMENT_CONFIRMATION_TOKEN}" and confirmCloneSelections succeeds.
+  21.3) If there is no selected replacement avatar or product, explicitly say draft generation has not started yet and ask for at least one replacement next.
   22) Until selection confirmation is complete, do not call execution tools. Respond with concise guidance and expected next command.
+  22.1) Never say product replacement is mandatory. Avatar-only or product-only replacement is allowed, but at least one replacement selection is required before draft generation can begin.
+  22.2) Never say you are building scene assignments, preparing drafts, or moving to Step 3 unless cloneReplacementDraft.status is "generating" or "ready", or a relevant generation tool in this turn returned success=true.
+  22.3) If the user has no products in Assets, explicitly tell them product replacement is optional and they can continue with avatar-only replacement or import a product if they want product replacement too.
+  22.4) If only avatars are selected, summarize the selected avatars and treat that as a valid replacement set for draft preparation.
   23) In confirmed state, guide the user to review/edit Scene and shot fields (subject, context/background, action, style, camera, composition, lighting, SFX, ambient noise, dialogue, timing), then tell them to send a chat command to start frame generation.
   24) If cloneReplacementDraft.status is ready and cloneExecutionPhase is still idle, never tell the user to start video generation yet. At this stage, always guide them to start frame generation first.
   25) Never instruct clicking any "confirm" control on the left panel. Replacement confirmation is chat-only via token "${REPLACEMENT_CONFIRMATION_TOKEN}". During clone execution phases, never instruct clicking removed buttons. Use command-style guidance.
@@ -1163,12 +1262,21 @@ export async function POST(request: Request) {
       ) {
         return { ok: true as const };
       }
+      const selectedAvatars = normalizeCloneSelections(
+        sessionState.cloneReplacementDraft?.selectedAvatars,
+        sessionState.cloneReplacementDraft?.selectedAvatar
+      );
       const selectedProducts = normalizeCloneSelections(
         sessionState.cloneReplacementDraft?.selectedProducts,
         sessionState.cloneReplacementDraft?.selectedProduct
       );
-      if (selectedProducts.length === 0 && !sessionState.product?.id) {
-        return { ok: false as const, message: 'Please select at least one replacement product first.' };
+      if (
+        selectedAvatars.length === 0 &&
+        selectedProducts.length === 0 &&
+        !sessionState.avatar?.id &&
+        !sessionState.product?.id
+      ) {
+        return { ok: false as const, message: 'Draft generation has not started yet. Please select at least one replacement avatar or product first.' };
       }
       return { ok: true as const };
     };
@@ -1296,6 +1404,73 @@ export async function POST(request: Request) {
     };
 
     const origin = getOrigin(request);
+    let userProductCountPromise: Promise<number | null> | null = null;
+    const resolveUserProductCount = async (): Promise<number | null> => {
+      if (userProductCountPromise) {
+        return userProductCountPromise;
+      }
+
+      userProductCountPromise = (async () => {
+        const { count, error } = await supabase
+          .from('user_products')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId);
+
+        if (error) {
+          console.error('[Project Agent] Failed to count products for clone guard:', error);
+          return null;
+        }
+
+        return typeof count === 'number' ? count : 0;
+      })();
+
+      return userProductCountPromise;
+    };
+
+    const buildCloneSelectionNeededReply = async (options?: { requireProgressTurn?: boolean }) => {
+      if (sessionState.intent !== 'competitor_ugc_replication' || !sessionState.cloneReferenceVideo?.id) {
+        return null;
+      }
+
+      if (sessionState.cloneExecution?.projectId) {
+        return null;
+      }
+
+      const draftStatus = sessionState.cloneReplacementDraft?.status || 'idle';
+      if (draftStatus === 'generating' || draftStatus === 'ready') {
+        return null;
+      }
+
+      const selectedAvatars = normalizeCloneSelections(
+        sessionState.cloneReplacementDraft?.selectedAvatars,
+        sessionState.cloneReplacementDraft?.selectedAvatar
+      );
+      const selectedProducts = normalizeCloneSelections(
+        sessionState.cloneReplacementDraft?.selectedProducts,
+        sessionState.cloneReplacementDraft?.selectedProduct
+      );
+
+      if (selectedAvatars.length > 0 || selectedProducts.length > 0 || sessionState.avatar?.id || sessionState.product?.id) {
+        return null;
+      }
+
+      const requireProgressTurn = options?.requireProgressTurn !== false;
+      const isProgressTurn = isCloneDraftProgressIntent(latestUserTurnText);
+
+      if (requireProgressTurn && !isProgressTurn) {
+        return null;
+      }
+
+      const productCount = await resolveUserProductCount();
+      const hasProductsInAssets = productCount === null ? true : productCount > 0;
+      const blocker = 'Draft generation has not started yet because no replacement is selected.';
+
+      if (!hasProductsInAssets) {
+        return `${formatCloneReferenceGrounding(sessionState)} ${blocker} You can continue with an avatar only, or create or import a product if you also want product replacement.`;
+      }
+
+      return `${formatCloneReferenceGrounding(sessionState)} ${blocker} Choose an avatar, a product, or both in Step 2 next.`;
+    };
 
     const fetchUserAvatarOptions = async (): Promise<AvatarOption[]> => {
       const extendedQuery = await supabase
@@ -1370,16 +1545,32 @@ export async function POST(request: Request) {
           sessionState.cloneExecution?.projectId ||
           sessionState.projectId
         ),
-        hasSelectedProducts: normalizeCloneSelections(
-          sessionState.cloneReplacementDraft?.selectedProducts,
-          sessionState.cloneReplacementDraft?.selectedProduct
-        ).length > 0 || Boolean(sessionState.product?.id),
+        hasSelectedReplacements: hasAnyCloneReplacementSelection(sessionState),
         cloneDraftStatus: sessionState.cloneReplacementDraft?.status,
         pendingMergeConfirmation: sessionState.pendingMergeConfirmation ?? null
       });
     } catch (intentError) {
       console.warn('[Project Agent] Tool intent classification failed, falling back to model autonomy:', intentError);
       forcedToolChoice = undefined;
+    }
+
+    const cloneDraftStatus = sessionState.cloneReplacementDraft?.status || 'idle';
+    const shouldForceAvatarOnlyDraft = (
+      sessionState.intent === 'competitor_ugc_replication' &&
+      Boolean(sessionState.cloneReferenceVideo?.id) &&
+      !sessionState.cloneExecution?.projectId &&
+      cloneDraftStatus !== 'generating' &&
+      cloneDraftStatus !== 'ready' &&
+      hasAvatarOnlyCloneSelection(sessionState) &&
+      (isSelectionContinueIntent(latestUserTurnText) || isCloneDraftPreviewIntent(latestUserTurnText))
+    );
+    if (!forcedToolChoice && shouldForceAvatarOnlyDraft) {
+      forcedToolChoice = { type: 'tool', toolName: 'generateCloneReplacementDraft' };
+    }
+
+    const cloneSelectionNeededReply = await buildCloneSelectionNeededReply({ requireProgressTurn: true });
+    if (cloneSelectionNeededReply) {
+      return sendDirectAssistantReply(cloneSelectionNeededReply);
     }
 
     const result = await streamText({
@@ -1468,6 +1659,8 @@ export async function POST(request: Request) {
               return { success: false, message: 'Selected avatar is missing a photo URL.' };
             }
 
+            const nextPlanStatus: ClonePlanStatus = 'awaiting_confirmation';
+
             await persistSession({
               avatar: {
                 id: match.id,
@@ -1496,7 +1689,7 @@ export async function POST(request: Request) {
                   name: match.avatar_name || 'Unnamed Avatar',
                   photoUrl: match.photo_url ?? null
                 },
-                planStatus: 'awaiting_confirmation',
+                planStatus: nextPlanStatus,
                 confirmation: {
                   requiredToken: REPLACEMENT_CONFIRMATION_TOKEN,
                   confirmedAt: null,
@@ -1505,7 +1698,16 @@ export async function POST(request: Request) {
               }
             });
 
-            return { success: true, avatar: match };
+            const productCount = await resolveUserProductCount();
+            const hasProductsInAssets = productCount === null ? true : productCount > 0;
+
+            return {
+              success: true,
+              avatar: match,
+              message: hasProductsInAssets
+                ? 'Avatar selected. You can continue with avatar-only replacement, or add a product if you also want product replacement.'
+                : 'Avatar selected. You can continue with avatar-only replacement, or create or import a product if you also want product replacement.'
+            };
           }
         }),
         selectProduct: tool({
@@ -1530,6 +1732,9 @@ export async function POST(request: Request) {
             }
 
             const products = data as ProductRow[];
+            if (products.length === 0) {
+              return { success: false, message: 'No products are available in Assets yet. Create or import a product first.' };
+            }
 
             const normalizedProduct = productName?.toLowerCase().trim();
 
@@ -1605,7 +1810,11 @@ export async function POST(request: Request) {
               }
             });
 
-            return { success: true, product: match };
+            return {
+              success: true,
+              product: match,
+              message: 'Product selected. You can continue to draft planning.'
+            };
           }
         }),
         setCloneSelections: tool({
@@ -1703,7 +1912,7 @@ export async function POST(request: Request) {
 
             const primaryAvatar = getPrimaryCloneSelection(selectedAvatars);
             const primaryProduct = getPrimaryCloneSelection(selectedProducts);
-            const nextPlanStatus: ClonePlanStatus = selectedProducts.length > 0 ? 'awaiting_confirmation' : 'collecting';
+            const nextPlanStatus: ClonePlanStatus = selectedAvatars.length > 0 || selectedProducts.length > 0 ? 'awaiting_confirmation' : 'collecting';
             await persistSession({
               avatar: primaryAvatar ? { id: primaryAvatar.id, name: primaryAvatar.name, photoUrl: primaryAvatar.photoUrl || '' } : null,
               product: primaryProduct ? { id: primaryProduct.id, name: primaryProduct.name } : null,
@@ -1729,7 +1938,10 @@ export async function POST(request: Request) {
               success: true,
               selectedAvatarCount: selectedAvatars.length,
               selectedProductCount: selectedProducts.length,
-              assignments: sceneAssignments
+              assignments: sceneAssignments,
+              message: selectedAvatars.length > 0 || selectedProducts.length > 0
+                ? 'Replacement selections updated. You can continue to draft review.'
+                : 'Replacement selections cleared. Choose an avatar, a product, or both to continue.'
             };
           }
         }),
@@ -1779,7 +1991,7 @@ export async function POST(request: Request) {
                 selectedProducts,
                 selectedProduct: primaryProduct,
                 sceneAssignments,
-                planStatus: selectedProducts.length > 0 ? 'awaiting_confirmation' : 'collecting',
+                planStatus: selectedAvatars.length > 0 || selectedProducts.length > 0 ? 'awaiting_confirmation' : 'collecting',
                 confirmation: {
                   requiredToken: REPLACEMENT_CONFIRMATION_TOKEN,
                   confirmedAt: null,
@@ -1802,8 +2014,13 @@ export async function POST(request: Request) {
               sessionState.cloneReplacementDraft?.selectedProducts,
               sessionState.cloneReplacementDraft?.selectedProduct
             );
-            if (selectedProducts.length === 0) {
-              return { success: false, message: 'Please select at least one replacement product first.' };
+            if (
+              selectedAvatars.length === 0 &&
+              selectedProducts.length === 0 &&
+              !sessionState.avatar?.id &&
+              !sessionState.product?.id
+            ) {
+              return { success: false, message: 'Draft generation has not started yet. Please select at least one replacement avatar or product first.' };
             }
 
             const sceneCount = await resolvePlannedCloneSceneCount();
@@ -1825,11 +2042,17 @@ export async function POST(request: Request) {
                 }
               }
             });
-            return { success: true, assignments: sceneAssignments };
+            return {
+              success: true,
+              assignments: sceneAssignments,
+              message: selectedProducts.length === 0
+                ? 'No product-specific scene assignments are needed for the current selections. You can continue to draft review.'
+                : 'Scene assignments are ready to review.'
+            };
           }
         }),
         updateSceneAssignment: tool({
-          description: 'Update one scene assignment (avatar optional, product required) before confirmation.',
+          description: 'Update one scene assignment before confirmation when product replacement is part of the plan. Avatar override is optional.',
           inputSchema: jsonSchema({
             type: 'object',
             properties: {
@@ -1911,8 +2134,13 @@ export async function POST(request: Request) {
               sessionState.cloneReplacementDraft?.selectedProducts,
               sessionState.cloneReplacementDraft?.selectedProduct
             );
-            if (selectedProducts.length === 0) {
-              return { success: false, message: 'Please select at least one replacement product first.' };
+            if (
+              selectedAvatars.length === 0 &&
+              selectedProducts.length === 0 &&
+              !sessionState.avatar?.id &&
+              !sessionState.product?.id
+            ) {
+              return { success: false, message: 'Draft generation has not started yet. Please select at least one replacement avatar or product first.' };
             }
             const sceneCount = await resolvePlannedCloneSceneCount();
             const sceneAssignments = buildCartesianSceneAssignments({
@@ -2293,10 +2521,6 @@ export async function POST(request: Request) {
               return { success: false, message: 'Replacement draft is not ready yet.' };
             }
 
-            const selectedAvatars = normalizeCloneSelections(
-              draft.selectedAvatars,
-              draft.selectedAvatar
-            );
             const selectedProducts = normalizeCloneSelections(
               draft.selectedProducts,
               draft.selectedProduct
@@ -2305,31 +2529,7 @@ export async function POST(request: Request) {
             const selectedAvatarId = selectedAvatarIds[0] || undefined;
             const selectedProductId = selectedProductIds[0] || undefined;
             const primaryProduct = getPrimaryCloneSelection(selectedProducts);
-            if (!selectedProductId) {
-              return { success: false, message: 'A replacement product is required before generation.' };
-            }
-
-            let selectedProductImageUrl = primaryProduct?.photoUrl || draft.selectedProduct?.photoUrl || null;
-            if (!selectedProductImageUrl) {
-              const { data: product, error: productError } = await supabase
-                .from('user_products')
-                .select('id, product_name, user_product_photos(photo_url,is_primary)')
-                .eq('id', selectedProductId)
-                .eq('user_id', userId)
-                .maybeSingle();
-              if (productError || !product) {
-                return { success: false, message: 'Selected product could not be resolved.' };
-              }
-              const photos = Array.isArray(product.user_product_photos)
-                ? product.user_product_photos as Array<{ photo_url?: string; is_primary?: boolean }>
-                : [];
-              const primary = photos.find((photo) => photo.is_primary) || photos[0];
-              selectedProductImageUrl = primary?.photo_url || null;
-            }
-
-            if (!selectedProductImageUrl) {
-              return { success: false, message: 'Selected product is missing an image.' };
-            }
+            const selectedProductImageUrl = primaryProduct?.photoUrl || draft.selectedProduct?.photoUrl || undefined;
 
             const segmentPrompts = draft.scenes.map((scene) => (
               cloneDraftSceneToSegmentPrompt(scene, sessionState.language ?? 'en')
@@ -3033,7 +3233,8 @@ export async function POST(request: Request) {
         })();
 
         if (!hasAssistantAfterLatestUser && !streamedAssistantTextVisible) {
-          const fallbackReply = await buildWorkflowFallbackReply({
+          const guardedReply = await buildCloneSelectionNeededReply({ requireProgressTurn: false });
+          const fallbackReply = guardedReply || await buildWorkflowFallbackReply({
             latestUserTurnText,
             state: sessionState,
             model

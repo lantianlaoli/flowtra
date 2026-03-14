@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { runSupabaseQueryWithRetry } from '@/lib/supabase-retry';
 import { normalizeProjectAgentVideoModel, type ProjectAgentIntent } from '@/lib/project-agent/video-model';
 
 export const dynamic = 'force-dynamic';
@@ -34,12 +35,15 @@ export async function GET(request: Request) {
     const supabase = getSupabaseAdmin();
     // Schema verified via Supabase MCP (2026-01-13):
     // project_agent_sessions columns: id, user_id, project_id, intent, status, state, messages, created_at, updated_at
-    const { data: session, error } = await supabase
-      .from('project_agent_sessions')
-      .select('*')
-      .eq('id', sessionId)
-      .eq('user_id', userId)
-      .maybeSingle();
+    const { data: session, error } = await runSupabaseQueryWithRetry(
+      () => supabase
+        .from('project_agent_sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .eq('user_id', userId)
+        .maybeSingle(),
+      { label: 'project-agent session GET' }
+    );
 
     if (error) {
       console.error('[Project Agent] Failed to fetch session:', error);
@@ -82,12 +86,15 @@ export async function PATCH(request: Request) {
     const supabase = getSupabaseAdmin();
     // Schema verified via Supabase MCP (2026-03-09):
     // project_agent_sessions columns: id, user_id, project_id, intent, status, state, messages, created_at, updated_at
-    const { data: session, error: fetchError } = await supabase
-      .from('project_agent_sessions')
-      .select('state')
-      .eq('id', sessionId)
-      .eq('user_id', userId)
-      .maybeSingle();
+    const { data: session, error: fetchError } = await runSupabaseQueryWithRetry(
+      () => supabase
+        .from('project_agent_sessions')
+        .select('state')
+        .eq('id', sessionId)
+        .eq('user_id', userId)
+        .maybeSingle(),
+      { label: 'project-agent session PATCH load' }
+    );
 
     if (fetchError) {
       console.error('[Project Agent] Failed to load session for patch:', fetchError);
@@ -114,9 +121,12 @@ export async function PATCH(request: Request) {
         insertPayload.project_id = projectId;
       }
 
-      const { error: insertError } = await supabase
-        .from('project_agent_sessions')
-        .insert(insertPayload);
+      const { error: insertError } = await runSupabaseQueryWithRetry(
+        () => supabase
+          .from('project_agent_sessions')
+          .insert(insertPayload),
+        { label: 'project-agent session PATCH insert' }
+      );
 
       if (insertError) {
         if (insertError.code !== '23505') {
@@ -127,11 +137,14 @@ export async function PATCH(request: Request) {
           );
         }
 
-        const { data: racedSession, error: raceError } = await supabase
-          .from('project_agent_sessions')
-          .select('user_id')
-          .eq('id', sessionId)
-          .maybeSingle();
+        const { data: racedSession, error: raceError } = await runSupabaseQueryWithRetry(
+          () => supabase
+            .from('project_agent_sessions')
+            .select('user_id')
+            .eq('id', sessionId)
+            .maybeSingle(),
+          { label: 'project-agent session PATCH race lookup' }
+        );
 
         if (raceError) {
           console.error('[Project Agent] Failed to resolve duplicate session race on patch:', raceError);
@@ -149,16 +162,19 @@ export async function PATCH(request: Request) {
           ...(statePatch || {})
         });
 
-        const { error: updateAfterRaceError } = await supabase
-          .from('project_agent_sessions')
-          .update({
-            state: nextStateForRace,
-            messages: messages ?? undefined,
-            project_id: projectId ?? undefined,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', sessionId)
-          .eq('user_id', userId);
+        const { error: updateAfterRaceError } = await runSupabaseQueryWithRetry(
+          () => supabase
+            .from('project_agent_sessions')
+            .update({
+              state: nextStateForRace,
+              messages: messages ?? undefined,
+              project_id: projectId ?? undefined,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', sessionId)
+            .eq('user_id', userId),
+          { label: 'project-agent session PATCH race update' }
+        );
 
         if (updateAfterRaceError) {
           console.error('[Project Agent] Failed to update raced session on patch:', updateAfterRaceError);
@@ -174,16 +190,19 @@ export async function PATCH(request: Request) {
         ...(statePatch || {})
       });
 
-      const { error: updateError } = await supabase
-        .from('project_agent_sessions')
-        .update({
-          state: nextState,
-          messages: messages ?? undefined,
-          project_id: projectId ?? undefined,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', sessionId)
-        .eq('user_id', userId);
+      const { error: updateError } = await runSupabaseQueryWithRetry(
+        () => supabase
+          .from('project_agent_sessions')
+          .update({
+            state: nextState,
+            messages: messages ?? undefined,
+            project_id: projectId ?? undefined,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', sessionId)
+          .eq('user_id', userId),
+        { label: 'project-agent session PATCH update' }
+      );
 
       if (updateError) {
         console.error('[Project Agent] Failed to update session:', updateError);

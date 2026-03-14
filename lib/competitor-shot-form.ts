@@ -1,4 +1,5 @@
 import { analysisToLegacyFlatShots } from '@/lib/video-analysis-schema';
+import { parseCompetitorTimeline } from '@/lib/competitor-shots';
 
 export interface CompetitorShotForm {
   shot_id: number;
@@ -32,11 +33,36 @@ const toNumberValue = (value: unknown, fallback = 0): number => {
 };
 
 export const parseShotsFromAnalysis = (analysisInput: unknown): CompetitorShotForm[] => {
-  const normalized = analysisToLegacyFlatShots(
+  const normalizedAnalysis = (
     (Array.isArray(analysisInput)
       ? { shots: analysisInput }
       : analysisInput) as Record<string, unknown> | null | undefined
   );
+
+  const timeline = parseCompetitorTimeline(normalizedAnalysis);
+  if (timeline.shots.length > 0) {
+    return timeline.shots.map((shot, index) => ({
+      shot_id: index + 1,
+      start_time: shot.startTime,
+      end_time: shot.endTime,
+      duration_seconds: clampDuration(shot.durationSeconds),
+      first_frame_description: shot.firstFrameDescription,
+      subject: shot.subject,
+      context_environment: shot.contextEnvironment,
+      action: shot.action,
+      style: shot.style,
+      camera_motion_positioning: shot.cameraMotionPositioning,
+      composition: shot.composition,
+      ambiance_colour_lighting: shot.ambianceColourLighting,
+      focus_lens_effects: shot.focusLensEffects || '',
+      audio_summary: shot.audio,
+      dialogue: shot.dialogue || '',
+      sfx: shot.sfx || '',
+      ambient: shot.ambient || '',
+    }));
+  }
+
+  const normalized = analysisToLegacyFlatShots(normalizedAnalysis);
 
   return normalized.map((shot, index) => ({
     shot_id: index + 1,

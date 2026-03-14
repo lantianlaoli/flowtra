@@ -2,6 +2,9 @@ type ProjectAgentPromptChipState = {
   intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_swap';
   step?: string;
   projectId?: string;
+  showCloneableVideos?: boolean;
+  showCloneReplacementSelectors?: boolean;
+  showCloneSceneWorkspaceStep?: boolean;
   cloneReferenceVideo?: {
     id?: string | null;
   } | null;
@@ -18,7 +21,8 @@ type ProjectAgentPromptChipState = {
 
 export type ProjectAgentPromptChipStage =
   | 'starter'
-  | 'reference_planning'
+  | 'clone_reference_selection'
+  | 'clone_replacement_selection'
   | 'draft_review'
   | 'frame_generation'
   | 'frame_review'
@@ -28,21 +32,25 @@ export type ProjectAgentPromptChipStage =
 const CHIP_POOLS: Record<ProjectAgentPromptChipStage, string[]> = {
   starter: [
     'I want to clone a viral video',
-    'Show me reference videos',
-    'Find a video to clone',
-    'Help me choose a reference video'
+    'I want to make an avatar ad',
+    'I want to use motion swap'
   ],
-  reference_planning: [
+  clone_reference_selection: [
+    'Show me reference videos',
+    'Help me choose a reference video',
+    'What makes a good reference video?'
+  ],
+  clone_replacement_selection: [
+    'Use this avatar',
     'Use this product',
-    'Use this avatar and product',
-    'Show scene assignments',
-    'Continue with this reference'
+    'Show draft preview',
+    'Continue with current selections'
   ],
   draft_review: [
-    'start frame generation',
     'Show scene assignments',
+    'Start frame generation',
     'Help me rewrite scene 2',
-    'Use this product'
+    'Generate this draft'
   ],
   frame_generation: [
     'show me the latest progress',
@@ -83,12 +91,24 @@ export const getProjectAgentPromptChipStage = (
   state: ProjectAgentPromptChipState
 ): ProjectAgentPromptChipStage | null => {
   const clonePhase = state.cloneExecution?.phase;
+  const isCloneReferenceSelectionVisible = Boolean(state.showCloneableVideos);
+  const isCloneReplacementSelectionVisible = Boolean(state.showCloneReplacementSelectors);
+  const isCloneSceneWorkspaceVisible = Boolean(state.showCloneSceneWorkspaceStep);
   const hasReference = Boolean(state.cloneReferenceVideo?.id);
   const hasMergedVideo = Boolean(state.cloneExecution?.mergedVideoUrl);
   const draftStatus = state.cloneReplacementDraft?.status ?? 'idle';
   const hasDraftScenes = (state.cloneReplacementDraft?.scenes?.length ?? 0) > 0;
   const hasCloneExecution = Boolean(state.cloneExecution?.projectId);
   const hasActiveAvatarProject = state.intent === 'avatar_ads' && Boolean(state.projectId);
+  const isCloneFlowActive = Boolean(
+    state.intent === 'competitor_ugc_replication' ||
+    isCloneReferenceSelectionVisible ||
+    isCloneReplacementSelectionVisible ||
+    isCloneSceneWorkspaceVisible ||
+    hasReference ||
+    hasCloneExecution ||
+    draftStatus !== 'idle'
+  );
 
   if (hasMergedVideo || clonePhase === 'merging' || clonePhase === 'completed') {
     return 'completed';
@@ -106,12 +126,25 @@ export const getProjectAgentPromptChipStage = (
     return 'frame_generation';
   }
 
-  if (hasReference && (draftStatus === 'ready' || hasDraftScenes || hasCloneExecution)) {
+  if (
+    isCloneSceneWorkspaceVisible ||
+    (hasReference && (
+      draftStatus === 'ready' ||
+      draftStatus === 'awaiting_confirmation' ||
+      draftStatus === 'failed' ||
+      hasDraftScenes ||
+      hasCloneExecution
+    ))
+  ) {
     return 'draft_review';
   }
 
-  if (hasReference) {
-    return 'reference_planning';
+  if (isCloneReplacementSelectionVisible || hasReference) {
+    return 'clone_replacement_selection';
+  }
+
+  if (isCloneReferenceSelectionVisible || isCloneFlowActive) {
+    return 'clone_reference_selection';
   }
 
   if (hasActiveAvatarProject) {
@@ -135,8 +168,22 @@ export const getProjectAgentPromptChipStageKey = (state: ProjectAgentPromptChipS
   const sceneCount = state.cloneReplacementDraft?.scenes?.length ?? 0;
   const phase = state.cloneExecution?.phase || 'idle';
   const merged = state.cloneExecution?.mergedVideoUrl ? 'merged' : 'not-merged';
+  const cloneableVideos = state.showCloneableVideos ? 'clone-videos-visible' : 'clone-videos-hidden';
+  const replacementSelectors = state.showCloneReplacementSelectors ? 'clone-selectors-visible' : 'clone-selectors-hidden';
+  const sceneWorkspace = state.showCloneSceneWorkspaceStep ? 'clone-workspace-visible' : 'clone-workspace-hidden';
 
-  return [stage, referenceId, projectId, draftStatus, sceneCount, phase, merged].join(':');
+  return [
+    stage,
+    referenceId,
+    projectId,
+    draftStatus,
+    sceneCount,
+    phase,
+    merged,
+    cloneableVideos,
+    replacementSelectors,
+    sceneWorkspace
+  ].join(':');
 };
 
 export const getProjectAgentPromptChips = (

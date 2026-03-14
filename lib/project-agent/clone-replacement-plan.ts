@@ -48,11 +48,21 @@ const SELECTION_CONTINUE_PATTERNS = [
   /\bi['’]?ve chosen\b/i,
   /\bi have chosen\b/i,
   /\bi chose\b/i,
+  /\bkeep going\b/i,
+  /\bgo ahead\b/i,
+  /\bcarry on\b/i,
+  /\bmove forward\b/i,
+  /\blet['’]?s go\b/i,
+  /^use this avatar$/i,
+  /^use this product$/i,
+  /^use this avatar and product$/i,
+  /^continue with current selections$/i,
+  /^(yes|yep|yeah)[,!\.\s-]*(keep going|go ahead|continue|proceed)\b/i,
   /\bcontinue\b/i,
   /\bnext step\b/i,
   /\bproceed\b/i,
   /\bdone\b/i,
-  /我选好了|我已经选了|继续|下一步|好了/
+  /我选好了|我已经选了|继续吧|继续进行|就这样继续|接着来|下一步|好了|继续/
 ];
 
 export const isSelectionContinueIntent = (text: string) => {

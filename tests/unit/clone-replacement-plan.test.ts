@@ -25,6 +25,10 @@ test('detects selection-continue intent', () => {
   assert.equal(isSelectionContinueIntent("I've already selected everything."), true);
   assert.equal(isSelectionContinueIntent('I selected already, continue'), true);
   assert.equal(isSelectionContinueIntent('next step'), true);
+  assert.equal(isSelectionContinueIntent('yes, keep going'), true);
+  assert.equal(isSelectionContinueIntent('go ahead'), true);
+  assert.equal(isSelectionContinueIntent('Use this avatar'), true);
+  assert.equal(isSelectionContinueIntent('Use this product'), true);
   assert.equal(isSelectionContinueIntent('what can you do'), false);
 });
 

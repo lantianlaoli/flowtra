@@ -880,6 +880,7 @@ export default function ProjectAgentPage() {
   const lastLocalCloneDraftEditAtRef = useRef(0);
   const pendingCloneSelectionPersistRef = useRef<Promise<void> | null>(null);
   const latestCloneDraftRef = useRef<ClonePromptDraft | null>(null);
+  const latestSessionStateRef = useRef<SessionState | null>(null);
   const pendingCloneDraftPersistRef = useRef<Promise<void> | null>(null);
   const lastLocalVideoModelEditAtRef = useRef(0);
   const pendingVideoModelPersistRef = useRef<Promise<void> | null>(null);
@@ -896,27 +897,6 @@ export default function ProjectAgentPage() {
     hasCloneModelLockState(sessionState)
   );
   const modelSelectorIntent = resolveProjectAgentModelIntent(sessionState, isCloneModelLockedContext);
-  const promptChipSuggestions = useMemo(() => getProjectAgentPromptChips({
-    intent: sessionState?.intent,
-    step: sessionState?.step,
-    projectId: sessionState?.projectId,
-    cloneReferenceVideo: sessionState?.cloneReferenceVideo
-      ? { id: sessionState.cloneReferenceVideo.id }
-      : null,
-    cloneReplacementDraft: sessionState?.cloneReplacementDraft
-      ? {
-          status: sessionState.cloneReplacementDraft.status,
-          scenes: sessionState.cloneReplacementDraft.scenes
-        }
-      : null,
-    cloneExecution: sessionState?.cloneExecution
-      ? {
-          projectId: sessionState.cloneExecution.projectId,
-          phase: sessionState.cloneExecution.phase,
-          mergedVideoUrl: sessionState.cloneExecution.mergedVideoUrl
-        }
-      : null
-  }), [sessionState]);
 
   const ensureHistoryTracked = useCallback((id: string, options?: { prependIfNew?: boolean }) => {
     const ids = readHistoryIds();
@@ -1003,7 +983,8 @@ export default function ProjectAgentPage() {
     transport: new DefaultChatTransport({
       api: '/api/project-agent/chat',
       prepareSendMessagesRequest: ({ id, messages }) => {
-        const draftSelection = latestCloneDraftRef.current ?? sessionState?.cloneReplacementDraft;
+        const latestSessionState = latestSessionStateRef.current ?? sessionState;
+        const draftSelection = latestCloneDraftRef.current ?? latestSessionState?.cloneReplacementDraft;
         const statePatch: Record<string, unknown> = {};
         statePatch.videoModel = normalizeProjectAgentVideoModel(
           selectedVideoModel,
@@ -1013,12 +994,12 @@ export default function ProjectAgentPage() {
         const hasExplicitAvatarSelection = hasExplicitCloneAvatarSelectionState(draftSelection);
         const hasExplicitProductSelection = hasExplicitCloneProductSelectionState(draftSelection);
 
-        if (sessionState?.avatar && !hasExplicitAvatarSelection) {
-          statePatch.avatar = sessionState.avatar;
+        if (latestSessionState?.avatar && !hasExplicitAvatarSelection) {
+          statePatch.avatar = latestSessionState.avatar;
         }
 
-        if (sessionState?.product && !hasExplicitProductSelection) {
-          statePatch.product = sessionState.product;
+        if (latestSessionState?.product && !hasExplicitProductSelection) {
+          statePatch.product = latestSessionState.product;
         }
 
         const selectedAvatars = normalizeCloneSelections(
@@ -1042,18 +1023,18 @@ export default function ProjectAgentPage() {
             selectedProducts,
             selectedProduct: getPrimaryCloneSelection(selectedProducts)
           };
-        } else if (sessionState?.avatar || sessionState?.product) {
-          const fallbackSelectedAvatars = sessionState?.avatar
+        } else if (latestSessionState?.avatar || latestSessionState?.product) {
+          const fallbackSelectedAvatars = latestSessionState?.avatar
             ? [{
-                id: sessionState.avatar.id,
-                name: sessionState.avatar.name,
-                photoUrl: sessionState.avatar.photoUrl || null
+                id: latestSessionState.avatar.id,
+                name: latestSessionState.avatar.name,
+                photoUrl: latestSessionState.avatar.photoUrl || null
               }]
             : [];
-          const fallbackSelectedProducts = sessionState?.product
+          const fallbackSelectedProducts = latestSessionState?.product
             ? [{
-                id: sessionState.product.id,
-                name: sessionState.product.name,
+                id: latestSessionState.product.id,
+                name: latestSessionState.product.name,
                 photoUrl: null
               }]
             : [];
@@ -2130,21 +2111,26 @@ export default function ProjectAgentPage() {
     setSelectedCloneAvatarIds(nextAvatarIds);
     setSessionState((prev) => (
       prev
-        ? {
-            ...prev,
-            avatar: primaryAvatar
-              ? {
-                  id: primaryAvatar.id,
-                  name: primaryAvatar.name,
-                  photoUrl: primaryAvatar.photoUrl || ''
-                }
-              : null,
-            cloneReplacementDraft: {
-              ...(prev.cloneReplacementDraft ?? { status: 'idle', error: null, scenes: [] }),
-              selectedAvatars: nextSelectedAvatars,
-              selectedAvatar: primaryAvatar
-            }
-          }
+        ? (() => {
+            const nextState = {
+              ...prev,
+              avatar: primaryAvatar
+                ? {
+                    id: primaryAvatar.id,
+                    name: primaryAvatar.name,
+                    photoUrl: primaryAvatar.photoUrl || ''
+                  }
+                : null,
+              cloneReplacementDraft: {
+                ...(prev.cloneReplacementDraft ?? { status: 'idle', error: null, scenes: [] }),
+                selectedAvatars: nextSelectedAvatars,
+                selectedAvatar: primaryAvatar
+              }
+            };
+            latestSessionStateRef.current = nextState;
+            latestCloneDraftRef.current = nextState.cloneReplacementDraft ?? null;
+            return nextState;
+          })()
         : prev
     ));
     void persistCloneSelection({
@@ -2176,20 +2162,25 @@ export default function ProjectAgentPage() {
     setSelectedCloneProductIds(nextProductIds);
     setSessionState((prev) => (
       prev
-        ? {
-            ...prev,
-            product: primaryProduct
-              ? {
-                  id: primaryProduct.id,
-                  name: primaryProduct.name
-                }
-              : null,
-            cloneReplacementDraft: {
-              ...(prev.cloneReplacementDraft ?? { status: 'idle', error: null, scenes: [] }),
-              selectedProducts: nextSelectedProducts,
-              selectedProduct: primaryProduct
-            }
-          }
+        ? (() => {
+            const nextState = {
+              ...prev,
+              product: primaryProduct
+                ? {
+                    id: primaryProduct.id,
+                    name: primaryProduct.name
+                  }
+                : null,
+              cloneReplacementDraft: {
+                ...(prev.cloneReplacementDraft ?? { status: 'idle', error: null, scenes: [] }),
+                selectedProducts: nextSelectedProducts,
+                selectedProduct: primaryProduct
+              }
+            };
+            latestSessionStateRef.current = nextState;
+            latestCloneDraftRef.current = nextState.cloneReplacementDraft ?? null;
+            return nextState;
+          })()
         : prev
     ));
     void persistCloneSelection({
@@ -2355,7 +2346,7 @@ export default function ProjectAgentPage() {
         sessionState?.avatar?.id ||
         sessionState?.product?.id
       );
-      if (draftStatus && draftStatus !== 'idle') {
+      if (draftStatus && draftStatus !== 'idle' && draftStatus !== 'failed') {
         setShowCloneReplacementSelectors(false);
         return;
       }
@@ -2421,7 +2412,7 @@ export default function ProjectAgentPage() {
       return true;
     }
     const draftStatus = sessionState?.cloneReplacementDraft?.status;
-    if (draftStatus !== 'ready' && draftStatus !== 'awaiting_confirmation' && draftStatus !== 'failed') {
+    if (draftStatus !== 'ready' && draftStatus !== 'awaiting_confirmation') {
       return false;
     }
     return !awaitingCloneDraftReply && !isStreaming && status === 'ready';
@@ -2432,6 +2423,37 @@ export default function ProjectAgentPage() {
     sessionState?.cloneReplacementDraft?.status,
     status
   ]);
+
+  const computedPromptChipSuggestions = useMemo(() => getProjectAgentPromptChips({
+    intent: sessionState?.intent,
+    step: sessionState?.step,
+    projectId: sessionState?.projectId,
+    showCloneableVideos,
+    showCloneReplacementSelectors: showCloneReplacementSelectors && !showCloneSceneWorkspaceStep,
+    showCloneSceneWorkspaceStep,
+    cloneReferenceVideo: sessionState?.cloneReferenceVideo
+      ? { id: sessionState.cloneReferenceVideo.id }
+      : null,
+    cloneReplacementDraft: sessionState?.cloneReplacementDraft
+      ? {
+          status: sessionState.cloneReplacementDraft.status,
+          scenes: sessionState.cloneReplacementDraft.scenes
+        }
+      : null,
+    cloneExecution: sessionState?.cloneExecution
+      ? {
+          projectId: sessionState.cloneExecution.projectId,
+          phase: sessionState.cloneExecution.phase,
+          mergedVideoUrl: sessionState.cloneExecution.mergedVideoUrl
+        }
+      : null
+  }), [
+    sessionState,
+    showCloneSceneWorkspaceStep,
+    showCloneReplacementSelectors,
+    showCloneableVideos
+  ]);
+  const [visiblePromptChipSuggestions, setVisiblePromptChipSuggestions] = useState(computedPromptChipSuggestions);
 
   useEffect(() => {
     const needsMentionOptions =
@@ -2557,6 +2579,12 @@ export default function ProjectAgentPage() {
     displayMessages,
     retryableUserMessageId
   ]);
+
+  useEffect(() => {
+    if (awaitingAssistantTurn) return;
+    if (status !== 'ready') return;
+    setVisiblePromptChipSuggestions(computedPromptChipSuggestions);
+  }, [awaitingAssistantTurn, computedPromptChipSuggestions, status]);
 
   useEffect(() => {
     if (!awaitingAssistantTurn) {
@@ -2755,6 +2783,10 @@ export default function ProjectAgentPage() {
       draftPersistTimerRef.current = null;
     }
   }, []);
+
+  useEffect(() => {
+    latestSessionStateRef.current = sessionState;
+  }, [sessionState]);
 
   useEffect(() => {
     latestCloneDraftRef.current = sessionState?.cloneReplacementDraft ?? null;
@@ -2972,19 +3004,11 @@ export default function ProjectAgentPage() {
                   <div className="w-full min-h-full space-y-4">
                     {showCloneableVideos && (
                     <div className="w-full rounded-xl border border-[#e6e6e4] bg-white p-4">
-                      <div className="mb-3 flex items-center justify-between gap-2">
+                      <div className="mb-3">
                         <div>
                           <p className="text-sm font-semibold text-[#1f1f1e]">Step 1: Choose Reference Video</p>
                           <p className="text-xs text-[#787876]">Select one video from Assets first. Product selection comes later.</p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => void loadCloneableVideos()}
-                          className="rounded-xl border border-[#d9d9d7] bg-white px-2.5 py-1.5 text-xs text-[#1f1f1e] hover:bg-[#f3f3f2]"
-                          disabled={isCloneableVideosLoading}
-                        >
-                          {isCloneableVideosLoading ? 'Refreshing...' : 'Refresh'}
-                        </button>
                       </div>
 
                       {isCloneableVideosLoading && cloneableVideos.length === 0 ? (
@@ -3017,8 +3041,15 @@ export default function ProjectAgentPage() {
                     <div className="w-full rounded-xl border border-[#e6e6e4] bg-white p-4 space-y-4">
                       <div>
                         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Step 2</p>
-                        <p className="text-sm font-medium text-[#4f4f4d]">Choose who and what you want to replace</p>
+                        <p className="text-sm font-medium text-[#4f4f4d]">Choose replacement avatar and/or product</p>
+                        <p className="mt-1 text-xs text-[#787876]">Pick the parts you want to replace. You can continue with an avatar, a product, or both.</p>
                       </div>
+
+                      {sessionState?.cloneReplacementDraft?.status === 'failed' && sessionState.cloneReplacementDraft.error ? (
+                        <div className="rounded-xl border border-[#ead2cf] bg-[#fff7f5] px-4 py-3 text-xs text-[#8a4d45]">
+                          Draft prep failed: {sessionState.cloneReplacementDraft.error}
+                        </div>
+                      ) : null}
 
                       {isCloneOptionsLoading ? (
                         <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
@@ -3033,6 +3064,7 @@ export default function ProjectAgentPage() {
                                 <span>Choose Avatars</span>
                               </p>
                             </div>
+                            <p className="text-xs text-[#787876]">Optional. Select one or more if you want to replace the person in the reference.</p>
                             <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
                               {cloneAvatarOptions.map((avatar) => (
                                 <button
@@ -3064,28 +3096,37 @@ export default function ProjectAgentPage() {
                                 <span>Choose Products</span>
                               </p>
                             </div>
-                            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
-                              {cloneProductOptions.map((product) => (
-                                <button
-                                  key={product.id}
-                                  type="button"
-                                  onClick={() => handleManualProductSelection(product.id)}
-                                  className={`rounded-xl p-1.5 text-left transition-colors ${selectedCloneProductIds.includes(product.id) ? 'border-2 border-[#0f0f0f] bg-white shadow-[0_1px_0_rgba(15,15,15,0.04)]' : 'border border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
-                                >
-                                  <div className="w-full aspect-square rounded-[10px] overflow-hidden bg-[#efefed] mb-1">
-                                    {product.photoUrl ? (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={product.photoUrl} alt={product.name} className="w-full h-full object-cover" />
-                                    ) : null}
-                                  </div>
-                                  <span
-                                    className={`inline-flex max-w-full rounded-md px-2 py-1 text-[11px] font-medium ${selectedCloneProductIds.includes(product.id) ? 'bg-[#0f0f0f] text-white' : 'bg-[#f3f3f2] text-[#1f1f1e]'}`}
-                                  >
-                                    <span className="truncate">{product.name}</span>
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
+                            <p className="text-xs text-[#787876]">Optional. Select one or more if you want to replace the product in the reference.</p>
+                            {cloneProductOptions.length === 0 ? (
+                              <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-5 text-center text-xs text-[#787876]">
+                                No products are available in Assets yet. Product replacement is optional, so you can still continue with avatar-only replacement.
+                              </div>
+                            ) : (
+                              <>
+                                <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
+                                  {cloneProductOptions.map((product) => (
+                                    <button
+                                      key={product.id}
+                                      type="button"
+                                      onClick={() => handleManualProductSelection(product.id)}
+                                      className={`rounded-xl p-1.5 text-left transition-colors ${selectedCloneProductIds.includes(product.id) ? 'border-2 border-[#0f0f0f] bg-white shadow-[0_1px_0_rgba(15,15,15,0.04)]' : 'border border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                    >
+                                      <div className="w-full aspect-square rounded-[10px] overflow-hidden bg-[#efefed] mb-1">
+                                        {product.photoUrl ? (
+                                          // eslint-disable-next-line @next/next/no-img-element
+                                          <img src={product.photoUrl} alt={product.name} className="w-full h-full object-cover" />
+                                        ) : null}
+                                      </div>
+                                      <span
+                                        className={`inline-flex max-w-full rounded-md px-2 py-1 text-[11px] font-medium ${selectedCloneProductIds.includes(product.id) ? 'bg-[#0f0f0f] text-white' : 'bg-[#f3f3f2] text-[#1f1f1e]'}`}
+                                      >
+                                        <span className="truncate">{product.name}</span>
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </>
+                            )}
                           </div>
 
                         </>
@@ -3334,11 +3375,11 @@ export default function ProjectAgentPage() {
               </div>
 
               <div className="border-t border-[#e6e6e4] px-4 py-4">
-                {promptChipSuggestions.chips.length > 0 ? (
+                {!awaitingAssistantTurn && visiblePromptChipSuggestions.chips.length > 0 ? (
                   <div className="mb-3 flex flex-wrap items-center gap-2">
-                    {promptChipSuggestions.chips.map((chip) => (
+                    {visiblePromptChipSuggestions.chips.map((chip) => (
                       <button
-                        key={`${promptChipSuggestions.stageKey}:${chip}`}
+                        key={`${visiblePromptChipSuggestions.stageKey}:${chip}`}
                         type="button"
                         onClick={() => handlePromptChipClick(chip)}
                         disabled={!isReady || awaitingAssistantTurn}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Link, Upload, Users, Loader2, ArrowLeft, Info, Sparkles, Shuffle, RotateCcw, Type, LayoutGrid, Languages, Clock3, Film } from 'lucide-react';
+import { X, Link, Upload, Users, Loader2, ArrowLeft, Info, Sparkles, Shuffle, RotateCcw, Type, Languages } from 'lucide-react';
 import { SiTiktok } from 'react-icons/si';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -59,6 +59,125 @@ const readApiErrorMessage = async (response: Response, fallback: string) => {
   }
 };
 
+const DEFAULT_IMPORT_NAMES = new Set([
+  'uploaded',
+  'upload',
+  'untitled',
+  'tiktok video',
+]);
+
+const isDefaultImportName = (value?: string | null) => {
+  const normalized = value?.trim().toLowerCase();
+  return Boolean(normalized && DEFAULT_IMPORT_NAMES.has(normalized));
+};
+
+const toTitleCase = (value: string) =>
+  value
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+
+const deriveAnalysisDisplayName = (analysisResult: Record<string, unknown> | null | undefined): string => {
+  if (!analysisResult || typeof analysisResult !== 'object') {
+    return '';
+  }
+
+  const explicitName = typeof analysisResult.name === 'string' ? analysisResult.name.trim() : '';
+  if (explicitName) {
+    return isDefaultImportName(explicitName) ? '' : toTitleCase(explicitName);
+  }
+
+  const shots = Array.isArray(analysisResult.shots) ? analysisResult.shots : [];
+  const firstShot = shots[0];
+  if (!firstShot || typeof firstShot !== 'object') {
+    return '';
+  }
+
+  const shotRecord = firstShot as Record<string, unknown>;
+  const visual = shotRecord.visual && typeof shotRecord.visual === 'object'
+    ? shotRecord.visual as Record<string, unknown>
+    : null;
+  const openingFrame = shotRecord.opening_frame && typeof shotRecord.opening_frame === 'object'
+    ? shotRecord.opening_frame as Record<string, unknown>
+    : null;
+
+  const subject = typeof visual?.subject === 'string' ? visual.subject.trim() : '';
+  if (subject) {
+    return subject.length > 60 ? `${subject.slice(0, 57).trim()}...` : subject;
+  }
+
+  const description = typeof openingFrame?.description === 'string' ? openingFrame.description.trim() : '';
+  if (description) {
+    return description.length > 60 ? `${description.slice(0, 57).trim()}...` : description;
+  }
+
+  return '';
+};
+
+function GlassLoadingBar({
+  className = '',
+}: {
+  className?: string;
+}) {
+  return (
+    <div className={`relative overflow-hidden rounded-full border border-white/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,245,245,0.82))] shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm ${className}`}>
+      <motion.div
+        className="absolute inset-y-[-35%] -left-[42%] w-[42%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,0.98),rgba(255,255,255,0))] blur-md"
+        animate={{ x: ['0%', '360%'] }}
+        transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+      />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.4),rgba(255,255,255,0.08))]" />
+    </div>
+  );
+}
+
+function GlassLoadingField({
+  className = '',
+  lines = 1,
+}: {
+  className?: string;
+  lines?: number;
+}) {
+  return (
+    <div className={`rounded-2xl border border-[#D8D8D8] bg-white/72 p-3 shadow-[0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-sm ${className}`}>
+      <div className="flex flex-col gap-2">
+        {Array.from({ length: lines }).map((_, index) => (
+          <GlassLoadingBar
+            key={index}
+            className={index === lines - 1 ? 'h-3.5 w-3/5' : 'h-3.5 w-full'}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GlassWavePanel({
+  className = '',
+  children,
+}: {
+  className?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className={`relative overflow-hidden rounded-xl border border-dashed border-[#D7D7D7] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(250,250,250,0.74))] backdrop-blur-sm ${className}`}>
+      <motion.div
+        className="absolute inset-y-[-18%] -left-[35%] w-[46%] bg-[linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,0.96),rgba(255,255,255,0))] blur-xl"
+        animate={{ x: ['0%', '320%'] }}
+        transition={{ duration: 1.8, repeat: Infinity, ease: 'linear' }}
+      />
+      <motion.div
+        className="absolute inset-y-[-12%] -left-[55%] w-[58%] bg-[linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,0.55),rgba(255,255,255,0))] blur-2xl"
+        animate={{ x: ['0%', '290%'] }}
+        transition={{ duration: 2.6, repeat: Infinity, ease: 'linear', delay: 0.2 }}
+      />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.55),transparent_58%)]" />
+      {children}
+    </div>
+  );
+}
+
 export default function VideoImportModal({
   isOpen,
   onClose,
@@ -83,11 +202,13 @@ export default function VideoImportModal({
   const [processingOrigin, setProcessingOrigin] = useState<ProcessingOrigin>(null);
   const [isFirstFrameUploading, setIsFirstFrameUploading] = useState(false);
   const [firstFrameUploadError, setFirstFrameUploadError] = useState<string | null>(null);
-  const [analysisLoadingMessageIndex, setAnalysisLoadingMessageIndex] = useState(0);
   const [videoName, setVideoName] = useState('');
   const [isSavingVideoName, setIsSavingVideoName] = useState(false);
   const [isRetryingAnalysis, setIsRetryingAnalysis] = useState(false);
   const closeTimerRef = useRef<number | null>(null);
+  const videoNameAutoSaveTimerRef = useRef<number | null>(null);
+  const previousProcessingVideoIdRef = useRef<string | null>(null);
+  const previousVideoDescriptionRef = useRef('');
   const router = useRouter();
   const isProcessingStep = step === 'processing' || step === 'processing-batch';
 
@@ -107,7 +228,6 @@ export default function VideoImportModal({
     setProcessingOrigin(null);
     setIsFirstFrameUploading(false);
     setFirstFrameUploadError(null);
-    setAnalysisLoadingMessageIndex(0);
     setVideoName('');
     setIsSavingVideoName(false);
     setIsRetryingAnalysis(false);
@@ -117,6 +237,9 @@ export default function VideoImportModal({
     return () => {
       if (closeTimerRef.current) {
         window.clearTimeout(closeTimerRef.current);
+      }
+      if (videoNameAutoSaveTimerRef.current) {
+        window.clearTimeout(videoNameAutoSaveTimerRef.current);
       }
     };
   }, []);
@@ -129,33 +252,15 @@ export default function VideoImportModal({
     return parseShotsFromAnalysis(processingVideo?.analysis_result || null);
   }, [processingVideo?.analysis_result]);
 
-  const analysisLoadingMessages = useMemo(
-    () => [
-      'Analyzing your video structure...',
-      'Detecting scene boundaries and pacing...',
-      'Extracting subject, action, and camera motion...',
-      'Mapping composition, lighting, and audio cues...',
-      'Preparing a clean shot-by-shot timeline...'
-    ],
-    []
-  );
+  const isAnalysisPending = step === 'processing' &&
+    processingVideo?.analysis_status !== 'failed' &&
+    !processingVideo?.analysis_result;
 
   useEffect(() => {
-    const isAnalysisPending = step === 'processing' &&
-      processingVideo?.analysis_status !== 'failed' &&
-      !processingVideo?.analysis_result;
-
     if (!isAnalysisPending) {
-      setAnalysisLoadingMessageIndex(0);
       return;
     }
-
-    const timer = window.setInterval(() => {
-      setAnalysisLoadingMessageIndex(prev => (prev + 1) % analysisLoadingMessages.length);
-    }, 2200);
-
-    return () => window.clearInterval(timer);
-  }, [analysisLoadingMessages.length, processingVideo?.analysis_result, processingVideo?.analysis_status, step]);
+  }, [isAnalysisPending]);
 
   useEffect(() => {
     const videoId = processingVideo?.id;
@@ -229,21 +334,67 @@ export default function VideoImportModal({
   );
 
   const analysisName = useMemo(() => {
-    if (!processingVideo?.analysis_result || typeof processingVideo.analysis_result !== 'object') {
-      return '';
-    }
-
-    const name = (processingVideo.analysis_result as { name?: unknown }).name;
-    return typeof name === 'string' ? name.trim() : '';
+    return deriveAnalysisDisplayName(processingVideo?.analysis_result);
   }, [processingVideo?.analysis_result]);
 
+  const hasGeneratedAnalysisName = Boolean(analysisName);
+  const hasMeaningfulVideoDescription = Boolean(
+    processingVideo?.description?.trim() &&
+    !isDefaultImportName(processingVideo.description)
+  );
+
   useEffect(() => {
-    const nextName = processingVideo?.description?.trim()
-      || analysisName
-      || processingVideo?.source_name?.trim()
-      || '';
-    setVideoName(nextName);
-  }, [analysisName, processingVideo?.description, processingVideo?.id, processingVideo?.source_name]);
+    const nextName = hasMeaningfulVideoDescription
+      ? processingVideo?.description?.trim() || ''
+      : analysisName;
+    const nextVideoId = processingVideo?.id || null;
+    const currentDescription = (processingVideo?.description || '').trim();
+
+    if (nextVideoId !== previousProcessingVideoIdRef.current) {
+      previousProcessingVideoIdRef.current = nextVideoId;
+      previousVideoDescriptionRef.current = currentDescription;
+      setVideoName(nextName);
+      return;
+    }
+
+    if (videoName.trim() === previousVideoDescriptionRef.current) {
+      previousVideoDescriptionRef.current = currentDescription;
+      setVideoName(nextName);
+      return;
+    }
+
+    previousVideoDescriptionRef.current = currentDescription;
+  }, [analysisName, hasMeaningfulVideoDescription, processingVideo?.description, processingVideo?.id]);
+
+  useEffect(() => {
+    if (!processingVideo?.id) return;
+
+    const trimmedName = videoName.trim();
+    const currentDescription = (processingVideo.description || '').trim();
+
+    if (!trimmedName || trimmedName === currentDescription) {
+      if (videoNameAutoSaveTimerRef.current) {
+        window.clearTimeout(videoNameAutoSaveTimerRef.current);
+        videoNameAutoSaveTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (videoNameAutoSaveTimerRef.current) {
+      window.clearTimeout(videoNameAutoSaveTimerRef.current);
+    }
+
+    videoNameAutoSaveTimerRef.current = window.setTimeout(() => {
+      void handleSaveVideoName(trimmedName);
+    }, 700);
+
+    return () => {
+      if (videoNameAutoSaveTimerRef.current) {
+        window.clearTimeout(videoNameAutoSaveTimerRef.current);
+        videoNameAutoSaveTimerRef.current = null;
+      }
+    };
+  }, [processingVideo?.description, processingVideo?.id, videoName]);
 
   const handleBackToChoose = () => {
     setStep('choose');
@@ -524,12 +675,12 @@ export default function VideoImportModal({
     router.push(`/dashboard/motion-swap?videoId=${processingVideo?.id}`);
   };
 
-  const handleSaveVideoName = async () => {
+  const handleSaveVideoName = async (nameOverride?: string) => {
     if (!processingVideo?.id) {
       return;
     }
 
-    const trimmedName = videoName.trim();
+    const trimmedName = (nameOverride ?? videoName).trim();
     if (!trimmedName) {
       setError('Name is required.');
       return;
@@ -558,6 +709,7 @@ export default function VideoImportModal({
         throw new Error('Failed to update video name.');
       }
 
+      previousVideoDescriptionRef.current = (data.video.description || trimmedName).trim();
       setProcessingVideo(prev => prev ? { ...prev, description: data.video?.description || trimmedName } : prev);
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : 'Failed to update video name.';
@@ -667,7 +819,7 @@ export default function VideoImportModal({
           />
 
           <motion.div
-            className={`assets-modal-panel assets-video-import-panel relative mx-auto flex w-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${isProcessingStep ? 'max-w-[1560px] h-[88vh] max-h-[878px]' : 'max-w-[1180px] max-h-[90vh]'}`}
+            className={`assets-modal-panel assets-video-import-panel relative mx-auto flex w-full max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${isProcessingStep ? 'h-[88vh] max-h-[878px] xl:max-w-[1560px]' : 'max-h-[90vh] xl:max-w-[1180px]'}`}
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -693,7 +845,7 @@ export default function VideoImportModal({
             </div>
 
             {step === 'choose' && (
-              <div className="assets-modal-body p-6 space-y-6">
+              <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
                 <div className="assets-video-import-options grid grid-cols-1 md:grid-cols-3 gap-4">
                   <button
                     onClick={() => setStep('link')}
@@ -730,7 +882,7 @@ export default function VideoImportModal({
             )}
 
             {(step === 'link' || step === 'upload') && (
-              <div className="assets-modal-body p-6 space-y-6">
+              <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
                 <button
                   onClick={handleBackToChoose}
                   className="assets-video-import-back inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
@@ -808,7 +960,7 @@ export default function VideoImportModal({
                       <>
                         <label className="assets-modal-label block text-sm font-medium text-gray-700">Upload Video File</label>
                         <div className="flex flex-col gap-3">
-                          <label className="assets-modal-upload w-full aspect-square flex flex-col items-center justify-center gap-3 border-2 border-dashed border-gray-200 rounded-2xl px-6 text-sm text-gray-500 cursor-pointer hover:border-gray-400 transition-colors">
+                          <label className="assets-modal-upload flex min-h-[320px] w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-gray-200 px-6 text-sm text-gray-500 transition-colors hover:border-gray-400 sm:min-h-[360px] lg:min-h-[420px] cursor-pointer">
                             <Upload className="w-5 h-5" />
                             <span className="text-sm">{uploadFile ? uploadFile.name : 'Choose a video file'}</span>
                             <span className="assets-modal-helper text-xs text-gray-400">MP4 or MOV</span>
@@ -834,7 +986,7 @@ export default function VideoImportModal({
             )}
 
             {step === 'creator' && (
-              <div className="assets-modal-body p-6 space-y-6">
+              <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
                 <button
                   onClick={handleBackToChoose}
                   className="assets-video-import-back inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
@@ -870,7 +1022,7 @@ export default function VideoImportModal({
             )}
 
             {step === 'creator-preview' && (
-              <div className="assets-modal-body p-6 space-y-6">
+              <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
                 <button
                   onClick={() => setStep('creator')}
                   className="assets-video-import-back inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
@@ -929,10 +1081,10 @@ export default function VideoImportModal({
             )}
 
             {step === 'processing' && (
-              <div className={`assets-modal-body grid min-h-0 flex-1 grid-cols-1 items-stretch gap-5 overflow-hidden px-5 py-5 ${requiresFirstFrameForMotionSwap ? 'lg:grid-cols-[840px_minmax(520px,1fr)]' : 'lg:grid-cols-[340px_minmax(720px,1fr)]'}`}>
-                <div className={`grid min-h-0 h-full min-w-0 items-stretch justify-items-center gap-4 overflow-hidden ${requiresFirstFrameForMotionSwap ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <div className="assets-modal-body grid min-h-0 flex-1 grid-cols-1 items-stretch gap-5 overflow-y-auto overflow-x-hidden px-5 py-5 xl:grid-cols-[auto_minmax(0,1fr)]">
+                <div className={`grid min-h-0 h-full min-w-0 items-start gap-4 overflow-hidden ${requiresFirstFrameForMotionSwap ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1 justify-items-center'}`}>
                   {requiresFirstFrameForMotionSwap && (
-                    <label className="assets-video-import-preview flex h-full aspect-[9/16] w-auto max-w-full min-w-0 overflow-hidden rounded-xl border-2 border-dashed border-gray-300 bg-white transition-colors hover:border-gray-500 cursor-pointer">
+                    <label className="assets-video-import-preview flex aspect-[9/16] w-full max-w-[320px] min-w-0 overflow-hidden justify-self-center rounded-xl border-2 border-dashed border-gray-300 bg-white transition-colors hover:border-gray-500 cursor-pointer xl:max-w-[300px] 2xl:max-w-[320px]">
                       <div className="flex h-full w-full items-center justify-center overflow-hidden px-5 text-center">
                         {processingVideo?.cover_url ? (
                           <img
@@ -968,8 +1120,8 @@ export default function VideoImportModal({
                       </div>
                     </label>
                   )}
-                  <div className="flex min-h-0 h-full items-stretch justify-start overflow-hidden">
-                    <div className="assets-video-import-preview h-full aspect-[9/16] w-auto max-w-full overflow-hidden rounded-xl border-2 border-gray-300 bg-black/95">
+                  <div className="flex min-h-0 h-full min-w-0 items-start justify-center overflow-hidden">
+                    <div className="assets-video-import-preview aspect-[9/16] w-full max-w-[320px] overflow-hidden rounded-xl border-2 border-gray-300 bg-black/95 xl:max-w-[300px] 2xl:max-w-[320px]">
                       {processingVideo?.video_cdn_url ? (
                         <VideoPlayer
                           src={processingVideo.video_cdn_url}
@@ -985,14 +1137,21 @@ export default function VideoImportModal({
                     </div>
                   </div>
                 </div>
-                <div className="assets-video-import-panel flex min-h-0 h-full flex-col gap-4 overflow-hidden">
-                  <div className="space-y-3">
-                    <div className="rounded-2xl border border-[#D9D9D9] bg-[#FAFAFA] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                <div className="assets-video-import-panel flex min-h-0 h-full min-w-0 flex-col gap-3 overflow-hidden">
+                  <div className="rounded-2xl border border-[#D9D9D9] bg-[#F7F7F7] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+                    <div className="flex items-center justify-between gap-3">
                       <label htmlFor="import-video-name" className="assets-video-import-label inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[#7A7A7A]">
                         <Type className="h-3.5 w-3.5 text-[#9A9A9A]" />
                         <span>Name</span>
                       </label>
-                      <div className="mt-3 flex items-center gap-2">
+                      {isSavingVideoName && (
+                        <span className="text-[11px] font-medium text-[#8A8A8A]">Saving...</span>
+                      )}
+                    </div>
+                    <div className="mt-2">
+                      {isAnalysisPending && !hasGeneratedAnalysisName && !hasMeaningfulVideoDescription ? (
+                        <GlassLoadingField className="h-11 px-3.5 py-[0.8125rem]" />
+                      ) : (
                         <input
                           id="import-video-name"
                           type="text"
@@ -1000,64 +1159,32 @@ export default function VideoImportModal({
                           onChange={(event) => setVideoName(event.target.value)}
                           onBlur={() => {
                             if (!isSavingVideoName && videoName.trim() && videoName.trim() !== (processingVideo?.description || '').trim()) {
-                              void handleSaveVideoName();
+                              void handleSaveVideoName(videoName);
                             }
                           }}
                           maxLength={120}
-                          placeholder="Name this video"
+                          placeholder="AI is generating a title..."
                           className="h-11 w-full rounded-xl border border-[#D2D2D2] bg-white px-3.5 text-sm text-[#111111] shadow-[0_1px_0_rgba(255,255,255,0.8)] transition-all placeholder:text-[#A3A3A3] focus:border-black focus:outline-none focus:ring-2 focus:ring-black/5"
-                          disabled={!processingVideo?.id || isSavingVideoName}
+                          disabled={!processingVideo?.id}
                         />
-                        <button
-                          type="button"
-                          onClick={() => void handleSaveVideoName()}
-                          disabled={!processingVideo?.id || !videoName.trim() || isSavingVideoName || videoName.trim() === (processingVideo?.description || '').trim()}
-                          className="h-11 rounded-xl border border-[#1A1A1A] bg-[#111111] px-4 text-sm font-medium text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:border-[#D2D2D2] disabled:bg-[#F1F1F1] disabled:text-[#9A9A9A]"
-                        >
-                          {isSavingVideoName ? 'Saving...' : 'Save'}
-                        </button>
-                      </div>
+                      )}
                     </div>
-
-                    <div className="rounded-2xl border border-[#D9D9D9] bg-[#F7F7F7] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-                      <p className="assets-video-import-label inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[#7A7A7A]">
-                        <LayoutGrid className="h-3.5 w-3.5 text-[#9A9A9A]" />
-                        <span>Overview</span>
-                      </p>
-                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-                        <div className="rounded-xl border border-[#D8D8D8] bg-white px-3.5 py-3 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
-                          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[#7F7F7F]">
-                            <Languages className="h-3.5 w-3.5 text-[#9A9A9A]" />
-                            <span>Language</span>
-                          </div>
-                          <div className="mt-2 text-sm font-semibold text-[#111111]">
+                    <div className="mt-2">
+                      <div className="flex min-w-0 items-center justify-start gap-2 rounded-xl border border-[#D8D8D8] bg-white px-3 py-2 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
+                        <Languages className="h-3.5 w-3.5 shrink-0 text-[#9A9A9A]" />
+                        {isAnalysisPending ? (
+                          <GlassLoadingBar className="h-3.5 w-16 min-w-0" />
+                        ) : (
+                          <div className="min-w-0 truncate text-sm font-semibold text-[#111111]">
                             {processingVideo?.analysis_language || '—'}
                           </div>
-                        </div>
-                        <div className="rounded-xl border border-[#D8D8D8] bg-white px-3.5 py-3 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
-                          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[#7F7F7F]">
-                            <Clock3 className="h-3.5 w-3.5 text-[#9A9A9A]" />
-                            <span>Duration</span>
-                          </div>
-                          <div className="mt-2 text-sm font-semibold text-[#111111]">
-                            {processingVideo?.duration_seconds ? `${processingVideo.duration_seconds}s` : '—'}
-                          </div>
-                        </div>
-                        <div className="rounded-xl border border-[#D8D8D8] bg-white px-3.5 py-3 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
-                          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[#7F7F7F]">
-                            <Film className="h-3.5 w-3.5 text-[#9A9A9A]" />
-                            <span>Shot List</span>
-                          </div>
-                          <div className="mt-2 text-sm font-semibold text-[#111111]">
-                            {processingShots.length} shots
-                          </div>
-                        </div>
+                        )}
                       </div>
                     </div>
                   </div>
 
                   <div className="flex-1 flex flex-col gap-3 min-h-0">
-                    <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-[#D9D9D9] bg-[#F7F7F7] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+                    <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-[#D9D9D9] bg-[#F7F7F7] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
                       <p className="assets-video-import-label inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[#7A7A7A]">
                         <Sparkles className="h-3.5 w-3.5 text-[#9A9A9A]" />
                         <span>Structure Analysis</span>
@@ -1084,7 +1211,7 @@ export default function VideoImportModal({
                       </div>
                     ) : processingVideo?.analysis_result ? (
                       <>
-                        <div className="assets-video-import-shots mt-3 flex-1 min-h-0 overflow-y-auto rounded-2xl border border-[#D8D8D8] bg-white p-4 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
+                        <div className="assets-video-import-shots mt-2.5 flex-1 min-h-0 overflow-y-auto rounded-2xl border border-[#D8D8D8] bg-white p-4 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
                           <CompetitorShotsEditor
                             shots={processingShots}
                             onShotsChange={() => {}}
@@ -1096,23 +1223,7 @@ export default function VideoImportModal({
                         </div>
                       </>
                     ) : (
-                      <div className="assets-video-import-alert mt-3 rounded-xl border border-dashed border-[#D7D7D7] bg-white p-4 text-sm text-gray-500 min-h-[88px] flex items-center">
-                        <div className="flex items-center gap-2 text-gray-600 w-full min-w-0">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <AnimatePresence mode="wait">
-                            <motion.span
-                              key={analysisLoadingMessages[analysisLoadingMessageIndex]}
-                              initial={{ opacity: 0, y: 4 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -4 }}
-                              transition={{ duration: 0.22 }}
-                              className="truncate"
-                            >
-                              {analysisLoadingMessages[analysisLoadingMessageIndex]}
-                            </motion.span>
-                          </AnimatePresence>
-                        </div>
-                      </div>
+                      <GlassWavePanel className="assets-video-import-alert mt-2.5 flex min-h-[360px] flex-1" />
                     )}
                     </div>
                   </div>
@@ -1144,7 +1255,7 @@ export default function VideoImportModal({
             )}
 
             {step === 'processing-batch' && (
-              <div className="assets-modal-body p-10 flex flex-col items-center justify-center text-center gap-4">
+              <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-10 flex flex-col items-center justify-center text-center gap-4">
                 <div className="assets-video-import-loader w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
                   <Loader2 className="w-6 h-6 text-gray-600 animate-spin" />
                 </div>
