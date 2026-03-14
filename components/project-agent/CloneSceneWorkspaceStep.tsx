@@ -653,7 +653,7 @@ export default function CloneSceneWorkspaceStep({
                             <div className="max-h-[540px] space-y-3 overflow-y-auto pr-1 lg:max-h-none lg:flex-1">
                               {scene.shots.map((shot, shotIndex) => {
                                 const shotKey = `${scene.sceneIndex}-${shotIndex}`;
-                                const shotExpanded = openShots[shotKey] ?? shotIndex === 0;
+                                const shotExpanded = openShots[shotKey] ?? false;
                                 const klingEstimate = getSafeShotPromptEstimate(shot);
                                 const estimateOverLimit = klingEstimate.originalLength > KLING_PROMPT_MAX_CHARS;
 
