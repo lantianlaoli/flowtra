@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import Script from 'next/script';
 import { ClerkProvider } from '@clerk/nextjs';
-import { Analytics } from '@vercel/analytics/react';
-import { SpeedInsights } from '@vercel/speed-insights/react';
-import { PHProvider, PostHogPageView } from '@/providers/posthog';
+import { DeferredAnalytics } from '@/components/analytics/DeferredAnalytics';
 import { ToastProvider } from '@/contexts/ToastContext';
 import "@fontsource/plus-jakarta-sans/400.css";
 import "@fontsource/plus-jakarta-sans/500.css";
@@ -246,14 +244,10 @@ export default function RootLayout({
               gtag('config', 'G-CP7HSQFTCP');
             `}
           </Script>
-          <PHProvider>
-            <ToastProvider>
-              <PostHogPageView />
-              {children}
-            </ToastProvider>
-          </PHProvider>
-          <Analytics />
-          <SpeedInsights />
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+          <DeferredAnalytics />
         </body>
       </html>
     </ClerkProvider>

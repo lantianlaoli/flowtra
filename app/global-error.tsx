@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { usePostHog } from 'posthog-js/react'
+import { captureException } from '@/lib/error-tracking'
 
 export default function GlobalError({
   error,
@@ -10,23 +10,19 @@ export default function GlobalError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
-  const posthog = usePostHog()
-
   useEffect(() => {
-    // Capture the error to PostHog
-    if (posthog) {
-      posthog.captureException(error, {
+    captureException(error, {
+      metadata: {
         $exception_level: 'error',
         $exception_source: 'global_error_boundary',
-        // Remove user_id since we can't safely access user in global error boundary
         digest: error.digest,
         environment: process.env.NODE_ENV,
-      })
-    }
+      },
+    })
 
     // Log error to console for development
     console.error('Global error caught:', error)
-  }, [error, posthog])
+  }, [error])
 
   return (
     <html>
