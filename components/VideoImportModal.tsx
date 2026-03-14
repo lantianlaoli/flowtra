@@ -693,7 +693,7 @@ export default function VideoImportModal({
             </div>
 
             {step === 'choose' && (
-              <div className="assets-modal-body p-6 space-y-6">
+              <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
                 <div className="assets-video-import-options grid grid-cols-1 md:grid-cols-3 gap-4">
                   <button
                     onClick={() => setStep('link')}
@@ -730,7 +730,7 @@ export default function VideoImportModal({
             )}
 
             {(step === 'link' || step === 'upload') && (
-              <div className="assets-modal-body p-6 space-y-6">
+              <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
                 <button
                   onClick={handleBackToChoose}
                   className="assets-video-import-back inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
@@ -808,7 +808,7 @@ export default function VideoImportModal({
                       <>
                         <label className="assets-modal-label block text-sm font-medium text-gray-700">Upload Video File</label>
                         <div className="flex flex-col gap-3">
-                          <label className="assets-modal-upload w-full aspect-square flex flex-col items-center justify-center gap-3 border-2 border-dashed border-gray-200 rounded-2xl px-6 text-sm text-gray-500 cursor-pointer hover:border-gray-400 transition-colors">
+                          <label className="assets-modal-upload flex min-h-[320px] w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-gray-200 px-6 text-sm text-gray-500 transition-colors hover:border-gray-400 sm:min-h-[360px] lg:min-h-[420px] cursor-pointer">
                             <Upload className="w-5 h-5" />
                             <span className="text-sm">{uploadFile ? uploadFile.name : 'Choose a video file'}</span>
                             <span className="assets-modal-helper text-xs text-gray-400">MP4 or MOV</span>
@@ -834,7 +834,7 @@ export default function VideoImportModal({
             )}
 
             {step === 'creator' && (
-              <div className="assets-modal-body p-6 space-y-6">
+              <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
                 <button
                   onClick={handleBackToChoose}
                   className="assets-video-import-back inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
@@ -870,7 +870,7 @@ export default function VideoImportModal({
             )}
 
             {step === 'creator-preview' && (
-              <div className="assets-modal-body p-6 space-y-6">
+              <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
                 <button
                   onClick={() => setStep('creator')}
                   className="assets-video-import-back inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
@@ -1144,7 +1144,7 @@ export default function VideoImportModal({
             )}
 
             {step === 'processing-batch' && (
-              <div className="assets-modal-body p-10 flex flex-col items-center justify-center text-center gap-4">
+              <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-10 flex flex-col items-center justify-center text-center gap-4">
                 <div className="assets-video-import-loader w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
                   <Loader2 className="w-6 h-6 text-gray-600 animate-spin" />
                 </div>
