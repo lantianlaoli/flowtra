@@ -67,6 +67,7 @@ const isTransientProviderError = (message: string) => {
 };
 
 const MAX_ANALYSIS_RETRIES = 2;
+const SHOT_DURATION_TOLERANCE_SECONDS = 2;
 
 const extractJsonObjectFromText = (text: string): string | null => {
   const trimmed = text.trim();
@@ -115,6 +116,26 @@ const hasSpeechSignal = (value: string): boolean => {
   return /\b(voiceover|dialogue|dialog|narrat|says|speaks|speaking|talking|spoken|caption|subtitle|line)\b/.test(normalized);
 };
 
+const parseTimecodeSeconds = (value: string): number | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const parts = trimmed.split(':').map(part => Number(part.trim()));
+  if (parts.length < 2 || parts.length > 4 || parts.some(part => !Number.isFinite(part) || part < 0)) {
+    return null;
+  }
+
+  if (parts.length === 2) {
+    return (parts[0] * 60) + parts[1];
+  }
+
+  if (parts.length === 4) {
+    return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+  }
+
+  return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+};
+
 const validateStrictShotSchema = (analysis: Record<string, unknown> | CanonicalAnalysisV2): { valid: boolean; reason?: string } => {
   const normalized = normalizeAnalysisToV2(analysis as Record<string, unknown>);
   if (!normalized) {
@@ -125,6 +146,10 @@ const validateStrictShotSchema = (analysis: Record<string, unknown> | CanonicalA
   if (!Array.isArray(shots) || shots.length === 0) {
     return { valid: false, reason: 'No shots array returned.' };
   }
+
+  let previousEndSeconds = 0;
+  let accumulatedDurationSeconds = 0;
+  let hasNonZeroTimeRange = false;
 
   for (let i = 0; i < shots.length; i += 1) {
     const shot = shots[i];
@@ -139,20 +164,21 @@ const validateStrictShotSchema = (analysis: Record<string, unknown> | CanonicalA
       }
     }
 
-    const nonEmptyTextFields = [
-      record.opening_frame.description,
-      record.visual.subject,
-      record.visual.environment,
-      record.visual.action,
-      record.visual.style,
-      record.visual.camera,
-      record.visual.composition,
-      record.visual.ambiance,
-      record.audio.ambient
+    const requiredTextFields: Array<[string, string]> = [
+      ['opening_frame.description', record.opening_frame.description],
+      ['visual.subject', record.visual.subject],
+      ['visual.environment', record.visual.environment],
+      ['visual.action', record.visual.action],
+      ['visual.style', record.visual.style],
+      ['visual.camera', record.visual.camera],
+      ['visual.composition', record.visual.composition],
+      ['visual.ambiance', record.visual.ambiance],
+      ['audio.ambient', record.audio.ambient]
     ];
 
-    if (nonEmptyTextFields.some(value => typeof value !== 'string' || !value.trim())) {
-      return { valid: false, reason: `Shot ${i + 1} has an empty required Veo field.` };
+    const missingField = requiredTextFields.find(([, value]) => typeof value !== 'string' || !value.trim());
+    if (missingField) {
+      return { valid: false, reason: `Shot ${i + 1} has an empty required field "${missingField[0]}".` };
     }
 
     const ambient = typeof record.audio.ambient === 'string' ? record.audio.ambient : '';
@@ -164,6 +190,58 @@ const validateStrictShotSchema = (analysis: Record<string, unknown> | CanonicalA
         reason: `Shot ${i + 1} indicates spoken audio in audio fields but returned empty "dialogue".`
       };
     }
+
+    const startSeconds = parseTimecodeSeconds(record.timing.start_time);
+    const endSeconds = parseTimecodeSeconds(record.timing.end_time);
+    const durationSeconds = Number(record.timing.duration_seconds);
+
+    if (startSeconds === null || endSeconds === null) {
+      return { valid: false, reason: `Shot ${i + 1} has an invalid timecode.` };
+    }
+
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+      return { valid: false, reason: `Shot ${i + 1} has an invalid duration.` };
+    }
+
+    if (endSeconds <= startSeconds) {
+      return { valid: false, reason: `Shot ${i + 1} end_time must be greater than start_time.` };
+    }
+
+    if (Math.abs((endSeconds - startSeconds) - Math.round(durationSeconds)) > 1) {
+      return { valid: false, reason: `Shot ${i + 1} time span does not match duration_seconds.` };
+    }
+
+    if (i === 0 && startSeconds !== 0) {
+      return { valid: false, reason: 'Shot 1 must start at 00:00.' };
+    }
+
+    if (i > 0 && startSeconds !== previousEndSeconds) {
+      return { valid: false, reason: `Shot ${i + 1} must start exactly when shot ${i} ends.` };
+    }
+
+    previousEndSeconds = endSeconds;
+    accumulatedDurationSeconds += Math.round(durationSeconds);
+    if (endSeconds > 0) {
+      hasNonZeroTimeRange = true;
+    }
+  }
+
+  if (!hasNonZeroTimeRange) {
+    return { valid: false, reason: 'All shots returned placeholder 00:00 timing.' };
+  }
+
+  if (Math.abs(previousEndSeconds - normalized.video_duration_seconds) > SHOT_DURATION_TOLERANCE_SECONDS) {
+    return {
+      valid: false,
+      reason: `Shot timeline ends at ${previousEndSeconds}s but video_duration_seconds is ${normalized.video_duration_seconds}s.`
+    };
+  }
+
+  if (Math.abs(accumulatedDurationSeconds - normalized.video_duration_seconds) > SHOT_DURATION_TOLERANCE_SECONDS) {
+    return {
+      valid: false,
+      reason: `Sum of shot durations is ${accumulatedDurationSeconds}s but video_duration_seconds is ${normalized.video_duration_seconds}s.`
+    };
   }
 
   return { valid: true };
@@ -276,6 +354,13 @@ Global required fields:
 Rules:
 - Do not include markdown or explanations.
 - shots must be an ordered array with complete timeline coverage.
+- timing.start_time and timing.end_time must be real contiguous timecodes, not placeholders.
+- Shot 1 must start at 00:00.
+- Each next shot must start exactly when the previous shot ends.
+- timing.end_time must be greater than timing.start_time for every shot.
+- timing.duration_seconds must equal the exact difference between timing.start_time and timing.end_time.
+- The final shot should end at video_duration_seconds, but up to 2 seconds difference is acceptable if cuts are otherwise coherent.
+- Do not return repeated 00:00-00:00 ranges or a flat default duration for every shot unless the source video truly has identical cuts.
 - audio.dialogue must be the best-effort literal spoken words for this shot.
 - Use subtitle/caption text when visible.
 - If speech is partially unclear, infer the most likely spoken words from captions and context.
@@ -287,6 +372,16 @@ Rules:
 Requirements:
 - Return JSON only, matching the schema.
 - Cover the full video timeline with ordered shots.
+- Shot timing is mandatory and must be production-usable.
+- Shot 1 must start at 00:00.
+- Every shot must have a real timing.start_time and timing.end_time.
+- Shots must be contiguous with no gaps and no overlaps.
+- Every next shot must start exactly at the previous shot's end.
+- timing.duration_seconds must exactly equal end_time - start_time.
+- The sum of all shot durations should closely match video_duration_seconds. Up to 2 seconds difference is acceptable.
+- The final shot should end at video_duration_seconds, but up to 2 seconds difference is acceptable.
+- Never use placeholder timing such as 00:00-00:00 for multiple shots.
+- Never assign the same default duration to every shot unless the actual video cuts are genuinely uniform.
 - Keep each field concrete and production-usable for storyboard recreation.
 - Detect primary language and output it in detected_language.
 - If language is unclear, default to "en".
@@ -514,13 +609,52 @@ const analyzeCreatorVideoByUrl = async (input: {
     throw new Error('Failed to normalize creator video analysis response.');
   }
 
-  const strictValidation = validateStrictShotSchema(result);
+  let strictValidation = validateStrictShotSchema(result);
   if (!strictValidation.valid) {
-    console.error('[CreatorVideoAnalysis] Strict shot schema validation failed:', {
+    console.warn('[CreatorVideoAnalysis] Structured output failed validation, retrying with relaxed prompt:', {
       ...debugContext,
       reason: strictValidation.reason
     });
-    throw new Error(`Shot schema incomplete: ${strictValidation.reason}`);
+
+    const secondAttempt = await executeAttempt({ relaxedMode: true, includeResponseFormat: false });
+    parsedResult = parseCreatorVideoAnalysisResponse(secondAttempt.data);
+    if (!parsedResult.ok) {
+      console.error('[CreatorVideoAnalysis] Retry after validation failure could not be parsed:', {
+        ...debugContext,
+        reason: parsedResult.reason,
+        normalizedPreview: parsedResult.normalizedContent ? truncateForLog(parsedResult.normalizedContent, 600) : null
+      });
+      throw new Error(parsedResult.reason);
+    }
+
+    const retriedResult = normalizeAnalysisToV2(parsedResult.parsed);
+    if (!retriedResult) {
+      throw new Error('Failed to normalize creator video analysis response after validation retry.');
+    }
+
+    strictValidation = validateStrictShotSchema(retriedResult);
+    if (!strictValidation.valid) {
+      console.error('[CreatorVideoAnalysis] Strict shot schema validation failed after retry:', {
+        ...debugContext,
+        reason: strictValidation.reason
+      });
+      throw new Error(`Shot schema incomplete: ${strictValidation.reason}`);
+    }
+
+    const retriedLanguage = typeof retriedResult.detected_language === 'string' ? retriedResult.detected_language : undefined;
+    const validLanguageCodes: LanguageCode[] = ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'sv', 'no', 'da', 'fi', 'pl', 'ru', 'el', 'tr', 'cs', 'ro', 'zh', 'ur', 'pa', 'id'];
+    const language: LanguageCode = retriedLanguage && validLanguageCodes.includes(retriedLanguage as LanguageCode)
+      ? (retriedLanguage as LanguageCode)
+      : 'en';
+
+    console.log('[CreatorVideoAnalysis] Analysis parsed successfully after validation retry:', {
+      ...debugContext,
+      detectedLanguage: language,
+      shotsCount: Array.isArray(retriedResult.shots) ? retriedResult.shots.length : 0,
+      duration: typeof retriedResult.video_duration_seconds === 'number' ? retriedResult.video_duration_seconds : null
+    });
+
+    return { analysis: retriedResult as unknown as Record<string, unknown>, language };
   }
 
   const rawDetectedLanguage = typeof result.detected_language === 'string' ? result.detected_language : undefined;

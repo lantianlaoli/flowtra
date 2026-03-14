@@ -177,17 +177,7 @@ function canRemainingShotsFitIntoScenes(remainingParts: PlannedShotPart[]) {
   return remainingDuration >= minimumRequiredScenes * KLING_MIN_TASK_DURATION_SECONDS;
 }
 
-function partitionSceneBuckets(parts: PlannedShotPart[]): PlannedSceneBucket[] {
-  if (parts.length === 0) {
-    return [{
-      sceneIndex: 1,
-      isContinuation: false,
-      durationSeconds: KLING_MIN_TASK_DURATION_SECONDS,
-      shotParts: [],
-      sourceShotIds: [],
-    }];
-  }
-
+function chooseSceneBoundaries(parts: PlannedShotPart[], respectHardBreaks: boolean): Array<{ start: number; end: number }> | null {
   const prefixDurations = [0];
   parts.forEach((part) => {
     prefixDurations.push(prefixDurations[prefixDurations.length - 1] + part.durationSeconds);
@@ -208,15 +198,17 @@ function partitionSceneBuckets(parts: PlannedShotPart[]): PlannedSceneBucket[] {
     let best: Array<{ start: number; end: number }> | null = null;
 
     for (let endIndex = Math.min(parts.length - 1, startIndex + KLING_MAX_MULTI_SHOT_ITEMS - 1); endIndex >= startIndex; endIndex -= 1) {
-      let crossedHardBreak = false;
-      for (let probe = startIndex + 1; probe <= endIndex; probe += 1) {
-        if (hardBreakBefore[probe]) {
-          crossedHardBreak = true;
-          break;
+      if (respectHardBreaks) {
+        let crossedHardBreak = false;
+        for (let probe = startIndex + 1; probe <= endIndex; probe += 1) {
+          if (hardBreakBefore[probe]) {
+            crossedHardBreak = true;
+            break;
+          }
         }
-      }
-      if (crossedHardBreak) {
-        continue;
+        if (crossedHardBreak) {
+          continue;
+        }
       }
 
       const bucketDuration = prefixDurations[endIndex + 1] - prefixDurations[startIndex];
@@ -251,7 +243,27 @@ function partitionSceneBuckets(parts: PlannedShotPart[]): PlannedSceneBucket[] {
     return best;
   };
 
-  const boundaries = choose(0);
+  return choose(0);
+}
+
+function partitionSceneBuckets(parts: PlannedShotPart[]): PlannedSceneBucket[] {
+  if (parts.length === 0) {
+    return [{
+      sceneIndex: 1,
+      isContinuation: false,
+      durationSeconds: KLING_MIN_TASK_DURATION_SECONDS,
+      shotParts: [],
+      sourceShotIds: [],
+    }];
+  }
+
+  // Prefer keeping the analyzed continuity boundaries when they still fit within
+  // Kling's per-scene limits. If that is too strict, fall back to a duration/count
+  // based partition so dense references can still be cloned without dropping shots.
+  const boundaries = (
+    chooseSceneBoundaries(parts, true) ||
+    chooseSceneBoundaries(parts, false)
+  );
   if (!boundaries) {
     throw new Error('Unable to fit the reference shots into Kling 3.0 scene limits without dropping source shots.');
   }

@@ -18,7 +18,7 @@ import { useToast } from "@/contexts/ToastContext";
 import VideoPlayer from "@/components/ui/VideoPlayer";
 import CompetitorShotsEditor from "@/components/CompetitorShotsEditor";
 import { parseShotsFromAnalysis } from "@/lib/competitor-shot-form";
-import { getAnalysisShotCount } from "@/lib/video-analysis-schema";
+import { getAnalysisShotCount, normalizeAnalysisToV2 } from "@/lib/video-analysis-schema";
 
 interface VideoAsset {
   id: string;
@@ -61,12 +61,31 @@ export default function VideoAssetDetailsModal({
   const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [isCreatingClone, setIsCreatingClone] = useState(false);
-  const [isDeletingVideo, setIsDeletingVideo] = useState(false);
+  const [deletingVideoIds, setDeletingVideoIds] = useState<Set<string>>(new Set());
 
   const parsedShots = useMemo(
     () => parseShotsFromAnalysis(video?.analysis_result || null),
     [video?.analysis_result],
   );
+
+  const displayDurationSeconds = useMemo(() => {
+    const normalizedAnalysis = normalizeAnalysisToV2(video?.analysis_result || null);
+    const analysisDuration = normalizedAnalysis?.video_duration_seconds;
+    const summedShotDuration = parsedShots.reduce(
+      (sum, shot) => sum + (Number(shot.duration_seconds) || 0),
+      0,
+    );
+
+    if (typeof analysisDuration === "number" && analysisDuration > 0) {
+      return analysisDuration;
+    }
+
+    if (summedShotDuration > 0) {
+      return summedShotDuration;
+    }
+
+    return video?.duration_seconds || null;
+  }, [parsedShots, video?.analysis_result, video?.duration_seconds]);
 
   const analysisName = useMemo(() => {
     if (!video?.analysis_result || typeof video.analysis_result !== "object") {
@@ -102,6 +121,8 @@ export default function VideoAssetDetailsModal({
       || "—"
     );
   }, [analysisName, video]);
+
+  const isDeletingCurrentVideo = Boolean(video?.id && deletingVideoIds.has(video.id));
 
   const handleUseForClone = async () => {
     if (!video?.analysis_result || !video) {
@@ -168,12 +189,12 @@ export default function VideoAssetDetailsModal({
   };
 
   const handleDeleteVideo = async () => {
-    if (!video || isDeletingVideo || !onDeleteVideo) return;
+    if (!video || !onDeleteVideo || deletingVideoIds.has(video.id)) return;
 
     onClose();
 
     try {
-      setIsDeletingVideo(true);
+      setDeletingVideoIds((current) => new Set(current).add(video.id));
       await onDeleteVideo(video);
       onVideoDeleted?.(video.id);
     } catch (error) {
@@ -181,7 +202,11 @@ export default function VideoAssetDetailsModal({
         error instanceof Error ? error.message : "Failed to delete video";
       showError(message);
     } finally {
-      setIsDeletingVideo(false);
+      setDeletingVideoIds((current) => {
+        const next = new Set(current);
+        next.delete(video.id);
+        return next;
+      });
     }
   };
 
@@ -259,8 +284,8 @@ export default function VideoAssetDetailsModal({
                     <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5">
                       <Clock className="h-4 w-4 shrink-0 text-gray-400" />
                       <span className="font-medium text-gray-800">
-                        {video.duration_seconds
-                          ? `${video.duration_seconds}s`
+                        {displayDurationSeconds
+                          ? `${displayDurationSeconds}s`
                           : "—"}
                       </span>
                     </div>
@@ -360,11 +385,11 @@ export default function VideoAssetDetailsModal({
                       </button>
                       <button
                         onClick={handleDeleteVideo}
-                        disabled={isDeletingVideo}
+                        disabled={isDeletingCurrentVideo}
                         className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-white text-red-600 rounded-lg border border-red-200 hover:bg-red-50 hover:border-red-300 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <span className="font-medium flex items-center gap-2">
-                          {isDeletingVideo ? (
+                          {isDeletingCurrentVideo ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
                             <Trash2 className="w-4 h-4" />
