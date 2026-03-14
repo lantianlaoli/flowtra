@@ -2972,19 +2972,11 @@ export default function ProjectAgentPage() {
                   <div className="w-full min-h-full space-y-4">
                     {showCloneableVideos && (
                     <div className="w-full rounded-xl border border-[#e6e6e4] bg-white p-4">
-                      <div className="mb-3 flex items-center justify-between gap-2">
+                      <div className="mb-3">
                         <div>
                           <p className="text-sm font-semibold text-[#1f1f1e]">Step 1: Choose Reference Video</p>
                           <p className="text-xs text-[#787876]">Select one video from Assets first. Product selection comes later.</p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => void loadCloneableVideos()}
-                          className="rounded-xl border border-[#d9d9d7] bg-white px-2.5 py-1.5 text-xs text-[#1f1f1e] hover:bg-[#f3f3f2]"
-                          disabled={isCloneableVideosLoading}
-                        >
-                          {isCloneableVideosLoading ? 'Refreshing...' : 'Refresh'}
-                        </button>
                       </div>
 
                       {isCloneableVideosLoading && cloneableVideos.length === 0 ? (

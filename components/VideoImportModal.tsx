@@ -985,14 +985,14 @@ export default function VideoImportModal({
                     </div>
                   </div>
                 </div>
-                <div className="assets-video-import-panel flex min-h-0 h-full flex-col gap-4 overflow-hidden">
-                  <div className="space-y-3">
-                    <div className="rounded-2xl border border-[#D9D9D9] bg-[#FAFAFA] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                <div className="assets-video-import-panel flex min-h-0 h-full flex-col gap-3 overflow-hidden">
+                  <div className="space-y-2.5">
+                    <div className="rounded-2xl border border-[#D9D9D9] bg-[#FAFAFA] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
                       <label htmlFor="import-video-name" className="assets-video-import-label inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[#7A7A7A]">
                         <Type className="h-3.5 w-3.5 text-[#9A9A9A]" />
                         <span>Name</span>
                       </label>
-                      <div className="mt-3 flex items-center gap-2">
+                      <div className="mt-2.5 flex items-center gap-2">
                         <input
                           id="import-video-name"
                           type="text"
@@ -1005,50 +1005,41 @@ export default function VideoImportModal({
                           }}
                           maxLength={120}
                           placeholder="Name this video"
-                          className="h-11 w-full rounded-xl border border-[#D2D2D2] bg-white px-3.5 text-sm text-[#111111] shadow-[0_1px_0_rgba(255,255,255,0.8)] transition-all placeholder:text-[#A3A3A3] focus:border-black focus:outline-none focus:ring-2 focus:ring-black/5"
+                          className="h-10 w-full rounded-xl border border-[#D2D2D2] bg-white px-3.5 text-sm text-[#111111] shadow-[0_1px_0_rgba(255,255,255,0.8)] transition-all placeholder:text-[#A3A3A3] focus:border-black focus:outline-none focus:ring-2 focus:ring-black/5"
                           disabled={!processingVideo?.id || isSavingVideoName}
                         />
                         <button
                           type="button"
                           onClick={() => void handleSaveVideoName()}
                           disabled={!processingVideo?.id || !videoName.trim() || isSavingVideoName || videoName.trim() === (processingVideo?.description || '').trim()}
-                          className="h-11 rounded-xl border border-[#1A1A1A] bg-[#111111] px-4 text-sm font-medium text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:border-[#D2D2D2] disabled:bg-[#F1F1F1] disabled:text-[#9A9A9A]"
+                          className="h-10 shrink-0 rounded-xl border border-[#1A1A1A] bg-[#111111] px-4 text-sm font-medium text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:border-[#D2D2D2] disabled:bg-[#F1F1F1] disabled:text-[#9A9A9A]"
                         >
                           {isSavingVideoName ? 'Saving...' : 'Save'}
                         </button>
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-[#D9D9D9] bg-[#F7F7F7] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+                    <div className="rounded-2xl border border-[#D9D9D9] bg-[#F7F7F7] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
                       <p className="assets-video-import-label inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[#7A7A7A]">
                         <LayoutGrid className="h-3.5 w-3.5 text-[#9A9A9A]" />
                         <span>Overview</span>
                       </p>
-                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-                        <div className="rounded-xl border border-[#D8D8D8] bg-white px-3.5 py-3 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
-                          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[#7F7F7F]">
-                            <Languages className="h-3.5 w-3.5 text-[#9A9A9A]" />
-                            <span>Language</span>
-                          </div>
-                          <div className="mt-2 text-sm font-semibold text-[#111111]">
+                      <div className="mt-2.5 grid grid-cols-1 gap-2 md:grid-cols-3">
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#D8D8D8] bg-white px-3.5 py-2.5 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
+                          <Languages className="h-3.5 w-3.5 shrink-0 text-[#9A9A9A]" />
+                          <div className="shrink-0 text-sm font-semibold text-[#111111]">
                             {processingVideo?.analysis_language || '—'}
                           </div>
                         </div>
-                        <div className="rounded-xl border border-[#D8D8D8] bg-white px-3.5 py-3 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
-                          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[#7F7F7F]">
-                            <Clock3 className="h-3.5 w-3.5 text-[#9A9A9A]" />
-                            <span>Duration</span>
-                          </div>
-                          <div className="mt-2 text-sm font-semibold text-[#111111]">
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#D8D8D8] bg-white px-3.5 py-2.5 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
+                          <Clock3 className="h-3.5 w-3.5 shrink-0 text-[#9A9A9A]" />
+                          <div className="shrink-0 text-sm font-semibold text-[#111111]">
                             {processingVideo?.duration_seconds ? `${processingVideo.duration_seconds}s` : '—'}
                           </div>
                         </div>
-                        <div className="rounded-xl border border-[#D8D8D8] bg-white px-3.5 py-3 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
-                          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[#7F7F7F]">
-                            <Film className="h-3.5 w-3.5 text-[#9A9A9A]" />
-                            <span>Shot List</span>
-                          </div>
-                          <div className="mt-2 text-sm font-semibold text-[#111111]">
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#D8D8D8] bg-white px-3.5 py-2.5 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
+                          <Film className="h-3.5 w-3.5 shrink-0 text-[#9A9A9A]" />
+                          <div className="shrink-0 text-sm font-semibold text-[#111111]">
                             {processingShots.length} shots
                           </div>
                         </div>

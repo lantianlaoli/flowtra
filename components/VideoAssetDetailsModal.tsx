@@ -73,7 +73,7 @@ export default function VideoAssetDetailsModal({
       return null;
     }
     const name = (video.analysis_result as { name?: unknown }).name;
-    return typeof name === "string" ? name : null;
+    return typeof name === "string" && name.trim() ? name.trim() : null;
   }, [video?.analysis_result]);
 
   const detectedLanguage = useMemo(() => {
@@ -92,6 +92,16 @@ export default function VideoAssetDetailsModal({
     if (!video) return "TikTok Video";
     return video.source_name || "TikTok Video";
   }, [video]);
+
+  const overviewName = useMemo(() => {
+    if (!video) return "—";
+    return (
+      video.description?.trim()
+      || analysisName
+      || video.source_name?.trim()
+      || "—"
+    );
+  }, [analysisName, video]);
 
   const handleUseForClone = async () => {
     if (!video?.analysis_result || !video) {
@@ -245,39 +255,27 @@ export default function VideoAssetDetailsModal({
                   <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">
                     Overview
                   </p>
-                  <div className="space-y-2 text-sm text-gray-700">
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-gray-400" />
-                        Duration
-                      </span>
-                      <span>
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
+                    <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5">
+                      <Clock className="h-4 w-4 shrink-0 text-gray-400" />
+                      <span className="font-medium text-gray-800">
                         {video.duration_seconds
                           ? `${video.duration_seconds}s`
                           : "—"}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Languages className="w-4 h-4 text-gray-400" />
-                        Language
-                      </span>
-                      <span>{detectedLanguage || "—"}</span>
+                    <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5">
+                      <Languages className="h-4 w-4 shrink-0 text-gray-400" />
+                      <span className="font-medium text-gray-800">{detectedLanguage || "—"}</span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Film className="w-4 h-4 text-gray-400" />
-                        Shots
-                      </span>
-                      <span>{getAnalysisShotCount(video.analysis_result || null) || "—"}</span>
+                    <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5">
+                      <Film className="h-4 w-4 shrink-0 text-gray-400" />
+                      <span className="font-medium text-gray-800">{getAnalysisShotCount(video.analysis_result || null) || "—"}</span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Tag className="w-4 h-4 text-gray-400" />
-                        Name
-                      </span>
-                      <span className="assets-video-details-meta truncate max-w-[160px]">
-                        {analysisName || "—"}
+                    <div className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5">
+                      <Tag className="h-4 w-4 shrink-0 text-gray-400" />
+                      <span className="truncate font-medium text-gray-800">
+                        {overviewName}
                       </span>
                     </div>
                   </div>
