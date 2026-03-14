@@ -339,63 +339,79 @@ function DiscoverSection() {
             Failed to load content
           </div>
         )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {filtered.map((item) => {
-            const hasWorkingImage =
-              Boolean(item.coverImageUrl) &&
-              !brokenImageIds.has(item.id) &&
-              !isVideoLikeUrl(item.coverImageUrl);
-            const fallbackToVideo = Boolean(item.videoUrl) && !hasWorkingImage;
+        {!loading && !error && filtered.length === 0 ? (
+          <div className="py-12 text-center">
+            <p className="text-lg font-semibold text-foreground">
+              No recent discover content
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Older temporary KIE media has expired. New completed projects will
+              appear here automatically.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {filtered.map((item) => {
+              const hasWorkingImage =
+                Boolean(item.coverImageUrl) &&
+                !brokenImageIds.has(item.id) &&
+                !isVideoLikeUrl(item.coverImageUrl);
+              const fallbackToVideo = Boolean(item.videoUrl) && !hasWorkingImage;
 
-            return (
-              <div key={item.id} className="break-inside-avoid">
-                <div
-                  className="group relative w-full rounded-xl overflow-hidden border border-border/60 bg-muted hover:border-border transition-all duration-200"
-                  onMouseEnter={() => item.videoUrl && handleMouseEnter(item.id)}
-                  onMouseLeave={() => item.videoUrl && handleMouseLeave(item.id)}
-                >
-                  {fallbackToVideo ? (
-                    <video
-                      ref={(el) => setVideoRef(item.id, el)}
-                      src={item.videoUrl}
-                      className="w-full h-auto block"
-                      playsInline
-                      muted={audibleId !== item.id}
-                      loop
-                      preload="metadata"
-                    />
-                  ) : (
-                    <>
-                      {/* Cover image */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={item.coverImageUrl}
-                        alt="ad"
-                        loading="lazy"
+              return (
+                <div key={item.id} className="break-inside-avoid">
+                  <div
+                    className="group relative w-full rounded-xl overflow-hidden border border-border/60 bg-muted hover:border-border transition-all duration-200"
+                    onMouseEnter={() =>
+                      item.videoUrl && handleMouseEnter(item.id)
+                    }
+                    onMouseLeave={() =>
+                      item.videoUrl && handleMouseLeave(item.id)
+                    }
+                  >
+                    {fallbackToVideo ? (
+                      <video
+                        ref={(el) => setVideoRef(item.id, el)}
+                        src={item.videoUrl}
                         className="w-full h-auto block"
-                        onError={() => handleImageError(item.id)}
+                        playsInline
+                        muted={audibleId !== item.id}
+                        loop
+                        preload="metadata"
                       />
-
-                      {/* Hover-playing video overlay (if present) */}
-                      {item.videoUrl && (
-                        <video
-                          ref={(el) => setVideoRef(item.id, el)}
-                          src={item.videoUrl}
-                          className="absolute inset-0 w-full h-full object-cover"
-                          playsInline
-                          muted={audibleId !== item.id}
-                          loop
-                          preload="metadata"
-                          style={{ pointerEvents: "none" }}
+                    ) : (
+                      <>
+                        {/* Cover image */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={item.coverImageUrl}
+                          alt="ad"
+                          loading="lazy"
+                          className="w-full h-auto block"
+                          onError={() => handleImageError(item.id)}
                         />
-                      )}
-                    </>
-                  )}
+
+                        {/* Hover-playing video overlay (if present) */}
+                        {item.videoUrl && (
+                          <video
+                            ref={(el) => setVideoRef(item.id, el)}
+                            src={item.videoUrl}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            playsInline
+                            muted={audibleId !== item.id}
+                            loop
+                            preload="metadata"
+                            style={{ pointerEvents: "none" }}
+                          />
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </Card>
   );
