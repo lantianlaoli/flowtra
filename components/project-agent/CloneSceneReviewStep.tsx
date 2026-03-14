@@ -390,7 +390,7 @@ export default function CloneSceneReviewStep({
                   <div className="space-y-3">
                     {prompt.shots.map((shot, shotIndex) => {
                       const shotKey = `${segment.segmentIndex}-${shotIndex}`;
-                      const shotExpanded = openShots[shotKey] ?? shotIndex === 0;
+                      const shotExpanded = openShots[shotKey] ?? false;
 
                       return (
                         <div key={`${segment.segmentIndex}-${shot.id}-${shotIndex}`} className={promptUi.shotCard}>

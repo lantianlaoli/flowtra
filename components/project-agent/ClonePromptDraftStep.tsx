@@ -576,7 +576,7 @@ export default function ClonePromptDraftStep({
                               const minStart = frontCount * MIN_GAP_SEC;
                               const maxEnd = sceneDuration - (backCount * MIN_GAP_SEC);
                               const shotKey = `${scene.sceneIndex}-${shotIndex}`;
-                              const shotExpanded = openShots[shotKey] ?? shotIndex === 0;
+                              const shotExpanded = openShots[shotKey] ?? false;
 
                               return (
                                 <div key={`${scene.sceneIndex}-${shotIndex}`} className={promptUi.shotCard}>
