@@ -65,21 +65,37 @@ export async function initializeUserCredits(userId: string, initialCredits: numb
   try {
     const supabase = getSupabaseAdmin() // Use admin client to bypass RLS
     
+    // Schema verified via Supabase MCP (2026-03-14):
+    // user_credits columns used: user_id, has_purchased, subscription_credits, purchased_credits.
+    // credits_remaining is derived by the compute_total_credits trigger.
     // Use UPSERT to prevent duplicate initialization
     const { data: credits, error } = await supabase
       .from('user_credits')
       .upsert({
         user_id: userId,
-        credits_remaining: initialCredits,
-        has_purchased: false // New users have not purchased yet
+        has_purchased: false,
+        subscription_credits: 0,
+        purchased_credits: initialCredits
       }, {
         onConflict: 'user_id',
         ignoreDuplicates: true  // Don't update if record already exists
       })
       .select()
-      .single()
+      .maybeSingle()
 
     if (error) {
+      // Webhook and fallback initialization can race. In that case PostgREST may
+      // return 0 rows from the upsert/select path even though the row now exists.
+      if (error.code === 'PGRST116') {
+        const existingResult = await getUserCredits(userId)
+        if (existingResult.success && existingResult.credits) {
+          return {
+            success: true,
+            credits: existingResult.credits
+          }
+        }
+      }
+
       // If it's a duplicate key error, user already has credits - this is not an error
       if (error.code === '23505' || error.message?.includes('duplicate')) {
         console.log(`👤 User ${userId} already has credits initialized, skipping duplicate initialization`)
@@ -97,6 +113,16 @@ export async function initializeUserCredits(userId: string, initialCredits: numb
       return {
         success: false,
         error: 'Failed to initialize credits'
+      }
+    }
+
+    if (!credits) {
+      const existingResult = await getUserCredits(userId)
+      if (existingResult.success && existingResult.credits) {
+        return {
+          success: true,
+          credits: existingResult.credits
+        }
       }
     }
 
