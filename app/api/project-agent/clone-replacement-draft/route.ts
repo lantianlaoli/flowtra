@@ -94,6 +94,10 @@ type SessionState = {
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const AVATAR_HINT_REGEX = /\b(man|male|woman|female|person|character|subject|mother|father|guy|girl|boy|lady|he|she|him|his|her)\b/i;
 const PRODUCT_HINT_REGEX = /\b(product|item|object|toy|book)\b/i;
+const SUBJECT_ENTITY_SPLIT_REGEX = /,|;|\/|\||\band\b|\bwith\b|\bplus\b|&|\+/gi;
+const SUBJECT_PREFIX_REGEX = /^(?:a|an|the|this|that|these|those|shot of|view of|scene of|close-up of|close up of|featuring|featuring the|showing|showing the)\s+/i;
+const SUBJECT_ACTION_SIGNAL_REGEX = /\b(hold|holding|holds|held|lift|lifting|lifts|show|showing|shows|display|displaying|displays|present|presenting|presents|place|placing|places|placed|pour|pouring|pours|open|opening|opens|close|closing|closes|move|moving|moves|moved|turn|turning|turns|turned|walk|walking|walks|talk|talking|talks|speak|speaking|speaks|gesture|gesturing|gestures|interact|interacting|interacts|smile|smiling|smiles|look|looking|looks|pose|posing|poses|camera|pan|tilt|zoom|track|tracking|tracks|push|pushing|pull|pulling|rotate|rotating|rotates|reveal|revealing|reveals)\b/i;
+const SUBJECT_STOP_PHRASE_REGEX = /^(?:in frame|foreground|background|shot|scene|setup|visual|frame)$/i;
 
 const hasExplicitMentionSignal = (
   text: string,
@@ -150,6 +154,39 @@ const transformShotFieldInline = (
   });
 };
 
+const normalizeSubjectEntityPhrase = (value: string) => {
+  let normalized = value
+    .replace(/[.!?]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!normalized) return '';
+
+  normalized = normalized.replace(SUBJECT_PREFIX_REGEX, '').trim();
+  normalized = normalized.replace(/\b(?:on|in|at|near|beside|next to|against)\b.*$/i, '').trim();
+  normalized = normalized.replace(/\b(?:who|that|which)\b.*$/i, '').trim();
+  normalized = normalized.replace(/^[-:]+|[-:]+$/g, '').trim();
+
+  if (!normalized) return '';
+  if (SUBJECT_STOP_PHRASE_REGEX.test(normalized)) return '';
+  if (SUBJECT_ACTION_SIGNAL_REGEX.test(normalized)) return '';
+
+  return normalized;
+};
+
+const extractSubjectEntities = (text: string) => {
+  const normalized = stripMentionTokens(text || '').trim();
+  if (!normalized) return [] as string[];
+
+  const candidates = normalized
+    .replace(/[()]/g, ' ')
+    .split(SUBJECT_ENTITY_SPLIT_REGEX)
+    .map((part) => normalizeSubjectEntityPhrase(part))
+    .filter(Boolean);
+
+  return Array.from(new Set(candidates));
+};
+
 const buildShotSubject = (input: {
   subject?: string | null;
   sourceSummary?: string | null;
@@ -165,19 +202,30 @@ const buildShotSubject = (input: {
     productName: input.productName
   };
 
-  const direct = transformShotFieldInline(input.subject || '', mentionContext, {
-    forceAvatar: Boolean(input.avatarToken),
-    forceProduct: Boolean(input.productToken)
-  }).trim();
-  if (direct) return direct;
+  const extractedEntities = [
+    ...extractSubjectEntities(input.subject || ''),
+    ...extractSubjectEntities(input.sourceSummary || '')
+  ].filter((value) => {
+    if (input.avatarToken && AVATAR_HINT_REGEX.test(value)) return false;
+    if (input.productToken && PRODUCT_HINT_REGEX.test(value)) return false;
+    return true;
+  });
 
-  const summaryFallback = transformShotFieldInline(input.sourceSummary || '', mentionContext, {
-    forceAvatar: Boolean(input.avatarToken),
-    forceProduct: Boolean(input.productToken)
-  }).trim();
-  if (summaryFallback) return summaryFallback;
+  const entityPhrases = Array.from(new Set(extractedEntities)).map((entity) => (
+    transformShotFieldInline(entity, mentionContext).trim()
+  )).filter(Boolean);
 
-  return [input.avatarToken, input.productToken].filter(Boolean).join(' ').trim();
+  const orderedEntities = [
+    input.avatarToken?.trim() || '',
+    input.productToken?.trim() || '',
+    ...entityPhrases
+  ].filter(Boolean);
+
+  if (orderedEntities.length > 0) {
+    return Array.from(new Set(orderedEntities)).join(', ');
+  }
+
+  return [input.avatarToken, input.productToken].filter(Boolean).join(', ').trim() || 'main subject';
 };
 
 const parseModelScenes = (raw: unknown): ScenePrompt[] => {
@@ -324,7 +372,7 @@ const generateReplacementDraft = async (input: {
         {
           role: 'system',
           content: [
-            'You are rewriting clone prompts into a Kling 3.0-safe clone draft.',
+            'You are rewriting clone prompts into a project-agent clone draft.',
             'Output must preserve scene order, scene timing, and the narrative flow of each scene.',
             `Each scene must contain at most ${KLING_MAX_MULTI_SHOT_ITEMS} shots.`,
             avatarToken
@@ -340,8 +388,11 @@ const generateReplacementDraft = async (input: {
             'Do not merge away original source shots inside a scene. Preserve the provided shot inventory and rewrite each planned shot in order.',
             'Keep the total duration of each scene unchanged and keep shot time_range values contiguous from start to end.',
             'Each shot must include: subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_colour_lighting, audio, sfx, ambient, dialogue, time_range.',
+            'subject must be entity-only text that lists what appears in the shot, such as character, product, hand, table, countertop, mirror, or background object.',
+            'subject must not describe behavior, pose progression, camera movement, or event flow.',
+            'action is the only shot field that should describe what happens in the shot.',
             'Apply avatar/product replacement inside video shot fields too. Do not leave original role words (e.g. woman/man) when replacement is selected.',
-            'Keep fields concise, provider-safe, and short enough for Kling 3.0 prompt limits.'
+            'Keep fields concise and provider-safe, but do not optimize for Kling per-shot character limits.'
           ].join(' ')
         },
         {

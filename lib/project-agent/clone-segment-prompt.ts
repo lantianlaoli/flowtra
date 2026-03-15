@@ -27,6 +27,8 @@ export function cloneDraftSceneToSegmentPrompt(
     : Array.isArray(scene.videoPrompt?.shots)
       ? scene.videoPrompt.shots
       : [];
+  // Preserve the authored draft text for project-agent clone scenes and only
+  // reapply structural shot normalization here.
   const shots = validateProjectAgentKlingShots(
     rawShots.length > 0 ? rawShots : [fallbackShot],
     fallbackLanguage

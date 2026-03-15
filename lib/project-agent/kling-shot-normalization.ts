@@ -186,16 +186,21 @@ export function normalizeProjectAgentKlingShots(
   const shotBuckets = buildShotBuckets(shots, fallbackLanguage);
   const timedBuckets = rebuildContiguousTimeRanges(shotBuckets);
 
-  return timedBuckets.map((bucket, index) => {
-    const normalized = serializeProjectAgentCloneShot({
-      ...bucket,
-      id: index + 1,
-      time_range: bucket.time_range,
-      audio: buildProjectAgentLegacyAudioField(bucket),
-    }, index, fallbackLanguage);
+  return timedBuckets.map((bucket, index) => serializeProjectAgentCloneShot({
+    ...bucket,
+    id: index + 1,
+    time_range: bucket.time_range,
+    audio: buildProjectAgentLegacyAudioField(bucket),
+  }, index, fallbackLanguage));
+}
 
-    return fitShotToKlingPromptLimit(normalized);
-  });
+export function normalizeProjectAgentKlingShotsForProvider(
+  shots: Array<Partial<ProjectAgentCloneShot> | undefined>,
+  fallbackLanguage: string
+): ProjectAgentCloneShot[] {
+  return normalizeProjectAgentKlingShots(shots, fallbackLanguage).map((shot) => (
+    fitShotToKlingPromptLimit(shot)
+  ));
 }
 
 export function validateProjectAgentKlingShots(
@@ -207,4 +212,15 @@ export function validateProjectAgentKlingShots(
     throw new Error(`Kling 3.0 scenes support at most ${KLING_MAX_MULTI_SHOT_ITEMS} shots per generation.`);
   }
   return normalizeProjectAgentKlingShots(shots, fallbackLanguage);
+}
+
+export function validateProjectAgentKlingShotsForProvider(
+  shots: Array<Partial<ProjectAgentCloneShot> | undefined>,
+  fallbackLanguage: string
+): ProjectAgentCloneShot[] {
+  const rawCount = Array.isArray(shots) ? shots.length : 0;
+  if (rawCount > KLING_MAX_MULTI_SHOT_ITEMS) {
+    throw new Error(`Kling 3.0 scenes support at most ${KLING_MAX_MULTI_SHOT_ITEMS} shots per generation.`);
+  }
+  return normalizeProjectAgentKlingShotsForProvider(shots, fallbackLanguage);
 }
