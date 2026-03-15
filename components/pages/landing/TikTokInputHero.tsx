@@ -1,11 +1,15 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useToast } from '@/contexts/ToastContext';
-import { TikTokAnalysisModal } from '@/components/showcase/TikTokAnalysisModal';
 import { Link as LinkIcon, ArrowRight, HelpCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
+
+const TikTokAnalysisModal = dynamic(
+  () => import('@/components/showcase/TikTokAnalysisModal').then((mod) => mod.TikTokAnalysisModal),
+  { ssr: false }
+);
 
 export default function TikTokInputHero() {
   const { isSignedIn } = useUser();
@@ -84,16 +88,7 @@ export default function TikTokInputHero() {
             {/* Valid URL Flood Animation */}
             {isUrlValid && (
               <div className="absolute inset-0 rounded-lg pointer-events-none overflow-hidden mix-blend-multiply opacity-50">
-                <motion.div
-                  className="w-full h-full bg-gradient-to-r from-transparent via-[#E5E5E5] to-transparent"
-                  initial={{ x: '-100%' }}
-                  animate={{ x: '100%' }}
-                  transition={{ 
-                    repeat: Infinity, 
-                    duration: 1.5, 
-                    ease: "linear" 
-                  }}
-                />
+                <div className="flowtra-shimmer h-full w-[40%] bg-gradient-to-r from-transparent via-[#E5E5E5] to-transparent" />
               </div>
             )}
             {/* Help Tooltip */}
@@ -131,11 +126,13 @@ export default function TikTokInputHero() {
         )}
       </div>
 
-      <TikTokAnalysisModal
-        isOpen={isAnalysisModalOpen}
-        onClose={() => setIsAnalysisModalOpen(false)}
-        tiktokUrl={selectedTikTokUrl}
-      />
+      {isAnalysisModalOpen ? (
+        <TikTokAnalysisModal
+          isOpen={isAnalysisModalOpen}
+          onClose={() => setIsAnalysisModalOpen(false)}
+          tiktokUrl={selectedTikTokUrl}
+        />
+      ) : null}
     </>
   );
 }

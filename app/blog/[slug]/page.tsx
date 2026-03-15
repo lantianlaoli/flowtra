@@ -3,7 +3,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowLeft, Clock, Calendar } from 'lucide-react';
 import { Metadata } from 'next';
-import { getArticleBySlug, getAllArticles, calculateReadingTime, extractExcerpt } from '@/lib/supabase';
+import { getArticleBySlug, getAllArticles } from '@/lib/supabase';
+import { calculateReadingTime, extractExcerpt } from '@/lib/article-utils';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 
 // Revalidate individual article pages so content updates without redeploys

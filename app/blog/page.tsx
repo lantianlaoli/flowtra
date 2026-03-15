@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { type Article, calculateReadingTime, extractExcerpt } from '@/lib/supabase'
+import { type Article } from '@/lib/supabase'
+import { calculateReadingTime, extractExcerpt } from '@/lib/article-utils'
 import SearchBar from '@/components/ui/SearchBar'
 import Pagination from '@/components/ui/Pagination'
 import ArticleCard from '@/components/ui/ArticleCard'

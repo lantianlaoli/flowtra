@@ -4,28 +4,30 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { CalendarIcon, ClockIcon } from '@heroicons/react/24/outline';
-import { getAllArticles, calculateReadingTime, extractExcerpt } from '@/lib/supabase';
+import type { ArticlePreview } from '@/lib/article-utils';
 
-interface Article {
-  id: string;
-  title: string;
-  slug: string;
-  cover?: string | null;
-  content: string;
-  created_at: string;
+interface ArticlesPreviewResponse {
+  success: boolean;
+  articles: ArticlePreview[];
 }
 
 export default function BlogPreview() {
-  const [articles, setArticles] = useState<Article[]>([]);
+  const [articles, setArticles] = useState<ArticlePreview[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const all = await getAllArticles();
+        const response = await fetch('/api/public/articles-preview?limit=3', {
+          cache: 'no-store',
+        });
+        if (!response.ok) {
+          throw new Error('Failed to fetch article previews');
+        }
+        const data = (await response.json()) as ArticlesPreviewResponse;
         if (!mounted) return;
-        setArticles((all || []).slice(0, 3));
+        setArticles(data.success ? data.articles : []);
       } catch {
         if (mounted) setArticles([]);
       } finally {
@@ -64,8 +66,6 @@ export default function BlogPreview() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {articles.map((article) => {
               const publishDate = new Date(article.created_at);
-              const readingTime = calculateReadingTime(article.content);
-              const excerpt = extractExcerpt(article.content, 100);
               return (
                 <article key={article.id} className="bg-white border border-[#E5E5E5] rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
                   {article.cover ? (
@@ -89,13 +89,13 @@ export default function BlogPreview() {
                       </div>
                       <div className="flex items-center gap-1">
                         <ClockIcon className="w-4 h-4" />
-                        {readingTime}
+                        {article.readingTime}
                       </div>
                     </div>
                     <h3 className="text-[20px] font-semibold text-black mb-2 hover:text-[#333333]">
                       <Link href={`/blog/${article.slug}`}>{article.title}</Link>
                     </h3>
-                    <p className="text-[#666666] text-[15px] mb-3 line-clamp-2 leading-relaxed">{excerpt}</p>
+                    <p className="text-[#666666] text-[15px] mb-3 line-clamp-2 leading-relaxed">{article.excerpt}</p>
                     <div className="mt-auto">
                       <Link href={`/blog/${article.slug}`} className="text-black text-[14px] font-semibold hover:underline">
                         Read More →

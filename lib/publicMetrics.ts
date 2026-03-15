@@ -18,6 +18,8 @@ export const getActivatedUserCount = cache(async (): Promise<number> => {
 
   try {
     const supabase = getSupabaseAdmin();
+    // Schema verified via Supabase MCP (2026-03-14): public.user_credits includes user_id.
+    // Landing hero shows the live count of remaining user_credits records.
     const { count, error } = await supabase
       .from('user_credits')
       .select('user_id', { count: 'exact', head: true });

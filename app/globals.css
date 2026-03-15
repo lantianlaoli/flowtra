@@ -240,6 +240,19 @@
   background-color: var(--border) !important;
 }
 
+@keyframes flowtra-shimmer {
+  0% {
+    transform: translateX(-140%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}
+
+.flowtra-shimmer {
+  animation: flowtra-shimmer 1.5s linear infinite;
+}
+
 .dashboard-theme .border-gray-200 {
   border-color: var(--border) !important;
 }

@@ -1,28 +1,39 @@
 'use client'
 
+import { Suspense, useEffect, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { useEffect, Suspense } from 'react'
 import { useUser } from '@clerk/nextjs'
-import posthog from 'posthog-js'
-import { PostHogProvider } from 'posthog-js/react'
+import type { PostHog } from 'posthog-js'
 
-export function PHProvider({ children }: { children: React.ReactNode }) {
+function PostHogRuntimeInner() {
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const { user } = useUser()
+  const [client, setClient] = useState<PostHog | null>(null)
+
   useEffect(() => {
-    if (typeof window === 'undefined' || !process.env.NEXT_PUBLIC_POSTHOG_KEY) {
-      return;
+    const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY
+    if (typeof window === 'undefined' || !apiKey) {
+      return
     }
 
-    let cancelled = false;
+    let cancelled = false
+    let cleanup: (() => void) | undefined
 
-    const initPosthog = () => {
+    const initPosthog = async () => {
       if (cancelled) {
-        return;
+        return
       }
 
-      const sessionReplayEnabled = process.env.NEXT_PUBLIC_POSTHOG_SESSION_REPLAY_ENABLED === 'true';
-      const sampleRate = parseFloat(process.env.NEXT_PUBLIC_POSTHOG_SESSION_REPLAY_SAMPLE_RATE || '0.1');
+      const { default: posthog } = await import('posthog-js')
+      if (cancelled) {
+        return
+      }
 
-      posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY!, {
+      const sessionReplayEnabled = process.env.NEXT_PUBLIC_POSTHOG_SESSION_REPLAY_ENABLED === 'true'
+      const sampleRate = parseFloat(process.env.NEXT_PUBLIC_POSTHOG_SESSION_REPLAY_SAMPLE_RATE || '0.1')
+
+      posthog.init(apiKey, {
         api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
         person_profiles: 'identified_only',
         capture_pageview: false,
@@ -40,97 +51,113 @@ export function PHProvider({ children }: { children: React.ReactNode }) {
           maskTextSelector: '.ph-mask-text, .sensitive-info',
           maskInputSelector: '.ph-mask-input, .sensitive-input',
         } as any : undefined,
-        loaded: (client) => {
+        loaded: (loadedClient) => {
           if (process.env.NODE_ENV === 'development') {
-            client.debug();
+            loadedClient.debug()
           }
 
           if (sessionReplayEnabled) {
-            client.startSessionRecording();
+            loadedClient.startSessionRecording()
 
             if (Math.random() > sampleRate) {
-              client.stopSessionRecording();
+              loadedClient.stopSessionRecording()
             }
           }
-
-          const handleWindowError = (event: ErrorEvent) => {
-            client.captureException(event.error, {
-              $exception_level: 'error',
-              $exception_source: 'window_error',
-              filename: event.filename,
-              lineno: event.lineno,
-              colno: event.colno,
-            });
-          };
-
-          const handleRejection = (event: PromiseRejectionEvent) => {
-            const error = event.reason instanceof Error ? event.reason : new Error(String(event.reason));
-            client.captureException(error, {
-              $exception_level: 'error',
-              $exception_source: 'unhandled_rejection',
-            });
-          };
-
-          window.addEventListener('error', handleWindowError);
-          window.addEventListener('unhandledrejection', handleRejection);
         },
-      });
-    };
+      })
 
-    const idleCallback = (window as typeof window & { requestIdleCallback?: (cb: () => void) => number; cancelIdleCallback?: (id: number) => void }).requestIdleCallback;
+      const handleWindowError = (event: ErrorEvent) => {
+        posthog.captureException(event.error, {
+          $exception_level: 'error',
+          $exception_source: 'window_error',
+          filename: event.filename,
+          lineno: event.lineno,
+          colno: event.colno,
+        })
+      }
+
+      const handleRejection = (event: PromiseRejectionEvent) => {
+        const error = event.reason instanceof Error ? event.reason : new Error(String(event.reason))
+        posthog.captureException(error, {
+          $exception_level: 'error',
+          $exception_source: 'unhandled_rejection',
+        })
+      }
+
+      window.addEventListener('error', handleWindowError)
+      window.addEventListener('unhandledrejection', handleRejection)
+      cleanup = () => {
+        window.removeEventListener('error', handleWindowError)
+        window.removeEventListener('unhandledrejection', handleRejection)
+      }
+
+      setClient(posthog)
+    }
+
+    const idleCallback = (
+      window as typeof window & {
+        requestIdleCallback?: (cb: () => void) => number
+        cancelIdleCallback?: (id: number) => void
+      }
+    ).requestIdleCallback
 
     if (idleCallback) {
-      const idleId = idleCallback(() => initPosthog());
+      const idleId = idleCallback(() => {
+        void initPosthog()
+      })
+
       return () => {
-        cancelled = true;
-        (window as typeof window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(idleId);
-      };
+        cancelled = true
+        cleanup?.()
+        ;(window as typeof window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(idleId)
+      }
     }
 
-    const timeout = window.setTimeout(initPosthog, 1);
+    const timeout = window.setTimeout(() => {
+      void initPosthog()
+    }, 1)
+
     return () => {
-      cancelled = true;
-      window.clearTimeout(timeout);
-    };
+      cancelled = true
+      cleanup?.()
+      window.clearTimeout(timeout)
+    }
   }, [])
 
-  return <PostHogProvider client={posthog}>{children}</PostHogProvider>
-}
+  useEffect(() => {
+    if (!client || !pathname) {
+      return
+    }
 
-function PostHogPageViewInner() {
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const { user } = useUser()
+    let url = window.origin + pathname
+    if (searchParams.toString()) {
+      url = `${url}?${searchParams.toString()}`
+    }
+
+    client.capture('$pageview', {
+      $current_url: url,
+    })
+  }, [client, pathname, searchParams])
 
   useEffect(() => {
-    if (pathname && posthog) {
-      let url = window.origin + pathname
-      if (searchParams.toString()) {
-        url = url + `?${searchParams.toString()}`
-      }
-      posthog.capture('$pageview', {
-        $current_url: url,
-      })
+    if (!client || !user) {
+      return
     }
-  }, [pathname, searchParams])
 
-  useEffect(() => {
-    if (user) {
-      posthog.identify(user.id, {
-        email: user.emailAddresses[0]?.emailAddress,
-        firstName: user.firstName,
-        lastName: user.lastName,
-      })
-    }
-  }, [user])
+    client.identify(user.id, {
+      email: user.emailAddresses[0]?.emailAddress,
+      firstName: user.firstName,
+      lastName: user.lastName,
+    })
+  }, [client, user])
 
-  return <></>
+  return null
 }
 
-export function PostHogPageView() {
+export function PostHogRuntime() {
   return (
     <Suspense fallback={null}>
-      <PostHogPageViewInner />
+      <PostHogRuntimeInner />
     </Suspense>
   )
 }

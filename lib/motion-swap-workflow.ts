@@ -1,5 +1,6 @@
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { NON_AGENT_IMAGE_MODEL, NON_AGENT_IMAGE_OUTPUT_FORMAT, NON_AGENT_IMAGE_RESOLUTION } from '@/lib/constants';
+import type { KlingElement } from '@/lib/kling-elements';
 
 const KIE_CREATE_TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const KIE_FILE_URL_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-url-upload';
@@ -19,6 +20,7 @@ export interface MotionSwapVideoInput {
   referenceVideoUrl: string;
   mode?: '720p' | '1080p';
   prompt?: string;
+  elements?: KlingElement[];
 }
 
 const isKieHostedUrl = (url: string) => {
@@ -165,6 +167,7 @@ export const createMotionSwapVideoTask = async (
     referenceVideoUrl,
     mode: input.mode,
     prompt: input.prompt,
+    elements: input.elements,
     callbackUrl
   });
 
@@ -194,15 +197,17 @@ export const buildMotionSwapVideoRequestBody = ({
   referenceVideoUrl,
   mode,
   prompt,
+  elements,
   callbackUrl
 }: {
   previewImageUrl: string;
   referenceVideoUrl: string;
   mode?: '720p' | '1080p';
   prompt?: string;
+  elements?: KlingElement[];
   callbackUrl: string;
 }) => {
-  return {
+  const requestBody: Record<string, unknown> = {
     model: 'kling-3.0/motion-control',
     input: {
       prompt: prompt || buildMotionSwapVideoPrompt(),
@@ -213,6 +218,15 @@ export const buildMotionSwapVideoRequestBody = ({
     },
     callBackUrl: callbackUrl
   };
+
+  // Motion control shares the same Kling elements capability used by clone video.
+  // KIE's motion-control doc does not list the field explicitly, so we follow the
+  // repository's existing Kling 3 integration contract when mentions are present.
+  if (Array.isArray(elements) && elements.length > 0) {
+    (requestBody.input as Record<string, unknown>).kling_elements = elements;
+  }
+
+  return requestBody;
 };
 
 export const __test__ = {

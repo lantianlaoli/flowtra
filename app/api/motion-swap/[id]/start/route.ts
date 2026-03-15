@@ -7,9 +7,22 @@ import { fetchTikTokVideoUrl } from '@/lib/fetch-tiktok-video';
 import { downloadVideoBuffer, uploadCreatorVideoCoverToStorage } from '@/lib/creator-videos-storage';
 import { fetchTikTokCoverByUrl } from '@/lib/tiktok-creator-source';
 import { getMotionSwapGenerationCost, normalizeMotionSwapQuality } from '@/lib/constants';
+import { SYSTEM_AVATARS } from '@/lib/default-avatars';
+import {
+  buildKlingElementsFromMentions,
+  collectKlingMentions,
+  replacePromptMentionsWithKlingElements,
+} from '@/lib/kling-elements';
+import { replaceMentionsForPlainText } from '@/lib/competitor-ugc-replication-prompt-compiler';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+const EDITABLE_MOTION_SWAP_STATUSES = new Set([
+  'pending',
+  'preview_ready',
+  'completed',
+  'failed',
+]);
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -32,7 +45,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     const supabase = getSupabaseAdmin();
 
-    // Schema verified via Supabase MCP (2026-02-01): motion_swap_projects
+    // Schema verified via Supabase MCP (2026-03-12): motion_swap_projects
+    // Columns used below are confirmed to exist:
+    // preview_task_id, preview_image_url, preview_webhook_received_at,
+    // video_task_id, output_video_url, video_webhook_received_at,
+    // status, progress_percentage, credits_cost, generation_credits_used,
+    // mode, error_message, auto_generate_video
     const { data: project, error: projectError } = await supabase
       .from('motion_swap_projects')
       .select('*')
@@ -48,8 +66,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       typeof body?.mode === 'string' ? body.mode : project.mode
     );
 
-    // Allow editing from 'pending' or 'preview_ready' status
-    if (project.status !== 'pending' && project.status !== 'preview_ready') {
+    // Allow regenerating from idle states, but never while a task is already running.
+    if (!EDITABLE_MOTION_SWAP_STATUSES.has(project.status)) {
       return NextResponse.json({ error: 'Project is not ready for editing' }, { status: 409 });
     }
 
@@ -67,6 +85,16 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       return NextResponse.json({ error: 'Swap targets are missing' }, { status: 400 });
     }
 
+    const resolvedVideoPrompt = videoPrompt || project.video_prompt || '';
+    const videoMentions = collectKlingMentions([resolvedVideoPrompt]);
+    const { elements, tokenMap, plainTokenMap } = await buildKlingElementsFromMentions(userId, videoMentions);
+    const compiledPhotoPrompt = photoPrompt
+      ? replaceMentionsForPlainText(photoPrompt)
+      : null;
+    const compiledVideoPrompt = resolvedVideoPrompt
+      ? replacePromptMentionsWithKlingElements(resolvedVideoPrompt, tokenMap, plainTokenMap)
+      : null;
+
     // Schema verified via Supabase MCP (2026-02-01): creator_source_videos
     const { data: referenceVideo, error: referenceError } = await supabase
       .from('creator_source_videos')
@@ -80,19 +108,29 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     }
 
     let avatar: { id: string; photo_url: string } | null = null;
+    let persistableAvatarId: string | null = null;
     if (hasAvatar && resolvedAvatarId) {
+      const systemAvatar = SYSTEM_AVATARS.find((item) => item.id === resolvedAvatarId);
+      if (systemAvatar) {
+        avatar = {
+          id: systemAvatar.id,
+          photo_url: systemAvatar.photo_url,
+        };
+      } else {
       // Schema verified via Supabase MCP (2026-02-01): user_avatars
-      const { data: avatarData, error: avatarError } = await supabase
-        .from('user_avatars')
-        .select('id, photo_url')
-        .eq('id', resolvedAvatarId)
-        .eq('user_id', userId)
-        .single();
+        const { data: avatarData, error: avatarError } = await supabase
+          .from('user_avatars')
+          .select('id, photo_url')
+          .eq('id', resolvedAvatarId)
+          .eq('user_id', userId)
+          .single();
 
-      if (avatarError || !avatarData) {
-        return NextResponse.json({ error: 'Avatar not found' }, { status: 404 });
+        if (avatarError || !avatarData) {
+          return NextResponse.json({ error: 'Avatar not found' }, { status: 404 });
+        }
+        avatar = avatarData;
+        persistableAvatarId = avatarData.id;
       }
-      avatar = avatarData;
     }
 
     let product: { id: string; product_name: string } | null = null;
@@ -175,47 +213,90 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     }
 
     const creditsCost = getMotionSwapGenerationCost(durationSeconds, selectedQuality);
-    const creditCheck = await checkCredits(userId, creditsCost);
+    const shouldChargeForGeneration = action === 'video';
+    const resetVideoGenerationState = {
+      video_task_id: null,
+      output_video_url: null,
+      video_webhook_received_at: null,
+      error_message: null,
+    };
+    const resetPreviewGenerationState = {
+      preview_task_id: null,
+      preview_image_url: null,
+      preview_webhook_received_at: null,
+      ...resetVideoGenerationState,
+    };
 
-    if (!creditCheck.success) {
-      return NextResponse.json({ error: creditCheck.error || 'Failed to check credits' }, { status: 500 });
-    }
+    if (shouldChargeForGeneration) {
+      const creditCheck = await checkCredits(userId, creditsCost);
 
-    if (!creditCheck.hasEnoughCredits) {
-      return NextResponse.json({
-        error: 'Insufficient credits',
-        required: creditsCost,
-        remaining: creditCheck.currentCredits || 0
-      }, { status: 402 });
+      if (!creditCheck.success) {
+        return NextResponse.json({ error: creditCheck.error || 'Failed to check credits' }, { status: 500 });
+      }
+
+      if (!creditCheck.hasEnoughCredits) {
+        return NextResponse.json({
+          error: 'Insufficient credits',
+          required: creditsCost,
+          remaining: creditCheck.currentCredits || 0
+        }, { status: 402 });
+      }
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL;
     if (!baseUrl) {
       return NextResponse.json({ error: 'NEXT_PUBLIC_SITE_URL is not configured' }, { status: 500 });
     }
+    const canReuseExistingPreview =
+      action === 'video' &&
+      typeof project.preview_image_url === 'string' &&
+      project.preview_image_url.length > 0;
 
-    // Special case: If project is in preview_ready status and action is 'video',
-    // skip preview generation and go directly to video generation
-    if (project.status === 'preview_ready' && action === 'video') {
+    // Reuse an existing preview whenever the user is only regenerating video.
+    if (canReuseExistingPreview) {
+      let creditsDeducted = false;
       try {
         if (!project.preview_image_url) {
           return NextResponse.json({ error: 'Preview image is missing' }, { status: 400 });
         }
+
+        const deduction = await deductCredits(userId, creditsCost);
+        if (!deduction.success) {
+          return NextResponse.json({ error: deduction.error || 'Failed to deduct credits' }, { status: 500 });
+        }
+        creditsDeducted = true;
+
+        await recordCreditTransaction(
+          userId,
+          'usage',
+          creditsCost,
+          `Motion Swap generation (${durationSeconds}s @ ${selectedQuality})`,
+          project.id,
+          true
+        );
 
         const callbackUrl = new URL('/api/motion-swap/webhooks/video', baseUrl).toString();
         const videoTaskId = await createMotionSwapVideoTask({
           previewImageUrl: project.preview_image_url,
           referenceVideoUrl: videoCdnUrl,
           mode: selectedQuality,
-          prompt: videoPrompt || buildMotionSwapVideoPrompt({ hasAvatar, hasProduct })
+          prompt: compiledVideoPrompt || buildMotionSwapVideoPrompt({ hasAvatar, hasProduct }),
+          elements: elements.length > 0 ? elements : undefined,
         }, callbackUrl);
 
         const { data: updatedProject, error: updateError } = await supabase
           .from('motion_swap_projects')
           .update({
+            ...resetVideoGenerationState,
             video_task_id: videoTaskId,
+            photo_prompt: photoPrompt || project.photo_prompt || null,
             video_prompt: videoPrompt || buildMotionSwapVideoPrompt({ hasAvatar, hasProduct }),
+            avatar_id: persistableAvatarId,
+            product_id: product?.id || null,
+            product_photo_id: productPhoto?.id || null,
             auto_generate_video: true,
+            credits_cost: creditsCost,
+            generation_credits_used: creditsCost,
             mode: selectedQuality,
             status: 'generating_video',
             progress_percentage: 75
@@ -240,27 +321,35 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           })
           .eq('id', project.id);
 
-        return NextResponse.json({ error: 'Failed to start video task' }, { status: 500 });
+        if (creditsDeducted && creditsCost > 0) {
+          await refundCredits(userId, creditsCost, 'Motion Swap video task failed', project.id);
+        }
+
+        return NextResponse.json({
+          error: error instanceof Error ? error.message : 'Failed to start video task'
+        }, { status: 500 });
       }
     }
 
     // Normal flow: Generate preview (and optionally video based on auto_generate_video)
     let creditsDeducted = false;
     try {
-      const deduction = await deductCredits(userId, creditsCost);
-      if (!deduction.success) {
-        return NextResponse.json({ error: deduction.error || 'Failed to deduct credits' }, { status: 500 });
-      }
-      creditsDeducted = true;
+      if (shouldChargeForGeneration) {
+        const deduction = await deductCredits(userId, creditsCost);
+        if (!deduction.success) {
+          return NextResponse.json({ error: deduction.error || 'Failed to deduct credits' }, { status: 500 });
+        }
+        creditsDeducted = true;
 
-      await recordCreditTransaction(
-        userId,
-        'usage',
-        creditsCost,
-        `Motion Swap generation (${durationSeconds}s @ ${selectedQuality})`,
-        project.id,
-        true
-      );
+        await recordCreditTransaction(
+          userId,
+          'usage',
+          creditsCost,
+          `Motion Swap generation (${durationSeconds}s @ ${selectedQuality})`,
+          project.id,
+          true
+        );
+      }
 
       const callbackUrl = new URL('/api/motion-swap/webhooks/preview', baseUrl).toString();
       const previewTaskId = await createMotionSwapPreviewTask({
@@ -268,15 +357,16 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         avatarUrl: avatar?.photo_url || null,
         productUrl: productPhoto?.photo_url || null,
         aspectRatio: '9:16',
-        prompt: photoPrompt || buildMotionSwapPreviewPrompt({ hasAvatar, hasProduct })
+          prompt: compiledPhotoPrompt || photoPrompt || buildMotionSwapPreviewPrompt({ hasAvatar, hasProduct })
       }, callbackUrl);
 
       const { data: updatedProject, error: updateError } = await supabase
         .from('motion_swap_projects')
         .update({
+          ...resetPreviewGenerationState,
           creator_source_id: referenceVideo.source_id,
           creator_source_video_id: referenceVideo.id,
-          avatar_id: avatar?.id || null,
+          avatar_id: persistableAvatarId,
           product_id: product?.id || null,
           product_photo_id: productPhoto?.id || null,
           reference_video_url: referenceVideo.video_url,
@@ -285,8 +375,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           reference_duration_seconds: durationSeconds,
           photo_prompt: photoPrompt || null,
           video_prompt: videoPrompt || buildMotionSwapVideoPrompt({ hasAvatar, hasProduct }),
-          credits_cost: creditsCost,
-          generation_credits_used: creditsCost,
+          credits_cost: shouldChargeForGeneration ? creditsCost : 0,
+          generation_credits_used: shouldChargeForGeneration ? creditsCost : 0,
           preview_task_id: previewTaskId,
           auto_generate_video: autoGenerateVideo,
           status: 'generating_preview',
@@ -317,7 +407,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         await refundCredits(userId, creditsCost, 'Motion Swap preview task failed', project.id);
       }
 
-      return NextResponse.json({ error: 'Failed to start preview task' }, { status: 500 });
+      return NextResponse.json({
+        error: error instanceof Error ? error.message : 'Failed to start preview task'
+      }, { status: 500 });
     }
   } catch (error) {
     console.error('[Motion Swap Start] Unexpected error:', error);
