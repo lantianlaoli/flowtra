@@ -48,6 +48,10 @@ import {
   shouldShowProjectAgentCloneMergedReview,
 } from '@/lib/project-agent/clone-execution';
 import { isStartVideoGenerationCommand } from '@/lib/project-agent/clone-workflow-control';
+import {
+  isCloneFlowEffectivelyFinished,
+  isNextCloneIntentMessage
+} from '@/lib/project-agent/next-clone-intent';
 import { buildWorkspaceScenes } from '@/lib/project-agent/workspace-scenes';
 import { analysisToLegacyFlatShots } from '@/lib/video-analysis-schema';
 
@@ -1109,8 +1113,53 @@ export default function ProjectAgentPage() {
     hasUnansweredUserTurnInStream
   );
 
+  const resetLocalCloneSurfaceForNextReference = useCallback(() => {
+    setSessionState((prev) => {
+      if (!prev) return prev;
+      const nextState = {
+        ...prev,
+        intent: 'competitor_ugc_replication' as const,
+        cloneReferenceVideo: undefined,
+        cloneReplacementDraft: undefined,
+        cloneExecution: null,
+        pendingMergeConfirmation: null,
+        projectId: undefined,
+        avatar: null,
+        product: null
+      };
+      latestSessionStateRef.current = nextState;
+      latestCloneDraftRef.current = null;
+      return nextState;
+    });
+    setShowCloneableVideos(false);
+    setShowCloneReplacementSelectors(false);
+    setAwaitingCloneStructureReply(false);
+    setCloneStructureReplyReady(false);
+    setCloneStructureReplyBaseline(0);
+    setAwaitingCloneDraftReply(false);
+    setCloneDraftReplyBaseline(0);
+    setSelectedCloneAvatarIds([]);
+    setSelectedCloneProductIds([]);
+    setRetryableUserMessageId(null);
+  }, []);
+
   const sendMessageSafely = useCallback(async (text: string) => {
     try {
+      const shouldResetForNextClone = (
+        isNextCloneIntentMessage(text) &&
+        isCloneFlowEffectivelyFinished({
+          phase: sessionState?.cloneExecution?.phase,
+          mergedVideoUrl: sessionState?.cloneExecution?.mergedVideoUrl
+        })
+      );
+
+      if (shouldResetForNextClone) {
+        resetLocalCloneSurfaceForNextReference();
+        setAwaitingCloneEntryReply(true);
+        setCloneEntryReplyBaseline(dedupeConversationMessages(messages).length);
+        setHandledCloneIntentUserMessageId(null);
+      }
+
       await sendMessage({ text });
       return true;
     } catch (sendError) {
@@ -1121,7 +1170,7 @@ export default function ProjectAgentPage() {
       }
       return false;
     }
-  }, [sendMessage]);
+  }, [messages, resetLocalCloneSurfaceForNextReference, sendMessage, sessionState?.cloneExecution?.mergedVideoUrl, sessionState?.cloneExecution?.phase]);
 
   const requestBrowserNotificationPermissionOnce = useCallback(() => {
     if (notificationPermissionRequestedRef.current) return;
