@@ -8,6 +8,7 @@ import { getActiveMentionQuery } from '@/lib/prompt-mention';
 import {
   buildMentionToken,
   MENTION_TOKEN_REGEX,
+  normalizeMentionLabel,
   parseMentionToken
 } from '@/lib/prompt-mention-tokens';
 
@@ -42,7 +43,7 @@ type PromptMentionTextareaProps = {
 
 type HighlightSegment =
   | { kind: 'text'; text: string }
-  | { kind: 'token'; raw: string; type: MentionType; label: string; trailingWhitespace: string };
+  | { kind: 'token'; raw: string; type: MentionType | 'unknown'; key: string; label: string; trailingWhitespace: string };
 
 const parseHighlightedSegments = (value: string): HighlightSegment[] => {
   if (!value) return [];
@@ -70,6 +71,7 @@ const parseHighlightedSegments = (value: string): HighlightSegment[] => {
         kind: 'token',
         raw: match[0],
         type: parsed.type,
+        key: parsed.key,
         label: parsed.label,
         trailingWhitespace
       });
@@ -139,15 +141,41 @@ export default function PromptMentionTextarea({
 
   const characterImageMap = useMemo(() => {
     const map = new Map<string, string | null | undefined>();
-    characterMentions.forEach((item) => map.set(item.label, item.imageUrl));
+    characterMentions.forEach((item) => map.set(normalizeMentionLabel(item.label), item.imageUrl));
     return map;
   }, [characterMentions]);
 
   const productImageMap = useMemo(() => {
     const map = new Map<string, string | null | undefined>();
-    productMentions.forEach((item) => map.set(item.label, item.imageUrl));
+    productMentions.forEach((item) => map.set(normalizeMentionLabel(item.label), item.imageUrl));
     return map;
   }, [productMentions]);
+
+  const mentionMetaMap = useMemo(() => {
+    const map = new Map<string, { type: MentionType; label: string; imageUrl?: string | null }>();
+
+    characterMentions.forEach((item) => {
+      const key = normalizeMentionLabel(item.label);
+      if (!key || map.has(key)) return;
+      map.set(key, {
+        type: 'character',
+        label: item.label,
+        imageUrl: item.imageUrl
+      });
+    });
+
+    productMentions.forEach((item) => {
+      const key = normalizeMentionLabel(item.label);
+      if (!key || map.has(key)) return;
+      map.set(key, {
+        type: 'product',
+        label: item.label,
+        imageUrl: item.imageUrl
+      });
+    });
+
+    return map;
+  }, [characterMentions, productMentions]);
 
   const isItemDisabled = (item: PromptMentionItem) => {
     if (!enforcePhotoCount) return false;
@@ -256,9 +284,14 @@ export default function PromptMentionTextarea({
                 return <span key={`text-${index}`}>{segment.text}</span>;
               }
 
-              const mentionImage = segment.type === 'character'
-                ? characterImageMap.get(segment.label)
-                : productImageMap.get(segment.label);
+              const resolvedMeta = mentionMetaMap.get(segment.key);
+              const resolvedType = segment.type === 'unknown'
+                ? (resolvedMeta?.type || 'character')
+                : segment.type;
+              const resolvedLabel = resolvedMeta?.label || segment.label;
+              const mentionImage = resolvedType === 'character'
+                ? characterImageMap.get(segment.key)
+                : productImageMap.get(segment.key);
 
               return (
                 <span key={`token-${segment.raw}-${index}`} className="inline-flex max-w-full items-center align-middle">
@@ -266,14 +299,14 @@ export default function PromptMentionTextarea({
                     <span className="shrink-0 text-[#6b7280]">@</span>
                     <span className="relative h-4 w-4 shrink-0 overflow-hidden rounded-full bg-white ring-1 ring-[#d4dbe6]">
                       {mentionImage ? (
-                        <NextImage src={mentionImage} alt={segment.label} fill sizes="16px" className="object-cover" />
+                        <NextImage src={mentionImage} alt={resolvedLabel} fill sizes="16px" className="object-cover" />
                       ) : (
                         <span className="flex h-full w-full items-center justify-center text-[#6b7280]">
-                          {segment.type === 'product' ? <ShoppingBag className="h-3 w-3" /> : <User className="h-3 w-3" />}
+                          {resolvedType === 'product' ? <ShoppingBag className="h-3 w-3" /> : <User className="h-3 w-3" />}
                         </span>
                       )}
                     </span>
-                    <span className="leading-6" title={segment.label}>{segment.label}</span>
+                    <span className="leading-6" title={resolvedLabel}>{resolvedLabel}</span>
                   </span>
                   {segment.trailingWhitespace}
                 </span>

@@ -1,6 +1,7 @@
 import {
   MENTION_TOKEN_REGEX as MENTION_REGEX,
   PARTIAL_MENTION_TOKEN_SUFFIX_REGEX as PARTIAL_MENTION_SUFFIX_REGEX,
+  normalizeMentionLabel,
   parseMentionToken
 } from '@/lib/prompt-mention-tokens';
 
@@ -377,28 +378,18 @@ export const fitKlingPromptWithinLimit = ({
   throw new KlingPromptValidationError();
 };
 
-const slugifyMentionName = (value: string): string => (
-  value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 18) || 'asset'
-);
-
 const buildEstimateTokenMap = (texts: string[]): Record<string, string> => {
   const map: Record<string, string> = {};
-  let counter = 1;
 
   for (const text of texts) {
     for (const match of text.matchAll(MENTION_REGEX)) {
       const parsed = parseMentionToken(match[0]);
       const type = parsed?.type;
-      const name = cleanPromptText(parsed?.label);
-      if (!type || !name) continue;
-      const key = `${type}:${name.toLowerCase()}`;
+      const keyName = parsed?.key || normalizeMentionLabel(parsed?.label || '');
+      if (!type || !keyName) continue;
+      const key = `${type}:${keyName}`;
       if (map[key]) continue;
-      map[key] = `element_${slugifyMentionName(name)}_${counter.toString(36)}`;
-      counter += 1;
+      map[key] = keyName;
     }
   }
 
@@ -409,8 +400,12 @@ const replaceMentionsForEstimate = (text: string, tokenMap: Record<string, strin
   text.replace(MENTION_REGEX, (match) => {
     const parsed = parseMentionToken(match);
     if (!parsed) return match;
-    const key = `${parsed.type}:${String(parsed.label || '').trim().toLowerCase()}`;
-    return tokenMap[key] ? `@${tokenMap[key]}` : String(parsed.label || '').trim();
+    const keyName = parsed.key || normalizeMentionLabel(String(parsed.label || ''));
+    if (!keyName) {
+      return parsed.syntax === 'typed' ? String(parsed.label || '').trim() : match;
+    }
+    const key = `${parsed.type}:${keyName}`;
+    return tokenMap[key] ? `@${tokenMap[key]}` : (parsed.syntax === 'typed' ? `@${keyName}` : match);
   })
 );
 
@@ -421,9 +416,9 @@ const collectEstimateTags = (texts: string[], tokenMap: Record<string, string>):
     for (const match of text.matchAll(MENTION_REGEX)) {
       const parsed = parseMentionToken(match[0]);
       const type = parsed?.type;
-      const name = cleanPromptText(parsed?.label);
-      if (!type || !name) continue;
-      const mapped = tokenMap[`${type}:${name.toLowerCase()}`];
+      const keyName = parsed?.key || normalizeMentionLabel(parsed?.label || '');
+      if (!type || !keyName) continue;
+      const mapped = tokenMap[`${type}:${keyName}`];
       if (mapped) {
         tags.push(`@${mapped}`);
       }

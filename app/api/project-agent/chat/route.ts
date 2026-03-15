@@ -749,6 +749,7 @@ Workflow rules:
 - Billing rule (strict): in project-agent clone flow, frame generation is free and must never be blocked for insufficient user credits. Video generation is the paid step; when video generation or scene-video regeneration starts, clearly state the exact credits required if the tool result includes that amount.
 - Tool result rule (strict): never claim an action has started, completed, or succeeded when the tool result says success=false.
 - Tool result rule (strict): if a clone video tool fails because credits are insufficient, explicitly say video generation did not start, then state the exact required credits and current credits from the tool result.
+- Tool result rule (strict): if startCloneVideoGeneration returns success=false, your first sentence must restate that failure plainly and must not contain phrases like "started", "is generating", or "now running".
 - Next-clone rule (strict): after a clone is finished, only start a new clone when the user clearly asks for a new one, such as "clone another video" or "show more reference videos".
 - Next-clone rule (strict): vague follow-ups like "again", "another one", or "next" must not reset the current case automatically. Ask a short clarification instead.
 - Positioning rule: speak like a growth operator who helps users ship viral ads quickly, not like a generic tech support bot.
@@ -2733,16 +2734,42 @@ export async function POST(request: Request) {
                   ? startPayload.currentCredits
                   : undefined;
                 if (typeof requiredCredits === 'number') {
+                  const failureMessage = typeof currentCredits === 'number'
+                    ? `Video generation did not start. It needs ${requiredCredits} credits, but you currently have ${currentCredits}. Please top up and then send "start video generation" again.`
+                    : `Video generation did not start. It needs ${requiredCredits} credits. Please top up and then send "start video generation" again.`;
+                  await persistSession({
+                    pendingMergeConfirmation: null,
+                    cloneExecution: {
+                      ...(sessionState.cloneExecution ?? {
+                        projectId,
+                        phase: 'reviewing_frames' as const,
+                        segments: []
+                      }),
+                      projectId,
+                      error: failureMessage
+                    }
+                  });
                   return {
                     success: false,
-                    message: typeof currentCredits === 'number'
-                      ? `Video generation did not start. It needs ${requiredCredits} credits, but you currently have ${currentCredits}. Please top up and then send "start video generation" again.`
-                      : `Video generation did not start. It needs ${requiredCredits} credits. Please top up and then send "start video generation" again.`
+                    message: failureMessage
                   };
                 }
               }
 
-              return { success: false, message: startPayload?.error || 'Failed to start clone video generation.' };
+              const failureMessage = startPayload?.error || 'Failed to start clone video generation.';
+              await persistSession({
+                pendingMergeConfirmation: null,
+                cloneExecution: {
+                  ...(sessionState.cloneExecution ?? {
+                    projectId,
+                    phase: 'reviewing_frames' as const,
+                    segments: []
+                  }),
+                  projectId,
+                  error: failureMessage
+                }
+              });
+              return { success: false, message: failureMessage };
             }
 
             // Optimistic phase transition: backend may still report frame-phase for a short time

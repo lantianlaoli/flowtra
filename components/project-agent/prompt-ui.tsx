@@ -66,21 +66,21 @@ export const CLONE_PROMPT_SHOT_FIELD_GROUPS: ClonePromptShotFieldGroup[] = [
   {
     key: 'core',
     label: 'Core Prompt Elements',
-    description: 'Keep the replacement subject, setting, and motion aligned to the reference scene.',
+    description: '',
     icon: Sparkles,
     fields: CORE_FIELDS
   },
   {
     key: 'cinematography',
     label: 'Cinematography',
-    description: 'Preserve the reference framing language while tailoring details to Kling 3.',
+    description: '',
     icon: Camera,
     fields: CINEMATOGRAPHY_FIELDS
   },
   {
     key: 'audio',
     label: 'Audio',
-    description: 'Separate sound effects, ambient bed, and spoken dialogue for better Kling control.',
+    description: '',
     icon: Volume2,
     fields: AUDIO_FIELDS
   }
