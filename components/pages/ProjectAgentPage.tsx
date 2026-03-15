@@ -1229,6 +1229,7 @@ export default function ProjectAgentPage() {
         const incomingDraft = incomingState.cloneReplacementDraft;
         const hasVeryRecentLocalDraftEdit = Date.now() - lastLocalCloneDraftEditAtRef.current < 3500;
         const hasPendingDraftPersist = Boolean(draftPersistTimerRef.current);
+        const hasPendingSelectionPersist = Boolean(pendingCloneSelectionPersistRef.current);
 
         const shouldPreserveLocalCloneDraft = Boolean(
           localDraft &&
@@ -1236,6 +1237,12 @@ export default function ProjectAgentPage() {
           localDraft.status === 'ready' &&
           incomingDraft.status === 'ready' &&
           (hasVeryRecentLocalDraftEdit || hasPendingDraftPersist)
+        );
+
+        const shouldPreserveLocalCloneSelections = Boolean(
+          localDraft &&
+          incomingDraft &&
+          (hasVeryRecentLocalDraftEdit || hasPendingSelectionPersist)
         );
 
         const shouldPreserveLocalCloneExecution = shouldKeepLocalCloneExecution(
@@ -1256,6 +1263,18 @@ export default function ProjectAgentPage() {
             };
 
         if (!shouldPreserveLocalCloneDraft) {
+          if (shouldPreserveLocalCloneSelections && nextState.cloneReplacementDraft) {
+            return {
+              ...nextState,
+              cloneReplacementDraft: {
+                ...nextState.cloneReplacementDraft,
+                selectedAvatars: localDraft?.selectedAvatars,
+                selectedAvatar: localDraft?.selectedAvatar,
+                selectedProducts: localDraft?.selectedProducts,
+                selectedProduct: localDraft?.selectedProduct
+              }
+            };
+          }
           return nextState;
         }
 
@@ -2090,15 +2109,21 @@ export default function ProjectAgentPage() {
   const handleManualAvatarSelection = useCallback((avatarId: string) => {
     const selected = cloneAvatarOptions.find((avatar) => avatar.id === avatarId);
     if (!selected) return;
-    const isSelected = selectedCloneAvatarIds.includes(avatarId);
-    if (!isSelected && selectedCloneAvatarIds.length >= MAX_CLONE_MULTI_SELECT) {
+    const latestDraft = latestCloneDraftRef.current ?? sessionState?.cloneReplacementDraft;
+    const explicitSelectedAvatars = normalizeCloneSelections(
+      latestDraft?.selectedAvatars,
+      latestDraft?.selectedAvatar
+    );
+    const explicitSelectedAvatarIds = explicitSelectedAvatars.map((avatar) => avatar.id);
+    const isSelected = explicitSelectedAvatarIds.includes(avatarId);
+    if (!isSelected && explicitSelectedAvatarIds.length >= MAX_CLONE_MULTI_SELECT) {
       setStatusNote(`You can select up to ${MAX_CLONE_MULTI_SELECT} avatars for one clone.`);
       return;
     }
     setStatusNote('');
     const nextAvatarIds = isSelected
-      ? selectedCloneAvatarIds.filter((id) => id !== avatarId)
-      : [...selectedCloneAvatarIds, avatarId];
+      ? explicitSelectedAvatarIds.filter((id) => id !== avatarId)
+      : [...explicitSelectedAvatarIds, avatarId];
     const nextSelectedAvatars = nextAvatarIds
       .map((id) => cloneAvatarOptions.find((avatar) => avatar.id === id))
       .filter((avatar): avatar is CloneAvatarOption => Boolean(avatar))
@@ -2108,6 +2133,7 @@ export default function ProjectAgentPage() {
         photoUrl: avatar.photoUrl || null
       }));
     const primaryAvatar = nextSelectedAvatars[0] ?? null;
+    lastLocalCloneDraftEditAtRef.current = Date.now();
     setSelectedCloneAvatarIds(nextAvatarIds);
     setSessionState((prev) => (
       prev
@@ -2136,20 +2162,26 @@ export default function ProjectAgentPage() {
     void persistCloneSelection({
       selectedAvatars: nextSelectedAvatars
     });
-  }, [cloneAvatarOptions, persistCloneSelection, selectedCloneAvatarIds, setStatusNote]);
+  }, [cloneAvatarOptions, persistCloneSelection, sessionState?.cloneReplacementDraft, setStatusNote]);
 
   const handleManualProductSelection = useCallback((productId: string) => {
     const selected = cloneProductOptions.find((product) => product.id === productId);
     if (!selected) return;
-    const isSelected = selectedCloneProductIds.includes(productId);
-    if (!isSelected && selectedCloneProductIds.length >= MAX_CLONE_MULTI_SELECT) {
+    const latestDraft = latestCloneDraftRef.current ?? sessionState?.cloneReplacementDraft;
+    const explicitSelectedProducts = normalizeCloneSelections(
+      latestDraft?.selectedProducts,
+      latestDraft?.selectedProduct
+    );
+    const explicitSelectedProductIds = explicitSelectedProducts.map((product) => product.id);
+    const isSelected = explicitSelectedProductIds.includes(productId);
+    if (!isSelected && explicitSelectedProductIds.length >= MAX_CLONE_MULTI_SELECT) {
       setStatusNote(`You can select up to ${MAX_CLONE_MULTI_SELECT} products for one clone.`);
       return;
     }
     setStatusNote('');
     const nextProductIds = isSelected
-      ? selectedCloneProductIds.filter((id) => id !== productId)
-      : [...selectedCloneProductIds, productId];
+      ? explicitSelectedProductIds.filter((id) => id !== productId)
+      : [...explicitSelectedProductIds, productId];
     const nextSelectedProducts = nextProductIds
       .map((id) => cloneProductOptions.find((product) => product.id === id))
       .filter((product): product is CloneProductOption => Boolean(product))
@@ -2159,6 +2191,7 @@ export default function ProjectAgentPage() {
         photoUrl: product.photoUrl || null
       }));
     const primaryProduct = nextSelectedProducts[0] ?? null;
+    lastLocalCloneDraftEditAtRef.current = Date.now();
     setSelectedCloneProductIds(nextProductIds);
     setSessionState((prev) => (
       prev
@@ -2186,7 +2219,7 @@ export default function ProjectAgentPage() {
     void persistCloneSelection({
       selectedProducts: nextSelectedProducts
     });
-  }, [cloneProductOptions, persistCloneSelection, selectedCloneProductIds, setStatusNote]);
+  }, [cloneProductOptions, persistCloneSelection, sessionState?.cloneReplacementDraft, setStatusNote]);
 
   const latestUserText = useMemo(() => {
     const lastUser = [...displayMessages].reverse().find((message) => message.role === 'user');
@@ -3038,7 +3071,7 @@ export default function ProjectAgentPage() {
                     )}
 
                     {showCloneReplacementSelectors && !showCloneSceneWorkspaceStep && (
-                    <div className="w-full rounded-xl border border-[#e6e6e4] bg-white p-4 space-y-4">
+                    <div className="relative isolate w-full rounded-xl border border-[#e6e6e4] bg-white p-4 space-y-4">
                       <div>
                         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Step 2</p>
                         <p className="text-sm font-medium text-[#4f4f4d]">Choose replacement avatar and/or product</p>
@@ -3065,13 +3098,13 @@ export default function ProjectAgentPage() {
                               </p>
                             </div>
                             <p className="text-xs text-[#787876]">Optional. Select one or more if you want to replace the person in the reference.</p>
-                            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
+                            <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
                               {cloneAvatarOptions.map((avatar) => (
                                 <button
                                   key={avatar.id}
                                   type="button"
                                   onClick={() => handleManualAvatarSelection(avatar.id)}
-                                  className={`rounded-xl p-1.5 text-left transition-colors ${selectedCloneAvatarIds.includes(avatar.id) ? 'border-2 border-[#0f0f0f] bg-white shadow-[0_1px_0_rgba(15,15,15,0.04)]' : 'border border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                  className={`relative z-10 pointer-events-auto rounded-xl p-1.5 text-left transition-colors ${selectedCloneAvatarIds.includes(avatar.id) ? 'border-2 border-[#0f0f0f] bg-white shadow-[0_1px_0_rgba(15,15,15,0.04)]' : 'border border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
                                 >
                                   <div className="w-full aspect-square rounded-[10px] overflow-hidden bg-[#efefed] mb-1">
                                     {avatar.photoUrl ? (
@@ -3103,13 +3136,13 @@ export default function ProjectAgentPage() {
                               </div>
                             ) : (
                               <>
-                                <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
+                                <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
                                   {cloneProductOptions.map((product) => (
                                     <button
                                       key={product.id}
                                       type="button"
                                       onClick={() => handleManualProductSelection(product.id)}
-                                      className={`rounded-xl p-1.5 text-left transition-colors ${selectedCloneProductIds.includes(product.id) ? 'border-2 border-[#0f0f0f] bg-white shadow-[0_1px_0_rgba(15,15,15,0.04)]' : 'border border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                      className={`relative z-10 pointer-events-auto rounded-xl p-1.5 text-left transition-colors ${selectedCloneProductIds.includes(product.id) ? 'border-2 border-[#0f0f0f] bg-white shadow-[0_1px_0_rgba(15,15,15,0.04)]' : 'border border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
                                     >
                                       <div className="w-full aspect-square rounded-[10px] overflow-hidden bg-[#efefed] mb-1">
                                         {product.photoUrl ? (
