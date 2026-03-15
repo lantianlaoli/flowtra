@@ -27,6 +27,7 @@ import {
 import { normalizeProjectAgentKlingShots } from '@/lib/project-agent/kling-shot-normalization';
 import { KLING_MAX_MULTI_SHOT_ITEMS } from '@/lib/kling-shot-limits';
 import { injectMentionsInline, stripMentionTokens } from '@/lib/project-agent/clone-prompt-mentions';
+import { buildMentionToken } from '@/lib/prompt-mention-tokens';
 
 type ShotPrompt = ProjectAgentCloneShot;
 
@@ -278,8 +279,8 @@ const generateReplacementDraft = async (input: {
 }) => {
   const modelName = process.env.OPENROUTER_MODEL || 'google/gemini-3-pro-preview';
 
-  const avatarToken = input.avatarName ? `@character(${input.avatarName})` : null;
-  const productToken = input.productName ? `@product(${input.productName})` : null;
+  const avatarToken = input.avatarName ? buildMentionToken({ type: 'character', label: input.avatarName }) : null;
+  const productToken = input.productName ? buildMentionToken({ type: 'product', label: input.productName }) : null;
   const mentionContext = {
     avatarToken,
     productToken,
@@ -377,13 +378,13 @@ const generateReplacementDraft = async (input: {
             `Each scene must contain at most ${KLING_MAX_MULTI_SHOT_ITEMS} shots.`,
             avatarToken
               ? `Character replacement must explicitly use token in imagePrompt and shot fields: ${avatarToken}.`
-              : 'Do not use any @character(...) token.',
+              : 'Do not use any avatar mention token.',
             productToken
               ? `Product replacement must explicitly use token in imagePrompt and shot fields: ${productToken}.`
-              : 'Do not use any @product(...) token.',
+              : 'Do not use any product mention token.',
             'For each scene output imagePrompt and videoPrompt.shots.',
             'imagePrompt must stay scene-specific (subject + environment + action) and must not repeat the same boilerplate sentence across scenes.',
-            'Do not use trailing templates like ", featuring @character(...) interacting with @product(...)".',
+            'Do not use trailing templates like ", featuring @avatar interacting with @product".',
             'Write a normal fluent prompt first, then embed mention tokens only at the noun phrase positions.',
             'Do not merge away original source shots inside a scene. Preserve the provided shot inventory and rewrite each planned shot in order.',
             'Keep the total duration of each scene unchanged and keep shot time_range values contiguous from start to end.',
@@ -518,8 +519,8 @@ const applySceneAssignmentsToGeneratedScenes = (input: {
     if (!assignment) return scene;
     const avatarName = assignment.avatarId ? (input.avatarById.get(assignment.avatarId)?.name || null) : null;
     const productName = input.productById.get(assignment.productId)?.name || null;
-    const avatarToken = avatarName ? `@character(${avatarName})` : null;
-    const productToken = productName ? `@product(${productName})` : null;
+    const avatarToken = avatarName ? buildMentionToken({ type: 'character', label: avatarName }) : null;
+    const productToken = productName ? buildMentionToken({ type: 'product', label: productName }) : null;
 
     const mentionContext = {
       avatarToken,

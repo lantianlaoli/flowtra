@@ -43,6 +43,7 @@ import {
 import { KLING_MAX_MULTI_SHOT_ITEMS } from '@/lib/kling-shot-limits';
 import {
   MENTION_TOKEN_REGEX as SHARED_MENTION_TOKEN_REGEX,
+  normalizeMentionLabel,
   parseMentionToken
 } from '@/lib/prompt-mention-tokens';
 import { normalizeAnalysisToV2 } from '@/lib/video-analysis-schema';
@@ -4009,7 +4010,6 @@ type KlingElement = {
 };
 
 const MENTION_REGEX = SHARED_MENTION_TOKEN_REGEX;
-const PLAIN_AT_REFERENCE_REGEX = /@(?<name>[a-z0-9][a-z0-9_-]*)/gi;
 const KLING_SHOT_MIN_DURATION_SECONDS = 1;
 const KLING_SHOT_MAX_DURATION_SECONDS = 12;
 
@@ -4125,56 +4125,19 @@ function collectKlingMentions(texts: string[]): KlingMention[] {
     for (const match of text.matchAll(MENTION_REGEX)) {
       const parsed = parseMentionToken(match[0]);
       const type = parsed?.type as KlingMentionType | undefined;
-      const name = (parsed?.label || '').trim();
-      if (!type || !name) continue;
-      const key = `${type}:${name.toLowerCase()}`;
+      const keyName = parsed?.key || normalizeMentionLabel(parsed?.label || '');
+      if (!type || !keyName) continue;
+      const key = `${type}:${keyName}`;
       if (!map.has(key)) {
-        map.set(key, { type, name, key });
-      }
-    }
-    for (const match of text.matchAll(PLAIN_AT_REFERENCE_REGEX)) {
-      const name = (match.groups?.name || '').trim();
-      if (!name) continue;
-      const lowered = name.toLowerCase();
-      if (lowered === 'character' || lowered === 'product' || lowered.startsWith('element_')) {
-        continue;
-      }
-      const key = `unknown:${lowered}`;
-      if (!map.has(key)) {
-        map.set(key, { type: 'unknown', name, key });
+        map.set(key, { type, name: keyName, key });
       }
     }
   });
   return Array.from(map.values());
 }
 
-function slugifyElementName(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 24) || 'asset';
-}
-
-function buildKlingElementName(rawName: string, _mentionKey: string, usedNames: Set<string>): string {
-  const MAX_LEN = 20;
-  const slug = slugifyElementName(rawName).replace(/^element_+/, '') || 'asset';
-  let candidate = `element_${slug}`.slice(0, MAX_LEN);
-
-  if (!usedNames.has(candidate)) {
-    return candidate;
-  }
-
-  for (let i = 2; i < 200; i++) {
-    const dedupeSuffix = `_${i.toString(36)}`;
-    const baseLen = Math.max(1, MAX_LEN - dedupeSuffix.length);
-    candidate = `${`element_${slug}`.slice(0, baseLen)}${dedupeSuffix}`;
-    if (!usedNames.has(candidate)) {
-      return candidate;
-    }
-  }
-
-  return candidate.slice(0, MAX_LEN);
+function buildKlingElementName(rawName: string, _mentionKey?: string, _usedNames?: Set<string>): string {
+  return normalizeMentionLabel(rawName) || 'asset';
 }
 
 function extractUnresolvedKlingReferences(text: string): string[] {
@@ -4193,23 +4156,22 @@ function extractUnresolvedKlingReferences(text: string): string[] {
 function replacePromptMentions(
   text: string,
   tokenMap: Record<string, string>,
-  plainTokenMap: Record<string, string>
+  _plainTokenMap: Record<string, string>
 ): string {
   if (!text) return text;
-  const typedReplaced = text.replace(MENTION_REGEX, (match) => {
+  return text.replace(MENTION_REGEX, (match) => {
     const parsed = parseMentionToken(match);
     if (!parsed) return match;
-    const key = `${parsed.type}:${String(parsed.label || '').trim().toLowerCase()}`;
-    const mapped = tokenMap[key];
-    return mapped ? `@${mapped}` : String(parsed.label || '').trim();
-  });
-  return typedReplaced.replace(PLAIN_AT_REFERENCE_REGEX, (match, name: string) => {
-    const lowered = String(name || '').trim().toLowerCase();
-    if (!lowered || lowered.startsWith('element_') || lowered === 'character' || lowered === 'product') {
-      return match;
+    const keyName = parsed.key || normalizeMentionLabel(String(parsed.label || ''));
+    if (!keyName) {
+      return parsed.syntax === 'typed' ? String(parsed.label || '').trim() : match;
     }
-    const mapped = plainTokenMap[lowered];
-    return mapped ? `@${mapped}` : match;
+    const key = `${parsed.type}:${keyName}`;
+    const mapped = tokenMap[key];
+    if (mapped) {
+      return `@${mapped}`;
+    }
+    return parsed.syntax === 'typed' ? `@${keyName}` : match;
   });
 }
 
@@ -4223,17 +4185,9 @@ function collectElementKeysFromText(
   for (const match of text.matchAll(MENTION_REGEX)) {
     const parsed = parseMentionToken(match[0]);
     const type = parsed?.type;
-    const name = (parsed?.label || '').trim().toLowerCase();
-    if (!type || !name) continue;
-    const mapped = tokenMap[`${type}:${name}`];
-    if (mapped) {
-      tags.push(`@${mapped}`);
-    }
-  }
-  for (const match of text.matchAll(PLAIN_AT_REFERENCE_REGEX)) {
-    const name = (match.groups?.name || '').trim().toLowerCase();
-    if (!name || name.startsWith('element_') || name === 'character' || name === 'product') continue;
-    const mapped = plainTokenMap[name];
+    const keyName = parsed?.key || normalizeMentionLabel(parsed?.label || '');
+    if (!type || !keyName) continue;
+    const mapped = tokenMap[`${type}:${keyName}`];
     if (mapped) {
       tags.push(`@${mapped}`);
     }
@@ -4268,7 +4222,7 @@ async function buildKlingElementsFromMentions(
     return { elements: [], tokenMap: {}, plainTokenMap: {}, skippedMentions: [] };
   }
 
-  const mentionNames = Array.from(new Set(mentions.map(mention => mention.name.toLowerCase())));
+  const mentionNames = Array.from(new Set(mentions.map(mention => mention.name)));
   const supabase = getSupabaseAdmin();
   const productPromise = supabase
     .from('user_products')
@@ -4309,27 +4263,21 @@ async function buildKlingElementsFromMentions(
   }
 
   const products = (productResult.data || []).filter(product =>
-    mentionNames.includes((product.product_name || '').toLowerCase())
+    mentionNames.includes(normalizeMentionLabel(product.product_name || ''))
   );
   const userAvatars = (avatarResult.data || []).filter(avatar =>
-    mentionNames.includes((avatar.avatar_name || '').toLowerCase())
+    mentionNames.includes(normalizeMentionLabel(avatar.avatar_name || ''))
   );
   const systemAvatars = SYSTEM_AVATARS.filter(avatar =>
-    mentionNames.includes((avatar.avatar_name || '').toLowerCase())
+    mentionNames.includes(normalizeMentionLabel(avatar.avatar_name || ''))
   );
   const avatars = [...systemAvatars, ...userAvatars];
 
   const productsByName = new Map(
-    products.map(product => [(product.product_name || '').toLowerCase(), product])
-  );
-  const productsBySlug = new Map(
-    products.map(product => [slugifyElementName(product.product_name || ''), product])
+    products.map(product => [normalizeMentionLabel(product.product_name || ''), product])
   );
   const avatarsByName = new Map(
-    avatars.map(avatar => [(avatar.avatar_name || '').toLowerCase(), avatar])
-  );
-  const avatarsBySlug = new Map(
-    avatars.map(avatar => [slugifyElementName(avatar.avatar_name || ''), avatar])
+    avatars.map(avatar => [normalizeMentionLabel(avatar.avatar_name || ''), avatar])
   );
 
   const collectAvatarUrls = (avatar: Record<string, unknown> | undefined): string[] => (
@@ -4339,18 +4287,20 @@ async function buildKlingElementsFromMentions(
   const tokenMap: Record<string, string> = {};
   const plainTokenMap: Record<string, string> = {};
   const elements: KlingElement[] = [];
-  const usedElementNames = new Set<string>();
   const skippedMentions: KlingMention[] = [];
 
   mentions.forEach((mention) => {
-    const mentionNameLower = mention.name.toLowerCase();
-    const mentionNameSlug = slugifyElementName(mention.name);
+    const mentionNameKey = mention.name;
     const product = mention.type === 'character'
       ? undefined
-      : (productsByName.get(mentionNameLower) || productsBySlug.get(mentionNameSlug));
+      : productsByName.get(mentionNameKey);
     const avatar = mention.type === 'product'
       ? undefined
-      : (avatarsByName.get(mentionNameLower) || avatarsBySlug.get(mentionNameSlug));
+      : avatarsByName.get(mentionNameKey);
+
+    if (mention.type === 'unknown' && product && avatar) {
+      throw new Error(`Ambiguous mention @${mention.name}: matches both an avatar and a product. Rename one asset or use a unique name.`);
+    }
 
     const productUrls = product?.user_product_photos
       ? [
@@ -4371,11 +4321,9 @@ async function buildKlingElementsFromMentions(
       return;
     }
 
-    const elementName = buildKlingElementName(mention.name, mention.key, usedElementNames);
-    usedElementNames.add(elementName);
+    const elementName = mention.name;
     tokenMap[mention.key] = elementName;
-    plainTokenMap[mentionNameLower] = elementName;
-    plainTokenMap[mentionNameSlug] = elementName;
+    plainTokenMap[mentionNameKey] = elementName;
 
     elements.push({
       name: elementName,
@@ -4971,8 +4919,8 @@ export const __test__ = {
   shouldWaitForContinuationFrame,
   buildStructuredVideoPromptPayload,
   buildKlingVideoRequestBody,
+  buildKlingElementName,
   getPromptSegmentDurationSeconds,
   getTimeRangeDurationSeconds,
-  deriveKlingShotDurationsFromSourceShots,
-  buildKlingElementName
+  deriveKlingShotDurationsFromSourceShots
 };

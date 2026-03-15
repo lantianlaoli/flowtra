@@ -25,7 +25,7 @@ import { useCredits } from "@/contexts/CreditsContext";
 import * as Dialog from "@radix-ui/react-dialog";
 import type { Format } from "@/components/ui/FormatSelector";
 import { useSearchParams } from "next/navigation";
-import { MENTION_TOKEN_REGEX, buildMentionToken, parseMentionToken } from "@/lib/prompt-mention-tokens";
+import { MENTION_TOKEN_REGEX, buildMentionToken, normalizeMentionLabel, parseMentionToken } from "@/lib/prompt-mention-tokens";
 import {
   getMotionSwapGenerationCost,
   normalizeMotionSwapQuality,
@@ -211,20 +211,27 @@ export default function MotionSwapPage() {
   const getMentionedIds = useCallback((text: string) => {
     const characterIds = new Set<string>();
     const productIds = new Set<string>();
+    const avatarsByKey = new Map(avatars.map((item) => [normalizeMentionLabel(item.avatar_name || ""), item]));
+    const productsByKey = new Map(products.map((item) => [normalizeMentionLabel(item.product_name || ""), item]));
     let match: RegExpExecArray | null;
     MENTION_TOKEN_REGEX.lastIndex = 0;
     while ((match = MENTION_TOKEN_REGEX.exec(text)) !== null) {
       const parsed = parseMentionToken(match[0]);
-      const type = parsed?.type;
-      const name = parsed?.label?.trim();
-      if (!type || !name) continue;
-      if (type === "character") {
-        const avatar = avatars.find((item) => item.avatar_name === name);
+      const mentionKey = parsed?.key;
+      if (!mentionKey) continue;
+      if (parsed.type === "character") {
+        const avatar = avatarsByKey.get(mentionKey);
         if (avatar) characterIds.add(avatar.id);
       }
-      if (type === "product") {
-        const product = products.find((item) => item.product_name === name);
+      if (parsed.type === "product") {
+        const product = productsByKey.get(mentionKey);
         if (product) productIds.add(product.id);
+      }
+      if (parsed.type === "unknown") {
+        const avatar = avatarsByKey.get(mentionKey);
+        const product = productsByKey.get(mentionKey);
+        if (avatar && !product) characterIds.add(avatar.id);
+        if (product && !avatar) productIds.add(product.id);
       }
     }
     return {

@@ -1,28 +1,67 @@
 export type MentionTokenType = 'character' | 'product';
+export type ParsedMentionTokenType = MentionTokenType | 'unknown';
 
-export const MENTION_TOKEN_REGEX = /@(?:(?:character|product)|(?:c|p))\([^)]*\)/g;
-export const MENTION_TOKEN_PARSE_REGEX = /^@(?:(character|product)|(c|p))\(([^)]*)\)\s*$/;
-export const PARTIAL_MENTION_TOKEN_SUFFIX_REGEX = /@(?:(?:character|product)|(?:c|p))\([^)]*$/;
+export type ParsedMentionToken = {
+  type: ParsedMentionTokenType;
+  label: string;
+  key: string;
+  syntax: 'plain' | 'typed';
+};
 
-export const buildMentionToken = (input: { type: MentionTokenType; label: string }) => (
-  input.type === 'character' ? `@c(${input.label})` : `@p(${input.label})`
+const MENTION_PLAIN_NAME_PATTERN = '[a-z0-9][a-z0-9_-]*';
+
+export const normalizeMentionLabel = (value: string) => (
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 24)
 );
 
-export const parseMentionToken = (tokenText: string): { type: MentionTokenType; label: string } | null => {
+export const MENTION_TOKEN_REGEX = new RegExp(
+  `(?<![A-Za-z0-9_])@(?:(?:character|product|c|p)\\([^)]*\\)|${MENTION_PLAIN_NAME_PATTERN})`,
+  'g'
+);
+export const MENTION_TOKEN_PARSE_REGEX = new RegExp(
+  `^(?:@(?:(character|product)|(c|p))\\(([^)]*)\\)|@(${MENTION_PLAIN_NAME_PATTERN}))\\s*$`
+);
+export const PARTIAL_MENTION_TOKEN_SUFFIX_REGEX = new RegExp(
+  `@(?:(?:character|product|c|p)\\([^)]*$|${MENTION_PLAIN_NAME_PATTERN}$)`
+);
+
+export const buildMentionToken = (input: { type: MentionTokenType; label: string }) => {
+  const normalized = normalizeMentionLabel(input.label);
+  return normalized ? `@${normalized}` : '@asset';
+};
+
+export const parseMentionToken = (tokenText: string): ParsedMentionToken | null => {
   const match = tokenText.match(MENTION_TOKEN_PARSE_REGEX);
   if (!match) return null;
 
   const longType = match[1];
   const shortType = match[2];
-  const label = match[3] || '';
-  const type = longType || (shortType === 'c' ? 'character' : shortType === 'p' ? 'product' : '');
+  const typedLabel = match[3] || '';
+  const plainLabel = match[4] || '';
+  const typedType = longType || (shortType === 'c' ? 'character' : shortType === 'p' ? 'product' : '');
 
-  if (type !== 'character' && type !== 'product') {
+  if (typedType === 'character' || typedType === 'product') {
+    return {
+      type: typedType,
+      label: typedLabel,
+      key: normalizeMentionLabel(typedLabel),
+      syntax: 'typed'
+    };
+  }
+
+  if (!plainLabel) {
     return null;
   }
 
   return {
-    type,
-    label
+    type: 'unknown',
+    label: plainLabel,
+    key: normalizeMentionLabel(plainLabel),
+    syntax: 'plain'
   };
 };

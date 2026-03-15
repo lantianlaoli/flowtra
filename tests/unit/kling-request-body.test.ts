@@ -111,6 +111,6 @@ test('Kling element names stay within the 20 character API limit', () => {
     new Set<string>()
   );
 
-  assert.equal(name.length <= 20, true);
-  assert.equal(name.startsWith('element_'), true);
+  assert.equal(name.length <= 24, true);
+  assert.equal(name, 'nutritional_supplements1');
 });

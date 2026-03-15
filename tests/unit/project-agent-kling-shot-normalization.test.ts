@@ -41,7 +41,7 @@ test('project agent Kling validation rejects scenes above the six-shot provider 
   );
 });
 
-test('project agent Kling normalization trims stored shot fields until the prompt budget fits', () => {
+test('project agent Kling normalization preserves long stored shot fields without budget trimming', () => {
   const longText = 'cinematic protein demo with supplement details and branded motion beat '.repeat(18).trim();
   const normalized = normalizeProjectAgentKlingShots([{
     id: 1,
@@ -73,5 +73,7 @@ test('project agent Kling normalization trims stored shot fields until the promp
     },
   });
 
-  assert.equal(usage.originalLength <= KLING_PROMPT_MAX_CHARS, true);
+  assert.equal(usage.originalLength > KLING_PROMPT_MAX_CHARS, true);
+  assert.equal(normalized[0].subject, longText);
+  assert.equal(normalized[0].action, longText);
 });

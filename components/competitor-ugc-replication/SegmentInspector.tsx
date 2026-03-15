@@ -14,7 +14,7 @@ import { getSegmentPromptVideoGenerationCost } from '@/lib/competitor-ugc-segmen
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
 import { estimateKlingPromptUsage, KLING_PROMPT_MAX_CHARS } from '@/lib/kling-prompt-budget';
 import SegmentTimelineRuler from '@/components/competitor-ugc-replication/SegmentTimelineRuler';
-import { MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
+import { MENTION_TOKEN_REGEX, normalizeMentionLabel, parseMentionToken } from '@/lib/prompt-mention-tokens';
 
 export type SegmentShotPayload = {
   id: number;
@@ -444,19 +444,25 @@ export default function SegmentInspector({
   const getMentionedIds = (prompt: string) => {
     const productIds = new Set<string>();
     const characterIds = new Set<string>();
+    const productsByKey = new Map(productOptions.map(item => [normalizeMentionLabel(item.product_name || ''), item]));
+    const charactersByKey = new Map(characterOptions.map(item => [normalizeMentionLabel(item.avatar_name || ''), item]));
     let match: RegExpExecArray | null;
     MENTION_TOKEN_REGEX.lastIndex = 0;
     while ((match = MENTION_TOKEN_REGEX.exec(prompt)) !== null) {
       const parsed = parseMentionToken(match[0]);
-      const type = parsed?.type;
-      const name = parsed?.label?.trim();
-      if (!type || !name) continue;
-      if (type === 'product') {
-        const product = productOptions.find(item => item.product_name === name);
+      const mentionKey = parsed?.key;
+      if (!mentionKey) continue;
+      if (parsed.type === 'product') {
+        const product = productsByKey.get(mentionKey);
         if (product) productIds.add(product.id);
-      } else if (type === 'character') {
-        const character = characterOptions.find(item => item.avatar_name === name);
+      } else if (parsed.type === 'character') {
+        const character = charactersByKey.get(mentionKey);
         if (character) characterIds.add(character.id);
+      } else {
+        const product = productsByKey.get(mentionKey);
+        const character = charactersByKey.get(mentionKey);
+        if (product && !character) productIds.add(product.id);
+        if (character && !product) characterIds.add(character.id);
       }
     }
     return { productIds: Array.from(productIds), characterIds: Array.from(characterIds) };
