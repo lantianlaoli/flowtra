@@ -16,8 +16,8 @@ test('getSegmentVideoGenerationCost returns fixed non-Kling segment pricing', ()
 });
 
 test('getSegmentVideoGenerationCost returns per-second Kling pricing', () => {
-  assert.equal(getSegmentVideoGenerationCost('kling_3', 2, '720p'), 60);
-  assert.equal(getSegmentVideoGenerationCost('kling_3', 12, '1080p'), 480);
+  assert.equal(getSegmentVideoGenerationCost('kling_3', 2, '720p'), 40);
+  assert.equal(getSegmentVideoGenerationCost('kling_3', 12, '1080p'), 324);
 });
 
 test('getSegmentVideoGenerationCost returns Seedance resolution pricing', () => {
@@ -69,11 +69,11 @@ test('getSegmentPromptVideoGenerationCost uses parsed segment duration', () => {
     '720p'
   );
 
-  assert.equal(cost, 150);
+  assert.equal(cost, 100);
 });
 
 test('getGenerationCost maps clone-quality pricing for Kling and Seedance', () => {
-  assert.equal(getGenerationCost('kling_3', '10', '720p'), 300);
-  assert.equal(getGenerationCost('kling_3', '10', '1080p'), 400);
+  assert.equal(getGenerationCost('kling_3', '10', '720p'), 200);
+  assert.equal(getGenerationCost('kling_3', '10', '1080p'), 270);
   assert.equal(getGenerationCost('seedance_1_5_pro', '16', '720p'), 112);
 });

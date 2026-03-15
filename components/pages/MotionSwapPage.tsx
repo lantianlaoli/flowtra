@@ -105,8 +105,8 @@ const TUTORIAL_TIKTOK_URL =
 const TUTORIAL_TIKTOK_ID = "7600705503555095816";
 const SESSION_STORAGE_KEY = "motion_swap_session_state";
 const MOTION_SWAP_QUALITY_OPTIONS = [
-  { value: "720p" as const, label: "720p", creditsPerSecondLabel: "12 credits / s" },
-  { value: "1080p" as const, label: "1080p", creditsPerSecondLabel: "20 credits / s" },
+  { value: "720p" as const, label: "720p", creditsPerSecondLabel: "20 credits / s" },
+  { value: "1080p" as const, label: "1080p", creditsPerSecondLabel: "27 credits / s" },
 ];
 const DEFAULT_FEMALE_MENTION = buildMentionToken({
   type: "character",

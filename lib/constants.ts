@@ -7,17 +7,17 @@ export const GENERATION_COSTS = {
   'veo3': 150,           // Veo3.1: 150 credits per 8s segment
   'veo3_fast': 20,       // Veo3.1 fast: 20 credits per 8s segment
   'seedance_1_5_pro': 120, // Seedance 1.5 Pro: 120 credits per 8s segment (1080p with audio)
-  'kling_3': 40 // Kling 3.0 Pro (1080P + audio): 40 credits per second
+  'kling_3': 27 // Kling 3.0 Pro (1080p + audio): 27 credits per second
 } as const;
 
 export const KLING_QUALITY_COSTS = {
-  '720p': 30,
-  '1080p': 40
+  '720p': 20,
+  '1080p': 27
 } as const;
 
 export const MOTION_SWAP_QUALITY_COSTS = {
-  '720p': 12,
-  '1080p': 20
+  '720p': 20,
+  '1080p': 27
 } as const;
 
 export const SEEDANCE_AUDIO_ENABLED_COSTS = {

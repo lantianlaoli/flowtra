@@ -40,8 +40,8 @@ function formatCreditsPerSecondLabel(totalCredits: number, seconds = 8): string 
 function getQualityOptions(model: VideoModel): QualityOption[] {
   if (model === 'kling_3') {
     return [
-      { value: '720p', label: '720p', creditsPerSecondLabel: '30 credits / s' },
-      { value: '1080p', label: '1080p', creditsPerSecondLabel: '40 credits / s' }
+      { value: '720p', label: '720p', creditsPerSecondLabel: '20 credits / s' },
+      { value: '1080p', label: '1080p', creditsPerSecondLabel: '27 credits / s' }
     ];
   }
 

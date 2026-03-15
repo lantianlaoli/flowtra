@@ -32,9 +32,9 @@ test('motion swap request body passes through selected 1080p quality', () => {
 });
 
 test('motion swap pricing uses quality-based per-second rates', () => {
-  assert.equal(getMotionSwapGenerationCost(5, '720p'), 60);
-  assert.equal(getMotionSwapGenerationCost(5, '1080p'), 100);
-  assert.equal(getMotionSwapGenerationCost(5.2, '720p'), 72);
+  assert.equal(getMotionSwapGenerationCost(5, '720p'), 100);
+  assert.equal(getMotionSwapGenerationCost(5, '1080p'), 135);
+  assert.equal(getMotionSwapGenerationCost(5.2, '720p'), 120);
 });
 
 test('motion swap quality normalization falls back to 720p', () => {

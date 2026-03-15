@@ -48,26 +48,26 @@ export default function ModelPricingSection() {
     },
     {
       name: 'Kling 3.0 Motion Control',
-      description: 'Latest motion-control model for swap and motion-driven video generation',
+      description: 'Motion-control generation priced at the latest Standard and Pro API rates',
       icon: Kling,
       badge: 'New',
       durationRange: '3-30s',
       billingType: 'generation' as const,
       pricingOptions: [
-        { resolution: '720p', credits: 720 },
-        { resolution: '1080p', credits: 1200 },
+        { resolution: '720p', credits: 1200 },
+        { resolution: '1080p', credits: 1620 },
       ] as PricingOption[],
     },
     {
       name: 'Kling 3.0',
-      description: 'Latest Kling model for clone video generation with audio',
+      description: 'Clone video generation with audio enabled, matched to the latest API pricing',
       icon: Kling,
       badge: 'New',
       durationRange: '3-60s',
       billingType: 'generation' as const,
       pricingOptions: [
-        { resolution: '720p', credits: 1800 },
-        { resolution: '1080p', credits: 2400 },
+        { resolution: '720p', credits: 1200 },
+        { resolution: '1080p', credits: 1620 },
       ] as PricingOption[],
     },
     {
