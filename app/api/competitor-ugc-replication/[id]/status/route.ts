@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
-import { getSupabase } from '@/lib/supabase';
+import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
 import { hydrateSerializedSegmentPrompt, type SerializedSegmentPlanSegment } from '@/lib/competitor-ugc-replication-workflow';
 import { hydrateSegmentPlan, type SerializedSegmentPlan } from '@/lib/competitor-ugc-replication-workflow';
 import { getSegmentDurationForModel, type VideoModel } from '@/lib/constants';
@@ -12,19 +12,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { userId } = await auth();
     const { id } = await params;
 
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     if (!id) {
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
     }
 
-    const supabase = getSupabase();
-    let query = supabase
+    const supabase = await createServerUserSupabaseClient();
+    const query = supabase
       .from('competitor_ugc_replication_projects')
       .select('*')
-      .eq('id', id);
-
-    if (userId) {
-      query = query.eq('user_id', userId);
-    }
+      .eq('id', id)
+      .eq('user_id', userId);
 
     const { data: record, error } = await query.single();
 

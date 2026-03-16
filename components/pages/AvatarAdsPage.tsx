@@ -26,7 +26,7 @@ import {
   getAvatarAdsDialogueWordLimit
 } from '@/lib/avatar-ads-dialogue';
 import { type Format } from '@/components/ui/FormatSelector';
-import { createClient } from '@/lib/supabase/client';
+import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface KieCreditsStatus {
@@ -154,6 +154,7 @@ const getStageLabel = (status: Generation['status'], step?: string | null) => {
 };
 
 export default function AvatarAdsPage() {
+  const supabase = useSupabaseBrowserClient();
   const { user, isLoaded } = useUser();
   const { credits: userCredits, creditsData, refetchCredits } = useCredits();
   const { showSuccess, showError } = useToast();
@@ -629,7 +630,6 @@ const formatDurationLabel = (seconds: number) => {
 
     console.log('[Avatar Ads Realtime] Setting up subscriptions for', activeProjectIds.length, 'projects:', activeProjectIds);
 
-    const supabase = createClient();
     const channels: RealtimeChannel[] = [];
     const abortController = new AbortController();
 
@@ -735,7 +735,7 @@ const formatDurationLabel = (seconds: number) => {
         supabase.removeChannel(channel);
       });
     };
-  }, [activeProjectIds, updateGenerationFromStatus]);
+  }, [activeProjectIds, supabase, updateGenerationFromStatus]);
 
   const handleDownloadGeneration = useCallback(async (generation: AvatarGeneration) => {
     if (!user?.id) {

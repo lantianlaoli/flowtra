@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-import { getSupabase } from '@/lib/supabase';
+import { auth } from '@clerk/nextjs/server';
+import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
 
 interface DownloadVideoRequest {
   historyId: string;
@@ -18,34 +19,50 @@ interface DownloadVideoResponse {
 
 export async function POST(request: NextRequest): Promise<NextResponse<DownloadVideoResponse>> {
   try {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
+      return NextResponse.json({
+        success: false,
+        message: 'Unauthorized'
+      }, { status: 401 });
+    }
+
     // Support both JSON and FormData (form submit)
     const contentType = request.headers.get('content-type') || '';
     let historyId: string;
-    let userId: string;
+    let requestedUserId: string | null = null;
     let validateOnly: boolean | undefined;
 
     if (contentType.includes('application/json')) {
       // JSON format (validation request)
       const body: DownloadVideoRequest & { validateOnly?: boolean } = await request.json();
       historyId = body.historyId;
-      userId = body.userId;
+      requestedUserId = body.userId;
       validateOnly = body.validateOnly;
     } else {
       // FormData format (form submit download)
       const formData = await request.formData();
       historyId = formData.get('historyId') as string;
-      userId = formData.get('userId') as string;
+      requestedUserId = formData.get('userId') as string | null;
       validateOnly = formData.get('validateOnly') === 'true';
     }
 
-    if (!historyId || !userId) {
+    if (!historyId) {
       return NextResponse.json({
         success: false,
-        message: 'History ID and User ID are required'
+        message: 'History ID is required'
       }, { status: 400 });
     }
 
-    const supabase = getSupabase();
+    if (requestedUserId && requestedUserId !== clerkUserId) {
+      return NextResponse.json({
+        success: false,
+        message: 'Forbidden'
+      }, { status: 403 });
+    }
+
+    const userId = clerkUserId;
+    const supabase = await createServerUserSupabaseClient();
 
     // Schema verified via Supabase MCP (2026-01-23): motion_swap_projects columns include
     // id, user_id, status, output_video_url, downloaded, updated_at

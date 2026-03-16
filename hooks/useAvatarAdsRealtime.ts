@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
 /**
@@ -29,11 +29,11 @@ export function useAvatarAdsRealtime<T = any>(
 ) {
   const [project, setProject] = useState<T | null>(null);
   const [error, setError] = useState<Error | null>(null);
+  const supabase = useSupabaseBrowserClient();
 
   useEffect(() => {
     if (!projectId) return;
 
-    const supabase = createClient();
     let channel: RealtimeChannel | null = null;
 
     const setupSubscription = async () => {
@@ -100,7 +100,7 @@ export function useAvatarAdsRealtime<T = any>(
         supabase.removeChannel(channel);
       }
     };
-  }, [projectId, onUpdate]);
+  }, [onUpdate, projectId, supabase]);
 
   return { project, error };
 }
@@ -120,11 +120,11 @@ export function useAvatarAdsScenesRealtime<T = any>(
 ) {
   const [scenes, setScenes] = useState<T[]>([]);
   const [error, setError] = useState<Error | null>(null);
+  const supabase = useSupabaseBrowserClient();
 
   useEffect(() => {
     if (!projectId) return;
 
-    const supabase = createClient();
     let channel: RealtimeChannel | null = null;
 
     const setupSubscription = async () => {
@@ -194,7 +194,7 @@ export function useAvatarAdsScenesRealtime<T = any>(
         supabase.removeChannel(channel);
       }
     };
-  }, [projectId, onSceneUpdate]);
+  }, [onSceneUpdate, projectId, supabase]);
 
   return { scenes, error };
 }

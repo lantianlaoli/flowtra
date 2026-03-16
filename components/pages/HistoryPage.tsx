@@ -15,7 +15,7 @@ import { motion } from 'framer-motion';
 import VideoDetailsModal from '@/components/VideoDetailsModal';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import { useToast } from '@/contexts/ToastContext';
-import { getSupabase } from '@/lib/supabase';
+import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface CompetitorUgcReplicationItem {
   id: string;
@@ -155,6 +155,7 @@ const getBaseDownloadCost = (model: VideoModel) => {
 
 export default function HistoryPage() {
   const { user, isLoaded } = useUser();
+  const supabase = useSupabaseBrowserClient();
   const router = useRouter();
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -332,7 +333,6 @@ export default function HistoryPage() {
   useEffect(() => {
     if (!user?.id) return;
 
-    const supabase = getSupabase();
     const channels: RealtimeChannel[] = [];
 
     const updateHighResUrls = (
@@ -427,7 +427,7 @@ export default function HistoryPage() {
         supabase.removeChannel(channel);
       });
     };
-  }, [user?.id]);
+  }, [supabase, user?.id]);
 
   // Reset to first page when filter changes
   useEffect(() => {

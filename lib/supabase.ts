@@ -27,6 +27,7 @@ declare global {
   var __flowtraServiceSupabaseClient: SupabaseClient | undefined
 }
 
+// Public/browser client only. Do not use this for authenticated server-side access to private tables.
 export function getSupabase(): SupabaseClient {
   if (typeof globalThis !== 'undefined' && globalThis.__flowtraBrowserSupabaseClient) {
     return globalThis.__flowtraBrowserSupabaseClient
@@ -729,7 +730,7 @@ export const uploadAvatarToStorage = async (file: File, userId: string, avatarNa
 }
 
 export const getUserAvatars = async (userId: string): Promise<UserAvatar[]> => {
-  const supabase = getSupabase()
+  const supabase = getSupabaseAdmin()
   const { data, error } = await supabase
     .from('user_avatars')
     .select('*')
@@ -745,7 +746,7 @@ export const getUserAvatars = async (userId: string): Promise<UserAvatar[]> => {
 }
 
 export const deleteAvatar = async (avatarId: string, userId: string): Promise<void> => {
-  const supabase = getSupabase()
+  const supabase = getSupabaseAdmin()
 
   // First get the avatar record to find the file path
   const { data: avatar, error: fetchError } = await supabase
@@ -872,7 +873,7 @@ export const updateAvatarName = async (
   userId: string,
   newName: string
 ): Promise<UserAvatar> => {
-  const supabase = getSupabase()
+  const supabase = getSupabaseAdmin()
 
   // Update avatar_name in database, verify user_id matches for security
   const { data, error } = await supabase

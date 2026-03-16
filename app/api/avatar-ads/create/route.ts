@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
 import { uploadImageToStorage } from '@/lib/supabase';
 import { CREDIT_COSTS, NON_AGENT_IMAGE_MODEL } from '@/lib/constants';
 import { validateKieCredits } from '@/lib/kie-credits-check';
@@ -11,6 +13,11 @@ const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 export async function POST(request: NextRequest) {
   try {
     console.log('Character ads create API called');
+    const { userId: clerkUserId } = await auth();
+
+    if (!clerkUserId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
     // Check KIE credits before processing
     const kieValidation = await validateKieCredits();
@@ -21,7 +28,8 @@ export async function POST(request: NextRequest) {
     console.log('FormData entries:', Array.from(formData.entries()).map(([key, value]) => [key, value instanceof File ? `File: ${value.name}` : value]));
 
     // Extract form data
-    const userId = formData.get('user_id') as string;
+    const requestUserId = formData.get('user_id') as string | null;
+    const userId = clerkUserId;
     const videoDurationSeconds = parseInt(formData.get('video_duration_seconds') as string);
     const imageSize = (formData.get('image_size') as string | null)?.trim() || null;
     const videoModel = formData.get('video_model') as string;
@@ -47,10 +55,17 @@ export async function POST(request: NextRequest) {
       clientProjectId
     });
 
-    if (!userId || !videoDurationSeconds || !videoModel) {
+    if (!videoDurationSeconds || !videoModel) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
+      );
+    }
+
+    if (requestUserId && requestUserId !== clerkUserId) {
+      return NextResponse.json(
+        { error: 'user_id does not match the authenticated Clerk user' },
+        { status: 403 }
       );
     }
 
@@ -134,7 +149,7 @@ export async function POST(request: NextRequest) {
       } else {
         // Schema verified via Supabase MCP (2026-03-01) and migration 20260301_restructure_storage_and_remove_brands:
         // user_products is product-first and no longer depends on brand tables.
-        const supabase = getSupabaseAdmin();
+        const supabase = await createServerUserSupabaseClient();
         const { data: product, error: productError } = await supabase
           .from('user_products')
           .select(`
@@ -228,7 +243,7 @@ export async function POST(request: NextRequest) {
     const generationCreditsUsed = 0;
 
     // Create project in database
-    const supabase = getSupabaseAdmin();
+    const supabase = await createServerUserSupabaseClient();
     // Schema verified via Supabase MCP (2026-02-27): avatar_ads_projects includes image_model and nullable image_size.
     const projectInsert: Record<string, unknown> = {
       user_id: userId,
@@ -284,6 +299,7 @@ export async function POST(request: NextRequest) {
     // Fire-and-forget IIFE would be killed before processAvatarAdsProject executes
     console.log(`✅ Avatar Ads project ${project.id} created with status='pending'`);
     console.log(`Starting workflow: generate_prompts → generate_image → awaiting_review...`);
+    const workflowSupabase = getSupabaseAdmin();
 
     try {
       const { processAvatarAdsProject } = await import('@/lib/avatar-ads-workflow');
@@ -300,7 +316,7 @@ export async function POST(request: NextRequest) {
         console.log(`⏭️ Triggering next step: ${currentStep} for project ${project.id}`);
 
         // Get fresh project data before next step
-        const { data: freshProject } = await supabase
+        const { data: freshProject } = await workflowSupabase
           .from('avatar_ads_projects')
           .select('*')
           .eq('id', project.id)
@@ -326,7 +342,7 @@ export async function POST(request: NextRequest) {
       console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack available');
 
       // Update project status so frontend gets error via Realtime
-      await supabase
+      await workflowSupabase
         .from('avatar_ads_projects')
         .update({
           status: 'failed',

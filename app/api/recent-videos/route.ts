@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
-import { getSupabase } from '@/lib/supabase';
+import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
 import { deriveSegmentDetails, type SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 
 export async function GET() {
@@ -13,7 +13,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabase = getSupabase();
+    const supabase = await createServerUserSupabaseClient();
 
     // Fetch latest completed video from Competitor UGC Replication workflow
     const { data: historyV1, error: errorV1 } = await supabase

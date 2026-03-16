@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import CompetitorShotsEditor from '@/components/CompetitorShotsEditor';
 import { parseShotsFromAnalysis } from '@/lib/competitor-shot-form';
-import { getSupabase } from '@/lib/supabase';
+import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface PreviewVideo {
   platform_video_id: string;
@@ -184,6 +184,7 @@ export default function VideoImportModal({
   onImported,
   onError
 }: VideoImportModalProps) {
+  const supabase = useSupabaseBrowserClient();
   const [step, setStep] = useState<ImportStep>('choose');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -299,7 +300,6 @@ export default function VideoImportModal({
       }
     };
 
-    const supabase = getSupabase();
     const channel = supabase
       .channel(`creator-video-import-${videoId}`)
       .on('postgres_changes', {
@@ -322,7 +322,7 @@ export default function VideoImportModal({
       window.clearInterval(interval);
       void supabase.removeChannel(channel);
     };
-  }, [processingVideo?.analysis_result, processingVideo?.analysis_status, processingVideo?.id, step]);
+  }, [processingVideo?.analysis_result, processingVideo?.analysis_status, processingVideo?.id, step, supabase]);
 
   const canUseForClone = Boolean(processingVideo?.analysis_result);
   const requiresFirstFrameForMotionSwap = processingOrigin === 'upload';
@@ -507,7 +507,6 @@ export default function VideoImportModal({
         throw new Error('Failed to initialize upload.');
       }
 
-      const supabase = getSupabase();
       const { error: uploadError } = await supabase.storage
         .from(signedData.bucket)
         .uploadToSignedUrl(signedData.path, signedData.token, fileToUpload, {

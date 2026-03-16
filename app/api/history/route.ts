@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
-import { getSupabase } from '@/lib/supabase';
+import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
 import type { VideoModel } from '@/lib/constants';
 
 interface CompetitorUgcReplicationItem {
@@ -144,7 +144,7 @@ export async function GET() {
       }, { status: 401 });
     }
 
-    const supabase = getSupabase();
+    const supabase = await createServerUserSupabaseClient();
     
     // Map workflow status to frontend status
     const mapWorkflowStatus = (workflowStatus: string): 'processing' | 'completed' | 'failed' => {

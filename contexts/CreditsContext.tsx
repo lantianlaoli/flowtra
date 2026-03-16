@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { createClient } from '@/lib/supabase/client';
+import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import type { UserCredits } from '@/lib/supabase';
 
@@ -42,6 +42,7 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
   const [isLoading, setIsLoading] = useState(true); // Start with true to prevent 0 flash
   const isMountedRef = useRef(true);
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const supabase = useSupabaseBrowserClient();
 
   useEffect(() => {
     return () => {
@@ -118,7 +119,6 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
     if (!user?.id) {
       // Cleanup if user logs out
       if (channelRef.current) {
-        const supabase = createClient();
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
@@ -129,8 +129,6 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
     if (credits === undefined) {
       return;
     }
-
-    const supabase = createClient();
 
     const channel = supabase
       .channel(`user-credits:${user.id}`)
@@ -173,7 +171,7 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [user?.id, credits]);
+  }, [credits, supabase, user?.id]);
 
   const refetchCredits = async () => {
     await fetchCredits();

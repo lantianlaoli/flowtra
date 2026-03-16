@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { clerkClient } from '@clerk/nextjs/server';
+import { auth, clerkClient } from '@clerk/nextjs/server';
 
 // Function to extract meaningful information from user_id
 function extractUserInfoFromId(userId: string) {
@@ -21,6 +21,7 @@ export async function GET(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
+    const { userId: requesterUserId } = await auth();
     const { userId } = await params;
 
     if (!userId) {
@@ -36,14 +37,22 @@ export async function GET(
     }
 
     // Return user information
-    return NextResponse.json({
+    const basePayload = {
       id: user.id,
       firstName: user.firstName,
       lastName: user.lastName,
       username: user.username,
       imageUrl: user.imageUrl,
-      emailAddresses: user.emailAddresses.map((email: { emailAddress: string }) => email.emailAddress)
-    });
+    };
+
+    if (requesterUserId && requesterUserId === user.id) {
+      return NextResponse.json({
+        ...basePayload,
+        emailAddresses: user.emailAddresses.map((email: { emailAddress: string }) => email.emailAddress)
+      });
+    }
+
+    return NextResponse.json(basePayload);
 
   } catch (error) {
     console.error('Error fetching user:', error);
@@ -59,7 +68,6 @@ export async function GET(
         lastName: '',
         username: `user_${userInfo.shortId}`,
         imageUrl: null,
-        emailAddresses: [],
         isDeleted: true // Flag to indicate this user was deleted from Clerk
       });
     }

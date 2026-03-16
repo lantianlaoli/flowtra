@@ -11,7 +11,7 @@ import {
 import { useToast } from '@/contexts/ToastContext';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { countDialogueWords } from '@/lib/avatar-ads-dialogue';
-import { createClient } from '@/lib/supabase/client';
+import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 // Define the shape of the structured video prompt
@@ -98,6 +98,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   onConfirmGeneration,
   onRegenerateImage,
 }) => {
+  const supabase = useSupabaseBrowserClient();
   const { showSuccess, showError } = useToast();
   const [project, setProject] = useState<InspectorProject | null>(null);
   const [loading, setLoading] = useState(true);
@@ -170,7 +171,6 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   useEffect(() => {
     if (!open || !projectId) return;
 
-    const supabase = createClient();
     let channel: RealtimeChannel | null = null;
 
     channel = supabase
@@ -205,7 +205,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
         supabase.removeChannel(channel);
       }
     };
-  }, [open, projectId]);
+  }, [open, projectId, supabase]);
 
   useEffect(() => {
     const isProjectSwitch = previousProjectIdRef.current !== projectId;

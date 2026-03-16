@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
-import { getSupabase } from '@/lib/supabase';
+import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10');
     const offset = (page - 1) * limit;
 
-    const supabase = getSupabase();
+    const supabase = await createServerUserSupabaseClient();
 
     // Get total count
     const { count: totalCount, error: countError } = await supabase

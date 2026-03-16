@@ -1,9 +1,17 @@
+'use client'
+
+import { useAuth } from '@clerk/nextjs'
 import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
+import { useMemo } from 'react'
 
-let browserClient: SupabaseClient | null = null
+type TokenGetter = () => Promise<string | null>
 
-export function createClient(): SupabaseClient {
-  if (browserClient) return browserClient
+const clientCache = new Map<TokenGetter, SupabaseClient>()
+const nullTokenGetter: TokenGetter = async () => null
+
+export function createClient(getToken: TokenGetter): SupabaseClient {
+  const cached = clientCache.get(getToken)
+  if (cached) return cached
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
@@ -12,7 +20,28 @@ export function createClient(): SupabaseClient {
     throw new Error('Supabase public URL or publishable key is not configured')
   }
 
-  browserClient = createSupabaseClient(supabaseUrl, supabaseAnonKey)
-  return browserClient
+  const client = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+    accessToken: async () => getToken()
+  })
+
+  clientCache.set(getToken, client)
+  return client
 }
 
+export function useSupabaseBrowserClient(): SupabaseClient {
+  const { getToken, isLoaded } = useAuth()
+
+  return useMemo(
+    () => {
+      if (!isLoaded || typeof getToken !== 'function') {
+        return createClient(nullTokenGetter)
+      }
+
+      return createClient(async () => {
+        const token = await getToken()
+        return token ?? null
+      })
+    },
+    [getToken, isLoaded]
+  )
+}

@@ -29,7 +29,7 @@ import {
   requestNotificationPermissionIfNeeded,
   sendBrowserNotification
 } from '@/lib/browser-notifications';
-import { createClient } from '@/lib/supabase/client';
+import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import { getVideoModelDisplayName, type VideoModel } from '@/lib/constants';
 import {
   getPrimaryCloneSelection,
@@ -841,6 +841,7 @@ export default function ProjectAgentPage() {
   const router = useRouter();
   const { user, isLoaded } = useUser();
   const { credits, creditsData } = useCredits();
+  const supabase = useSupabaseBrowserClient();
 
   const [sessionId, setSessionId] = useState('');
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
@@ -1521,7 +1522,6 @@ export default function ProjectAgentPage() {
   useEffect(() => {
     if (!sessionState?.projectId) return;
 
-    const supabase = createClient();
     const channel: RealtimeChannel = supabase
       .channel(`project-agent-${sessionState.projectId}`)
       .on(
@@ -2884,7 +2884,6 @@ export default function ProjectAgentPage() {
     const isCancelled = () => cancelled;
     void syncCloneExecutionState(projectId, { cancelled: isCancelled });
 
-    const supabase = createClient();
     const channel: RealtimeChannel = supabase
       .channel(`project-agent-clone-${projectId}`)
       .on(
@@ -2917,7 +2916,7 @@ export default function ProjectAgentPage() {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [sessionState?.cloneExecution?.phase, sessionState?.cloneExecution?.projectId, syncCloneExecutionState]);
+  }, [sessionState?.cloneExecution?.phase, sessionState?.cloneExecution?.projectId, supabase, syncCloneExecutionState]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     chatBottomRef.current?.scrollIntoView({ behavior, block: 'end' });

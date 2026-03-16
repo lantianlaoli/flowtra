@@ -11,7 +11,8 @@ import {
 import GenerationProgressDisplay, {
   type Generation,
 } from "@/components/ui/GenerationProgressDisplay";
-import { getSupabase, UserAvatar, UserProduct } from "@/lib/supabase";
+import { UserAvatar, UserProduct } from "@/lib/supabase";
+import { useSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useToast } from "@/contexts/ToastContext";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import BottomComposerBar from "@/components/ui/BottomComposerBar";
@@ -156,6 +157,7 @@ const isPersistedMotionSwapProject = (
 };
 
 export default function MotionSwapPage() {
+  const supabase = useSupabaseBrowserClient();
   const searchParams = useSearchParams();
   const { showError, showSuccess } = useToast();
   const { user } = useUser();
@@ -465,7 +467,6 @@ export default function MotionSwapPage() {
   useEffect(() => {
     if (!watchedProjectId) return;
 
-    const supabase = getSupabase();
     let channel: RealtimeChannel | null = null;
     let isMounted = true;
 
@@ -519,7 +520,7 @@ export default function MotionSwapPage() {
         supabase.removeChannel(channel);
       }
     };
-  }, [watchedProjectId]);
+  }, [supabase, watchedProjectId]);
 
   const buildDefaultPrompt = (
     avatarName?: string | null,

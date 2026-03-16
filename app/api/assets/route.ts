@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { getSupabaseAdmin, UserProduct } from '@/lib/supabase';
+import { UserProduct } from '@/lib/supabase';
+import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -16,8 +17,7 @@ export async function GET() {
       );
     }
 
-    // Use admin client to bypass RLS (we're already checking Clerk auth)
-    const supabase = getSupabaseAdmin();
+    const supabase = await createServerUserSupabaseClient();
 
     // Schema verified via Supabase MCP (2026-03-01) and migration 20260301_restructure_storage_and_remove_brands:
     // user_products is product-first and no longer depends on brand tables.

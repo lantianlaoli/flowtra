@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { getSupabase } from '@/lib/supabase';
+import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 /**
@@ -26,11 +26,10 @@ export function useCompetitorUgcReplicationRealtime(
 ) {
   const projectChannelRef = useRef<RealtimeChannel | null>(null);
   const segmentChannelRef = useRef<RealtimeChannel | null>(null);
+  const supabase = useSupabaseBrowserClient();
 
   useEffect(() => {
     if (!projectId) return;
-
-    const supabase = getSupabase();
 
     console.log(`[UGC Realtime] Subscribing to project ${projectId}`);
 
@@ -88,7 +87,7 @@ export function useCompetitorUgcReplicationRealtime(
         segmentChannelRef.current = null;
       }
     };
-  }, [projectId, onProjectUpdate, onSegmentUpdate]);
+  }, [onProjectUpdate, onSegmentUpdate, projectId, supabase]);
 }
 
 /**
@@ -112,11 +111,11 @@ export function useMultipleProjectsRealtime(
   onSegmentUpdate: (projectId: string, segment: Record<string, unknown>) => void
 ) {
   const channelsRef = useRef<Map<string, RealtimeChannel[]>>(new Map());
+  const supabase = useSupabaseBrowserClient();
 
   useEffect(() => {
     if (!projectIds.length) return;
 
-    const supabase = getSupabase();
     const newChannels = new Map<string, RealtimeChannel[]>();
 
     console.log(`[UGC Realtime] Subscribing to ${projectIds.length} projects`);

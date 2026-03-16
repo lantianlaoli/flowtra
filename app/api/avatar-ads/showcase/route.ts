@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-import { getSupabase } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '2'); // Default to 2 latest examples
 
-    const supabase = getSupabase();
+    const supabase = getSupabaseAdmin();
 
     // Get the latest completed projects from all users (global showcase)
     const { data: projects, error } = await supabase
