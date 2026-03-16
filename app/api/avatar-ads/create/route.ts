@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < personFiles.length; i++) {
       const file = personFiles[i];
       const fileName = `avatar-ads/person/${userId}/${Date.now()}_${i}_${file.name}`;
-      const uploadResult = await uploadImageToStorage(file, fileName);
+      const uploadResult = await uploadImageToStorage(file, fileName, userId);
       personImageUrls.push(uploadResult.publicUrl);
     }
 
@@ -228,7 +228,7 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < productFiles.length; i++) {
       const file = productFiles[i];
       const fileName = `avatar-ads/product/${userId}/${Date.now()}_${i}_${file.name}`;
-      const uploadResult = await uploadImageToStorage(file, fileName);
+      const uploadResult = await uploadImageToStorage(file, fileName, userId);
       productImageUrls.push(uploadResult.publicUrl);
     }
 

@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const maxDuration = 300; // 5 minutes max for complex AI prompt generation
+import { auth } from '@clerk/nextjs/server';
 import { startWorkflowProcess, StartWorkflowRequest } from '@/lib/competitor-ugc-replication-workflow';
 import { validateKieCredits } from '@/lib/kie-credits-check';
 import type { VideoModel } from '@/lib/constants';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { enforceRateLimit, getRequestIp, RateLimitError } from '@/lib/security/rate-limit';
+import { verifyInternalUserRequest } from '@/lib/security/internal-request';
 
 /**
  * Validates that the video model is one of the supported models
@@ -16,12 +19,36 @@ function validateVideoModel(model: string): model is VideoModel {
 
 export async function POST(request: NextRequest) {
   try {
+    const internalUserId = request.headers.get('x-project-agent-user-id');
+    const internalTimestamp = request.headers.get('x-project-agent-timestamp');
+    const internalSignature = request.headers.get('x-project-agent-signature');
+    const hasValidInternalSignature = verifyInternalUserRequest({
+      userId: internalUserId,
+      timestamp: internalTimestamp,
+      signature: internalSignature,
+    });
+
+    const { userId: clerkUserId } = hasValidInternalSignature
+      ? { userId: internalUserId }
+      : await auth();
+
+    if (!clerkUserId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    enforceRateLimit({
+      key: `ugc-create:${clerkUserId}:${getRequestIp(request)}`,
+      limit: 5,
+      windowMs: 60 * 1000,
+    });
+
     // Check KIE credits before processing
     const kieValidation = await validateKieCredits();
     if (kieValidation) {
       return kieValidation;
     }
     const requestData: StartWorkflowRequest = await request.json();
+    requestData.userId = clerkUserId;
 
     // Backward/forward compatibility: always normalize selection arrays.
     const selectedAvatarIds = Array.isArray(requestData.selectedAvatarIds)
@@ -171,6 +198,16 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
+    if (error instanceof RateLimitError) {
+      return NextResponse.json(
+        { error: error.message, retryAfter: error.retryAfterSeconds },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(error.retryAfterSeconds) },
+        }
+      );
+    }
+
     console.error('💥 Competitor UGC Replication API error:', error);
     return NextResponse.json({
       error: 'Failed to start Competitor UGC Replication workflow',

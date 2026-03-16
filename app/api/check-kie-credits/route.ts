@@ -1,11 +1,24 @@
 import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { auth } from '@clerk/nextjs/server';
 import { KIE_CREDIT_THRESHOLD } from '@/lib/constants';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
+import { enforceRateLimit, RateLimitError } from '@/lib/security/rate-limit';
 
 export async function GET() {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    enforceRateLimit({
+      key: `check-kie-credits:${userId}`,
+      limit: 20,
+      windowMs: 60 * 1000,
+    });
+
     if (!process.env.KIE_API_KEY) {
       console.error('KIE_API_KEY not configured');
       return NextResponse.json({
@@ -58,6 +71,16 @@ export async function GET() {
     });
 
   } catch (error) {
+    if (error instanceof RateLimitError) {
+      return NextResponse.json(
+        { success: false, error: error.message, retryAfter: error.retryAfterSeconds },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(error.retryAfterSeconds) },
+        }
+      );
+    }
+
     console.error('KIE credits check error:', error);
     return NextResponse.json({
       success: false,

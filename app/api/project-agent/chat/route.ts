@@ -57,6 +57,7 @@ import {
 import type { ProjectAgentCloneShot } from '@/lib/project-agent/clone-prompt-schema';
 import { buildProjectAgentCloneDraftSeeds } from '@/lib/project-agent/clone-draft-planning';
 import { resolveProjectAgentCloneMergedVideoUrl } from '@/lib/project-agent/clone-execution';
+import { signInternalUserRequest } from '@/lib/security/internal-request';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -2583,9 +2584,16 @@ export async function POST(request: Request) {
               }
             });
 
+            const internalTimestamp = String(Date.now());
             const createResponse = await fetch(`${origin}/api/competitor-ugc-replication/create`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                Cookie: request.headers.get('cookie') || '',
+                'x-project-agent-user-id': userId,
+                'x-project-agent-timestamp': internalTimestamp,
+                'x-project-agent-signature': signInternalUserRequest(userId, internalTimestamp),
+              },
               body: JSON.stringify(createPayload)
             });
             const createPayloadResult = await createResponse.json();

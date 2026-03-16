@@ -403,13 +403,13 @@ export type TablesInsert<T extends keyof Database['public']['Tables']> = Databas
 export type TablesUpdate<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Update']
 
 // Storage helpers
-export const uploadImageToStorage = async (file: File, filename?: string) => {
+export const uploadImageToStorage = async (file: File, filename?: string, userId = 'shared') => {
   const fileName = filename || file.name
   const extension = getFileExtension(fileName, 'png')
   const draftId = crypto.randomUUID()
   const inferredRole = fileName.includes('/person/') ? 'person' : 'product'
   const filePath = buildAvatarAdsDraftUploadPath({
-    userId: 'shared',
+    userId,
     draftId,
     role: inferredRole,
     index: 0,

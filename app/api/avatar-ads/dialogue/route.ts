@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { getNetworkErrorResponse } from '@/lib/fetchWithRetry';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 import { clampDialogueToWordLimit, getAvatarAdsDialogueWordLimit } from '@/lib/avatar-ads-dialogue';
 import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
+import { enforceRateLimit, getRequestIp, RateLimitError } from '@/lib/security/rate-limit';
 
 interface DialogueRequestPayload {
   productName?: string;
@@ -13,6 +15,17 @@ interface DialogueRequestPayload {
 
 export async function POST(request: NextRequest) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    enforceRateLimit({
+      key: `avatar-ads-dialogue:${userId}:${getRequestIp(request)}`,
+      limit: 8,
+      windowMs: 60 * 1000,
+    });
+
     if (!process.env.OPENROUTER_API_KEY) {
       return NextResponse.json(
         { error: 'OpenRouter API key is not configured.' },
@@ -92,6 +105,16 @@ Requirements:\n- Return exactly one spoken line capped at ${dialogueWordLimit} w
 
     return NextResponse.json({ success: true, dialogue: trimmedContent });
   } catch (error) {
+    if (error instanceof RateLimitError) {
+      return NextResponse.json(
+        { error: error.message, retryAfter: error.retryAfterSeconds },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(error.retryAfterSeconds) },
+        }
+      );
+    }
+
     const networkError = getNetworkErrorResponse(error);
     return NextResponse.json(
       { error: networkError.error || 'Failed to generate dialogue.', details: networkError.details },

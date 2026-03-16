@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { addCredits, recordCreditTransaction } from '@/lib/credits'
 import { getCreditsFromProductId } from '@/lib/constants'
 import { getSupabaseAdmin } from '@/lib/supabase'
+import { verifyCreemWebhookSignature } from '@/lib/security/creem-webhook'
 import {
   isEventProcessed,
   recordSubscriptionEvent,
@@ -20,7 +21,13 @@ export async function POST(request: NextRequest) {
     console.log('📨 Webhook POST request received')
     console.log('Headers:', Object.fromEntries(request.headers.entries()))
 
-    const payload = await request.json()
+    const rawBody = await request.text()
+    if (!verifyCreemWebhookSignature(rawBody, request)) {
+      console.error('❌ Invalid Creem webhook signature')
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+    }
+
+    const payload = JSON.parse(rawBody)
 
     console.log('📄 Creem webhook payload received:', JSON.stringify(payload, null, 2))
 
