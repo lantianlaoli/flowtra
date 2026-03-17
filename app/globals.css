@@ -36,6 +36,12 @@
   --sidebar-ring: #000000;
   --font-inter: "Inter";
   --font-plus-jakarta-sans: "Plus Jakarta Sans";
+  --dashboard-sidebar-width: 14rem;
+  --dashboard-content-max-width: 80rem;
+  --dashboard-content-gutter: clamp(1rem, 3vw, 3rem);
+  --dashboard-radius-panel: 26px;
+  --dashboard-radius-control: 20px;
+  --dashboard-radius-compact: 16px;
 }
 
 .dashboard-theme {
@@ -1921,8 +1927,38 @@
 
 @media (min-width: 768px) {
   .dashboard-content-offset {
-    margin-left: 14rem;
+    margin-left: var(--dashboard-sidebar-width);
     transition: margin-left 200ms ease;
+  }
+}
+
+.dashboard-main-shell {
+  width: 100%;
+  max-width: var(--dashboard-content-max-width);
+  margin-inline: auto;
+}
+
+.bottom-composer-bar {
+  left: 0;
+  right: 0;
+  padding-inline: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .bottom-composer-bar {
+    left: var(--dashboard-sidebar-width);
+    right: 0;
+    width: auto;
+    transform: none;
+    padding-inline: var(--dashboard-content-gutter);
+  }
+
+  .bottom-composer-bar.bottom-composer-bar--compact {
+    left: 50%;
+    right: auto;
+    width: auto;
+    transform: translateX(-50%);
+    padding-inline: 0;
   }
 }
 

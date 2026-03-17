@@ -69,9 +69,9 @@ export default function BottomComposerBar({
   });
 
   return (
-    <div className={`bottom-composer-bar fixed bottom-0 left-0 right-0 md:left-72 z-40 px-3 md:px-12 lg:px-16 pb-4 md:pb-6 pointer-events-none ${className}`}>
-      <div className={`max-w-[1280px] mx-auto ${compact ? 'flex justify-center' : ''}`}>
-        <div className={`bottom-composer-surface bg-white/98 backdrop-blur border border-[#E5E5E5] rounded-xl shadow-[0_12px_32px_rgba(0,0,0,0.08)] p-2 md:p-3 flex flex-row items-end gap-2 md:gap-3 pointer-events-auto ${compact ? 'w-fit' : ''}`}>
+    <div className={`bottom-composer-bar ${compact ? 'bottom-composer-bar--compact' : ''} fixed bottom-0 z-40 pb-4 md:pb-6 pointer-events-none ${className}`}>
+      <div className={`mx-auto flex w-full ${compact ? 'justify-center' : ''}`}>
+        <div className={`bottom-composer-surface rounded-[20px] bg-white/98 backdrop-blur border border-[#E5E5E5] shadow-[0_12px_32px_rgba(0,0,0,0.08)] p-2 md:p-3 flex flex-row items-end gap-2 md:gap-3 pointer-events-auto ${compact ? 'w-fit max-w-full' : 'w-full'}`}>
           {/* Left controls - dynamic per page */}
           {leftControls && (
             <div className="flex items-center gap-2 flex-shrink-0 h-12">
@@ -99,7 +99,7 @@ export default function BottomComposerBar({
               data-generating={isGenerating}
               className={`
                 bottom-composer-generate
-                flex items-center justify-center gap-2 px-6 h-12 rounded-lg cursor-pointer
+                rounded-[20px] flex items-center justify-center gap-2 px-6 h-12 cursor-pointer
                 font-semibold text-sm whitespace-nowrap min-w-[140px]
                 transition-all duration-200
                 ${!isButtonDisabled

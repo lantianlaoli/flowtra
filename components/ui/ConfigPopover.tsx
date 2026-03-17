@@ -319,7 +319,7 @@ export default function ConfigPopover({
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
         className={cn(
-          'config-popover-button h-12 px-4 rounded-lg border flex items-center gap-2 transition-all duration-200 bg-white outline-none',
+          'config-popover-button h-12 px-4 rounded-[20px] border flex items-center gap-2 transition-all duration-200 bg-white outline-none',
           disabled
             ? 'bg-[#F7F7F7] border-[#E5E5E5] text-[#999999] cursor-not-allowed'
             : 'border-[#E5E5E5] hover:border-[#CCCCCC] text-black shadow-sm',
@@ -360,7 +360,7 @@ export default function ConfigPopover({
                 bottom: `${window.innerHeight - buttonRect.top + 8}px`,
               }}
               className={cn(
-                'config-popover-panel bg-white rounded-lg shadow-2xl border border-gray-200 z-[110] overflow-visible',
+                'config-popover-panel bg-white rounded-[20px] shadow-2xl border border-gray-200 z-[110] overflow-visible',
                 isMobile
                   ? 'fixed inset-x-4 bottom-4 max-h-[80vh] overflow-y-auto origin-bottom'
                   : 'w-96 origin-bottom-right'

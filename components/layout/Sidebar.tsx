@@ -127,7 +127,7 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
 
   const renderPrimaryNavigation = (onNavigate?: () => void) => (
     <LayoutGroup id="floating-sidebar-nav">
-      <nav className="space-y-1.5">
+      <nav className="flex flex-col gap-0.5">
         {primaryNavigation.map((item) => {
           const isActive = pathname === item.href;
           const isAgentEntry = item.href === '/dashboard/agent';
@@ -138,7 +138,7 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                'relative flex items-center gap-2.5 overflow-hidden rounded-2xl border px-2.5 py-3 text-sm font-medium transition-all duration-150',
+                'relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-[20px] border px-2.5 py-3 text-sm font-medium transition-all duration-150',
                 isActive
                   ? 'border-[#111111] bg-[#111111] text-white shadow-[0_14px_28px_rgba(0,0,0,0.12)]'
                   : 'border-transparent bg-transparent text-[#5F5F5F] hover:border-[#E5E5E5] hover:bg-[#F7F7F7] hover:text-[#111111]'
@@ -147,14 +147,14 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
               {isActive ? (
                 <motion.span
                   layoutId="floating-sidebar-active-pill"
-                  className="absolute inset-0 -z-10 rounded-2xl bg-[#111111]"
+                  className="absolute inset-0 -z-10 rounded-[20px] bg-[#111111]"
                   transition={{ type: 'spring', stiffness: 500, damping: 38, mass: 1 }}
                 />
               ) : null}
 
-              <item.icon className={cn('h-4.5 w-4.5 shrink-0', isActive ? 'text-white' : 'text-[#6A6A6A]')} />
+              <item.icon className={cn('h-4.5 w-4.5 shrink-0 pointer-events-none', isActive ? 'text-white' : 'text-[#6A6A6A]')} />
 
-              <div className="inline-flex min-w-0 items-center gap-2">
+              <div className="inline-flex min-w-0 items-center gap-2 pointer-events-none">
                 <span className={cn('truncate', isActive ? 'text-white' : 'text-[#4F4F4F]')}>
                   {item.name}
                 </span>
@@ -192,13 +192,13 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
-        <div className="sidebar-nav-panel rounded-[24px] border border-[#E7E7E4] bg-white/90 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-xl">
+        <div className="sidebar-nav-panel rounded-[26px] border border-[#E7E7E4] bg-white/90 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-xl">
           {renderPrimaryNavigation(onNavigate)}
         </div>
       </div>
 
       <div className="shrink-0 px-3 py-4">
-        <div className="sidebar-utility-panel inline-flex rounded-[24px] border border-[#E7E7E4] bg-white/90 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-xl">
+        <div className="sidebar-utility-panel inline-flex rounded-[26px] border border-[#E7E7E4] bg-white/90 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-xl">
           <SidebarUtilityDock
             isDarkMode={isDarkMode}
             onToggleDarkMode={toggleDarkMode}
@@ -218,7 +218,7 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
 
       <button
         type="button"
-        className="fixed left-4 top-4 z-40 flex items-center gap-2 rounded-2xl border border-[#E0E0E0] bg-white px-4 py-2.5 text-sm font-medium text-[#111111] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] md:hidden"
+        className="fixed left-4 top-4 z-40 flex items-center gap-2 rounded-[20px] border border-[#E0E0E0] bg-white px-4 py-2.5 text-sm font-medium text-[#111111] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] md:hidden"
         onClick={() => setMobileOpen(true)}
         aria-label="Open menu"
       >

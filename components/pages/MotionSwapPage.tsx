@@ -966,8 +966,8 @@ export default function MotionSwapPage() {
         <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
           <div className="flex-1 flex flex-col min-h-0">
             <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0">
-              <div className="max-w-[1280px] mx-auto flex-1 w-full flex min-h-0">
-                <div className="bg-background border border-border rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.05)] flex-1 flex flex-col overflow-hidden min-h-0">
+              <div className="dashboard-main-shell flex-1 flex min-h-0">
+                <div className="rounded-[26px] bg-background border border-border shadow-[0_20px_40px_rgba(0,0,0,0.05)] flex-1 flex flex-col overflow-hidden min-h-0">
                   <div className="flex-1 overflow-hidden min-h-0 flex items-center justify-center">
                     <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                   </div>
@@ -991,8 +991,8 @@ export default function MotionSwapPage() {
       <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
         <div className="flex-1 flex flex-col min-h-0">
           <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0">
-            <div className="max-w-[1280px] mx-auto flex-1 w-full flex min-h-0">
-              <div className="bg-background border border-border rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.05)] flex-1 flex flex-col overflow-hidden min-h-0">
+            <div className="dashboard-main-shell flex-1 flex min-h-0">
+              <div className="rounded-[26px] bg-background border border-border shadow-[0_20px_40px_rgba(0,0,0,0.05)] flex-1 flex flex-col overflow-hidden min-h-0">
                 <div className="flex-1 overflow-hidden min-h-0">
                   <GenerationProgressDisplay
                     generations={displayedGenerations}

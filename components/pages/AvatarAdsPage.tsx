@@ -1007,8 +1007,8 @@ const formatDurationLabel = (seconds: number) => {
                 transition={{ duration: 0.3 }}
                 className="flex-1 flex px-6 sm:px-8 lg:px-10 pb-48 min-h-0"
               >
-                <div className="max-w-7xl mx-auto flex-1 w-full flex min-h-0">
-                  <div className="bg-background border border-border rounded-3xl shadow-lg flex-1 flex flex-col overflow-hidden min-h-0">
+                <div className="dashboard-main-shell flex-1 flex min-h-0">
+                  <div className="rounded-[26px] bg-background border border-border shadow-lg flex-1 flex flex-col overflow-hidden min-h-0">
                     <div className="flex-1 overflow-hidden min-h-0">
                         <GenerationProgressDisplay
                         generations={displayedGenerations}

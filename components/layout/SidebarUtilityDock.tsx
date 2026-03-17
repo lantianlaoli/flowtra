@@ -20,7 +20,7 @@ interface UtilityActionProps {
 function UtilityAction({ icon: Icon, label, onClick, href, onNavigate }: UtilityActionProps) {
   const content = (
     <span
-      className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[#E7E7E4] bg-white text-[#444444] transition-all duration-150 hover:border-[#D8D8D8] hover:bg-[#FAFAFA] hover:text-[#111111]"
+      className="flex h-10 w-10 items-center justify-center rounded-[20px] border border-[#E7E7E4] bg-white text-[#444444] transition-all duration-150 hover:border-[#D8D8D8] hover:bg-[#FAFAFA] hover:text-[#111111]"
     >
       <Icon className="h-4.5 w-4.5 shrink-0" />
     </span>
@@ -48,7 +48,7 @@ export default function SidebarUtilityDock({
   accountHref,
 }: SidebarUtilityDockProps) {
   return (
-    <div className="flex items-center justify-center gap-1.5 rounded-[24px] bg-transparent p-0">
+    <div className="flex items-center justify-center gap-1.5 bg-transparent p-0">
       <UtilityAction
         icon={User}
         label="Account"
