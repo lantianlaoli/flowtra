@@ -44,7 +44,7 @@ export default function SuccessStoriesSection() {
                   target="_blank"
                   rel="noopener noreferrer"
                   title={`${successCase.tiktokText} on TikTok`}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer"
+                  className="landing-press-button landing-press-button--secondary landing-press-button--compact text-sm font-medium"
                 >
                   <FaTiktok className="w-4 h-4" />
                   <span className="sm:hidden">View</span>

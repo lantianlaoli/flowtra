@@ -45,7 +45,7 @@ export default function FAQ() {
   };
 
   return (
-    <section id="faq" className="py-14 md:py-24 scroll-mt-24 bg-white">
+    <section id="faq" className="landing-section-surface py-14 md:py-24 scroll-mt-24 bg-white">
       <FAQSchema faqData={faqData} />
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10 md:mb-16">
@@ -57,17 +57,19 @@ export default function FAQ() {
           </p>
         </div>
 
-        <div className="max-w-3xl mx-auto border-t border-[#E5E5E5]">
+        <div className="landing-faq-shell mx-auto flex max-w-3xl flex-col gap-3 rounded-[30px] border border-[#E5E5E5] bg-white p-3 sm:p-4">
           {faqData.map((item, index) => (
             <div
               key={index}
-              className="border-b border-[#E5E5E5] py-4"
+              className={`landing-faq-item-card rounded-[24px] border border-[#E5E5E5] px-4 py-3 transition-all duration-300 sm:px-5 ${
+                openIndex === index ? 'landing-faq-item-card--open' : ''
+              }`}
             >
               <button
                 type="button"
                 onClick={() => toggleItem(index)}
                 aria-expanded={openIndex === index}
-                className="flex w-full items-start justify-between text-left py-4 group gap-4"
+                className="landing-faq-trigger group flex w-full items-start justify-between gap-4 rounded-[20px] px-1 py-1 text-left"
               >
                 <h3 className="text-[17px] md:text-[18px] font-bold leading-snug text-black group-hover:text-[#666666] transition-colors">
                   {item.question}
@@ -83,10 +85,10 @@ export default function FAQ() {
               </button>
               <div
                 className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                  openIndex === index ? 'max-h-96 opacity-100 mb-4' : 'max-h-0 opacity-0'
+                  openIndex === index ? 'max-h-96 opacity-100 pt-3' : 'max-h-0 opacity-0'
                 }`}
               >
-                <p className="text-[15px] md:text-[16px] text-[#666666] leading-relaxed">
+                <p className="landing-faq-body rounded-[18px] border border-[#EFEFEF] bg-[linear-gradient(180deg,#fcfcfc_0%,#f7f7f7_100%)] px-4 py-3 text-[15px] leading-relaxed text-[#666666] md:text-[16px]">
                   {item.answer}
                 </p>
               </div>

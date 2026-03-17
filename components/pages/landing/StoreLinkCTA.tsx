@@ -97,7 +97,7 @@ export function StoreLinkCTA() {
                 <button
                   onClick={handleSubmit}
                   disabled={!isLoaded || submitting}
-                  className="shrink-0 bg-gray-900 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full sm:w-auto"
+                  className="landing-press-button w-full shrink-0 font-semibold sm:w-auto"
                   aria-live="polite"
                 >
                   <Sparkles className="w-5 h-5" />
@@ -107,7 +107,7 @@ export function StoreLinkCTA() {
                 <SignInButton mode="modal">
                   <button
                     type="button"
-                    className="shrink-0 bg-gray-900 text-white px-6 py-3.5 rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2 cursor-pointer w-full sm:w-auto"
+                    className="landing-press-button w-full shrink-0 font-semibold sm:w-auto"
                   >
                     <LogIn className="w-5 h-5" />
                     Sign in to submit

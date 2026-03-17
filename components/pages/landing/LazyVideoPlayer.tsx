@@ -13,17 +13,24 @@ const ClientVideoPlayer = dynamic(() => import('@/components/ui/VideoPlayer'), {
 interface LazyVideoPlayerProps extends VideoPlayerProps {
   wrapperClassName?: string;
   placeholder?: ReactNode;
+  eager?: boolean;
 }
 
 export function LazyVideoPlayer({
   wrapperClassName,
   placeholder,
+  eager = false,
   ...videoProps
 }: LazyVideoPlayerProps) {
-  const [shouldRender, setShouldRender] = useState(false);
+  const [shouldRender, setShouldRender] = useState(eager);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    if (eager) {
+      setShouldRender(true);
+      return;
+    }
+
     if (!containerRef.current) {
       return;
     }

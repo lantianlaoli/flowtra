@@ -38,22 +38,25 @@ export default function BlogPreview() {
   }, []);
 
   return (
-    <section id="blog" className="py-14 md:py-16 scroll-mt-24">
+    <section id="blog" className="landing-section-surface py-14 md:py-16 scroll-mt-24">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4 mb-8">
           <div>
             <h2 className="text-[32px] md:text-[40px] font-bold tracking-tight text-black">From the Blog</h2>
             <p className="text-[#666666] text-base md:text-lg mt-2">Latest tips and case studies about AI ads</p>
           </div>
-          <Link href="/blog" className="text-black text-[14px] font-semibold hover:underline whitespace-nowrap">
-            View all →
+          <Link
+            href="/blog"
+            className="landing-press-button landing-press-button--secondary landing-press-button--compact whitespace-nowrap text-[14px] font-semibold"
+          >
+            View all
           </Link>
         </div>
 
         {(loading || articles.length === 0) ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3].map((index) => (
-              <div key={index} className="bg-[#F7F7F7] border border-[#E5E5E5] rounded-xl p-5 sm:p-6 animate-pulse space-y-4">
+              <div key={index} className="landing-info-card border border-[#E5E5E5] rounded-[24px] p-5 sm:p-6 animate-pulse space-y-4">
                 <div className="h-44 w-full bg-white/70 rounded-lg" />
                 <div className="h-4 bg-white/80 rounded w-2/3" />
                 <div className="h-4 bg-white/70 rounded w-1/2" />
@@ -67,7 +70,7 @@ export default function BlogPreview() {
             {articles.map((article) => {
               const publishDate = new Date(article.created_at);
               return (
-                <article key={article.id} className="bg-white border border-[#E5E5E5] rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                <article key={article.id} className="landing-info-card flex flex-col overflow-hidden rounded-[24px] border border-[#E5E5E5] shadow-sm transition-shadow hover:shadow-md">
                   {article.cover ? (
                     <Image
                       src={article.cover}
@@ -97,8 +100,11 @@ export default function BlogPreview() {
                     </h3>
                     <p className="text-[#666666] text-[15px] mb-3 line-clamp-2 leading-relaxed">{article.excerpt}</p>
                     <div className="mt-auto">
-                      <Link href={`/blog/${article.slug}`} className="text-black text-[14px] font-semibold hover:underline">
-                        Read More →
+                      <Link
+                        href={`/blog/${article.slug}`}
+                        className="landing-press-button landing-press-button--secondary landing-press-button--compact text-[14px] font-semibold"
+                      >
+                        Read More
                       </Link>
                     </div>
                   </div>

@@ -22,6 +22,14 @@ import {
   Sun,
 } from "lucide-react";
 
+type ViewTransitionCapableDocument = Document & {
+  startViewTransition?: (update: () => void | Promise<void>) => {
+    ready: Promise<void>;
+    finished: Promise<void>;
+    updateCallbackDone: Promise<void>;
+  };
+};
+
 interface HeaderProps {
   showAuthButtons?: boolean;
   showThemeToggle?: boolean;
@@ -33,8 +41,10 @@ export default function Header({
 }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [compact, setCompact] = useState(false);
-  const [featuresOpen, setFeaturesOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  const navButtonClass =
+    "landing-press-button landing-press-button--secondary landing-press-button--compact landing-nav-button text-[14px] font-medium";
 
   useEffect(() => {
     const onScroll = () => {
@@ -52,11 +62,13 @@ export default function Header({
     const enabled = stored === null ? true : stored === "true";
     setIsDarkMode(enabled);
     document.documentElement.classList.toggle("dashboard-theme", enabled);
+    document.body.classList.toggle("dashboard-theme", enabled);
   }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     document.documentElement.classList.toggle("dashboard-theme", isDarkMode);
+    document.body.classList.toggle("dashboard-theme", isDarkMode);
     window.localStorage.setItem(
       "flowtra-dashboard-dark",
       isDarkMode.toString(),
@@ -66,51 +78,105 @@ export default function Header({
     );
   }, [isDarkMode]);
 
+  const toggleDarkMode = (trigger?: HTMLElement) => {
+    const nextValue = !isDarkMode;
+    const applyTheme = () => {
+      setIsDarkMode(nextValue);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("flowtra-dashboard-dark", String(nextValue));
+        document.documentElement.classList.toggle("dashboard-theme", nextValue);
+        document.body.classList.toggle("dashboard-theme", nextValue);
+        window.dispatchEvent(
+          new CustomEvent("flowtra-dashboard-theme-change", { detail: nextValue }),
+        );
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      const transitionDocument = document as ViewTransitionCapableDocument;
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      if (!prefersReducedMotion && transitionDocument.startViewTransition && trigger) {
+        const rect = trigger.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        const endRadius = Math.hypot(
+          Math.max(x, window.innerWidth - x),
+          Math.max(y, window.innerHeight - y),
+        );
+
+        const transition = transitionDocument.startViewTransition(() => {
+          applyTheme();
+        });
+
+        transition.ready.then(() => {
+          document.documentElement.animate(
+            {
+              clipPath: [
+                `circle(0px at ${x}px ${y}px)`,
+                `circle(${endRadius}px at ${x}px ${y}px)`,
+              ],
+            },
+            {
+              duration: 700,
+              easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+              pseudoElement: "::view-transition-new(root)",
+            },
+          );
+        }).catch(() => {});
+        return;
+      }
+    }
+
+    applyTheme();
+  };
+
   return (
     <header
-      className={`sticky top-0 z-50 bg-white border-b border-[#E5E5E5] flex items-center transition-all duration-200 ${
-        compact
-          ? "h-[64px] sm:h-[72px] shadow-[0_8px_20px_rgba(0,0,0,0.04)]"
-          : "h-[72px] sm:h-[80px]"
+      className={`sticky top-0 z-50 px-3 pt-3 sm:px-5 sm:pt-4 lg:px-6 transition-all duration-300 ${
+        compact ? "pb-1.5" : "pb-2"
       }`}
     >
-      <div className="mx-auto max-w-[1280px] w-full px-4 sm:px-6 lg:px-8 flex items-center">
-        {/* Logo - Left */}
+      <div
+        className={`mx-auto flex w-full max-w-[1280px] items-center rounded-[28px] border border-[#E5E5E5] bg-white/92 px-4 sm:px-6 lg:px-7 backdrop-blur-xl transition-all duration-300 ${
+          compact
+            ? "min-h-[62px] shadow-[0_12px_30px_rgba(0,0,0,0.07)]"
+            : "min-h-[70px] shadow-[0_18px_44px_rgba(0,0,0,0.06)]"
+        }`}
+      >
         <div className="flex items-center justify-start">
           <Link
             href="/"
-            className="flex items-center gap-2 cursor-pointer transition-opacity hover:opacity-80"
+            className="flex items-center gap-2 rounded-[20px] px-1 py-1 transition-opacity hover:opacity-80"
           >
             <Image
               src="/logo.svg"
               alt="Flowtra AI Logo"
               width={95}
               height={95}
-              className="logo-theme w-[86px] h-[86px] sm:w-[95px] sm:h-[95px]"
+              className="logo-theme h-[52px] w-[52px] sm:h-[58px] sm:w-[58px]"
             />
           </Link>
         </div>
 
-        {/* Right Section - Nav + Actions */}
-        <div className="flex items-center gap-6 ml-auto">
-          {/* Links - Now positioned right before Dashboard */}
+        <div className="ml-auto flex items-center gap-3 sm:gap-4 lg:gap-6">
           <nav
-            className="hidden md:flex items-center gap-6"
+            className="hidden md:flex items-center gap-2"
             aria-label="Main navigation"
           >
             {/* Features Dropdown */}
             <div className="relative group">
-              <button className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors flex items-center gap-1">
+              <button className={`${navButtonClass} gap-1`}>
                 Features
                 <ChevronDownIcon className="w-3.5 h-3.5" />
               </button>
-              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-4 w-64 bg-white border border-[#E5E5E5] rounded-lg shadow-[0_20px_40px_rgba(0,0,0,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <div className="landing-floating-panel absolute left-1/2 top-full z-50 mt-4 w-64 -translate-x-1/2 rounded-[24px] border border-[#E5E5E5] bg-white p-2 shadow-[0_24px_60px_rgba(0,0,0,0.12)] invisible opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
                 <div className="py-2">
                   <Link
                     href="/features/ai-agent"
-                    className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                    className="flex items-start gap-3 rounded-[18px] px-4 py-3 text-[14px] text-[#666666] transition-colors hover:bg-[#F7F7F7] hover:text-black"
                   >
-                    <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
+                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F7F7F7]">
                       <Bot className="w-5 h-5 text-black" />
                     </div>
                     <div className="flex-1">
@@ -127,9 +193,9 @@ export default function Header({
                   </Link>
                   <Link
                     href="/features/avatar-ads"
-                    className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                    className="flex items-start gap-3 rounded-[18px] px-4 py-3 text-[14px] text-[#666666] transition-colors hover:bg-[#F7F7F7] hover:text-black"
                   >
-                    <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
+                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F7F7F7]">
                       <UserCircle className="w-5 h-5 text-black" />
                     </div>
                     <div className="flex-1">
@@ -141,9 +207,9 @@ export default function Header({
                   </Link>
                   <Link
                     href="/features/viral-clone"
-                    className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                    className="flex items-start gap-3 rounded-[18px] px-4 py-3 text-[14px] text-[#666666] transition-colors hover:bg-[#F7F7F7] hover:text-black"
                   >
-                    <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
+                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F7F7F7]">
                       <Copy className="w-5 h-5 text-black" />
                     </div>
                     <div className="flex-1">
@@ -157,9 +223,9 @@ export default function Header({
                   </Link>
                   <Link
                     href="/features/motion-clone"
-                    className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                    className="flex items-start gap-3 rounded-[18px] px-4 py-3 text-[14px] text-[#666666] transition-colors hover:bg-[#F7F7F7] hover:text-black"
                   >
-                    <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
+                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F7F7F7]">
                       <RefreshCw className="w-5 h-5 text-black" />
                     </div>
                     <div className="flex-1">
@@ -175,17 +241,17 @@ export default function Header({
               </div>
             </div>
             <div className="relative group">
-              <button className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors flex items-center gap-1">
+              <button className={`${navButtonClass} gap-1`}>
                 Tools
                 <ChevronDownIcon className="w-3.5 h-3.5" />
               </button>
-              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-4 w-64 bg-white border border-[#E5E5E5] rounded-lg shadow-[0_20px_40px_rgba(0,0,0,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <div className="landing-floating-panel absolute left-1/2 top-full z-50 mt-4 w-64 -translate-x-1/2 rounded-[24px] border border-[#E5E5E5] bg-white p-2 shadow-[0_24px_60px_rgba(0,0,0,0.12)] invisible opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
                 <div className="py-2">
                   <Link
                     href="/tools/upload-assets"
-                    className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                    className="flex items-start gap-3 rounded-[18px] px-4 py-3 text-[14px] text-[#666666] transition-colors hover:bg-[#F7F7F7] hover:text-black"
                   >
-                    <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
+                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F7F7F7]">
                       <Upload className="w-5 h-5 text-black" />
                     </div>
                     <div className="flex-1">
@@ -199,9 +265,9 @@ export default function Header({
                   </Link>
                   <Link
                     href="/tools/roas-calculator"
-                    className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                    className="flex items-start gap-3 rounded-[18px] px-4 py-3 text-[14px] text-[#666666] transition-colors hover:bg-[#F7F7F7] hover:text-black"
                   >
-                    <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
+                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F7F7F7]">
                       <Calculator className="w-5 h-5 text-black" />
                     </div>
                     <div className="flex-1">
@@ -215,9 +281,9 @@ export default function Header({
                   </Link>
                   <Link
                     href="/tools/ai-angle-generator"
-                    className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
+                    className="flex items-start gap-3 rounded-[18px] px-4 py-3 text-[14px] text-[#666666] transition-colors hover:bg-[#F7F7F7] hover:text-black"
                   >
-                    <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
+                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F7F7F7]">
                       <Sparkles className="w-5 h-5 text-black" />
                     </div>
                     <div className="flex-1">
@@ -234,30 +300,29 @@ export default function Header({
             </div>
             <Link
               href="/#pricing"
-              className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors"
+              className={navButtonClass}
             >
               Pricing
             </Link>
             <Link
               href="/#blog"
-              className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors"
+              className={navButtonClass}
             >
               Blog
             </Link>
             <Link
               href="/#faq"
-              className="text-[14px] font-medium text-[#666666] hover:text-black transition-colors"
+              className={navButtonClass}
             >
               FAQ
             </Link>
           </nav>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-2.5">
             <SignedIn>
               <Link
                 href="/dashboard"
-                className="bg-black text-white hover:bg-[#2a2a2a] px-4 py-2.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2 shadow-none"
+                className="landing-press-button landing-press-button--compact inline-flex items-center justify-center text-[14px] font-medium"
               >
                 <LayoutDashboard className="w-4 h-4" />
                 Dashboard
@@ -267,7 +332,7 @@ export default function Header({
               <>
                 <SignedOut>
                   <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                    <button className="h-10 sm:h-11 bg-black text-white text-[12px] sm:text-[14px] font-medium px-3 sm:px-5 rounded-lg hover:bg-[#2a2a2a] transition-all cursor-pointer whitespace-nowrap inline-flex items-center">
+                    <button className="landing-press-button landing-press-button--compact inline-flex items-center justify-center px-3 text-[12px] font-medium sm:px-5 sm:text-[14px]">
                       <span className="hidden sm:inline">
                         Sign up · Get 100 free credits
                       </span>
@@ -284,7 +349,7 @@ export default function Header({
             {/* Mobile menu button */}
             <button
               type="button"
-              className="md:hidden p-2 text-black"
+              className="rounded-[16px] p-2 text-black transition-colors hover:bg-white md:hidden"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
               {mobileMenuOpen ? (
@@ -297,18 +362,17 @@ export default function Header({
             {showThemeToggle && (
               <button
                 type="button"
-                onClick={() => setIsDarkMode((prev) => !prev)}
+                onClick={(event) => toggleDarkMode(event.currentTarget)}
                 aria-label="Toggle light and dark mode"
-                className="h-10 sm:h-11 bg-[#F5F5F5] text-[#333333] hover:bg-[#EBEBEB] hover:text-black px-3 sm:px-3.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2"
+                className={`landing-theme-toggle landing-press-button landing-press-button--secondary landing-press-button--compact h-12 w-12 px-0 ${
+                  isDarkMode ? "text-[#F3F7FD]" : "text-[#333333]"
+                }`}
               >
                 {isDarkMode ? (
-                  <Sun className="w-4 h-4" />
+                  <Sun className="h-[22px] w-[22px] shrink-0" strokeWidth={2.5} />
                 ) : (
-                  <Moon className="w-4 h-4" />
+                  <Moon className="h-[22px] w-[22px] shrink-0" strokeWidth={2.5} />
                 )}
-                <span className="hidden sm:inline">
-                  {isDarkMode ? "Light" : "Dark"}
-                </span>
               </button>
             )}
           </div>
@@ -317,14 +381,14 @@ export default function Header({
 
       {/* Mobile menu - Simplified */}
       <div
-        className={`md:hidden absolute top-full left-0 w-full bg-white border-b border-[#E5E5E5] transition-all duration-300 ${
-          mobileMenuOpen ? "opacity-100 visible" : "opacity-0 invisible"
+        className={`absolute left-0 top-full w-full px-3 sm:px-5 lg:px-6 transition-all duration-300 md:hidden ${
+          mobileMenuOpen ? "visible opacity-100" : "invisible opacity-0"
         }`}
       >
-        <div className="px-4 py-6 flex flex-col gap-4">
+        <div className="mx-auto mt-2 flex w-full max-w-[1280px] flex-col gap-4 rounded-[28px] border border-[#E5E5E5] bg-white px-5 py-6 shadow-[0_20px_52px_rgba(0,0,0,0.08)]">
           <Link
             href="/features/ai-agent"
-            className="text-[16px] font-medium text-black inline-flex items-center gap-2"
+            className="inline-flex items-center gap-2 rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
             onClick={() => setMobileMenuOpen(false)}
           >
             <span>AI Agent</span>
@@ -334,21 +398,21 @@ export default function Header({
           </Link>
           <Link
             href="/features/avatar-ads"
-            className="text-[16px] font-medium text-black"
+            className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
             onClick={() => setMobileMenuOpen(false)}
           >
             Avatar Ads
           </Link>
           <Link
             href="/features/viral-clone"
-            className="text-[16px] font-medium text-black"
+            className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
             onClick={() => setMobileMenuOpen(false)}
           >
             Viral Clone
           </Link>
           <Link
             href="/features/motion-clone"
-            className="text-[16px] font-medium text-black"
+            className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
             onClick={() => setMobileMenuOpen(false)}
           >
             Motion Clone
@@ -358,35 +422,35 @@ export default function Header({
           </div>
           <Link
             href="/tools/upload-assets"
-            className="text-[16px] font-medium text-black"
+            className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
             onClick={() => setMobileMenuOpen(false)}
           >
             Upload Assets to URL
           </Link>
           <Link
             href="/tools/roas-calculator"
-            className="text-[16px] font-medium text-black"
+            className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
             onClick={() => setMobileMenuOpen(false)}
           >
             ROAS Calculator
           </Link>
           <Link
             href="/tools/ai-angle-generator"
-            className="text-[16px] font-medium text-black"
+            className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
             onClick={() => setMobileMenuOpen(false)}
           >
             AI Multi-Angle Photo
           </Link>
           <Link
             href="/#pricing"
-            className="text-[16px] font-medium text-black"
+            className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
             onClick={() => setMobileMenuOpen(false)}
           >
             Pricing
           </Link>
           <Link
             href="/#blog"
-            className="text-[16px] font-medium text-black"
+            className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
             onClick={() => setMobileMenuOpen(false)}
           >
             Blog

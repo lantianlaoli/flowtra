@@ -109,7 +109,7 @@ export default function ModelPricingSection() {
   return (
     <section
       id="model-pricing"
-      className="scroll-mt-24 bg-[linear-gradient(180deg,#ffffff_0%,#fbfbfb_100%)] px-4 py-14 md:px-6 md:py-24"
+      className="landing-model-pricing-section landing-section-surface scroll-mt-24 px-4 py-14 md:px-6 md:py-24"
     >
       <div className="mb-10 md:mb-14 text-center">
         <h2 className="mb-4 text-[32px] font-bold tracking-tight text-black md:text-[40px]">Price details</h2>
@@ -119,7 +119,7 @@ export default function ModelPricingSection() {
       </div>
 
       {/* Desktop Table View */}
-      <div className="mx-auto hidden max-w-6xl overflow-x-auto rounded-[28px] border border-[#E7E7E7] bg-white shadow-[0_18px_50px_rgba(0,0,0,0.04)] md:block">
+      <div className="landing-table-shell mx-auto hidden max-w-6xl overflow-x-auto rounded-[28px] border border-[#E7E7E7] bg-white shadow-[0_18px_50px_rgba(0,0,0,0.04)] md:block">
         <table className="w-full table-fixed">
           <colgroup>
             <col className="w-[40%]" />
@@ -128,28 +128,28 @@ export default function ModelPricingSection() {
             <col className="w-[24%]" />
           </colgroup>
           <thead>
-            <tr className="border-b border-[#E7E7E7] bg-[linear-gradient(180deg,#fcfcfc_0%,#f7f7f7_100%)]">
-              <th className="px-8 py-6 text-left text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
-                <span className="inline-flex items-center gap-2">
-                  <Boxes className="h-4 w-4 text-[#555555]" />
+            <tr className="landing-pricing-head border-b border-[#E7E7E7] bg-[linear-gradient(180deg,#fcfcfc_0%,#f7f7f7_100%)]">
+              <th className="landing-pricing-head-cell px-8 py-6 text-left text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
+                <span className="landing-pricing-head-label inline-flex items-center gap-2">
+                  <Boxes className="landing-pricing-head-icon h-4 w-4 text-[#555555]" />
                   <span>Model</span>
                 </span>
               </th>
-              <th className="border-l border-[#E7E7E7] px-8 py-6 text-left text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
-                <span className="inline-flex items-center gap-2">
-                  <ScanLine className="h-4 w-4 text-[#555555]" />
+              <th className="landing-pricing-head-cell border-l border-[#E7E7E7] px-8 py-6 text-left text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
+                <span className="landing-pricing-head-label inline-flex items-center gap-2">
+                  <ScanLine className="landing-pricing-head-icon h-4 w-4 text-[#555555]" />
                   <span>Resolution</span>
                 </span>
               </th>
-              <th className="border-l border-[#E7E7E7] px-8 py-6 text-left text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
-                <span className="inline-flex items-center gap-2">
-                  <Coins className="h-4 w-4 text-[#555555]" />
+              <th className="landing-pricing-head-cell border-l border-[#E7E7E7] px-8 py-6 text-left text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
+                <span className="landing-pricing-head-label inline-flex items-center gap-2">
+                  <Coins className="landing-pricing-head-icon h-4 w-4 text-[#555555]" />
                   <span>Credits / Sec</span>
                 </span>
               </th>
-              <th className="border-l border-[#E7E7E7] px-8 py-6 text-left text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
-                <span className="inline-flex items-center gap-2">
-                  <BadgeDollarSign className="h-4 w-4 text-[#555555]" />
+              <th className="landing-pricing-head-cell border-l border-[#E7E7E7] px-8 py-6 text-left text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
+                <span className="landing-pricing-head-label inline-flex items-center gap-2">
+                  <BadgeDollarSign className="landing-pricing-head-icon h-4 w-4 text-[#555555]" />
                   <span>Generation Cost / Sec</span>
                 </span>
               </th>
@@ -175,8 +175,8 @@ export default function ModelPricingSection() {
                     {isFirstRow && (
                       <td className="px-8 py-6 align-middle lg:px-9 lg:py-6" rowSpan={rowSpan}>
                         <div className="flex items-center gap-4">
-                          <div className="rounded-2xl border border-[#E8E8E8] bg-[linear-gradient(180deg,#ffffff_0%,#f8f8f8_100%)] p-2.5 shadow-[0_6px_20px_rgba(0,0,0,0.03)]">
-                            <Icon className="h-5 w-5 text-black" />
+                          <div className="landing-pricing-logo-chip rounded-2xl border border-[#E8E8E8] bg-[linear-gradient(180deg,#ffffff_0%,#f8f8f8_100%)] p-2.5 shadow-[0_6px_20px_rgba(0,0,0,0.03)]">
+                            <Icon className="landing-pricing-logo-icon h-5 w-5 text-black" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2.5">
@@ -229,12 +229,12 @@ export default function ModelPricingSection() {
           return (
             <article
               key={model.name}
-              className="rounded-[24px] border border-[#E7E7E7] bg-white p-5 shadow-[0_14px_36px_rgba(0,0,0,0.04)] sm:p-6"
+              className="landing-info-card rounded-[24px] border border-[#E7E7E7] bg-white p-5 shadow-[0_14px_36px_rgba(0,0,0,0.04)] sm:p-6"
             >
               {/* Header */}
               <div className="mb-5 flex items-center gap-3.5">
-                <div className="rounded-2xl border border-[#E7E7E7] bg-[linear-gradient(180deg,#ffffff_0%,#f8f8f8_100%)] p-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.03)]">
-                  <Icon className="h-6 w-6 text-black" />
+                <div className="landing-pricing-logo-chip rounded-2xl border border-[#E7E7E7] bg-[linear-gradient(180deg,#ffffff_0%,#f8f8f8_100%)] p-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.03)]">
+                  <Icon className="landing-pricing-logo-icon h-6 w-6 text-black" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -253,7 +253,7 @@ export default function ModelPricingSection() {
               {/* Pricing Details */}
               <div className="space-y-3.5">
                 {model.pricingOptions.map((option, idx) => (
-                  <div key={idx} className="rounded-2xl border border-[#ECECEC] bg-[linear-gradient(180deg,#fbfbfb_0%,#f7f7f7_100%)] p-4">
+                  <div key={idx} className="landing-info-card-subtle rounded-2xl border border-[#ECECEC] bg-[linear-gradient(180deg,#fbfbfb_0%,#f7f7f7_100%)] p-4">
                     <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                       <div>
                         <span className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#666666]">

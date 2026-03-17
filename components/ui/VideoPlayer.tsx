@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, forwardRef } from 'react';
+import { useRef, useState, forwardRef } from 'react';
 import { useVideoAudio } from '@/hooks/useVideoAudio';
 
 interface VideoPlayerProps {
@@ -28,6 +28,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
     instanceId
   }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const [hasError, setHasError] = useState(false);
 
     // Use the passed ref or our internal ref
     const currentRef = (ref as React.RefObject<HTMLVideoElement>) || videoRef;
@@ -49,9 +50,14 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
       <div 
         className="relative group w-full h-full overflow-hidden rounded-[inherit]"
       >
+        {hasError ? (
+          <div className="flex h-full w-full items-center justify-center bg-[#F3F3F3] px-4 text-center text-sm font-medium text-[#666666]">
+            Preview unavailable
+          </div>
+        ) : null}
         <video
           ref={currentRef}
-          className={`w-full h-full rounded-[inherit] object-cover ${className}`}
+          className={`${hasError ? 'hidden' : 'block'} w-full h-full rounded-[inherit] object-cover ${className}`}
           autoPlay={autoPlay}
           muted={!audioEnabled}
           loop={loop}
@@ -59,13 +65,17 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
           preload="metadata"
           controls={showControls}
           aria-label={ariaLabel || "Product demonstration video"}
-          onError={(e) => console.warn('Video error:', e)}
+          onError={(e) => {
+            setHasError(true);
+            console.warn('Video error:', e);
+          }}
           onMouseEnter={handleHover}
           onFocus={handleHover}
           onMouseLeave={handleLeave}
           onBlur={handleLeave}
           onClick={handleClickEnable}
           onLoadedMetadata={() => {
+            setHasError(false);
             // Respect current audio state; ensure muted only if audio not enabled
             if (currentRef.current && !audioEnabled) {
               currentRef.current.muted = true;

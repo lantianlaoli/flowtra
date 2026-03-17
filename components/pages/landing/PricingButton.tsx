@@ -46,14 +46,14 @@ export function PricingButton({ packageName }: PricingButtonProps) {
   }, [user]);
 
   const purchaseButtonClass = packageName === 'basic'
-    ? 'w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer'
-    : 'w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer';
+    ? 'landing-press-button landing-press-button--wide text-[15px] font-semibold'
+    : 'landing-press-button landing-press-button--secondary landing-press-button--wide text-[15px] font-semibold';
 
   if (!isLoaded || isCheckingSubscription) {
     return (
       <button
         disabled
-        className="w-full bg-gray-300 text-gray-500 py-3 rounded-lg cursor-not-allowed opacity-50"
+        className="landing-press-button landing-press-button--wide text-[15px] font-semibold"
       >
         Loading...
       </button>
@@ -75,7 +75,7 @@ export function PricingButton({ packageName }: PricingButtonProps) {
     return (
       <button
         disabled
-        className="w-full bg-green-600 text-white py-3 rounded-lg cursor-not-allowed opacity-75"
+        className="landing-press-button landing-press-button--success landing-press-button--wide text-[15px] font-semibold"
       >
         Already Subscribed
       </button>

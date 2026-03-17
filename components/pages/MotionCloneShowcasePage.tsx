@@ -1,4 +1,3 @@
-import Script from 'next/script';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { FeatureSignupCTA } from '@/components/cta/FeatureSignupCTA';
@@ -6,6 +5,8 @@ import FeatureBenefitRow from '@/components/features/FeatureBenefitRow';
 import FeatureHero from '@/components/features/FeatureHero';
 import FeatureStepsSection from '@/components/features/FeatureStepsSection';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
+
+const MOTION_CLONE_TUTORIAL_EMBED_URL = 'https://www.youtube.com/embed/d_pzzXUj-Lw?rel=0';
 
 const steps = [
   {
@@ -44,9 +45,10 @@ export default function MotionCloneShowcasePage() {
               </p>
               <div className="relative aspect-[9/16] overflow-hidden rounded-[20px] border border-[#E5E5E5] bg-[#F5F5F5]">
                 <LazyVideoPlayer
-                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_clone_refer.mp4"
+                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_refer.mp4"
                   wrapperClassName="h-full w-full"
                   className="h-full w-full object-cover"
+                  eager
                   showControls={false}
                   playsInline
                   loop
@@ -60,9 +62,10 @@ export default function MotionCloneShowcasePage() {
               </p>
               <div className="relative aspect-[9/16] overflow-hidden rounded-[20px] border border-black bg-[#F5F5F5]">
                 <LazyVideoPlayer
-                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_clone_result.mp4"
+                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_result.mp4"
                   wrapperClassName="h-full w-full"
                   className="h-full w-full object-cover"
+                  eager
                   showControls={false}
                   playsInline
                   loop
@@ -82,20 +85,16 @@ export default function MotionCloneShowcasePage() {
         media={
           <div className="w-fit max-w-full lg:ml-auto">
             <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-white shadow-[0_18px_40px_rgba(0,0,0,0.06)]">
-              <blockquote
-                className="tiktok-embed !my-0"
-                cite="https://www.tiktok.com/@laolilantian/video/7600705503555095816?lang=en"
-                data-video-id="7600705503555095816"
-                style={{ maxWidth: '380px', minWidth: '280px' }}
-              >
-                <section>
-                  <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">
-                    @laolilantian
-                  </a>{' '}
-                  Watch how we quickly clone viral videos and swap products using our optimized tool. Adjust every frame and prompt in the editor for perfect results.
-                </section>
-              </blockquote>
-              <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />
+              <div className="aspect-video w-full max-w-[720px] min-w-[280px] bg-black">
+                <iframe
+                  className="h-full w-full"
+                  src={MOTION_CLONE_TUTORIAL_EMBED_URL}
+                  title="Motion Clone tutorial"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
+                />
+              </div>
             </div>
           </div>
         }
@@ -138,7 +137,7 @@ export default function MotionCloneShowcasePage() {
         media={
           <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-[#FAFAFA] shadow-[0_18px_40px_rgba(0,0,0,0.06)] transition-transform duration-200 hover:-translate-y-1">
             <LazyVideoPlayer
-              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_clone_demo.mp4"
+              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_demo.mp4"
               wrapperClassName="w-full"
               className="w-full h-auto"
               showControls={false}

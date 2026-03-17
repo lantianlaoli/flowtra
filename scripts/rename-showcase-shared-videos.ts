@@ -30,9 +30,12 @@ const renameMap = {
   'clone_competitor_result.mp4': 'clone_competitor_result.mp4',
   'import-paths.mp4': 'import_video_paths.mp4',
   'import-tiktok-name.mp4': 'import_tiktok_name.mp4',
-  'motion-clone.mp4': 'motion_clone_demo.mp4',
-  'motion_clone_refer_1.mp4': 'motion_clone_refer.mp4',
-  'motion_clone_result_1.mp4': 'motion_clone_result.mp4',
+  'motion-swap.mp4': 'motion_clone_demo.mp4',
+  'motion_swap_refer_1.mp4': 'motion_clone_refer.mp4',
+  'motion_swap_result_1.mp4': 'motion_clone_result.mp4',
+  'motion_swap_refer.mp4': 'motion_clone_refer.mp4',
+  'motion_swap_result.mp4': 'motion_clone_result.mp4',
+  'motion_swap_demo.mp4': 'motion_clone_demo.mp4',
 } as const
 
 async function moveObject(fromName: string, toName: string) {

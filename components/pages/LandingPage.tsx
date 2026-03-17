@@ -48,7 +48,7 @@ export default function LandingPage() {
       <Header />
 
       {/* Hero Section */}
-      <main className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-[90rem] px-4 pt-2 sm:px-6 sm:pt-3 lg:px-8">
         <HeroSection />
 
 

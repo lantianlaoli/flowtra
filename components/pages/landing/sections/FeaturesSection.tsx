@@ -24,7 +24,7 @@ function FeatureSection({
   isNew = false,
 }: FeatureSectionProps) {
   return (
-    <article className="grid items-center gap-10 md:gap-16 lg:grid-cols-2">
+    <article className="grid items-center gap-10 border-t border-[#E8E8E8] py-10 first:border-t-0 first:pt-0 md:gap-16 md:py-14 lg:grid-cols-2 lg:py-16">
       <div
         className={`flex-1 space-y-8 ${
           mediaFirst ? "lg:order-2" : "lg:order-1"
@@ -32,7 +32,7 @@ function FeatureSection({
       >
         <div className="flex items-start gap-4">
           <div
-            className="w-12 h-12 bg-[#F7F7F7] rounded-lg flex items-center justify-center flex-shrink-0"
+            className="landing-feature-icon flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F7F7F7]"
             aria-hidden="true"
           >
             <Icon className="w-6 h-6 text-black" />
@@ -66,7 +66,7 @@ function FeatureSection({
 
           <Link
             href={href}
-            className="inline-flex items-center gap-2 text-black font-semibold hover:gap-3 transition-all pt-2 border-b-2 border-transparent hover:border-black"
+            className="landing-press-button landing-press-button--secondary landing-press-button--compact mt-2 text-[14px] font-semibold"
           >
             Learn More
             <ArrowRight className="w-4 h-4" />
@@ -120,11 +120,12 @@ export default function FeaturesSection() {
                     Reference Video
                   </div>
 
-                  <div className="relative aspect-[9/16] w-full bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
+                  <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
                     <LazyVideoPlayer
                       src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/agent_refer_1.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
+                      eager
                       playsInline
                       loop
                     />
@@ -136,11 +137,12 @@ export default function FeaturesSection() {
                     Agent Result
                   </div>
 
-                  <div className="relative aspect-[9/16] w-full bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
+                  <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
                     <LazyVideoPlayer
                       src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/agent_result_1.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
+                      eager
                       playsInline
                       loop
                     />
@@ -169,11 +171,12 @@ export default function FeaturesSection() {
                     Viral Video
                   </div>
 
-                  <div className="relative aspect-[9/16] w-full bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
+                  <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
                     <LazyVideoPlayer
                       src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_source.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
+                      eager
                       playsInline
                       loop
                     />
@@ -185,11 +188,12 @@ export default function FeaturesSection() {
                     Clone
                   </div>
 
-                  <div className="relative aspect-[9/16] w-full bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
+                  <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
                     <LazyVideoPlayer
                       src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_result.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
+                      eager
                       playsInline
                       loop
                     />
@@ -212,11 +216,12 @@ export default function FeaturesSection() {
               "Unlimited character uploads",
             ]}
             media={
-              <div className="relative aspect-[9/16] max-w-[320px] mx-auto bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
+              <div className="landing-feature-media relative mx-auto aspect-[9/16] max-w-[320px] overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
                 <LazyVideoPlayer
                   src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/character_ads_case.mp4"
                   wrapperClassName="h-full w-full"
                   className="h-full w-full object-cover"
+                  eager
                   playsInline
                   loop
                 />
@@ -243,11 +248,12 @@ export default function FeaturesSection() {
                     Original Creator
                   </div>
 
-                  <div className="relative aspect-[9/16] w-full bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
+                  <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
                     <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_clone_refer.mp4"
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_refer.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
+                      eager
                       playsInline
                       loop
                     />
@@ -259,11 +265,12 @@ export default function FeaturesSection() {
                     Motion Clone
                   </div>
 
-                  <div className="relative aspect-[9/16] w-full bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
+                  <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
                     <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_clone_result.mp4"
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_result.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
+                      eager
                       playsInline
                       loop
                     />

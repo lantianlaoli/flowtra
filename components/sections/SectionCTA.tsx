@@ -29,13 +29,13 @@ export default function SectionCTA({
           <div className="text-center sm:text-right">
             <SignedOut>
               <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-                <button className="inline-flex items-center justify-center bg-gray-900 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-gray-800 transition-colors">
+                <button className="landing-press-button landing-press-button--compact font-semibold">
                   {buttonText}
                 </button>
               </SignInButton>
             </SignedOut>
             <SignedIn>
-              <Link href="/dashboard" className="inline-flex items-center justify-center bg-gray-900 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-gray-800 transition-colors">
+              <Link href="/dashboard" className="landing-press-button landing-press-button--compact font-semibold">
                 {signedInText}
               </Link>
             </SignedIn>

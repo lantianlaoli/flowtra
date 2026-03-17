@@ -80,7 +80,7 @@ export default function PricingSection({
         }`}
       >
         {showWelcomeBonusCard && (
-          <article className="bg-white rounded-xl border border-[#E5E5E5] p-8 flex flex-col">
+          <article className="landing-plan-card flex flex-col rounded-[24px] border border-[#E5E5E5] bg-white p-8">
             <h3 className="text-[20px] font-bold text-black tracking-tight mb-2">
               Welcome Bonus
             </h3>
@@ -109,7 +109,7 @@ export default function PricingSection({
             <div className="mt-auto">
               <Link
                 href="/dashboard"
-                className="w-full inline-flex items-center justify-center rounded-lg bg-black px-4 py-3 text-[14px] font-semibold text-white hover:bg-[#1f1f1f] transition-colors"
+                className="landing-press-button landing-press-button--wide text-[14px] font-semibold"
               >
                 Enter Console
               </Link>
@@ -120,7 +120,7 @@ export default function PricingSection({
         {/* Lite Plan */}
 
         <article
-          className="bg-white rounded-xl border border-[#E5E5E5] p-6 sm:p-8 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex flex-col"
+          className="landing-plan-card flex flex-col rounded-[24px] border border-[#E5E5E5] bg-white p-6 sm:p-8"
           itemScope
           itemType="https://schema.org/Offer"
         >
@@ -147,7 +147,7 @@ export default function PricingSection({
             </div>
 
             {/* Trial Badge */}
-            <div className="mt-4 inline-flex items-center gap-2 rounded-xl border-2 border-black bg-white px-3 py-2 shadow-[0_8px_20px_rgba(0,0,0,0.08)]">
+            <div className="landing-plan-chip mt-4 inline-flex items-center gap-2 rounded-xl border-2 border-black bg-white px-3 py-2 shadow-[0_8px_20px_rgba(0,0,0,0.08)]">
               <span className="inline-flex items-center rounded-full bg-black px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">
                 Trial
               </span>
@@ -195,12 +195,12 @@ export default function PricingSection({
         {/* Basic Plan (Recommended) */}
 
         <article
-          className="relative bg-white rounded-xl border-2 border-black p-6 sm:p-8 shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex flex-col"
+          className="landing-plan-card landing-plan-card--featured relative flex flex-col rounded-[24px] border-2 border-black bg-white p-6 shadow-[0_20px_40px_rgba(0,0,0,0.1)] sm:p-8"
           itemScope
           itemType="https://schema.org/Offer"
         >
           <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20">
-            <div className="bg-black text-white px-4 py-1 rounded-full text-[12px] font-bold uppercase tracking-wider shadow-md">
+            <div className="landing-plan-recommended bg-black px-4 py-1 rounded-full text-[12px] font-bold uppercase tracking-wider text-white shadow-md">
               Recommended
             </div>
           </div>
@@ -262,7 +262,7 @@ export default function PricingSection({
         {/* Pro Plan */}
 
         <article
-          className="bg-white rounded-xl border border-[#E5E5E5] p-6 sm:p-8 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex flex-col"
+          className="landing-plan-card flex flex-col rounded-[24px] border border-[#E5E5E5] bg-white p-6 sm:p-8"
           itemScope
           itemType="https://schema.org/Offer"
         >

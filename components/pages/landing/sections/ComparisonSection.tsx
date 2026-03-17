@@ -2,7 +2,7 @@ import { BadgeDollarSign, Check, FolderKanban, Layers3 } from "lucide-react";
 
 export default function ComparisonSection() {
   return (
-    <section className="py-14 md:py-20 lg:py-24 bg-white">
+    <section className="landing-section-surface bg-white py-14 md:py-20 lg:py-24">
       <div className="text-center mb-10 md:mb-16 px-4">
         <h2 className="text-[32px] md:text-[40px] font-bold text-black mb-4 tracking-tight">Arcads Alternative</h2>
         <p className="text-base md:text-lg text-[#666666]">Discover a superior alternative for your video generation needs</p>
@@ -10,7 +10,7 @@ export default function ComparisonSection() {
 
       <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Desktop Table View */}
-        <div className="hidden overflow-x-auto rounded-[28px] border border-[#E7E7E7] bg-white shadow-[0_18px_50px_rgba(0,0,0,0.04)] lg:block">
+        <div className="landing-table-shell hidden overflow-x-auto rounded-[28px] border border-[#E7E7E7] bg-white shadow-[0_18px_50px_rgba(0,0,0,0.04)] lg:block">
           <table className="w-full text-left border-collapse table-fixed">
             <colgroup>
               <col className="w-[28%]" />
@@ -104,7 +104,7 @@ export default function ComparisonSection() {
         {/* Mobile Card View */}
         <div className="lg:hidden space-y-5">
           {/* Flowtra Card */}
-          <div className="relative space-y-5 rounded-[24px] border border-black bg-white p-6 shadow-[0_18px_40px_rgba(0,0,0,0.08)] sm:p-8">
+          <div className="landing-info-card landing-info-card--featured relative space-y-5 rounded-[24px] border border-black bg-white p-6 shadow-[0_18px_40px_rgba(0,0,0,0.08)] sm:p-8">
              <div className="absolute top-0 right-0 bg-black text-white text-[10px] font-bold px-4 py-1.5 uppercase tracking-widest rounded-bl-xl">
               BEST VALUE
             </div>
@@ -145,7 +145,7 @@ export default function ComparisonSection() {
           </div>
 
            {/* Arcads Card */}
-           <div className="space-y-5 rounded-[24px] border border-[#E7E7E7] bg-white p-6 shadow-[0_14px_36px_rgba(0,0,0,0.04)] sm:p-7">
+           <div className="landing-info-card space-y-5 rounded-[24px] border border-[#E7E7E7] bg-white p-6 shadow-[0_14px_36px_rgba(0,0,0,0.04)] sm:p-7">
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="text-[20px] font-semibold text-black">Arcads</h3>
