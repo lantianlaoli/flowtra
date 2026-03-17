@@ -9,6 +9,7 @@ import {
   Plus,
   Trash2,
   Link2,
+  Coins,
   Clock,
   User,
   Clapperboard,
@@ -32,9 +33,10 @@ import type { SystemAvatar } from '@/lib/default-avatars';
 import { useToast } from '@/contexts/ToastContext';
 import { estimateKlingPromptUsage, KLING_PROMPT_MAX_CHARS } from '@/lib/kling-prompt-budget';
 import { getSegmentPromptVideoGenerationCost } from '@/lib/competitor-ugc-segment-billing';
-import type { CloneVideoQuality, VideoModel } from '@/lib/constants';
+import { getSegmentDurationForModel, type CloneVideoQuality, type VideoModel } from '@/lib/constants';
 import SegmentTimelineRuler from '@/components/competitor-ugc-replication/SegmentTimelineRuler';
 import { MENTION_TOKEN_REGEX, normalizeMentionLabel, parseMentionToken } from '@/lib/prompt-mention-tokens';
+import { formatTimelineRange } from '@/lib/segment-shot-timeline';
 
 export type SegmentShotPayload = {
   id: number;
@@ -120,9 +122,13 @@ const normalizeShotLanguage = (value?: string): LanguageCode => {
   return match ? match.value : DEFAULT_LANGUAGE;
 };
 
-const createEmptyShotPayload = (id: number, language: LanguageCode): SegmentShotPayload => ({
+const getDefaultShotTimeRange = (videoModel?: string | null) => (
+  formatTimelineRange(0, getSegmentDurationForModel((videoModel as VideoModel | null | undefined) ?? null))
+);
+
+const createEmptyShotPayload = (id: number, language: LanguageCode, videoModel?: string | null): SegmentShotPayload => ({
   id,
-  time_range: '00:00 - 00:02',
+  time_range: getDefaultShotTimeRange(videoModel),
   audio: '',
   sfx: '',
   ambient: '',
@@ -180,7 +186,18 @@ const buildLegacyAudioField = (shot: Pick<SegmentShotPayload, 'sfx' | 'ambient'>
   return parts.join(' | ');
 };
 
-const convertShotsForEditor = (shots: SegmentPrompt['shots'], fallbackLanguage: LanguageCode): SegmentShotPayload[] => {
+const SHOT_TEXTAREA_CLASS = 'clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-y overflow-y-auto min-h-[88px] transition-all duration-200 ease-in-out';
+
+const autoResizePromptField = (target: HTMLTextAreaElement) => {
+  target.style.height = 'auto';
+  target.style.height = `${Math.max(88, target.scrollHeight)}px`;
+};
+
+const convertShotsForEditor = (
+  shots: SegmentPrompt['shots'],
+  fallbackLanguage: LanguageCode,
+  videoModel?: string | null
+): SegmentShotPayload[] => {
   if (Array.isArray(shots) && shots.length > 0) {
     return shots.map((shot, index) => {
       const parsedAudio = parseLegacyAudioField(shot.audio || '');
@@ -188,7 +205,7 @@ const convertShotsForEditor = (shots: SegmentPrompt['shots'], fallbackLanguage: 
       const ambient = (shot.ambient || '').trim() || parsedAudio.ambient;
       return {
       id: shot.id || index + 1,
-      time_range: shot.time_range || '00:00 - 00:02',
+      time_range: shot.time_range || getDefaultShotTimeRange(videoModel),
       audio: buildLegacyAudioField({ sfx, ambient }),
       sfx,
       ambient,
@@ -204,7 +221,7 @@ const convertShotsForEditor = (shots: SegmentPrompt['shots'], fallbackLanguage: 
     };
     });
   }
-  return [createEmptyShotPayload(1, fallbackLanguage)];
+  return [createEmptyShotPayload(1, fallbackLanguage, videoModel)];
 };
 
 export default function SegmentFormColumn({
@@ -231,8 +248,8 @@ export default function SegmentFormColumn({
   const activeLanguage = selectedLanguage || normalizeShotLanguage(normalizedPrompt.language || DEFAULT_LANGUAGE);
   const initialPhotoPrompt = normalizedPrompt.first_frame_description || '';
   const initialShots = useMemo(
-    () => convertShotsForEditor(normalizedPrompt.shots, activeLanguage).map((shot) => ({ ...shot, language: activeLanguage })),
-    [activeLanguage, normalizedPrompt]
+    () => convertShotsForEditor(normalizedPrompt.shots, activeLanguage, videoModel).map((shot) => ({ ...shot, language: activeLanguage })),
+    [activeLanguage, normalizedPrompt, videoModel]
   );
 
   const [photoPrompt, setPhotoPrompt] = useState(initialPhotoPrompt);
@@ -437,7 +454,7 @@ export default function SegmentFormColumn({
         [nextId]: true
       }));
       const fallbackLanguage = prev[0]?.language || DEFAULT_LANGUAGE;
-      return [...prev, createEmptyShotPayload(nextId, fallbackLanguage)];
+      return [...prev, createEmptyShotPayload(nextId, fallbackLanguage, videoModel)];
     });
   };
 
@@ -664,11 +681,13 @@ export default function SegmentFormColumn({
               value={photoPrompt}
               onChange={setPhotoPrompt}
               rows={6}
+              resizable="vertical"
               disabled={readOnly}
               readOnly={readOnly}
               hasError={photoPromptTooLong}
               className={clsx(
                 'clone-editor-textarea rounded-lg',
+                'min-h-[120px]',
                 photoPromptTooLong ? 'border-red-500' : 'border-[#E5E5E5]',
                 readOnly ? 'bg-gray-50' : ''
               )}
@@ -764,6 +783,7 @@ export default function SegmentFormColumn({
             <SegmentTimelineRuler
               shots={shots}
               readOnly={readOnly}
+              fallbackDurationSeconds={getSegmentDurationForModel((videoModel as VideoModel | null | undefined) ?? null)}
               onChange={(nextRanges) => {
                 setShots((prev) => prev.map((shot) => {
                   const nextRange = nextRanges.find((item) => item.id === shot.id);
@@ -867,9 +887,10 @@ export default function SegmentFormColumn({
                                 value={shot.subject}
                                 onChange={(value) => handleShotChange(shot.id, 'subject', value)}
                                 rows={2}
+                                resizable="vertical"
                                 disabled={readOnly}
                                 readOnly={readOnly}
-                                className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] focus:ring-0 focus:ring-offset-0 min-h-[72px] ${
+                                className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] focus:ring-0 focus:ring-offset-0 min-h-[88px] ${
                                   readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                                 }`}
                                 characterMentions={characterOptions.map(character => ({
@@ -899,9 +920,10 @@ export default function SegmentFormColumn({
                                 value={shot.action}
                                 onChange={(value) => handleShotChange(shot.id, 'action', value)}
                                 rows={2}
+                                resizable="vertical"
                                 disabled={readOnly}
                                 readOnly={readOnly}
-                                className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] focus:ring-0 focus:ring-offset-0 min-h-[72px] ${
+                                className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] focus:ring-0 focus:ring-offset-0 min-h-[88px] ${
                                   readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                                 }`}
                                 characterMentions={characterOptions.map(character => ({
@@ -934,21 +956,15 @@ export default function SegmentFormColumn({
                                 readOnly={readOnly}
                                 onFocus={(e) => {
                                   if (readOnly) return;
-                                  e.target.style.height = 'auto';
-                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                                }}
-                                onBlur={(e) => {
-                                  if (readOnly) return;
-                                  e.target.style.height = '';
+                                  autoResizePromptField(e.target);
                                 }}
                                 onInput={(e) => {
                                   if (readOnly) return;
                                   const target = e.target as HTMLTextAreaElement;
-                                  target.style.height = 'auto';
-                                  target.style.height = `${target.scrollHeight}px`;
+                                  autoResizePromptField(target);
                                   handleShotChange(shot.id, 'style', target.value);
                                 }}
-                                className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                                className={`${SHOT_TEXTAREA_CLASS} ${
                                   readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                                 }`}
                               />
@@ -975,21 +991,15 @@ export default function SegmentFormColumn({
                                 readOnly={readOnly}
                                 onFocus={(e) => {
                                   if (readOnly) return;
-                                  e.target.style.height = 'auto';
-                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                                }}
-                                onBlur={(e) => {
-                                  if (readOnly) return;
-                                  e.target.style.height = '';
+                                  autoResizePromptField(e.target);
                                 }}
                                 onInput={(e) => {
                                   if (readOnly) return;
                                   const target = e.target as HTMLTextAreaElement;
-                                  target.style.height = 'auto';
-                                  target.style.height = `${target.scrollHeight}px`;
+                                  autoResizePromptField(target);
                                   handleShotChange(shot.id, 'camera_motion_positioning', target.value);
                                 }}
-                                className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                                className={`${SHOT_TEXTAREA_CLASS} ${
                                   readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                                 }`}
                               />
@@ -1007,21 +1017,15 @@ export default function SegmentFormColumn({
                                 readOnly={readOnly}
                                 onFocus={(e) => {
                                   if (readOnly) return;
-                                  e.target.style.height = 'auto';
-                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                                }}
-                                onBlur={(e) => {
-                                  if (readOnly) return;
-                                  e.target.style.height = '';
+                                  autoResizePromptField(e.target);
                                 }}
                                 onInput={(e) => {
                                   if (readOnly) return;
                                   const target = e.target as HTMLTextAreaElement;
-                                  target.style.height = 'auto';
-                                  target.style.height = `${target.scrollHeight}px`;
+                                  autoResizePromptField(target);
                                   handleShotChange(shot.id, 'composition', target.value);
                                 }}
-                                className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                                className={`${SHOT_TEXTAREA_CLASS} ${
                                   readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                                 }`}
                               />
@@ -1039,21 +1043,15 @@ export default function SegmentFormColumn({
                                 readOnly={readOnly}
                                 onFocus={(e) => {
                                   if (readOnly) return;
-                                  e.target.style.height = 'auto';
-                                  e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                                }}
-                                onBlur={(e) => {
-                                  if (readOnly) return;
-                                  e.target.style.height = '';
+                                  autoResizePromptField(e.target);
                                 }}
                                 onInput={(e) => {
                                   if (readOnly) return;
                                   const target = e.target as HTMLTextAreaElement;
-                                  target.style.height = 'auto';
-                                  target.style.height = `${target.scrollHeight}px`;
+                                  autoResizePromptField(target);
                                   handleShotChange(shot.id, 'ambiance_colour_lighting', target.value);
                                 }}
-                                className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                                className={`${SHOT_TEXTAREA_CLASS} ${
                                   readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                                 }`}
                               />
@@ -1080,21 +1078,15 @@ export default function SegmentFormColumn({
                               readOnly={readOnly}
                               onFocus={(e) => {
                                 if (readOnly) return;
-                                e.target.style.height = 'auto';
-                                e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                              }}
-                              onBlur={(e) => {
-                                if (readOnly) return;
-                                e.target.style.height = '';
+                                autoResizePromptField(e.target);
                               }}
                               onInput={(e) => {
                                 if (readOnly) return;
                                 const target = e.target as HTMLTextAreaElement;
-                                target.style.height = 'auto';
-                                target.style.height = `${target.scrollHeight}px`;
+                                autoResizePromptField(target);
                                 handleShotChange(shot.id, 'dialogue', target.value);
                               }}
-                              className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                              className={`${SHOT_TEXTAREA_CLASS} ${
                                 readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                               }`}
                             />
@@ -1112,18 +1104,12 @@ export default function SegmentFormColumn({
                               readOnly={readOnly}
                               onFocus={(e) => {
                                 if (readOnly) return;
-                                e.target.style.height = 'auto';
-                                e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                              }}
-                              onBlur={(e) => {
-                                if (readOnly) return;
-                                e.target.style.height = '';
+                                autoResizePromptField(e.target);
                               }}
                               onInput={(e) => {
                                 if (readOnly) return;
                                 const target = e.target as HTMLTextAreaElement;
-                                target.style.height = 'auto';
-                                target.style.height = `${target.scrollHeight}px`;
+                                autoResizePromptField(target);
                                 const nextValue = target.value;
                                 setShots(prev => prev.map(item => (
                                   item.id === shot.id
@@ -1131,7 +1117,7 @@ export default function SegmentFormColumn({
                                     : item
                                 )));
                               }}
-                              className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                              className={`${SHOT_TEXTAREA_CLASS} ${
                                 readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                               }`}
                             />
@@ -1149,18 +1135,12 @@ export default function SegmentFormColumn({
                               readOnly={readOnly}
                               onFocus={(e) => {
                                 if (readOnly) return;
-                                e.target.style.height = 'auto';
-                                e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                              }}
-                              onBlur={(e) => {
-                                if (readOnly) return;
-                                e.target.style.height = '';
+                                autoResizePromptField(e.target);
                               }}
                               onInput={(e) => {
                                 if (readOnly) return;
                                 const target = e.target as HTMLTextAreaElement;
-                                target.style.height = 'auto';
-                                target.style.height = `${target.scrollHeight}px`;
+                                autoResizePromptField(target);
                                 const nextValue = target.value;
                                 setShots(prev => prev.map(item => (
                                   item.id === shot.id
@@ -1168,7 +1148,7 @@ export default function SegmentFormColumn({
                                     : item
                                 )));
                               }}
-                              className={`clone-editor-input w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm text-black focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out ${
+                              className={`${SHOT_TEXTAREA_CLASS} ${
                                 readOnly ? 'bg-gray-50 cursor-not-allowed' : ''
                               }`}
                             />
@@ -1207,8 +1187,10 @@ export default function SegmentFormColumn({
               >
                 {submittingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <VideoIcon className="w-4 h-4" />}
                 Generate Video
-                <span className="ml-1 inline-flex items-center rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
-                  {segmentVideoCost} credits
+                <span className="ml-1 inline-flex items-center gap-1.5 rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                  <Coins className="h-3.5 w-3.5" />
+                  <span>{segmentVideoCost}</span>
+                  <span className="sr-only">credits</span>
                 </span>
               </button>
               {!regenEnabled && (

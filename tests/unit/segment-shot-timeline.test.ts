@@ -51,6 +51,40 @@ test('normalizeTimelineRanges falls back to evenly distributed segment timing', 
   ]);
 });
 
+test('normalizeTimelineRanges uses the full 8 second segment for a single shot', () => {
+  const ranges = normalizeTimelineRanges([
+    { id: 1, time_range: '' },
+  ], 8);
+
+  assert.deepEqual(ranges, [
+    { id: 1, startSec: 0, endSec: 8 },
+  ]);
+});
+
+test('normalizeTimelineRanges uses the full 15 second segment for a single shot', () => {
+  const ranges = normalizeTimelineRanges([
+    { id: 1, time_range: '' },
+  ], 15);
+
+  assert.deepEqual(ranges, [
+    { id: 1, startSec: 0, endSec: 15 },
+  ]);
+});
+
+test('normalizeTimelineRanges distributes shot timing across an 8 second ruler', () => {
+  const ranges = normalizeTimelineRanges([
+    { id: 1, time_range: '' },
+    { id: 2, time_range: '' },
+    { id: 3, time_range: '' },
+  ], 8);
+
+  assert.deepEqual(ranges, [
+    { id: 1, startSec: 0, endSec: 3 },
+    { id: 2, startSec: 3, endSec: 6 },
+    { id: 3, startSec: 6, endSec: 8 },
+  ]);
+});
+
 test('normalizeTimelineRanges distributes shot timing across a 15 second ruler', () => {
   const ranges = normalizeTimelineRanges([
     { id: 1, time_range: '' },
@@ -66,6 +100,18 @@ test('normalizeTimelineRanges distributes shot timing across a 15 second ruler',
     { id: 3, startSec: 6, endSec: 9 },
     { id: 4, startSec: 9, endSec: 12 },
     { id: 5, startSec: 12, endSec: 15 },
+  ]);
+});
+
+test('normalizeTimelineRanges preserves explicit valid ranges even when fallback differs', () => {
+  const ranges = normalizeTimelineRanges([
+    { id: 1, time_range: '00:00 - 00:04' },
+    { id: 2, time_range: '00:04 - 00:08' },
+  ], 15);
+
+  assert.deepEqual(ranges, [
+    { id: 1, startSec: 0, endSec: 4 },
+    { id: 2, startSec: 4, endSec: 8 },
   ]);
 });
 

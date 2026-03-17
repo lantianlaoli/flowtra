@@ -3,18 +3,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import NextImage from 'next/image';
 import clsx from 'clsx';
-import { X, Image as ImageIcon, Video as VideoIcon, Loader2, ChevronDown, Plus, Trash2, Link2, User, Clapperboard, Palette, Volume2, Waves, MessageSquare, Camera, Move, Sun, Sparkles } from 'lucide-react';
+import { X, Image as ImageIcon, Video as VideoIcon, Loader2, ChevronDown, Plus, Trash2, Link2, User, Clapperboard, Palette, Volume2, Waves, MessageSquare, Camera, Move, Sun, Sparkles, Coins } from 'lucide-react';
 import type { SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 import type { SegmentCardSummary } from '@/components/ui/GenerationProgressDisplay';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
 import type { UserAvatar } from '@/lib/supabase';
 import type { SystemAvatar } from '@/lib/default-avatars';
-import { MODEL_PROCESSING_TIMES, type CloneVideoQuality, type VideoModel } from '@/lib/constants';
+import { MODEL_PROCESSING_TIMES, getSegmentDurationForModel, type CloneVideoQuality, type VideoModel } from '@/lib/constants';
 import { getSegmentPromptVideoGenerationCost } from '@/lib/competitor-ugc-segment-billing';
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
 import { estimateKlingPromptUsage, KLING_PROMPT_MAX_CHARS } from '@/lib/kling-prompt-budget';
 import SegmentTimelineRuler from '@/components/competitor-ugc-replication/SegmentTimelineRuler';
 import { MENTION_TOKEN_REGEX, normalizeMentionLabel, parseMentionToken } from '@/lib/prompt-mention-tokens';
+import { formatTimelineRange } from '@/lib/segment-shot-timeline';
 
 export type SegmentShotPayload = {
   id: number;
@@ -74,9 +75,13 @@ const normalizeShotLanguage = (value?: string): LanguageCode => {
   return match ? match.value : DEFAULT_LANGUAGE;
 };
 
-const createEmptyShotPayload = (id: number, language: LanguageCode): SegmentShotPayload => ({
+const getDefaultShotTimeRange = (videoModel?: string | null) => (
+  formatTimelineRange(0, getSegmentDurationForModel((videoModel as VideoModel | null | undefined) ?? null))
+);
+
+const createEmptyShotPayload = (id: number, language: LanguageCode, videoModel?: string | null): SegmentShotPayload => ({
   id,
-  time_range: '00:00 - 00:02',
+  time_range: getDefaultShotTimeRange(videoModel),
   audio: '',
   sfx: '',
   ambient: '',
@@ -117,6 +122,13 @@ const buildLegacyAudioField = (shot: Pick<SegmentShotPayload, 'sfx' | 'ambient'>
   return parts.join(' | ');
 };
 
+const SHOT_TEXTAREA_CLASS = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-y overflow-y-auto min-h-[88px] transition-all duration-200 ease-in-out';
+
+const autoResizePromptField = (target: HTMLTextAreaElement) => {
+  target.style.height = 'auto';
+  target.style.height = `${Math.max(88, target.scrollHeight)}px`;
+};
+
 const buildShotPayloadForPersistence = (shot: SegmentShotPayload, index: number) => ({
   id: index + 1,
   time_range: shot.time_range.trim(),
@@ -134,7 +146,11 @@ const buildShotPayloadForPersistence = (shot: SegmentShotPayload, index: number)
   camera_motion_positioning: shot.camera_motion_positioning.trim()
 });
 
-const convertShotsForEditor = (shots: SegmentPrompt['shots'], fallbackLanguage: LanguageCode): SegmentShotPayload[] => {
+const convertShotsForEditor = (
+  shots: SegmentPrompt['shots'],
+  fallbackLanguage: LanguageCode,
+  videoModel?: string | null
+): SegmentShotPayload[] => {
   if (Array.isArray(shots) && shots.length > 0) {
     return shots.map((shot, index) => {
       const parsedAudio = parseLegacyAudioField(shot.audio || '');
@@ -142,7 +158,7 @@ const convertShotsForEditor = (shots: SegmentPrompt['shots'], fallbackLanguage: 
       const ambient = (shot.ambient || '').trim() || parsedAudio.ambient;
       return ({
       id: shot.id || index + 1,
-      time_range: shot.time_range || '00:00 - 00:02',
+      time_range: shot.time_range || getDefaultShotTimeRange(videoModel),
       audio: buildLegacyAudioField({ sfx, ambient }),
       sfx,
       ambient,
@@ -158,7 +174,7 @@ const convertShotsForEditor = (shots: SegmentPrompt['shots'], fallbackLanguage: 
     });
     });
   }
-  return [createEmptyShotPayload(1, fallbackLanguage)];
+  return [createEmptyShotPayload(1, fallbackLanguage, videoModel)];
 };
 
 type ProductOption = {
@@ -221,8 +237,8 @@ export default function SegmentInspector({
   const activeLanguage = selectedLanguage || normalizeShotLanguage(normalizedPrompt.language || DEFAULT_LANGUAGE);
   const initialPhotoPrompt = normalizedPrompt.first_frame_description || '';
   const initialShots = useMemo(
-    () => convertShotsForEditor(normalizedPrompt.shots, activeLanguage).map((shot) => ({ ...shot, language: activeLanguage })),
-    [activeLanguage, normalizedPrompt]
+    () => convertShotsForEditor(normalizedPrompt.shots, activeLanguage, videoModel).map((shot) => ({ ...shot, language: activeLanguage })),
+    [activeLanguage, normalizedPrompt, videoModel]
   );
 
   const [photoPrompt, setPhotoPrompt] = useState(initialPhotoPrompt);
@@ -393,7 +409,7 @@ export default function SegmentInspector({
         [nextId]: true
       }));
       const fallbackLanguage = prev[0]?.language || DEFAULT_LANGUAGE;
-      return [...prev, createEmptyShotPayload(nextId, fallbackLanguage)];
+      return [...prev, createEmptyShotPayload(nextId, fallbackLanguage, videoModel)];
     });
   };
 
@@ -658,7 +674,9 @@ export default function SegmentInspector({
                 value={photoPrompt}
                 onChange={setPhotoPrompt}
                 rows={6}
+                resizable="vertical"
                 hasError={photoPromptTooLong}
+                className="min-h-[120px]"
                 placeholder="Describe the exact frame you want..."
                 characterMentions={characterOptions.map(character => ({
                   id: character.id,
@@ -744,6 +762,7 @@ export default function SegmentInspector({
               </div>
               <SegmentTimelineRuler
                 shots={shots}
+                fallbackDurationSeconds={getSegmentDurationForModel((videoModel as VideoModel | null | undefined) ?? null)}
                 onChange={(nextRanges) => {
                   setShots((prev) => prev.map((shot) => {
                     const nextRange = nextRanges.find((item) => item.id === shot.id);
@@ -845,7 +864,8 @@ export default function SegmentInspector({
                                     value={shot.subject}
                                     onChange={(value) => handleShotChange(shot.id, 'subject', value)}
                                     rows={2}
-                                    className="w-full rounded-lg border border-gray-200 focus:ring-0 focus:ring-offset-0 min-h-[72px]"
+                                    resizable="vertical"
+                                    className="w-full rounded-lg border border-gray-200 focus:ring-0 focus:ring-offset-0 min-h-[88px]"
                                     characterMentions={characterOptions.map(character => ({
                                       id: character.id,
                                       label: character.avatar_name,
@@ -873,7 +893,8 @@ export default function SegmentInspector({
                                     value={shot.action}
                                     onChange={(value) => handleShotChange(shot.id, 'action', value)}
                                     rows={2}
-                                    className="w-full rounded-lg border border-gray-200 focus:ring-0 focus:ring-offset-0 min-h-[72px]"
+                                    resizable="vertical"
+                                    className="w-full rounded-lg border border-gray-200 focus:ring-0 focus:ring-offset-0 min-h-[88px]"
                                     characterMentions={characterOptions.map(character => ({
                                       id: character.id,
                                       label: character.avatar_name,
@@ -901,19 +922,14 @@ export default function SegmentInspector({
                                     value={shot.style}
                                     rows={1}
                                     onFocus={(e) => {
-                                      e.target.style.height = 'auto';
-                                      e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                                    }}
-                                    onBlur={(e) => {
-                                      e.target.style.height = '';
+                                      autoResizePromptField(e.target);
                                     }}
                                     onInput={(e) => {
                                       const target = e.target as HTMLTextAreaElement;
-                                      target.style.height = 'auto';
-                                      target.style.height = `${target.scrollHeight}px`;
+                                      autoResizePromptField(target);
                                       handleShotChange(shot.id, 'style', target.value);
                                     }}
-                                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
+                                    className={SHOT_TEXTAREA_CLASS}
                                   />
                                 </div>
                               </div>
@@ -935,19 +951,14 @@ export default function SegmentInspector({
                                     value={shot.camera_motion_positioning}
                                     rows={1}
                                     onFocus={(e) => {
-                                      e.target.style.height = 'auto';
-                                      e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                                    }}
-                                    onBlur={(e) => {
-                                      e.target.style.height = '';
+                                      autoResizePromptField(e.target);
                                     }}
                                     onInput={(e) => {
                                       const target = e.target as HTMLTextAreaElement;
-                                      target.style.height = 'auto';
-                                      target.style.height = `${target.scrollHeight}px`;
+                                      autoResizePromptField(target);
                                       handleShotChange(shot.id, 'camera_motion_positioning', target.value);
                                     }}
-                                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
+                                    className={SHOT_TEXTAREA_CLASS}
                                   />
                                 </div>
 
@@ -960,19 +971,14 @@ export default function SegmentInspector({
                                     value={shot.composition}
                                     rows={1}
                                     onFocus={(e) => {
-                                      e.target.style.height = 'auto';
-                                      e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                                    }}
-                                    onBlur={(e) => {
-                                      e.target.style.height = '';
+                                      autoResizePromptField(e.target);
                                     }}
                                     onInput={(e) => {
                                       const target = e.target as HTMLTextAreaElement;
-                                      target.style.height = 'auto';
-                                      target.style.height = `${target.scrollHeight}px`;
+                                      autoResizePromptField(target);
                                       handleShotChange(shot.id, 'composition', target.value);
                                     }}
-                                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
+                                    className={SHOT_TEXTAREA_CLASS}
                                   />
                                 </div>
 
@@ -985,19 +991,14 @@ export default function SegmentInspector({
                                     value={shot.ambiance_colour_lighting}
                                     rows={1}
                                     onFocus={(e) => {
-                                      e.target.style.height = 'auto';
-                                      e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                                    }}
-                                    onBlur={(e) => {
-                                      e.target.style.height = '';
+                                      autoResizePromptField(e.target);
                                     }}
                                     onInput={(e) => {
                                       const target = e.target as HTMLTextAreaElement;
-                                      target.style.height = 'auto';
-                                      target.style.height = `${target.scrollHeight}px`;
+                                      autoResizePromptField(target);
                                       handleShotChange(shot.id, 'ambiance_colour_lighting', target.value);
                                     }}
-                                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
+                                    className={SHOT_TEXTAREA_CLASS}
                                   />
                                 </div>
                               </div>
@@ -1019,19 +1020,14 @@ export default function SegmentInspector({
                                   value={shot.dialogue}
                                   rows={1}
                                   onFocus={(e) => {
-                                    e.target.style.height = 'auto';
-                                    e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                                  }}
-                                  onBlur={(e) => {
-                                    e.target.style.height = '';
+                                    autoResizePromptField(e.target);
                                   }}
                                   onInput={(e) => {
                                     const target = e.target as HTMLTextAreaElement;
-                                    target.style.height = 'auto';
-                                    target.style.height = `${target.scrollHeight}px`;
+                                    autoResizePromptField(target);
                                     handleShotChange(shot.id, 'dialogue', target.value);
                                   }}
-                                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
+                                  className={SHOT_TEXTAREA_CLASS}
                                 />
                               </div>
 
@@ -1044,16 +1040,11 @@ export default function SegmentInspector({
                                   value={shot.sfx}
                                   rows={1}
                                   onFocus={(e) => {
-                                    e.target.style.height = 'auto';
-                                    e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                                  }}
-                                  onBlur={(e) => {
-                                    e.target.style.height = '';
+                                    autoResizePromptField(e.target);
                                   }}
                                   onInput={(e) => {
                                     const target = e.target as HTMLTextAreaElement;
-                                    target.style.height = 'auto';
-                                    target.style.height = `${target.scrollHeight}px`;
+                                    autoResizePromptField(target);
                                     const nextValue = target.value;
                                     setShots(prev => prev.map(item => (
                                       item.id === shot.id
@@ -1061,7 +1052,7 @@ export default function SegmentInspector({
                                         : item
                                     )));
                                   }}
-                                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
+                                  className={SHOT_TEXTAREA_CLASS}
                                 />
                               </div>
 
@@ -1074,16 +1065,11 @@ export default function SegmentInspector({
                                   value={shot.ambient}
                                   rows={1}
                                   onFocus={(e) => {
-                                    e.target.style.height = 'auto';
-                                    e.target.style.height = `${Math.max(80, e.target.scrollHeight)}px`;
-                                  }}
-                                  onBlur={(e) => {
-                                    e.target.style.height = '';
+                                    autoResizePromptField(e.target);
                                   }}
                                   onInput={(e) => {
                                     const target = e.target as HTMLTextAreaElement;
-                                    target.style.height = 'auto';
-                                    target.style.height = `${target.scrollHeight}px`;
+                                    autoResizePromptField(target);
                                     const nextValue = target.value;
                                     setShots(prev => prev.map(item => (
                                       item.id === shot.id
@@ -1091,7 +1077,7 @@ export default function SegmentInspector({
                                         : item
                                     )));
                                   }}
-                                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-black focus:ring-0 focus:ring-offset-0 resize-none overflow-hidden focus:overflow-auto min-h-[40px] transition-all duration-200 ease-in-out"
+                                  className={SHOT_TEXTAREA_CLASS}
                                 />
                               </div>
                               </div>
@@ -1127,8 +1113,10 @@ export default function SegmentInspector({
                 >
                   {submittingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <VideoIcon className="w-4 h-4" />}
                   Generate Video
-                  <span className="ml-1 inline-flex items-center rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
-                    {segmentVideoCost} credits
+                  <span className="ml-1 inline-flex items-center gap-1.5 rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                    <Coins className="h-3.5 w-3.5" />
+                    <span>{segmentVideoCost}</span>
+                    <span className="sr-only">credits</span>
                   </span>
                 </button>
                 {!regenEnabled && (
