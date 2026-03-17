@@ -21,7 +21,7 @@ export default function CreditsDisplay({
   const hasSubscription = subscriptionCredits > 0;
 
   return (
-    <div className="sidebar-credits-shell flex min-w-0 items-center gap-2.5 rounded-2xl border border-[#DDDDDD] bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+    <div className="sidebar-credits-shell flex min-w-0 items-center gap-2 rounded-[24px] border border-[#E7E7E4] bg-white/92 px-2.5 py-2 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-xl">
       <div className="sidebar-credits-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#111111] text-white">
         <Coins className="h-4 w-4" strokeWidth={2.2} />
       </div>

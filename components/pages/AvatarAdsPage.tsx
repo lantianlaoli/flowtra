@@ -6,6 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
+import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import { LanguageCode } from '@/components/ui/LanguageSelector';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import GenerationProgressDisplay, { type Generation } from '@/components/ui/GenerationProgressDisplay';
@@ -983,7 +984,7 @@ const formatDurationLabel = (seconds: number) => {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
+      <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
         <div className="flex-1 flex flex-col min-h-0">
           <AnimatePresence mode="wait">
             {showMaintenance ? (
@@ -1037,7 +1038,7 @@ const formatDurationLabel = (seconds: number) => {
             )}
           </AnimatePresence>
         </div>
-      </div>
+      </DashboardContentTransition>
 
       {composerVisible && (
         <BottomComposerBar

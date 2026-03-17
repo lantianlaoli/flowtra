@@ -12,6 +12,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { Kling } from '@lobehub/icons';
 import { AlertTriangle, ArrowUpRight, Check, ChevronDown, Clapperboard, History, Loader2, Lock, MessageCircle, Package, Plus, RefreshCw, Search, Sparkles, User } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
+import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import VideoAssetCard from '@/components/VideoAssetCard';
 import VideoAssetDetailsModal from '@/components/VideoAssetDetailsModal';
@@ -3077,7 +3078,7 @@ export default function ProjectAgentPage() {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="dashboard-content-offset h-[100dvh] overflow-hidden min-h-0">
+      <DashboardContentTransition className="dashboard-content-offset h-[100dvh] overflow-hidden min-h-0">
         <div className="h-full box-border min-h-0 p-4 md:p-6 lg:p-8">
           <div className="grid h-full min-h-0 grid-cols-1 xl:grid-cols-[minmax(0,7fr)_minmax(320px,3fr)] gap-4">
             <section className="relative h-full min-h-0 rounded-xl border border-[#e6e6e4] bg-[#fbfbfa] overflow-hidden">
@@ -3527,7 +3528,7 @@ export default function ProjectAgentPage() {
             </section>
           </div>
         </div>
-      </div>
+      </DashboardContentTransition>
 
       <VideoAssetDetailsModal
         isOpen={showVideoDetails}

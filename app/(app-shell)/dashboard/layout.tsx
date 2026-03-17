@@ -78,5 +78,5 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return <FlowtraLoading />
   }
 
-  return <div className="min-h-screen bg-background text-foreground">{children}</div>
+  return <div className="min-h-screen bg-[#F5F5F3] text-foreground">{children}</div>
 }

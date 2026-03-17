@@ -6,6 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import Sidebar from '@/components/layout/Sidebar';
+import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, HelpCircle, Download, Check, Droplets, AlertCircle, Volume2, Send, ArrowRight, Shuffle } from 'lucide-react';
 import { getCreditCost, type HighResResolution, type VideoModel } from '@/lib/constants';
 import { isMyAdExpired, MY_ADS_RETENTION_DAYS } from '@/lib/my-ads-retention';
@@ -877,7 +878,7 @@ export default function HistoryPage() {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="dashboard-content-offset ml-0 bg-background min-h-screen ">
+      <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen ">
         <div className="px-6 md:px-8 pb-6 md:pb-8 max-w-[1280px] mx-auto pt-14 md:pt-8">
           {/* Header Section */}
           <div className="mb-12">
@@ -1236,7 +1237,7 @@ export default function HistoryPage() {
             </>
           )}
         </div>
-      </div>
+      </DashboardContentTransition>
 
       {/* Video Details Modal */}
       <VideoDetailsModal

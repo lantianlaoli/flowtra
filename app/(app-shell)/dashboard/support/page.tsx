@@ -3,6 +3,7 @@
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
+import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import { ExternalLink, Mail, ArrowUpRight } from 'lucide-react';
 import { FaXTwitter, FaLinkedin, FaTiktok, FaThreads, FaInstagram, FaDiscord, FaYoutube } from 'react-icons/fa6';
 import FounderCard from '@/components/ui/FounderCard';
@@ -85,7 +86,7 @@ export default function SupportPage() {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="dashboard-content-offset ml-0 bg-background min-h-screen ">
+      <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen ">
         <div className="max-w-[1280px] mx-auto px-6 md:px-8 pb-6 md:pb-8 pt-14 md:pt-8">
           
           {/* Header Section */}
@@ -179,7 +180,7 @@ export default function SupportPage() {
           </div>
 
         </div>
-      </div>
+      </DashboardContentTransition>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
+import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import { Coins, Link2, XCircle, Sparkles, CreditCard, Calendar, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
 import { HiPlus, HiMinus, HiLightningBolt, HiClipboardList } from 'react-icons/hi';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
@@ -344,7 +345,7 @@ export default function CreditsPage() {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="dashboard-content-offset ml-0 bg-background min-h-screen ">
+      <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen ">
         <div className="px-6 md:px-8 pb-6 md:pb-8 max-w-[1280px] mx-auto pt-14 md:pt-8">
           <div className="mb-8 pb-6 border-b border-border">
             <h1 className="text-[40px] font-semibold tracking-tight text-foreground">
@@ -846,7 +847,7 @@ export default function CreditsPage() {
             )}
           </div>
         </div>
-      </div>
+      </DashboardContentTransition>
     </div>
   );
 }

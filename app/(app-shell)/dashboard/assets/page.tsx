@@ -3,6 +3,7 @@
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
+import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import AssetsManager from '@/components/AssetsManager';
 import { Boxes } from 'lucide-react';
 
@@ -22,7 +23,7 @@ export default function AssetsPage() {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="dashboard-content-offset ml-0 bg-background min-h-screen">
+      <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen">
         <div className="px-8 md:px-12 lg:px-16 pb-12 max-w-[1280px] mx-auto pt-16 md:pt-12">
           {/* Header - Minimalist with generous spacing */}
           <div className="mb-16">
@@ -37,7 +38,7 @@ export default function AssetsPage() {
           {/* Assets Manager */}
           <AssetsManager />
         </div>
-      </div>
+      </DashboardContentTransition>
     </div>
   );
 }

@@ -21,6 +21,7 @@ import MotionSwapEditorSplitPane from "@/components/motion-swap/MotionSwapEditor
 import MotionSwapEditorFormColumn from "@/components/motion-swap/MotionSwapEditorFormColumn";
 import MotionSwapReferenceControls from "@/components/motion-swap/MotionSwapReferenceControls";
 import Sidebar from "@/components/layout/Sidebar";
+import DashboardContentTransition from "@/components/layout/DashboardContentTransition";
 import { useUser } from "@clerk/nextjs";
 import { useCredits } from "@/contexts/CreditsContext";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -962,7 +963,7 @@ export default function MotionSwapPage() {
           userEmail={user?.primaryEmailAddress?.emailAddress}
           userImageUrl={user?.imageUrl}
         />
-        <div className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
+        <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
           <div className="flex-1 flex flex-col min-h-0">
             <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0">
               <div className="max-w-[1280px] mx-auto flex-1 w-full flex min-h-0">
@@ -974,7 +975,7 @@ export default function MotionSwapPage() {
               </div>
             </section>
           </div>
-        </div>
+        </DashboardContentTransition>
       </div>
     );
   }
@@ -987,7 +988,7 @@ export default function MotionSwapPage() {
         userEmail={user?.primaryEmailAddress?.emailAddress}
         userImageUrl={user?.imageUrl}
       />
-      <div className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
+      <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
         <div className="flex-1 flex flex-col min-h-0">
           <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0">
             <div className="max-w-[1280px] mx-auto flex-1 w-full flex min-h-0">
@@ -1214,7 +1215,7 @@ export default function MotionSwapPage() {
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
-      </div>
+      </DashboardContentTransition>
     </div>
   );
 }

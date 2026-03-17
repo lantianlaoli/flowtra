@@ -18,6 +18,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
+import DashboardContentTransition from "@/components/layout/DashboardContentTransition";
 import { useRef, useMemo, useCallback } from "react";
 import OnboardingProgress from "@/components/onboarding/OnboardingProgress";
 import { Card } from "@/components/ui/card";
@@ -87,7 +88,7 @@ export default function HomePage() {
         userImageUrl={user?.imageUrl}
       />
 
-      <div className="dashboard-content-offset ml-0 bg-background min-h-screen">
+      <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen">
         <div className="px-8 md:px-12 lg:px-16 pb-12 max-w-[1280px] mx-auto pt-8 md:pt-6">
           {/* Header Section - Minimalist with generous spacing */}
           <div className="mb-8">
@@ -177,7 +178,7 @@ export default function HomePage() {
           {/* Discover Section - Pure media masonry grid */}
           <DiscoverSection />
         </div>
-      </div>
+      </DashboardContentTransition>
     </div>
   );
 }

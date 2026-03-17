@@ -8,6 +8,7 @@ import { useUser } from "@clerk/nextjs";
 import { useCredits } from "@/contexts/CreditsContext";
 import { useToast } from "@/contexts/ToastContext";
 import Sidebar from "@/components/layout/Sidebar";
+import DashboardContentTransition from "@/components/layout/DashboardContentTransition";
 import { Sparkles, Coins, TrendingUp, AlertCircle, Boxes } from "lucide-react";
 import BottomComposerBar from "@/components/ui/BottomComposerBar";
 
@@ -1907,7 +1908,7 @@ export default function CompetitorUgcReplicationPage() {
     <>
       <div className="min-h-screen bg-background">
         <Sidebar {...sidebarProps} />
-        <div className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
+        <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
           <div className="flex-1 flex flex-col min-h-0">
             {/* Main Content Area - Progress Display */}
             <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0">
@@ -1998,7 +1999,7 @@ export default function CompetitorUgcReplicationPage() {
               </div>
             </section>
           </div>
-        </div>
+        </DashboardContentTransition>
       </div>
 
       {/* Bottom Composer - Unified */}

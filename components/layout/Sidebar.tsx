@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { motion, LayoutGroup } from 'framer-motion';
@@ -14,18 +14,19 @@ import {
   Menu,
   Shuffle,
   MessageCircle,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Plus
 } from 'lucide-react';
-import {
-  Sidebar as ShadcnSidebar,
-  SidebarProvider
-} from '@/components/ui/sidebar';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import CreditsDisplay from '@/components/ui/CreditsDisplay';
 import SidebarUtilityDock from '@/components/layout/SidebarUtilityDock';
 import { cn } from '@/lib/utils';
+
+type ViewTransitionCapableDocument = Document & {
+  startViewTransition?: (update: () => void | Promise<void>) => {
+    ready: Promise<void>;
+    finished: Promise<void>;
+    updateCallbackDone: Promise<void>;
+  };
+};
 
 interface CreditsData {
   credits_remaining: number;
@@ -34,57 +35,24 @@ interface CreditsData {
 }
 
 interface SidebarProps {
-  credits?: number; // Backward compatibility: total credits
-  creditsData?: CreditsData; // New: full credits breakdown
+  credits?: number;
+  creditsData?: CreditsData;
   userEmail?: string;
   userImageUrl?: string;
   onTriggerOnboarding?: () => void;
 }
 
-const navigation = [
-  {
-    name: 'Home',
-    href: '/dashboard',
-    icon: Home
-  },
-  {
-    name: 'Agent',
-    href: '/dashboard/agent',
-    icon: MessageCircle
-  },
-  {
-    name: 'Video Clone',
-    href: '/dashboard/competitor-ugc-replication',
-    icon: Sparkles
-  },
-  {
-    name: 'Avatar Ads',
-    href: '/dashboard/avatar-ads',
-    icon: Video
-  },
-  {
-    name: 'Motion Swap',
-    href: '/dashboard/motion-swap',
-    icon: Shuffle
-  },
-  {
-    name: 'My Ads',
-    href: '/dashboard/my-ads',
-    icon: Play
-  },
-  {
-    name: 'Assets',
-    href: '/dashboard/assets',
-    icon: Boxes
-  },
-  {
-    name: 'Account',
-    href: '/dashboard/account',
-    icon: User
-  }
+const primaryNavigation = [
+  { name: 'Home', href: '/dashboard', icon: Home },
+  { name: 'Agent', href: '/dashboard/agent', icon: MessageCircle },
+  { name: 'Video Clone', href: '/dashboard/competitor-ugc-replication', icon: Sparkles },
+  { name: 'Avatar Ads', href: '/dashboard/avatar-ads', icon: Video },
+  { name: 'Motion Swap', href: '/dashboard/motion-swap', icon: Shuffle },
+  { name: 'My Ads', href: '/dashboard/my-ads', icon: Play },
+  { name: 'Assets', href: '/dashboard/assets', icon: Boxes },
 ];
 
-export default function Sidebar({ credits, creditsData, onTriggerOnboarding }: SidebarProps) {
+export default function Sidebar({ credits, creditsData }: SidebarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -92,53 +60,75 @@ export default function Sidebar({ credits, creditsData, onTriggerOnboarding }: S
     const stored = window.localStorage.getItem('flowtra-dashboard-dark');
     return stored === null ? true : stored === 'true';
   });
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    const stored = window.localStorage.getItem('flowtra-dashboard-sidebar-collapsed');
-    if (stored !== null) return stored === 'true';
-    return (
-      document.documentElement.classList.contains('flowtra-sidebar-collapsed') ||
-      document.body.classList.contains('flowtra-sidebar-collapsed')
-    );
-  });
-  const [isSidebarReady, setIsSidebarReady] = useState(false);
 
-  // Use creditsData if available, otherwise fall back to legacy credits prop
   const displayCredits = creditsData?.credits_remaining ?? credits;
   const subscriptionCredits = creditsData?.subscription_credits ?? 0;
   const purchasedCredits = creditsData?.purchased_credits ?? 0;
 
-  useLayoutEffect(() => {
-    setIsSidebarReady(true);
-  }, []);
+  const toggleDarkMode = (trigger?: HTMLElement) => {
+    const nextValue = !isDarkMode;
+    const applyTheme = () => {
+      setIsDarkMode(nextValue);
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('flowtra-dashboard-dark', String(nextValue));
+        document.documentElement.classList.toggle('dashboard-theme', nextValue);
+        document.body.classList.toggle('dashboard-theme', nextValue);
+        window.dispatchEvent(new CustomEvent('flowtra-dashboard-theme-change', { detail: nextValue }));
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      const transitionDocument = document as ViewTransitionCapableDocument;
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (!prefersReducedMotion && transitionDocument.startViewTransition && trigger) {
+        const rect = trigger.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        const endRadius = Math.hypot(
+          Math.max(x, window.innerWidth - x),
+          Math.max(y, window.innerHeight - y),
+        );
+
+        const transition = transitionDocument.startViewTransition(() => {
+          applyTheme();
+        });
+
+        transition.ready.then(() => {
+          document.documentElement.animate(
+            {
+              clipPath: [
+                `circle(0px at ${x}px ${y}px)`,
+                `circle(${endRadius}px at ${x}px ${y}px)`,
+              ],
+            },
+            {
+              duration: 700,
+              easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+              pseudoElement: '::view-transition-new(root)',
+            },
+          );
+        }).catch(() => {});
+        return;
+      }
+
+      applyTheme();
+      return;
+    }
+
+    setIsDarkMode(nextValue);
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    document.documentElement.classList.toggle('flowtra-sidebar-collapsed', isCollapsed);
-    document.body.classList.toggle('flowtra-sidebar-collapsed', isCollapsed);
-    window.localStorage.setItem('flowtra-dashboard-sidebar-collapsed', String(isCollapsed));
-    window.dispatchEvent(new CustomEvent('flowtra-dashboard-sidebar-collapse', { detail: isCollapsed }));
-  }, [isCollapsed]);
+    document.documentElement.classList.remove('flowtra-sidebar-collapsed');
+    document.body.classList.remove('flowtra-sidebar-collapsed');
+  }, []);
 
-  const toggleDarkMode = () => {
-    const nextValue = !isDarkMode;
-    setIsDarkMode(nextValue);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('flowtra-dashboard-dark', String(nextValue));
-      document.documentElement.classList.toggle('dashboard-theme', nextValue);
-      document.body.classList.toggle('dashboard-theme', nextValue);
-      window.dispatchEvent(new CustomEvent('flowtra-dashboard-theme-change', { detail: nextValue }));
-    }
-  };
-
-  const toggleSidebarCollapse = () => {
-    setIsCollapsed((prev) => !prev);
-  };
-
-  const renderNavigation = (collapsed: boolean, layoutId: string, onNavigate?: () => void) => (
-    <LayoutGroup id={layoutId}>
+  const renderPrimaryNavigation = (onNavigate?: () => void) => (
+    <LayoutGroup id="floating-sidebar-nav">
       <nav className="space-y-1.5">
-        {navigation.map((item) => {
+        {primaryNavigation.map((item) => {
           const isActive = pathname === item.href;
           const isAgentEntry = item.href === '/dashboard/agent';
 
@@ -148,42 +138,39 @@ export default function Sidebar({ credits, creditsData, onTriggerOnboarding }: S
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                'relative flex items-center overflow-hidden rounded-2xl border px-3 py-3 text-sm font-medium transition-all duration-150',
-                collapsed ? 'justify-center px-0' : 'gap-3',
+                'relative flex items-center gap-2.5 overflow-hidden rounded-2xl border px-2.5 py-3 text-sm font-medium transition-all duration-150',
                 isActive
-                  ? 'border-[#111111] bg-[#111111] text-white shadow-[0_10px_24px_rgba(0,0,0,0.14)]'
+                  ? 'border-[#111111] bg-[#111111] text-white shadow-[0_14px_28px_rgba(0,0,0,0.12)]'
                   : 'border-transparent bg-transparent text-[#5F5F5F] hover:border-[#E5E5E5] hover:bg-[#F7F7F7] hover:text-[#111111]'
               )}
             >
               {isActive ? (
                 <motion.span
-                  layoutId={layoutId === 'sidebar-nav' ? 'sidebar-active-pill' : 'sidebar-active-pill-mobile'}
+                  layoutId="floating-sidebar-active-pill"
                   className="absolute inset-0 -z-10 rounded-2xl bg-[#111111]"
                   transition={{ type: 'spring', stiffness: 500, damping: 38, mass: 1 }}
                 />
               ) : null}
 
-              <item.icon className={cn('h-4.5 w-4.5 shrink-0', collapsed ? '' : '', isActive ? 'text-white' : 'text-[#6A6A6A]')} />
+              <item.icon className={cn('h-4.5 w-4.5 shrink-0', isActive ? 'text-white' : 'text-[#6A6A6A]')} />
 
-              {!collapsed ? (
-                <div className="inline-flex min-w-0 items-center gap-2">
-                  <span className={cn('truncate', isActive ? 'text-white' : 'text-[#4F4F4F]')}>
-                    {item.name}
+              <div className="inline-flex min-w-0 items-center gap-2">
+                <span className={cn('truncate', isActive ? 'text-white' : 'text-[#4F4F4F]')}>
+                  {item.name}
+                </span>
+                {isAgentEntry ? (
+                  <span
+                    className={cn(
+                      'rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide leading-none',
+                      isActive
+                        ? 'border-white/20 bg-white/10 text-white'
+                        : 'border-[#E3E3E3] bg-white text-[#8A8A8A]'
+                    )}
+                  >
+                    Beta
                   </span>
-                  {isAgentEntry ? (
-                    <span
-                      className={cn(
-                        'rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide leading-none',
-                        isActive
-                          ? 'border-white/20 bg-white/10 text-white'
-                          : 'border-[#E3E3E3] bg-white text-[#8A8A8A]'
-                      )}
-                    >
-                      Beta
-                    </span>
-                  ) : null}
-                </div>
-              ) : null}
+                ) : null}
+              </div>
             </Link>
           );
         })}
@@ -191,133 +178,60 @@ export default function Sidebar({ credits, creditsData, onTriggerOnboarding }: S
     </LayoutGroup>
   );
 
-  const DesktopSidebarContent = () => (
-    <div className="sidebar-shell flex h-full min-h-0 flex-col bg-[#FCFCFC] text-[#111111]">
-      <div className={cn('sidebar-topbar shrink-0 px-4 py-4', isCollapsed && 'px-3')}>
-        <div className={cn('flex items-center gap-3', isCollapsed ? 'justify-center' : 'justify-between')}>
-          {!isCollapsed && displayCredits !== undefined ? (
-            <div className="min-w-0 flex-1">
-              <CreditsDisplay
-                credits={displayCredits}
-                subscriptionCredits={subscriptionCredits}
-                purchasedCredits={purchasedCredits}
-                onAddCredits={() => { window.location.href = '/#pricing'; }}
-              />
-            </div>
-          ) : null}
+  const SidebarPanels = ({ onNavigate }: { onNavigate?: () => void }) => (
+    <div className="sidebar-shell flex h-full min-h-0 flex-col bg-transparent text-[#111111]">
+      <div className="shrink-0 px-3 py-4">
+        {displayCredits !== undefined ? (
+          <CreditsDisplay
+            credits={displayCredits}
+            subscriptionCredits={subscriptionCredits}
+            purchasedCredits={purchasedCredits}
+            onAddCredits={() => { window.location.href = '/#pricing'; }}
+          />
+        ) : null}
+      </div>
 
-          {isCollapsed && displayCredits !== undefined ? (
-            <button
-              type="button"
-              onClick={() => { window.location.href = '/#pricing'; }}
-              className="sidebar-collapse-button inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[#111111] bg-[#111111] text-white transition-colors hover:bg-black"
-              aria-label="Add credits"
-              title={`${displayCredits.toLocaleString()} credits`}
-            >
-              <Plus className="h-4.5 w-4.5" />
-            </button>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={toggleSidebarCollapse}
-            className="sidebar-collapse-button inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[#DFDFDF] bg-white text-[#222222] shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-colors hover:border-[#CFCFCF] hover:bg-[#F7F7F7]"
-            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {isCollapsed ? <PanelLeftOpen className="h-4.5 w-4.5" /> : <PanelLeftClose className="h-4.5 w-4.5" />}
-          </button>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+        <div className="sidebar-nav-panel rounded-[24px] border border-[#E7E7E4] bg-white/90 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-xl">
+          {renderPrimaryNavigation(onNavigate)}
         </div>
       </div>
 
-      <div className={cn('min-h-0 flex-1 overflow-y-auto px-3 py-3', isCollapsed && 'px-2')}>
-        {renderNavigation(isCollapsed, 'sidebar-nav', () => setMobileOpen(false))}
-      </div>
-
-      <div className={cn('sidebar-bottomdock shrink-0 px-3 py-3', isCollapsed && 'px-2')}>
-        <SidebarUtilityDock
-          isCollapsed={isCollapsed}
-          isDarkMode={isDarkMode}
-          onToggleDarkMode={toggleDarkMode}
-          onTriggerOnboarding={onTriggerOnboarding}
-        />
-      </div>
-    </div>
-  );
-
-  const MobileSidebarContent = () => (
-    <div className="sidebar-shell flex h-full min-h-0 flex-col bg-[#FCFCFC] text-[#111111]">
-      <div className="sidebar-topbar shrink-0 px-4 py-4">
-        <div className="flex items-center gap-3">
-          {displayCredits !== undefined ? (
-            <div className="min-w-0 flex-1">
-              <CreditsDisplay
-                credits={displayCredits}
-                subscriptionCredits={subscriptionCredits}
-                purchasedCredits={purchasedCredits}
-                onAddCredits={() => {
-                  setMobileOpen(false);
-                  window.location.href = '/#pricing';
-                }}
-              />
-            </div>
-          ) : null}
-          <div className="sidebar-collapse-button inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[#DFDFDF] bg-white text-[#222222] shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-            <PanelLeftOpen className="h-4.5 w-4.5" />
-          </div>
+      <div className="shrink-0 px-3 py-4">
+        <div className="sidebar-utility-panel inline-flex rounded-[24px] border border-[#E7E7E4] bg-white/90 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-xl">
+          <SidebarUtilityDock
+            isDarkMode={isDarkMode}
+            onToggleDarkMode={toggleDarkMode}
+            onNavigate={onNavigate}
+            accountHref="/dashboard/account"
+          />
         </div>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-        {renderNavigation(false, 'sidebar-nav-mobile', () => setMobileOpen(false))}
-      </div>
-
-      <div className="sidebar-bottomdock shrink-0 px-3 py-3">
-        <SidebarUtilityDock
-          isDarkMode={isDarkMode}
-          onToggleDarkMode={() => {
-            toggleDarkMode();
-            setMobileOpen(false);
-          }}
-          onTriggerOnboarding={onTriggerOnboarding ? () => {
-            onTriggerOnboarding();
-            setMobileOpen(false);
-          } : undefined}
-          onNavigate={() => setMobileOpen(false)}
-        />
       </div>
     </div>
   );
 
   return (
     <>
-      {/* Desktop Sidebar */}
-      <div className={cn("hidden md:block fixed md:top-0 md:left-0 md:h-screen md:z-20", isSidebarReady ? "transition-[width] duration-200" : "transition-none", isCollapsed ? "md:w-[88px]" : "md:w-72")}>
-        <SidebarProvider>
-          <ShadcnSidebar className={cn("h-full border-r border-[#EAEAEA] bg-[#FCFCFC] text-[#111111]", isSidebarReady ? "transition-[width] duration-200" : "transition-none", isCollapsed ? "w-[88px]" : "w-72")}>
-            <DesktopSidebarContent />
-          </ShadcnSidebar>
-        </SidebarProvider>
+      <div className="fixed left-0 top-0 z-20 hidden h-screen w-56 md:block">
+        <SidebarPanels />
       </div>
 
-      {/* Mobile Menu Button */}
       <button
         type="button"
-        className="fixed md:hidden top-4 left-4 z-40 flex items-center gap-2 rounded-2xl border border-[#E0E0E0] bg-white px-4 py-2.5 text-sm font-medium text-[#111111] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98]"
+        className="fixed left-4 top-4 z-40 flex items-center gap-2 rounded-2xl border border-[#E0E0E0] bg-white px-4 py-2.5 text-sm font-medium text-[#111111] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] md:hidden"
         onClick={() => setMobileOpen(true)}
         aria-label="Open menu"
       >
-        <Menu className="w-4 h-4" />
+        <Menu className="h-4 w-4" />
         <span>Menu</span>
       </button>
 
-      {/* Mobile Sheet */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent
           side="left"
-          className="w-72 border-r border-[#EAEAEA] bg-[#FCFCFC] p-0 text-[#111111]"
+          className="w-60 border-r-0 bg-[#F5F5F3] p-0 text-[#111111]"
         >
-          <MobileSidebarContent />
+          <SidebarPanels onNavigate={() => setMobileOpen(false)} />
         </SheetContent>
       </Sheet>
     </>

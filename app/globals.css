@@ -113,9 +113,10 @@
 }
 
 .dashboard-theme .sidebar-credits-shell {
-  background-color: var(--card);
-  border-color: var(--sidebar-border);
-  box-shadow: none;
+  background-color: color-mix(in srgb, var(--card) 88%, transparent);
+  border-color: color-mix(in srgb, var(--sidebar-border) 72%, transparent);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(20px);
 }
 
 .dashboard-theme .sidebar-credits-icon,
@@ -144,11 +145,16 @@
 .dashboard-theme .sidebar-shell .border-\[\#E3E3E3\],
 .dashboard-theme .sidebar-shell .border-\[\#E9E9E9\],
 .dashboard-theme .sidebar-shell .border-\[\#DFDFDF\],
-.dashboard-theme .sidebar-shell .border-\[\#DDDDDD\] {
+.dashboard-theme .sidebar-shell .border-\[\#DDDDDD\],
+.dashboard-theme .sidebar-shell .border-\[\#E7E7E4\] {
   border-color: var(--sidebar-border);
 }
 
 .dashboard-theme .sidebar-shell .bg-\[\#FCFCFC\] {
+  background-color: var(--sidebar);
+}
+
+.dashboard-theme .sidebar-shell .bg-\[\#F5F5F3\] {
   background-color: var(--sidebar);
 }
 
@@ -162,6 +168,24 @@
 
 .dashboard-theme .sidebar-shell .text-\[\#111111\] {
   color: var(--sidebar-foreground);
+}
+
+.dashboard-theme .sidebar-nav-panel,
+.dashboard-theme .sidebar-utility-panel {
+  background-color: color-mix(in srgb, var(--card) 84%, transparent);
+  border-color: color-mix(in srgb, var(--sidebar-border) 70%, transparent);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(20px);
+}
+
+.dashboard-theme .sidebar-shell .border-r-0,
+.dashboard-theme .sidebar-shell .border-t-0,
+.dashboard-theme .sidebar-shell .border-b-0 {
+  border-color: transparent;
+}
+
+.dashboard-theme .bg-\[\#F5F5F3\] {
+  background-color: var(--background);
 }
 
 .dashboard-theme .text-\[\#666666\] {
@@ -1897,12 +1921,8 @@
 
 @media (min-width: 768px) {
   .dashboard-content-offset {
-    margin-left: 18rem;
+    margin-left: 14rem;
     transition: margin-left 200ms ease;
-  }
-
-  body.flowtra-sidebar-collapsed .dashboard-content-offset {
-    margin-left: 88px;
   }
 }
 
@@ -1911,6 +1931,20 @@ html {
   font-feature-settings:
     "rlig" 1,
     "calt" 1;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 2;
 }
 
 body {
