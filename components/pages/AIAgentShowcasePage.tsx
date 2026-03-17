@@ -88,7 +88,7 @@ export default function AIAgentShowcasePage() {
             <div className="aspect-video w-full">
               <iframe
                 className="h-full w-full"
-                src="https://www.youtube.com/embed/gW34JEmHeZU"
+                src="https://www.youtube.com/embed/FUkzZvssJTY?rel=0"
                 title="Flowtra AI Agent tutorial"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 referrerPolicy="strict-origin-when-cross-origin"

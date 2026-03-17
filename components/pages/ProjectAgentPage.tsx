@@ -158,6 +158,7 @@ const THINKING_MESSAGES = [
   'Working on a stronger result for this step...',
   'Refining visuals and logic together...'
 ];
+const PROJECT_AGENT_TUTORIAL_EMBED_URL = 'https://www.youtube.com/embed/FUkzZvssJTY?rel=0';
 
 const createSessionId = () => {
   if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
@@ -3240,7 +3241,7 @@ export default function ProjectAgentPage() {
                     ) : null}
                   </div>
                 ) : (
-                  <div className="w-full max-w-[560px] text-center">
+                  <div className="w-full max-w-[640px] text-center">
                     <div className="mx-auto mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#e6e6e4] bg-white">
                       {isWorkflowSurfacePending || shouldHoldLeftSurfaceForAssistantReply ? (
                         <Loader2 className="h-4.5 w-4.5 animate-spin text-[#525251]" />
@@ -3257,35 +3258,50 @@ export default function ProjectAgentPage() {
                         : 'Choose one workflow to start instantly.'}
                     </p>
                     {!isWorkflowSurfacePending && !shouldHoldLeftSurfaceForAssistantReply ? (
-                      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                        {[
-                          {
-                            text: 'Clone Viral Video',
-                            icon: Clapperboard,
-                            action: 'clone' as const
-                          },
-                          {
-                            text: 'Motion Swap (Replace Model)',
-                            icon: RefreshCw,
-                            action: 'motion_swap' as const
-                          },
-                          {
-                            text: 'Avatar Ads (Spokesperson Video)',
-                            icon: User,
-                            action: 'avatar_ads' as const
-                          }
-                        ].map((hint) => (
-                          <button
-                            key={hint.text}
-                            type="button"
-                            onClick={() => handleQuickStart(hint.action)}
-                            className="inline-flex items-center gap-1.5 rounded-full border border-[#e4e4e2] bg-white px-3 py-1.5 text-xs text-[#5f5f5d] hover:bg-[#f3f3f2]"
-                          >
-                            <hint.icon className="h-3.5 w-3.5 text-[#7a7a77]" />
-                            <span>{hint.text}</span>
-                          </button>
-                        ))}
-                      </div>
+                      <>
+                        <div className="mx-auto mt-5 w-full max-w-[420px] overflow-hidden rounded-2xl border border-[#e6e6e4] bg-white">
+                          <div className="aspect-video w-full bg-black">
+                            <iframe
+                              className="h-full w-full"
+                              src={PROJECT_AGENT_TUTORIAL_EMBED_URL}
+                              title="Flowtra AI Agent tutorial"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                              referrerPolicy="strict-origin-when-cross-origin"
+                              allowFullScreen
+                            />
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                          {[
+                            {
+                              text: 'Clone Viral Video',
+                              icon: Clapperboard,
+                              action: 'clone' as const
+                            },
+                            {
+                              text: 'Motion Swap (Replace Model)',
+                              icon: RefreshCw,
+                              action: 'motion_swap' as const
+                            },
+                            {
+                              text: 'Avatar Ads (Spokesperson Video)',
+                              icon: User,
+                              action: 'avatar_ads' as const
+                            }
+                          ].map((hint) => (
+                            <button
+                              key={hint.text}
+                              type="button"
+                              onClick={() => handleQuickStart(hint.action)}
+                              className="inline-flex items-center gap-1.5 rounded-full border border-[#e4e4e2] bg-white px-3 py-1.5 text-xs text-[#5f5f5d] hover:bg-[#f3f3f2]"
+                            >
+                              <hint.icon className="h-3.5 w-3.5 text-[#7a7a77]" />
+                              <span>{hint.text}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </>
                     ) : null}
                   </div>
                 )}
