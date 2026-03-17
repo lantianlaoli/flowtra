@@ -57,7 +57,7 @@ import { buildWorkspaceScenes } from '@/lib/project-agent/workspace-scenes';
 import { analysisToLegacyFlatShots } from '@/lib/video-analysis-schema';
 
 interface SessionState {
-  intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_swap';
+  intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_clone';
   step?: string;
   cloneReferenceVideo?: {
     id: string;
@@ -2020,9 +2020,9 @@ export default function ProjectAgentPage() {
     }
   }, []);
 
-  const handleQuickStart = useCallback(async (action: 'clone' | 'motion_swap' | 'avatar_ads') => {
-    if (action === 'motion_swap') {
-      router.push('/dashboard/motion-swap');
+  const handleQuickStart = useCallback(async (action: 'clone' | 'motion_clone' | 'avatar_ads') => {
+    if (action === 'motion_clone') {
+      router.push('/dashboard/motion-clone');
       return;
     }
 
@@ -3281,9 +3281,9 @@ export default function ProjectAgentPage() {
                               action: 'clone' as const
                             },
                             {
-                              text: 'Motion Swap (Replace Model)',
+                              text: 'Motion Clone (Replace Model)',
                               icon: RefreshCw,
-                              action: 'motion_swap' as const
+                              action: 'motion_clone' as const
                             },
                             {
                               text: 'Avatar Ads (Spokesperson Video)',

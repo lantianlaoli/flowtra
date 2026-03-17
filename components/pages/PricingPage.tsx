@@ -24,7 +24,7 @@ const pricingPlanItems = {
     { key: 'images', content: () => 'Always free image generation' },
     { key: 'viral', content: () => 'Viral Clone' },
     { key: 'avatar', content: () => 'Avatar Ads' },
-    { key: 'motion', content: () => 'Motion Swap' },
+    { key: 'motion', content: () => 'Motion Clone' },
     { key: 'tiktok', content: () => 'TikTok publishing support' },
   ],
   basic: [
@@ -41,7 +41,7 @@ const pricingPlanItems = {
     { key: 'images', content: () => 'Free image generation' },
     { key: 'viral', content: () => 'Viral Clone' },
     { key: 'avatar', content: () => 'Avatar Ads' },
-    { key: 'motion', content: () => 'Motion Swap' },
+    { key: 'motion', content: () => 'Motion Clone' },
     { key: 'tiktok', content: () => 'TikTok publishing support' },
   ],
   pro: [
@@ -58,7 +58,7 @@ const pricingPlanItems = {
     { key: 'images', content: () => 'Always free image generation' },
     { key: 'viral', content: () => 'Viral Clone' },
     { key: 'avatar', content: () => 'Avatar Ads' },
-    { key: 'motion', content: () => 'Motion Swap' },
+    { key: 'motion', content: () => 'Motion Clone' },
     { key: 'tiktok', content: () => 'TikTok publishing support' },
     { key: 'priority', content: () => 'Priority processing' },
   ],

@@ -64,24 +64,24 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
     const userId = clerkUserId;
     const supabase = await createServerUserSupabaseClient();
 
-    // Schema verified via Supabase MCP (2026-01-23): motion_swap_projects columns include
+    // Schema verified via Supabase MCP (2026-01-23): motion_clone_projects columns include
     // id, user_id, status, output_video_url, downloaded, updated_at
-    const { data: motionSwapRecord, error: motionSwapError } = await supabase
-      .from('motion_swap_projects')
+    const { data: motionCloneRecord, error: motionCloneError } = await supabase
+      .from('motion_clone_projects')
       .select('*')
       .eq('id', historyId)
       .eq('user_id', userId)
       .single();
 
-    if (motionSwapRecord && !motionSwapError) {
-      if (motionSwapRecord.status !== 'completed' || !motionSwapRecord.output_video_url) {
+    if (motionCloneRecord && !motionCloneError) {
+      if (motionCloneRecord.status !== 'completed' || !motionCloneRecord.output_video_url) {
         return NextResponse.json({
           success: false,
           message: 'Video generation not completed yet'
         }, { status: 400 });
       }
 
-      const isFirstDownload = !motionSwapRecord.downloaded;
+      const isFirstDownload = !motionCloneRecord.downloaded;
 
       if (isFirstDownload) {
         if (validateOnly) {
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
         }
 
         const { error: updateError } = await supabase
-          .from('motion_swap_projects')
+          .from('motion_clone_projects')
           .update({
             downloaded: true,
             updated_at: new Date().toISOString()
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
           .eq('id', historyId);
 
         if (updateError) {
-          console.error('Failed to update motion swap record:', updateError);
+          console.error('Failed to update motion clone record:', updateError);
           return NextResponse.json({
             success: false,
             message: 'Failed to update download record'
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
       }
 
       try {
-        const videoResponse = await fetch(motionSwapRecord.output_video_url);
+        const videoResponse = await fetch(motionCloneRecord.output_video_url);
         if (!videoResponse.ok) {
           throw new Error(`Failed to fetch video: ${videoResponse.status}`);
         }
@@ -125,13 +125,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
           status: 200,
           headers: {
             'Content-Type': 'video/mp4',
-            'Content-Disposition': `attachment; filename=\"flowtra-motion-swap-${historyId}.mp4\"`,
+            'Content-Disposition': `attachment; filename=\"flowtra-motion-clone-${historyId}.mp4\"`,
             'Content-Length': videoResponse.headers.get('content-length') || '',
             'x-flowtra-download-cost': '0',
           },
         });
       } catch (downloadError) {
-        console.error('Failed to download motion swap video:', downloadError);
+        console.error('Failed to download motion clone video:', downloadError);
         return NextResponse.json({
           success: false,
           message: 'Failed to download video file'

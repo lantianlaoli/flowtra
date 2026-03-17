@@ -14,7 +14,7 @@ test('fresh state returns starter clone prompts', () => {
   assert.deepEqual(getProjectAgentPromptChipPool(stage), [
     'I want to clone a viral video',
     'I want to make an avatar ad',
-    'I want to use motion swap'
+    'I want to use motion clone'
   ]);
 });
 

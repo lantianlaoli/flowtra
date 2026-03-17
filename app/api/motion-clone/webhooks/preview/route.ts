@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createMotionSwapVideoTask } from '@/lib/motion-swap-workflow';
+import { createMotionCloneVideoTask } from '@/lib/motion-clone-workflow';
 import { refundCredits } from '@/lib/credits';
-import { normalizeMotionSwapQuality } from '@/lib/constants';
+import { normalizeMotionCloneQuality } from '@/lib/constants';
 import {
   buildKlingElementsFromMentions,
   collectKlingMentions,
@@ -32,10 +32,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Schema verified via Supabase MCP (2026-02-01): motion_swap_projects
-    // Schema verified via Supabase MCP (2026-02-01): motion_swap_projects
+    // Schema verified via Supabase MCP (2026-02-01): motion_clone_projects
+    // Schema verified via Supabase MCP (2026-02-01): motion_clone_projects
     const { data: project, error } = await supabase
-      .from('motion_swap_projects')
+      .from('motion_clone_projects')
       .select('*')
       .eq('preview_task_id', taskId)
       .single();
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
         const parsed = JSON.parse(resultJson);
         previewUrl = parsed.resultUrls?.[0];
       } catch (parseError) {
-        console.error('[Motion Swap Preview Webhook] Failed to parse resultJson:', parseError);
+        console.error('[Motion Clone Preview Webhook] Failed to parse resultJson:', parseError);
       }
     }
 
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       if (!shouldAutoGenerateVideo) {
         // Image-only mode: mark preview as ready and wait for user to manually trigger video generation
         await supabase
-          .from('motion_swap_projects')
+          .from('motion_clone_projects')
           .update({
             preview_image_url: previewUrl,
             preview_webhook_received_at: new Date().toISOString(),
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
 
       // Auto-generate video mode: proceed with video generation
       await supabase
-        .from('motion_swap_projects')
+        .from('motion_clone_projects')
         .update({
           preview_image_url: previewUrl,
           preview_webhook_received_at: new Date().toISOString(),
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
       const referenceVideoUrl = project.reference_video_cdn_url || project.reference_video_url;
       if (!referenceVideoUrl) {
         await supabase
-          .from('motion_swap_projects')
+          .from('motion_clone_projects')
           .update({
             status: 'failed',
             error_message: 'Reference video URL is missing',
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
           .eq('id', project.id);
 
         if (project.generation_credits_used > 0) {
-          await refundCredits(project.user_id, project.generation_credits_used, 'Motion Swap reference video missing', project.id);
+          await refundCredits(project.user_id, project.generation_credits_used, 'Motion Clone reference video missing', project.id);
         }
 
         return NextResponse.json({ success: false }, { status: 200 });
@@ -124,17 +124,17 @@ export async function POST(request: NextRequest) {
             )
           : undefined;
 
-        const callbackUrl = new URL('/api/motion-swap/webhooks/video', baseUrl).toString();
-        const videoTaskId = await createMotionSwapVideoTask({
+        const callbackUrl = new URL('/api/motion-clone/webhooks/video', baseUrl).toString();
+        const videoTaskId = await createMotionCloneVideoTask({
           previewImageUrl: previewUrl,
           referenceVideoUrl,
-          mode: normalizeMotionSwapQuality(project.mode),
+          mode: normalizeMotionCloneQuality(project.mode),
           prompt: compiledVideoPrompt,
           elements: elements.length > 0 ? elements : undefined,
         }, callbackUrl);
 
         await supabase
-          .from('motion_swap_projects')
+          .from('motion_clone_projects')
           .update({
             video_task_id: videoTaskId,
             progress_percentage: 75
@@ -143,9 +143,9 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: true }, { status: 200 });
       } catch (taskError) {
-        console.error('[Motion Swap Preview Webhook] Failed to start video task:', taskError);
+        console.error('[Motion Clone Preview Webhook] Failed to start video task:', taskError);
         await supabase
-          .from('motion_swap_projects')
+          .from('motion_clone_projects')
           .update({
             status: 'failed',
             error_message: taskError instanceof Error ? taskError.message : 'Failed to start video task',
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
           .eq('id', project.id);
 
         if (project.generation_credits_used > 0) {
-          await refundCredits(project.user_id, project.generation_credits_used, 'Motion Swap video task failed', project.id);
+          await refundCredits(project.user_id, project.generation_credits_used, 'Motion Clone video task failed', project.id);
         }
 
         return NextResponse.json({ success: false }, { status: 200 });
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
     }
 
     await supabase
-      .from('motion_swap_projects')
+      .from('motion_clone_projects')
       .update({
         status: 'failed',
         error_message: failMsg || 'Preview generation failed',
@@ -173,12 +173,12 @@ export async function POST(request: NextRequest) {
       .eq('id', project.id);
 
     if (project.generation_credits_used > 0) {
-      await refundCredits(project.user_id, project.generation_credits_used, 'Motion Swap preview failed', project.id);
+      await refundCredits(project.user_id, project.generation_credits_used, 'Motion Clone preview failed', project.id);
     }
 
     return NextResponse.json({ success: false }, { status: 200 });
   } catch (error) {
-    console.error('[Motion Swap Preview Webhook] Unexpected error:', error);
+    console.error('[Motion Clone Preview Webhook] Unexpected error:', error);
     return NextResponse.json({ success: false, error: 'Internal error' }, { status: 200 });
   }
 }

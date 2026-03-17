@@ -6,7 +6,7 @@ const footerFeatures = [
   { href: '/features/ai-agent', label: 'AI Agent', isNew: true },
   { href: '/features/avatar-ads', label: 'Avatar Ads' },
   { href: '/features/viral-clone', label: 'Viral Clone' },
-  { href: '/features/motion-swap', label: 'Motion Swap' },
+  { href: '/features/motion-clone', label: 'Motion Clone' },
 ];
 
 export default function Footer() {

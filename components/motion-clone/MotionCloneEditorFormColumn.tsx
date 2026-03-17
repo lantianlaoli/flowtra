@@ -6,7 +6,7 @@ import { Image as ImageIcon, Video as VideoIcon, Sparkles, Loader2 } from 'lucid
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
 import type { UserAvatar, UserProduct } from '@/lib/supabase';
 
-interface MotionSwapEditorFormColumnProps {
+interface MotionCloneEditorFormColumnProps {
   photoPrompt: string;
   onPhotoPromptChange: (value: string) => void;
   videoPrompt: string;
@@ -23,7 +23,7 @@ interface MotionSwapEditorFormColumnProps {
   creditsIcon?: ReactNode;
 }
 
-export default function MotionSwapEditorFormColumn({
+export default function MotionCloneEditorFormColumn({
   photoPrompt,
   onPhotoPromptChange,
   videoPrompt,
@@ -38,7 +38,7 @@ export default function MotionSwapEditorFormColumn({
   isGeneratingVideo,
   videoCreditsCost,
   creditsIcon,
-}: MotionSwapEditorFormColumnProps) {
+}: MotionCloneEditorFormColumnProps) {
   const characterMentions = useMemo(() => (
     avatars.map(avatar => ({
       id: avatar.id,
@@ -60,12 +60,12 @@ export default function MotionSwapEditorFormColumn({
   ), [products]);
 
   return (
-    <div className="motion-swap-editor-form flex h-full flex-col bg-white">
+    <div className="motion-clone-editor-form flex h-full flex-col bg-white">
       {/* Header */}
-      <div className="motion-swap-editor-form-header flex items-center justify-between gap-3 border-b border-[#E5E5E5] bg-gray-50 px-3 py-2.5">
+      <div className="motion-clone-editor-form-header flex items-center justify-between gap-3 border-b border-[#E5E5E5] bg-gray-50 px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <Sparkles className="motion-swap-editor-form-icon h-4 w-4 text-black" />
-          <h2 className="motion-swap-editor-form-title text-sm font-semibold text-black">Prompts</h2>
+          <Sparkles className="motion-clone-editor-form-icon h-4 w-4 text-black" />
+          <h2 className="motion-clone-editor-form-title text-sm font-semibold text-black">Prompts</h2>
         </div>
         <p className="text-right text-[11px] font-medium text-[#666666]">
           Use @ in both prompts for characters or products.
@@ -75,10 +75,10 @@ export default function MotionSwapEditorFormColumn({
       {/* Scrollable Content Area */}
       <div className="flex-1 min-h-0 overflow-hidden p-3">
         <div className="flex h-full min-h-0 flex-col gap-3">
-          <div className="motion-swap-editor-card flex min-h-0 flex-1 flex-col rounded-lg border border-[#E5E5E5] bg-white p-3">
+          <div className="motion-clone-editor-card flex min-h-0 flex-1 flex-col rounded-lg border border-[#E5E5E5] bg-white p-3">
             <div className="flex items-center gap-2">
-              <ImageIcon className="motion-swap-editor-label-icon w-4 h-4 text-black" />
-              <p className="motion-swap-editor-label text-sm font-semibold text-black">Image Prompt</p>
+              <ImageIcon className="motion-clone-editor-label-icon w-4 h-4 text-black" />
+              <p className="motion-clone-editor-label text-sm font-semibold text-black">Image Prompt</p>
             </div>
             <div className="mt-2.5 flex-1 min-h-0">
               <PromptMentionTextarea
@@ -94,11 +94,11 @@ export default function MotionSwapEditorFormColumn({
             </div>
           </div>
 
-          <div className="motion-swap-editor-card flex min-h-0 flex-1 flex-col rounded-lg border border-[#E5E5E5] bg-white p-3">
+          <div className="motion-clone-editor-card flex min-h-0 flex-1 flex-col rounded-lg border border-[#E5E5E5] bg-white p-3">
             <div className="flex items-center gap-2 justify-between">
               <div className="flex items-center gap-2">
-                <VideoIcon className="motion-swap-editor-label-icon w-4 h-4 text-black" />
-                <p className="motion-swap-editor-label text-sm font-semibold text-black">Video Prompt</p>
+                <VideoIcon className="motion-clone-editor-label-icon w-4 h-4 text-black" />
+                <p className="motion-clone-editor-label text-sm font-semibold text-black">Video Prompt</p>
               </div>
             </div>
             <div className="mt-2.5 flex-1 min-h-0">
@@ -118,11 +118,11 @@ export default function MotionSwapEditorFormColumn({
       </div>
 
       {/* Fixed Footer with Buttons */}
-      <div className="motion-swap-editor-footer border-t border-[#E5E5E5] bg-white p-3">
+      <div className="motion-clone-editor-footer border-t border-[#E5E5E5] bg-white p-3">
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
-            className="motion-swap-editor-primary inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-gray-900 px-5 text-base font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
+            className="motion-clone-editor-primary inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-gray-900 px-5 text-base font-semibold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!canGenerateImage || isGeneratingImage}
             onClick={onGenerateImage}
           >
@@ -134,7 +134,7 @@ export default function MotionSwapEditorFormColumn({
           </button>
           <button
             type="button"
-            className="motion-swap-editor-secondary inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-5 text-base font-semibold text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
+            className="motion-clone-editor-secondary inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-5 text-base font-semibold text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!canGenerateVideo || isGeneratingVideo}
             onClick={onGenerateVideo}
           >

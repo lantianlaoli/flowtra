@@ -1,5 +1,5 @@
 type ProjectAgentPromptChipState = {
-  intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_swap';
+  intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_clone';
   step?: string;
   projectId?: string;
   showCloneableVideos?: boolean;
@@ -33,7 +33,7 @@ const CHIP_POOLS: Record<ProjectAgentPromptChipStage, string[]> = {
   starter: [
     'I want to clone a viral video',
     'I want to make an avatar ad',
-    'I want to use motion swap'
+    'I want to use motion clone'
   ],
   clone_reference_selection: [
     'Show me reference videos',

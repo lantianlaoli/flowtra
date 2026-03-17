@@ -67,7 +67,7 @@ interface AvatarAdsItem {
   errorMessage?: string;
 }
 
-interface MotionSwapItem {
+interface MotionCloneItem {
   id: string;
   coverImageUrl?: string;
   videoUrl?: string;
@@ -81,7 +81,7 @@ interface MotionSwapItem {
   createdAt: string;
   progress?: number;
   currentStep?: string;
-  adType: 'motion-swap';
+  adType: 'motion-clone';
   videoAspectRatio?: string;
   videoDurationSeconds?: number;
   photoPrompt?: string;
@@ -89,7 +89,7 @@ interface MotionSwapItem {
   errorMessage?: string;
 }
 
-type HistoryItem = CompetitorUgcReplicationItem | AvatarAdsItem | MotionSwapItem;
+type HistoryItem = CompetitorUgcReplicationItem | AvatarAdsItem | MotionCloneItem;
 
 interface VideoDetailsModalProps {
   isOpen: boolean;
@@ -109,8 +109,8 @@ const isCharacterAds = (item: HistoryItem | null): item is AvatarAdsItem => {
   return !!item && item.adType === 'character';
 };
 
-const isMotionSwap = (item: HistoryItem | null): item is MotionSwapItem => {
-  return !!item && item.adType === 'motion-swap';
+const isMotionClone = (item: HistoryItem | null): item is MotionCloneItem => {
+  return !!item && item.adType === 'motion-clone';
 };
 
 const getModelDisplayName = (model: string): string => {
@@ -135,7 +135,7 @@ const formatDuration = (item: HistoryItem): string => {
   if (isCompetitorUgcReplication(item)) {
     return `${item.videoDuration || (item.isSegmented && item.segmentCount ? item.segmentCount * 8 : 8)}s`;
   }
-  if (isMotionSwap(item)) {
+  if (isMotionClone(item)) {
     return `${item.videoDurationSeconds || 8}s`;
   }
   return 'N/A';
@@ -177,7 +177,7 @@ const getVideoDurationSeconds = (item: HistoryItem | null): number | null => {
     }
     return parseDurationSeconds(item.videoDuration) ?? 8;
   }
-  if (isMotionSwap(item)) {
+  if (isMotionClone(item)) {
     return item.videoDurationSeconds ?? 8;
   }
   return null;
@@ -228,7 +228,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
   const handleDownloadClick = async () => {
     if (!item) return;
     if (!item.videoUrl || item.status !== 'completed') return;
-    if (isCompetitorUgcReplication(item) || isCharacterAds(item) || isMotionSwap(item)) {
+    if (isCompetitorUgcReplication(item) || isCharacterAds(item) || isMotionClone(item)) {
       setIsPreparing(true);
       const status = await onDownload(item, selectedResolution);
       if (status !== 'processing') {
@@ -280,10 +280,10 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
       }
     }
 
-    if (isMotionSwap(item)) {
+    if (isMotionClone(item)) {
       return {
-        type: 'motion-swap-prompts',
-        title: 'Motion Swap Prompts',
+        type: 'motion-clone-prompts',
+        title: 'Motion Clone Prompts',
         data: {
           photoPrompt: item.photoPrompt || '',
           videoPrompt: item.videoPrompt || ''
@@ -416,7 +416,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
       );
     }
 
-    if (promptsContent.type === 'motion-swap-prompts') {
+    if (promptsContent.type === 'motion-clone-prompts') {
       const data = promptsContent.data as { photoPrompt?: string; videoPrompt?: string };
 
       return (
@@ -717,7 +717,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                         <CompactParam 
                           icon={<Cpu className="w-3.5 h-3.5" />} 
                           label="Video Model" 
-                          value={isMotionSwap(item) ? 'Kling 2.6 Motion Control' : getModelDisplayName(item.videoModel)} 
+                          value={isMotionClone(item) ? 'Kling 2.6 Motion Control' : getModelDisplayName(item.videoModel)} 
                         />
                         <CompactParam 
                           icon={<Maximize className="w-3.5 h-3.5" />} 
@@ -819,7 +819,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                               ? 'avatar-ads'
                               : item.adType === 'competitor-ugc-replication'
                               ? 'competitor-ugc-replication'
-                              : 'motion-swap'
+                              : 'motion-clone'
                           }
                         />
                       </div>
@@ -1007,7 +1007,7 @@ function FeedbackButtons({
   projectType
 }: {
   projectId: string;
-  projectType: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-swap';
+  projectType: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-clone';
 }) {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState<'positive' | 'negative' | null>(null);

@@ -62,7 +62,7 @@ interface CharacterAdsItem {
   errorMessage?: string;
 }
 
-interface MotionSwapItem {
+interface MotionCloneItem {
   id: string;
   coverImageUrl?: string;
   videoUrl?: string;
@@ -76,7 +76,7 @@ interface MotionSwapItem {
   createdAt: string;
   progress?: number;
   currentStep?: string;
-  adType: 'motion-swap';
+  adType: 'motion-clone';
   videoAspectRatio?: string;
   videoDurationSeconds?: number;
   photoPrompt?: string;
@@ -84,7 +84,7 @@ interface MotionSwapItem {
   errorMessage?: string;
 }
 
-type HistoryItem = CompetitorUgcReplicationItem | CharacterAdsItem | MotionSwapItem;
+type HistoryItem = CompetitorUgcReplicationItem | CharacterAdsItem | MotionCloneItem;
 
 type SupportedAspectRatio = '16:9' | '9:16' | '1:1';
 
@@ -194,19 +194,19 @@ export async function GET() {
       console.error('Failed to fetch Avatar Ads history:', characterAdsError);
     }
 
-    // Fetch Motion Swap data
-    // Schema verified via Supabase MCP (2026-01-23): motion_swap_projects columns include
+    // Fetch Motion Clone data
+    // Schema verified via Supabase MCP (2026-01-23): motion_clone_projects columns include
     // id, user_id, status, preview_image_url, reference_cover_url, output_video_url,
     // credits_cost, generation_credits_used, downloaded, progress_percentage,
     // reference_duration_seconds, photo_prompt, video_prompt, error_message, created_at
-    const { data: motionSwapItems, error: motionSwapError } = await supabase
-      .from('motion_swap_projects')
+    const { data: motionCloneItems, error: motionCloneError } = await supabase
+      .from('motion_clone_projects')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (motionSwapError) {
-      console.error('Failed to fetch Motion Swap history:', motionSwapError);
+    if (motionCloneError) {
+      console.error('Failed to fetch Motion Clone history:', motionCloneError);
     }
 
     // Transform Competitor UGC Replication data
@@ -305,7 +305,7 @@ export async function GET() {
         };
       });
 
-    const transformedMotionSwapHistory: MotionSwapItem[] = (motionSwapItems || []).map(item => {
+    const transformedMotionCloneHistory: MotionCloneItem[] = (motionCloneItems || []).map(item => {
       const mappedStatus = mapWorkflowStatus(item.status);
       const videoUrl = mappedStatus === 'completed' ? item.output_video_url : undefined;
 
@@ -323,7 +323,7 @@ export async function GET() {
         createdAt: item.created_at,
         progress: item.progress_percentage,
         currentStep: item.status,
-        adType: 'motion-swap',
+        adType: 'motion-clone',
         videoAspectRatio: resolveVideoAspectRatio('9:16', '9:16'),
         videoDurationSeconds: item.reference_duration_seconds || undefined,
         photoPrompt: item.photo_prompt || undefined,
@@ -336,7 +336,7 @@ export async function GET() {
     const combinedHistory: HistoryItem[] = [
       ...transformedCompetitorUgcReplicationHistory,
       ...transformedCharacterAdsHistory,
-      ...transformedMotionSwapHistory
+      ...transformedMotionCloneHistory
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return NextResponse.json({

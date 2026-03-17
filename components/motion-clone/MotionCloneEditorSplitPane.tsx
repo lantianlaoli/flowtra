@@ -6,7 +6,7 @@ import clsx from 'clsx';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { Eye, Image as ImageIcon, Loader2, Video as VideoIcon } from 'lucide-react';
 
-interface MotionSwapEditorSplitPaneProps {
+interface MotionCloneEditorSplitPaneProps {
   firstFrameUrl?: string | null;
   originalVideoUrl?: string | null;
   generatedVideoUrl?: string | null;
@@ -50,7 +50,7 @@ function PreviewCard({
   );
 }
 
-export default function MotionSwapEditorSplitPane({
+export default function MotionCloneEditorSplitPane({
   firstFrameUrl,
   originalVideoUrl,
   generatedVideoUrl,
@@ -58,7 +58,7 @@ export default function MotionSwapEditorSplitPane({
   isGeneratingImage = false,
   isGeneratingVideo = false,
   form,
-}: MotionSwapEditorSplitPaneProps) {
+}: MotionCloneEditorSplitPaneProps) {
   const previewAspectClass = getAspectRatioClass(videoAspectRatio);
   const mediaClass = clsx(
     'relative w-full overflow-hidden rounded-lg border border-[#E5E5E5] bg-[#F7F7F7]',
@@ -66,7 +66,7 @@ export default function MotionSwapEditorSplitPane({
   );
 
   return (
-    <div className="motion-swap-editor-split h-full w-full">
+    <div className="motion-clone-editor-split h-full w-full">
       <Group orientation="horizontal" className="h-full">
         <Panel id="preview" defaultSize={59} minSize={50} maxSize={74} className="h-full">
           <div className="flex h-full flex-col bg-white">
@@ -86,7 +86,7 @@ export default function MotionSwapEditorSplitPane({
                   <div className={mediaClass}>
                     {isGeneratingImage ? (
                       <div className="relative flex h-full w-full overflow-hidden bg-[#f3f3f3]">
-                        <div className="motion-swap-wave absolute inset-0 opacity-90" />
+                        <div className="motion-clone-wave absolute inset-0 opacity-90" />
                         <div className="relative z-10 flex h-full w-full flex-col items-center justify-center text-center text-sm text-[#666666]">
                           <Loader2 className="h-6 w-6 animate-spin text-gray-600" />
                           <span className="mt-2 font-medium text-[#444444]">
@@ -179,7 +179,7 @@ export default function MotionSwapEditorSplitPane({
       </Group>
 
       <style jsx>{`
-        .motion-swap-wave {
+        .motion-clone-wave {
           background:
             linear-gradient(
               115deg,
@@ -190,10 +190,10 @@ export default function MotionSwapEditorSplitPane({
             ),
             linear-gradient(180deg, #efefef 0%, #e7e7e7 52%, #f4f4f4 100%);
           background-size: 220% 100%, 100% 100%;
-          animation: motionSwapWaveSweep 1.7s linear infinite;
+          animation: motionCloneWaveSweep 1.7s linear infinite;
         }
 
-        @keyframes motionSwapWaveSweep {
+        @keyframes motionCloneWaveSweep {
           0% {
             background-position: 140% 0, 0 0;
           }

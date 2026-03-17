@@ -274,8 +274,8 @@ async function main() {
   await deleteByIds('competitor_ugc_replication_segments', 'project_id', competitorProjectIds)
 
   if (creatorSourceIds.length > 0 || productIds.length > 0) {
-    const { error: motionSwapError } = await supabase
-      .from('motion_swap_projects')
+    const { error: motionCloneError } = await supabase
+      .from('motion_clone_projects')
       .delete()
       .or([
         `user_id.in.(${TARGET_USERS.join(',')})`,
@@ -283,11 +283,11 @@ async function main() {
         productIds.length > 0 ? `product_id.in.(${productIds.join(',')})` : null,
       ].filter(Boolean).join(','))
 
-    if (motionSwapError) {
-      throw new Error(`Failed to delete motion_swap_projects: ${motionSwapError.message}`)
+    if (motionCloneError) {
+      throw new Error(`Failed to delete motion_clone_projects: ${motionCloneError.message}`)
     }
   } else {
-    await deleteByUserIds('motion_swap_projects')
+    await deleteByUserIds('motion_clone_projects')
   }
 
   await deleteByIds('creator_source_platforms', 'source_id', creatorSourceIds)
@@ -326,7 +326,7 @@ async function main() {
     creator_sources: await countByUserIds('creator_sources'),
     creator_source_platforms: await countByUserIds('creator_source_platforms'),
     creator_source_videos: await countByUserIds('creator_source_videos'),
-    motion_swap_projects: await countByUserIds('motion_swap_projects'),
+    motion_clone_projects: await countByUserIds('motion_clone_projects'),
   }
 
   console.log(JSON.stringify({

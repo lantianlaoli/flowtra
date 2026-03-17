@@ -16,9 +16,9 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
     const { id } = await context.params;
     const supabase = getSupabaseAdmin();
 
-    // Schema verified via Supabase MCP (2026-02-01): motion_swap_projects
+    // Schema verified via Supabase MCP (2026-02-01): motion_clone_projects
     const { data: project, error } = await supabase
-      .from('motion_swap_projects')
+      .from('motion_clone_projects')
       .select('*')
       .eq('id', id)
       .eq('user_id', userId)
@@ -30,7 +30,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 
     return NextResponse.json({ project });
   } catch (error) {
-    console.error('[Motion Swap Status] Unexpected error:', error);
+    console.error('[Motion Clone Status] Unexpected error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

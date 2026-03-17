@@ -13,7 +13,7 @@ import { Sparkles, Coins, TrendingUp, AlertCircle, Boxes } from "lucide-react";
 import BottomComposerBar from "@/components/ui/BottomComposerBar";
 
 // New components for redesigned UX
-import MotionSwapReferenceControls from "@/components/motion-swap/MotionSwapReferenceControls";
+import MotionCloneReferenceControls from "@/components/motion-clone/MotionCloneReferenceControls";
 import ConfigPopover from "@/components/ui/ConfigPopover";
 import GenerationProgressDisplay, {
   type Generation,
@@ -2007,7 +2007,7 @@ export default function CompetitorUgcReplicationPage() {
         compact={true}
         leftControls={
           <>
-            <MotionSwapReferenceControls
+            <MotionCloneReferenceControls
               videos={assetVideos}
               selectedVideoId={selectedReferenceVideoId}
               onSelectVideoId={setSelectedReferenceVideoId}

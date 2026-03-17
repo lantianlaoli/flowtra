@@ -271,16 +271,16 @@ export async function purgeClerkUserData(userId: string) {
       ...productIds.map((id) => `product_id.eq.${id}`),
     ]
 
-    const { error: motionSwapError } = await supabase
-      .from('motion_swap_projects')
+    const { error: motionCloneError } = await supabase
+      .from('motion_clone_projects')
       .delete()
       .or(filters.join(','))
 
-    if (motionSwapError) {
-      throw new Error(`Failed to delete motion_swap_projects for ${userId}: ${motionSwapError.message}`)
+    if (motionCloneError) {
+      throw new Error(`Failed to delete motion_clone_projects for ${userId}: ${motionCloneError.message}`)
     }
   } else {
-    await deleteByUserId('motion_swap_projects', userId)
+    await deleteByUserId('motion_clone_projects', userId)
   }
 
   await deleteByIds('creator_source_platforms', 'source_id', creatorSourceIds)

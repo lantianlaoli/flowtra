@@ -325,12 +325,12 @@ export default function VideoImportModal({
   }, [processingVideo?.analysis_result, processingVideo?.analysis_status, processingVideo?.id, step, supabase]);
 
   const canUseForClone = Boolean(processingVideo?.analysis_result);
-  const requiresFirstFrameForMotionSwap = processingOrigin === 'upload';
+  const requiresFirstFrameForMotionClone = processingOrigin === 'upload';
   const hasFirstFrameImage = Boolean(processingVideo?.cover_url);
-  const canUseForMotionSwap = Boolean(
+  const canUseForMotionClone = Boolean(
     processingVideo?.source_id &&
     processingVideo?.id &&
-    (!requiresFirstFrameForMotionSwap || hasFirstFrameImage)
+    (!requiresFirstFrameForMotionClone || hasFirstFrameImage)
   );
 
   const analysisName = useMemo(() => {
@@ -669,9 +669,9 @@ export default function VideoImportModal({
     router.push('/dashboard/competitor-ugc-replication');
   };
 
-  const handleUseInMotionSwap = () => {
+  const handleUseInMotionClone = () => {
     onClose();
-    router.push(`/dashboard/motion-swap?videoId=${processingVideo?.id}`);
+    router.push(`/dashboard/motion-clone?videoId=${processingVideo?.id}`);
   };
 
   const handleSaveVideoName = async (nameOverride?: string) => {
@@ -788,7 +788,7 @@ export default function VideoImportModal({
       const updatedVideo = data.video as ImportedVideo;
       setProcessingVideo(prev => prev ? { ...prev, cover_url: updatedVideo.cover_url || null } : prev);
       onImported([updatedVideo], {
-        message: 'First frame uploaded. Motion Swap is now available.'
+        message: 'First frame uploaded. Motion Clone is now available.'
       });
     } catch (uploadError) {
       const message = uploadError instanceof Error ? uploadError.message : 'Failed to upload first frame image.';
@@ -1081,8 +1081,8 @@ export default function VideoImportModal({
 
             {step === 'processing' && (
               <div className="assets-modal-body grid min-h-0 flex-1 grid-cols-1 items-stretch gap-5 overflow-y-auto overflow-x-hidden px-5 py-5 xl:grid-cols-[auto_minmax(0,1fr)]">
-                <div className={`grid min-h-0 h-full min-w-0 items-start gap-4 overflow-hidden ${requiresFirstFrameForMotionSwap ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1 justify-items-center'}`}>
-                  {requiresFirstFrameForMotionSwap && (
+                <div className={`grid min-h-0 h-full min-w-0 items-start gap-4 overflow-hidden ${requiresFirstFrameForMotionClone ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1 justify-items-center'}`}>
+                  {requiresFirstFrameForMotionClone && (
                     <label className="assets-video-import-preview flex aspect-[9/16] w-full max-w-[320px] min-w-0 overflow-hidden justify-self-center rounded-xl border-2 border-dashed border-gray-300 bg-white transition-colors hover:border-gray-500 cursor-pointer xl:max-w-[300px] 2xl:max-w-[320px]">
                       <div className="flex h-full w-full items-center justify-center overflow-hidden px-5 text-center">
                         {processingVideo?.cover_url ? (
@@ -1099,7 +1099,7 @@ export default function VideoImportModal({
                             ) : (
                               <>
                                 <p className="text-sm font-medium text-gray-800">First Frame</p>
-                                <p className="text-xs text-gray-500">Optional, required for Motion Swap</p>
+                                <p className="text-xs text-gray-500">Optional, required for Motion Clone</p>
                               </>
                             )}
                           </div>
@@ -1239,14 +1239,14 @@ export default function VideoImportModal({
                       Go to Clone Video
                     </button>
                     <button
-                      onClick={handleUseInMotionSwap}
-                      disabled={!canUseForMotionSwap || isFirstFrameUploading}
+                      onClick={handleUseInMotionClone}
+                      disabled={!canUseForMotionClone || isFirstFrameUploading}
                       className="w-full h-11 px-4 text-sm font-semibold text-white rounded-xl border border-black bg-gradient-to-b from-[#101010] to-black shadow-[0_8px_20px_rgba(0,0,0,0.24)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(0,0,0,0.30)] active:translate-y-0 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-[0_8px_20px_rgba(0,0,0,0.24)] flex items-center justify-center gap-2"
                     >
                       <span className="w-6 h-6 rounded-md border border-white/20 bg-white/10 flex items-center justify-center">
                         <Shuffle className="w-3.5 h-3.5" />
                       </span>
-                      Go to Motion Swap
+                      Go to Motion Clone
                     </button>
                   </div>
                 </div>

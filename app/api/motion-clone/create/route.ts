@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { MOTION_SWAP_MODE } from '@/lib/motion-swap-workflow';
+import { MOTION_CLONE_MODE } from '@/lib/motion-clone-workflow';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -16,28 +16,28 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Schema verified via Supabase MCP (2026-02-01): motion_swap_projects
+    // Schema verified via Supabase MCP (2026-02-01): motion_clone_projects
     const { data: project, error: projectError } = await supabase
-      .from('motion_swap_projects')
+      .from('motion_clone_projects')
       .insert({
         user_id: userId,
     status: 'pending',
     progress_percentage: 10,
         credits_cost: 0,
         generation_credits_used: 0,
-        mode: MOTION_SWAP_MODE
+        mode: MOTION_CLONE_MODE
       })
       .select()
       .single();
 
     if (projectError || !project) {
-      console.error('[Motion Swap Create] Project insert error:', projectError);
+      console.error('[Motion Clone Create] Project insert error:', projectError);
       return NextResponse.json({ error: 'Failed to create project' }, { status: 500 });
     }
 
     return NextResponse.json({ project });
   } catch (error) {
-    console.error('[Motion Swap Create] Unexpected error:', error);
+    console.error('[Motion Clone Create] Unexpected error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

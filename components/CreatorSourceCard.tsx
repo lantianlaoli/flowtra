@@ -213,10 +213,10 @@ function CreatorSourceVideoTile({ video, sourceId }: { video: CreatorSourceVideo
   const shareCount = getStat('shareCount');
   const collectCount = getStat('collectCount');
 
-  const handleUseInMotionSwap = (event: React.MouseEvent) => {
+  const handleUseInMotionClone = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    router.push(`/dashboard/motion-swap?videoId=${video.id}`);
+    router.push(`/dashboard/motion-clone?videoId=${video.id}`);
   };
 
   return (
@@ -281,11 +281,11 @@ function CreatorSourceVideoTile({ video, sourceId }: { video: CreatorSourceVideo
           </span>
         </div>
         <button
-          onClick={handleUseInMotionSwap}
+          onClick={handleUseInMotionClone}
           className="w-full px-3 py-2 text-xs font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
         >
           <Wand2 className="w-3 h-3" />
-          Use in Motion Swap
+          Use in Motion Clone
         </button>
       </div>
     </div>

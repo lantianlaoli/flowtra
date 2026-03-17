@@ -25,10 +25,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Schema verified via Supabase MCP (2026-02-01): motion_swap_projects
-    // Schema verified via Supabase MCP (2026-02-01): motion_swap_projects
+    // Schema verified via Supabase MCP (2026-02-01): motion_clone_projects
+    // Schema verified via Supabase MCP (2026-02-01): motion_clone_projects
     const { data: project, error } = await supabase
-      .from('motion_swap_projects')
+      .from('motion_clone_projects')
       .select('*')
       .eq('video_task_id', taskId)
       .single();
@@ -47,13 +47,13 @@ export async function POST(request: NextRequest) {
         const parsed = JSON.parse(resultJson);
         videoUrl = parsed.resultUrls?.[0];
       } catch (parseError) {
-        console.error('[Motion Swap Video Webhook] Failed to parse resultJson:', parseError);
+        console.error('[Motion Clone Video Webhook] Failed to parse resultJson:', parseError);
       }
     }
 
     if (payload.code === 200 && state === 'success' && videoUrl) {
       await supabase
-        .from('motion_swap_projects')
+        .from('motion_clone_projects')
         .update({
           output_video_url: videoUrl,
           status: 'completed',
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     }
 
     await supabase
-      .from('motion_swap_projects')
+      .from('motion_clone_projects')
       .update({
         status: 'failed',
         error_message: failMsg || 'Video generation failed',
@@ -76,12 +76,12 @@ export async function POST(request: NextRequest) {
       .eq('id', project.id);
 
     if (project.generation_credits_used > 0) {
-      await refundCredits(project.user_id, project.generation_credits_used, 'Motion Swap video failed', project.id);
+      await refundCredits(project.user_id, project.generation_credits_used, 'Motion Clone video failed', project.id);
     }
 
     return NextResponse.json({ success: false }, { status: 200 });
   } catch (error) {
-    console.error('[Motion Swap Video Webhook] Unexpected error:', error);
+    console.error('[Motion Clone Video Webhook] Unexpected error:', error);
     return NextResponse.json({ success: false, error: 'Internal error' }, { status: 200 });
   }
 }

@@ -6,7 +6,7 @@ export const revalidate = 0;
 
 const DISCOVER_TEMP_MEDIA_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
-type DiscoverType = 'all' | 'competitor-ugc-replication' | 'character' | 'motion-swap';
+type DiscoverType = 'all' | 'competitor-ugc-replication' | 'character' | 'motion-clone';
 
 interface DiscoverItem {
   id: string;
@@ -127,12 +127,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Motion Swap
-    if (type === 'all' || type === 'motion-swap') {
+    // Motion Clone
+    if (type === 'all' || type === 'motion-clone') {
       // Schema verified via Supabase MCP (2026-02-01):
-      // motion_swap_projects has: preview_image_url, output_video_url, status, created_at
+      // motion_clone_projects has: preview_image_url, output_video_url, status, created_at
       const { data, error } = await supabase
-        .from('motion_swap_projects')
+        .from('motion_clone_projects')
         .select('id, preview_image_url, output_video_url, status, created_at')
         .eq('status', 'completed')
         .order('created_at', { ascending: false })
@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
           if (!coverImageUrl) continue;
           items.push({
             id: r.id,
-            type: 'motion-swap',
+            type: 'motion-clone',
             coverImageUrl,
             videoUrl: validVideoUrl,
             createdAt: r.created_at,

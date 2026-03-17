@@ -64,7 +64,9 @@ opencode.json
 .codex/
 
 # Supabase local dev artifacts
-supabase/
+supabase/*
+!supabase/migrations/
+!supabase/migrations/*.sql
 
 CLAUDE.md
 GEMINI.md

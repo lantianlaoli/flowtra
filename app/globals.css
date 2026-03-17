@@ -688,143 +688,143 @@
 }
 
 /* Motion swap editor (dashboard dark theme) */
-.dashboard-theme .motion-swap-editor-dialog {
+.dashboard-theme .motion-clone-editor-dialog {
   background: #0f1115 !important;
   border: 1px solid #1f2937 !important;
 }
 
-.dashboard-theme .motion-swap-editor-header {
+.dashboard-theme .motion-clone-editor-header {
   background: #0b0f16 !important;
   border-color: #1f2937 !important;
 }
 
-.dashboard-theme .motion-swap-editor-title {
+.dashboard-theme .motion-clone-editor-title {
   color: #f8fafc !important;
 }
 
-.dashboard-theme .motion-swap-editor-step-text {
+.dashboard-theme .motion-clone-editor-step-text {
   color: #94a3b8 !important;
 }
 
-.dashboard-theme .motion-swap-editor-step-divider {
+.dashboard-theme .motion-clone-editor-step-divider {
   color: #334155 !important;
 }
 
-.dashboard-theme .motion-swap-editor-step-badge {
+.dashboard-theme .motion-clone-editor-step-badge {
   background: #e5e7eb !important;
   color: #0b0b0b !important;
 }
 
-.dashboard-theme .motion-swap-editor-close {
+.dashboard-theme .motion-clone-editor-close {
   border-color: #1f2937 !important;
   color: #cbd5f5 !important;
 }
 
-.dashboard-theme .motion-swap-editor-close:hover {
+.dashboard-theme .motion-clone-editor-close:hover {
   border-color: #334155 !important;
   color: #f8fafc !important;
 }
 
-.dashboard-theme .motion-swap-editor-separator:hover {
+.dashboard-theme .motion-clone-editor-separator:hover {
   background: #0f1115 !important;
 }
 
-.dashboard-theme .motion-swap-editor-separator-line {
+.dashboard-theme .motion-clone-editor-separator-line {
   background: #1f2937 !important;
 }
 
-.dashboard-theme .motion-swap-editor-preview {
+.dashboard-theme .motion-clone-editor-preview {
   background: #0f1115 !important;
 }
 
-.dashboard-theme .motion-swap-editor-preview-header {
+.dashboard-theme .motion-clone-editor-preview-header {
   background: #0b0f16 !important;
   border-color: #1f2937 !important;
 }
 
-.dashboard-theme .motion-swap-editor-preview-title,
-.dashboard-theme .motion-swap-editor-preview-icon {
+.dashboard-theme .motion-clone-editor-preview-title,
+.dashboard-theme .motion-clone-editor-preview-icon {
   color: #e5e7eb !important;
 }
 
-.dashboard-theme .motion-swap-editor-preview-label {
+.dashboard-theme .motion-clone-editor-preview-label {
   color: #94a3b8 !important;
 }
 
-.dashboard-theme .motion-swap-editor-preview-media {
+.dashboard-theme .motion-clone-editor-preview-media {
   border-color: #1f2937 !important;
   background: #0b0f16 !important;
 }
 
-.dashboard-theme .motion-swap-editor-preview-skeleton {
+.dashboard-theme .motion-clone-editor-preview-skeleton {
   background: linear-gradient(135deg, #0b0f16, #111827, #0b0f16) !important;
   color: #94a3b8 !important;
 }
 
-.dashboard-theme .motion-swap-editor-preview-skeleton-icon {
+.dashboard-theme .motion-clone-editor-preview-skeleton-icon {
   color: #cbd5f5 !important;
 }
 
-.dashboard-theme .motion-swap-editor-preview-empty,
-.dashboard-theme .motion-swap-editor-preview-eta {
+.dashboard-theme .motion-clone-editor-preview-empty,
+.dashboard-theme .motion-clone-editor-preview-eta {
   color: #94a3b8 !important;
 }
 
-.dashboard-theme .motion-swap-editor-form {
+.dashboard-theme .motion-clone-editor-form {
   background: #0f1115 !important;
 }
 
-.dashboard-theme .motion-swap-editor-form-header {
+.dashboard-theme .motion-clone-editor-form-header {
   background: #0b0f16 !important;
   border-color: #1f2937 !important;
 }
 
-.dashboard-theme .motion-swap-editor-form-title,
-.dashboard-theme .motion-swap-editor-form-icon {
+.dashboard-theme .motion-clone-editor-form-title,
+.dashboard-theme .motion-clone-editor-form-icon {
   color: #e5e7eb !important;
 }
 
-.dashboard-theme .motion-swap-editor-card {
+.dashboard-theme .motion-clone-editor-card {
   background: #0b0f16 !important;
   border-color: #1f2937 !important;
 }
 
-.dashboard-theme .motion-swap-editor-label,
-.dashboard-theme .motion-swap-editor-label-icon {
+.dashboard-theme .motion-clone-editor-label,
+.dashboard-theme .motion-clone-editor-label-icon {
   color: #e5e7eb !important;
 }
 
-.dashboard-theme .motion-swap-editor-helper {
+.dashboard-theme .motion-clone-editor-helper {
   color: #94a3b8 !important;
 }
 
-.dashboard-theme .motion-swap-editor-error {
+.dashboard-theme .motion-clone-editor-error {
   background: #1f1f1f !important;
   border-color: #3f1f1f !important;
   color: #fca5a5 !important;
 }
 
-.dashboard-theme .motion-swap-editor-footer {
+.dashboard-theme .motion-clone-editor-footer {
   background: #0b0f16 !important;
   border-color: #1f2937 !important;
 }
 
-.dashboard-theme .motion-swap-editor-primary {
+.dashboard-theme .motion-clone-editor-primary {
   background: #1b1b1b !important;
   color: #f8fafc !important;
 }
 
-.dashboard-theme .motion-swap-editor-primary:hover {
+.dashboard-theme .motion-clone-editor-primary:hover {
   background: #242424 !important;
 }
 
-.dashboard-theme .motion-swap-editor-secondary {
+.dashboard-theme .motion-clone-editor-secondary {
   background: #0b0f16 !important;
   border-color: #1f2937 !important;
   color: #e5e7eb !important;
 }
 
-.dashboard-theme .motion-swap-editor-secondary:hover {
+.dashboard-theme .motion-clone-editor-secondary:hover {
   background: #111827 !important;
   border-color: #334155 !important;
 }

@@ -15,15 +15,15 @@ export async function GET() {
 
     const supabase = getSupabaseAdmin();
 
-    // Schema verified via Supabase MCP (2026-01-28): motion_swap_projects
+    // Schema verified via Supabase MCP (2026-01-28): motion_clone_projects
     const { data: projects, error } = await supabase
-      .from('motion_swap_projects')
+      .from('motion_clone_projects')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('[Motion Swap List] Failed to fetch projects:', error);
+      console.error('[Motion Clone List] Failed to fetch projects:', error);
       return NextResponse.json({ error: 'Failed to fetch projects' }, { status: 500 });
     }
 
@@ -36,7 +36,7 @@ export async function GET() {
       }
     );
   } catch (error) {
-    console.error('[Motion Swap List] Unexpected error:', error);
+    console.error('[Motion Clone List] Unexpected error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

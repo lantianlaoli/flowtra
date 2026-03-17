@@ -13,7 +13,7 @@ const faqData: FAQItem[] = [
   {
     question: 'What is Flowtra, and how does it help TikTok dropshippers?',
     answer:
-      'Flowtra helps TikTok dropshippers turn product photos and viral references into scroll‑stopping UGC ads in minutes. Use Viral Clone, Avatar Ads, or Motion Swap to ship new creatives fast without a full production team.'
+      'Flowtra helps TikTok dropshippers turn product photos and viral references into scroll‑stopping UGC ads in minutes. Use Viral Clone, Avatar Ads, or Motion Clone to ship new creatives fast without a full production team.'
   },
   {
     question: 'I’m not a video editor. Can I still use Flowtra?',

@@ -17,9 +17,9 @@ import { useToast } from "@/contexts/ToastContext";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import BottomComposerBar from "@/components/ui/BottomComposerBar";
 import ConfigPopover from "@/components/ui/ConfigPopover";
-import MotionSwapEditorSplitPane from "@/components/motion-swap/MotionSwapEditorSplitPane";
-import MotionSwapEditorFormColumn from "@/components/motion-swap/MotionSwapEditorFormColumn";
-import MotionSwapReferenceControls from "@/components/motion-swap/MotionSwapReferenceControls";
+import MotionCloneEditorSplitPane from "@/components/motion-clone/MotionCloneEditorSplitPane";
+import MotionCloneEditorFormColumn from "@/components/motion-clone/MotionCloneEditorFormColumn";
+import MotionCloneReferenceControls from "@/components/motion-clone/MotionCloneReferenceControls";
 import Sidebar from "@/components/layout/Sidebar";
 import DashboardContentTransition from "@/components/layout/DashboardContentTransition";
 import { useUser } from "@clerk/nextjs";
@@ -29,12 +29,12 @@ import type { Format } from "@/components/ui/FormatSelector";
 import { useSearchParams } from "next/navigation";
 import { MENTION_TOKEN_REGEX, buildMentionToken, normalizeMentionLabel, parseMentionToken } from "@/lib/prompt-mention-tokens";
 import {
-  getMotionSwapGenerationCost,
-  normalizeMotionSwapQuality,
+  getMotionCloneGenerationCost,
+  normalizeMotionCloneQuality,
   type CloneVideoQuality,
 } from "@/lib/constants";
 
-interface MotionSwapVideo {
+interface MotionCloneVideo {
   id: string;
   platform: string;
   platform_video_id?: string | null;
@@ -47,7 +47,7 @@ interface MotionSwapVideo {
   source_id?: string | null;
 }
 
-interface MotionSwapProject {
+interface MotionCloneProject {
   id: string;
   status: string;
   progress_percentage: number;
@@ -68,8 +68,8 @@ interface MotionSwapProject {
   created_at?: string | null;
 }
 
-type PersistedMotionSwapProject = Pick<
-  MotionSwapProject,
+type PersistedMotionCloneProject = Pick<
+  MotionCloneProject,
   | "id"
   | "status"
   | "progress_percentage"
@@ -89,15 +89,15 @@ type PersistedMotionSwapProject = Pick<
   | "created_at"
 >;
 
-interface MotionSwapSessionState {
-  projects?: PersistedMotionSwapProject[];
+interface MotionCloneSessionState {
+  projects?: PersistedMotionCloneProject[];
   activeProjectId?: string | null;
   selectedVideoId?: string;
   selectedSize?: Format;
   selectedVideoQuality?: CloneVideoQuality;
 }
 
-interface MotionSwapPromptDraft {
+interface MotionClonePromptDraft {
   photoPrompt: string;
   videoPrompt: string;
 }
@@ -105,8 +105,8 @@ interface MotionSwapPromptDraft {
 const TUTORIAL_TIKTOK_URL =
   "https://www.tiktok.com/@laolilantian/video/7600705503555095816?lang=en";
 const TUTORIAL_TIKTOK_ID = "7600705503555095816";
-const SESSION_STORAGE_KEY = "motion_swap_session_state";
-const MOTION_SWAP_QUALITY_OPTIONS = [
+const SESSION_STORAGE_KEY = "motion_clone_session_state";
+const MOTION_CLONE_QUALITY_OPTIONS = [
   { value: "720p" as const, label: "720p", creditsPerSecondLabel: "20 credits / s" },
   { value: "1080p" as const, label: "1080p", creditsPerSecondLabel: "27 credits / s" },
 ];
@@ -117,16 +117,16 @@ const DEFAULT_FEMALE_MENTION = buildMentionToken({
 const DEFAULT_IMAGE_PROMPT_TEMPLATE = `Replace the man in the reference video with ${DEFAULT_FEMALE_MENTION}. Keep the same framing, lighting, background, and overall look.`;
 const DEFAULT_VIDEO_PROMPT =
   "Keep all elements the same as the reference video. Only swap the person and product.";
-const EDITABLE_MOTION_SWAP_STATUSES = [
+const EDITABLE_MOTION_CLONE_STATUSES = [
   "pending",
   "preview_ready",
   "completed",
   "failed",
 ] as const;
 
-const serializeMotionSwapProject = (
-  project: MotionSwapProject,
-): PersistedMotionSwapProject => ({
+const serializeMotionCloneProject = (
+  project: MotionCloneProject,
+): PersistedMotionCloneProject => ({
   id: project.id,
   status: project.status,
   progress_percentage: project.progress_percentage,
@@ -146,9 +146,9 @@ const serializeMotionSwapProject = (
   created_at: project.created_at ?? null,
 });
 
-const isPersistedMotionSwapProject = (
+const isPersistedMotionCloneProject = (
   value: unknown,
-): value is PersistedMotionSwapProject => {
+): value is PersistedMotionCloneProject => {
   if (!value || typeof value !== "object") return false;
   const project = value as Record<string, unknown>;
   return (
@@ -157,19 +157,19 @@ const isPersistedMotionSwapProject = (
   );
 };
 
-export default function MotionSwapPage() {
+export default function MotionClonePage() {
   const supabase = useSupabaseBrowserClient();
   const searchParams = useSearchParams();
   const { showError, showSuccess } = useToast();
   const { user } = useUser();
   const { credits: userCredits, creditsData, refetchCredits } = useCredits();
   const [isLoading, setIsLoading] = useState(true);
-  const [videos, setVideos] = useState<MotionSwapVideo[]>([]);
+  const [videos, setVideos] = useState<MotionCloneVideo[]>([]);
   const [avatars, setAvatars] = useState<UserAvatar[]>([]);
   const [products, setProducts] = useState<UserProduct[]>([]);
   const [selectedVideoId, setSelectedVideoId] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [projects, setProjects] = useState<MotionSwapProject[]>([]);
+  const [projects, setProjects] = useState<MotionCloneProject[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<Format>("9:16");
@@ -180,7 +180,7 @@ export default function MotionSwapPage() {
   const [editPhotoPrompt, setEditPhotoPrompt] = useState("");
   const [editVideoPrompt, setEditVideoPrompt] = useState("");
   const [promptDrafts, setPromptDrafts] = useState<
-    Record<string, MotionSwapPromptDraft>
+    Record<string, MotionClonePromptDraft>
   >({});
   const [downloadStates, setDownloadStates] = useState<
     Record<string, "idle" | "processing" | "success">
@@ -260,7 +260,7 @@ export default function MotionSwapPage() {
   const editAvatarId = mentionSelections.characterIds[0] || "";
   const editProductId = mentionSelections.productIds[0] || "";
 
-  const estimatedCredits = getMotionSwapGenerationCost(
+  const estimatedCredits = getMotionCloneGenerationCost(
     selectedVideo?.duration_seconds,
     selectedVideoQuality,
   );
@@ -275,11 +275,11 @@ export default function MotionSwapPage() {
       if (assetsResponse.ok) {
         const data = await assetsResponse.json();
         const allVideos = data.videos || [];
-        const motionSwapVideos = allVideos.filter(
+        const motionCloneVideos = allVideos.filter(
           (video: { source_type?: string }) =>
             video.source_type !== "competitor_ad",
         );
-        setVideos(motionSwapVideos);
+        setVideos(motionCloneVideos);
         setProducts(data.products || []);
       }
 
@@ -288,7 +288,7 @@ export default function MotionSwapPage() {
         setAvatars(data.avatars || []);
       }
     } catch (error) {
-      console.error("[Motion Swap] Failed to load assets:", error);
+      console.error("[Motion Clone] Failed to load assets:", error);
     } finally {
       setIsLoading(false);
     }
@@ -303,10 +303,10 @@ export default function MotionSwapPage() {
     const saved = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (!saved) return;
     try {
-      const parsed = JSON.parse(saved) as MotionSwapSessionState;
+      const parsed = JSON.parse(saved) as MotionCloneSessionState;
       if (Array.isArray(parsed.projects)) {
         setProjects(
-          parsed.projects.filter(isPersistedMotionSwapProject),
+          parsed.projects.filter(isPersistedMotionCloneProject),
         );
       }
       if (parsed.activeProjectId) {
@@ -320,7 +320,7 @@ export default function MotionSwapPage() {
       }
       if (parsed.selectedVideoQuality) {
         setSelectedVideoQuality(
-          normalizeMotionSwapQuality(parsed.selectedVideoQuality),
+          normalizeMotionCloneQuality(parsed.selectedVideoQuality),
         );
       }
     } catch (error) {
@@ -341,24 +341,24 @@ export default function MotionSwapPage() {
           setSelectedVideoId(videoId);
         } else {
           setSelectedVideoId("");
-          showError("This video needs a first-frame image before Motion Swap.");
+          showError("This video needs a first-frame image before Motion Clone.");
         }
         if (typeof window !== "undefined") {
-          window.history.replaceState({}, "", "/dashboard/motion-swap");
+          window.history.replaceState({}, "", "/dashboard/motion-clone");
         }
       }
     }
   }, [isLoading, searchParams, showError, videos]);
 
-  // Preselect video from sessionStorage (for Motion Swap)
+  // Preselect video from sessionStorage (for Motion Clone)
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (isLoading) return;
 
-    const stored = window.sessionStorage.getItem("preselect_motion_swap_video");
+    const stored = window.sessionStorage.getItem("preselect_motion_clone_video");
     if (!stored) return;
 
-    window.sessionStorage.removeItem("preselect_motion_swap_video");
+    window.sessionStorage.removeItem("preselect_motion_clone_video");
 
     try {
       const parsed = JSON.parse(stored) as { videoId?: string };
@@ -369,16 +369,16 @@ export default function MotionSwapPage() {
       if (video) {
         if (video.cover_url) {
           setSelectedVideoId(targetId);
-          showSuccess("Video selected for Motion Swap.");
+          showSuccess("Video selected for Motion Clone.");
         } else {
           setSelectedVideoId("");
-          showError("This video needs a first-frame image before Motion Swap.");
+          showError("This video needs a first-frame image before Motion Clone.");
         }
       } else {
         setSelectedVideoId("");
       }
     } catch (error) {
-      console.error("[MotionSwapPage] Failed to preselect video:", error);
+      console.error("[MotionClonePage] Failed to preselect video:", error);
     }
   }, [isLoading, videos, showError, showSuccess]);
 
@@ -393,7 +393,7 @@ export default function MotionSwapPage() {
       return;
     }
     if (invalidSelectionToastRef.current !== selectedVideo.id) {
-      showError("This video needs a first-frame image before Motion Swap.");
+      showError("This video needs a first-frame image before Motion Clone.");
       invalidSelectionToastRef.current = selectedVideo.id;
     }
     setSelectedVideoId("");
@@ -413,7 +413,7 @@ export default function MotionSwapPage() {
 
   useEffect(() => {
     if (!projectInEditor) return;
-    setSelectedVideoQuality(normalizeMotionSwapQuality(projectInEditor.mode));
+    setSelectedVideoQuality(normalizeMotionCloneQuality(projectInEditor.mode));
   }, [projectInEditor?.id, projectInEditor?.mode, projectInEditor]);
 
   useEffect(() => {
@@ -439,8 +439,8 @@ export default function MotionSwapPage() {
         return;
       }
     }
-    const payload: MotionSwapSessionState = {
-      projects: projects.map(serializeMotionSwapProject),
+    const payload: MotionCloneSessionState = {
+      projects: projects.map(serializeMotionCloneProject),
       activeProjectId: activeProject?.id ?? activeProjectId ?? null,
       selectedVideoId,
       selectedSize,
@@ -452,7 +452,7 @@ export default function MotionSwapPage() {
         JSON.stringify(payload),
       );
     } catch (error) {
-      console.error("Failed to persist Motion Swap session state:", error);
+      console.error("Failed to persist Motion Clone session state:", error);
     }
   }, [
     projects,
@@ -473,7 +473,7 @@ export default function MotionSwapPage() {
 
     const fetchStatus = async () => {
       const response = await fetch(
-        `/api/motion-swap/${watchedProjectId}/status`,
+        `/api/motion-clone/${watchedProjectId}/status`,
       );
       if (!response.ok) return null;
       return response.json();
@@ -493,13 +493,13 @@ export default function MotionSwapPage() {
     init();
 
     channel = supabase
-      .channel(`motion-swap-${watchedProjectId}`)
+      .channel(`motion-clone-${watchedProjectId}`)
       .on(
         "postgres_changes",
         {
           event: "UPDATE",
           schema: "public",
-          table: "motion_swap_projects",
+          table: "motion_clone_projects",
           filter: `id=eq.${watchedProjectId}`,
         },
         async () => {
@@ -536,21 +536,21 @@ export default function MotionSwapPage() {
     return `Replace the subject in the reference video with ${tokens.join(" and ")}. Keep the same framing, lighting, background, and overall look.`;
   };
 
-  const isNewPendingProject = (project: MotionSwapProject) =>
+  const isNewPendingProject = (project: MotionCloneProject) =>
     project.status === "pending" &&
     !project.photo_prompt &&
     !project.video_prompt &&
     !project.preview_image_url &&
     !project.output_video_url;
 
-  const openEditModal = (projectToEdit?: MotionSwapProject | null) => {
+  const openEditModal = (projectToEdit?: MotionCloneProject | null) => {
     const targetProject = projectToEdit || activeProject;
     if (!targetProject) return;
     setEditingProjectId(targetProject.id);
     if (targetProject.creator_source_video_id) {
       setSelectedVideoId(targetProject.creator_source_video_id);
     }
-    setSelectedVideoQuality(normalizeMotionSwapQuality(targetProject.mode));
+    setSelectedVideoQuality(normalizeMotionCloneQuality(targetProject.mode));
     const avatarName =
       avatars.find((avatar) => avatar.id === targetProject.avatar_id)
         ?.avatar_name || null;
@@ -577,7 +577,7 @@ export default function MotionSwapPage() {
     setIsGenerating(true);
 
     try {
-      const response = await fetch("/api/motion-swap/create", {
+      const response = await fetch("/api/motion-clone/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -585,18 +585,18 @@ export default function MotionSwapPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to start Motion Swap");
+        throw new Error(data.error || "Failed to start Motion Clone");
       }
 
       setProjects((prev) => [data.project, ...prev]);
       setActiveProjectId(data.project?.id || null);
       showSuccess(
-        "Motion Swap started. You will see updates here as it completes.",
+        "Motion Clone started. You will see updates here as it completes.",
       );
     } catch (error) {
-      console.error("[Motion Swap] Create failed:", error);
+      console.error("[Motion Clone] Create failed:", error);
       showError(
-        error instanceof Error ? error.message : "Failed to start Motion Swap",
+        error instanceof Error ? error.message : "Failed to start Motion Clone",
       );
     } finally {
       setIsGenerating(false);
@@ -624,9 +624,9 @@ export default function MotionSwapPage() {
     : editFirstFrameUrl;
   const isSubmittingEdit = editAction !== null;
   const hasSwapTarget = Boolean(editAvatarId || editProductId);
-  const isEditableMotionSwapStatus = projectInEditor
-    ? EDITABLE_MOTION_SWAP_STATUSES.includes(
-        projectInEditor.status as (typeof EDITABLE_MOTION_SWAP_STATUSES)[number],
+  const isEditableMotionCloneStatus = projectInEditor
+    ? EDITABLE_MOTION_CLONE_STATUSES.includes(
+        projectInEditor.status as (typeof EDITABLE_MOTION_CLONE_STATUSES)[number],
       )
     : false;
   const canGenerateImage = Boolean(
@@ -636,7 +636,7 @@ export default function MotionSwapPage() {
       editPhotoPrompt.trim().length > 0 &&
       hasSwapTarget &&
       !isSubmittingEdit &&
-      isEditableMotionSwapStatus,
+      isEditableMotionCloneStatus,
   );
   const canGenerateVideo = Boolean(
     projectInEditor?.id &&
@@ -646,7 +646,7 @@ export default function MotionSwapPage() {
       editVideoPrompt.trim().length > 0 &&
       hasSwapTarget &&
       !isSubmittingEdit &&
-      isEditableMotionSwapStatus,
+      isEditableMotionCloneStatus,
   );
 
   const productDisplayName = useMemo(() => {
@@ -674,7 +674,7 @@ export default function MotionSwapPage() {
     typeof projectInEditor?.credits_cost === "number" &&
     projectInEditor.credits_cost > 0
       ? projectInEditor.credits_cost
-      : getMotionSwapGenerationCost(
+      : getMotionCloneGenerationCost(
           displayDurationSeconds,
           projectInEditor?.mode || selectedVideoQuality,
         ) || null;
@@ -710,7 +710,7 @@ export default function MotionSwapPage() {
       const creditsCost =
         typeof item.credits_cost === "number" && item.credits_cost > 0
           ? item.credits_cost
-          : getMotionSwapGenerationCost(
+          : getMotionCloneGenerationCost(
               durationSeconds,
               item.mode || selectedVideoQuality,
             ) || undefined;
@@ -791,7 +791,7 @@ export default function MotionSwapPage() {
       return;
     }
     if (!selectedVideoHasFirstFrame) {
-      showError("This video needs a first-frame image before Motion Swap.");
+      showError("This video needs a first-frame image before Motion Clone.");
       return;
     }
     if (!hasSwapTarget) {
@@ -805,7 +805,7 @@ export default function MotionSwapPage() {
 
     try {
       const response = await fetch(
-        `/api/motion-swap/${projectInEditor.id}/start`,
+        `/api/motion-clone/${projectInEditor.id}/start`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -824,7 +824,7 @@ export default function MotionSwapPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to start Motion Swap");
+        throw new Error(data.error || "Failed to start Motion Clone");
       }
 
       setProjects((prev) =>
@@ -845,7 +845,7 @@ export default function MotionSwapPage() {
       showSuccess(successMessage);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to start Motion Swap";
+        error instanceof Error ? error.message : "Failed to start Motion Clone";
       showError(message);
     } finally {
       setEditAction(null);
@@ -946,7 +946,7 @@ export default function MotionSwapPage() {
           setDownloadStates((prev) => ({ ...prev, [historyId]: "idle" }));
         }, 2500);
       } catch (error) {
-        console.error("[Motion Swap] Download failed:", error);
+        console.error("[Motion Clone] Download failed:", error);
         showError("An error occurred while downloading the video.");
         setDownloadStates((prev) => ({ ...prev, [historyId]: "idle" }));
       }
@@ -1066,7 +1066,7 @@ export default function MotionSwapPage() {
                           }
                         : undefined
                     }
-                    projectType="motion-swap"
+                    projectType="motion-clone"
                   />
                 </div>
               </div>
@@ -1077,7 +1077,7 @@ export default function MotionSwapPage() {
         <BottomComposerBar
           compact={true}
           leftControls={
-            <MotionSwapReferenceControls
+            <MotionCloneReferenceControls
               videos={videos}
               selectedVideoId={selectedVideoId}
               onSelectVideoId={(id) => {
@@ -1087,7 +1087,7 @@ export default function MotionSwapPage() {
                   return;
                 }
                 setSelectedVideoId("");
-                showError("This video needs a first-frame image before Motion Swap.");
+                showError("This video needs a first-frame image before Motion Clone.");
               }}
               variant="inline"
               showLabel={false}
@@ -1102,9 +1102,9 @@ export default function MotionSwapPage() {
               userCredits={userCredits || 0}
               selectedVideoQuality={selectedVideoQuality}
               onVideoQualityChange={(value) =>
-                setSelectedVideoQuality(normalizeMotionSwapQuality(value))
+                setSelectedVideoQuality(normalizeMotionCloneQuality(value))
               }
-              videoQualityOptions={MOTION_SWAP_QUALITY_OPTIONS}
+              videoQualityOptions={MOTION_CLONE_QUALITY_OPTIONS}
               hideModelSelector
               hideLanguageSelector
               hideDurationSelector
@@ -1135,32 +1135,32 @@ export default function MotionSwapPage() {
         >
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-            <Dialog.Content className="motion-swap-editor-dialog fixed left-[50%] top-[50%] z-50 flex h-[78dvh] min-h-[760px] max-h-[920px] w-[calc(100vw-3rem)] max-w-[1680px] translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-2xl bg-background shadow-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]">
-              <div className="motion-swap-editor-header flex items-center justify-between border-b border-border px-5 py-2.5">
+            <Dialog.Content className="motion-clone-editor-dialog fixed left-[50%] top-[50%] z-50 flex h-[78dvh] min-h-[760px] max-h-[920px] w-[calc(100vw-3rem)] max-w-[1680px] translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-2xl bg-background shadow-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]">
+              <div className="motion-clone-editor-header flex items-center justify-between border-b border-border px-5 py-2.5">
                 <div className="flex items-center gap-4">
-                  <Dialog.Title className="motion-swap-editor-title text-lg font-semibold text-foreground">
-                    Edit Motion Swap
+                  <Dialog.Title className="motion-clone-editor-title text-lg font-semibold text-foreground">
+                    Edit Motion Clone
                   </Dialog.Title>
-                  <div className="motion-swap-editor-steps flex items-center gap-4">
+                  <div className="motion-clone-editor-steps flex items-center gap-4">
                     {/* Step 1: Image Prompt */}
                     <div className="flex items-center gap-2">
-                      <span className="motion-swap-editor-step-badge flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+                      <span className="motion-clone-editor-step-badge flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
                         1
                       </span>
-                      <div className="motion-swap-editor-step-text flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <div className="motion-clone-editor-step-text flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                         <ImageIcon className="w-3.5 h-3.5" />
                         <span>Edit image prompt + generate image</span>
                       </div>
                     </div>
 
-                    <ArrowRight className="motion-swap-editor-step-divider w-3 h-3 text-gray-300" />
+                    <ArrowRight className="motion-clone-editor-step-divider w-3 h-3 text-gray-300" />
 
                     {/* Step 2: Video Prompt */}
                     <div className="flex items-center gap-2">
-                      <span className="motion-swap-editor-step-badge flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+                      <span className="motion-clone-editor-step-badge flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
                         2
                       </span>
-                      <div className="motion-swap-editor-step-text flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <div className="motion-clone-editor-step-text flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                         <VideoIcon className="w-3.5 h-3.5" />
                         <span>Edit video prompt + generate video</span>
                       </div>
@@ -1170,7 +1170,7 @@ export default function MotionSwapPage() {
                 <Dialog.Close asChild>
                   <button
                     type="button"
-                    className="motion-swap-editor-close inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+                    className="motion-clone-editor-close inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
                     aria-label="Close"
                   >
                     ✕
@@ -1178,7 +1178,7 @@ export default function MotionSwapPage() {
                 </Dialog.Close>
               </div>
               <div className="min-h-0 flex-1">
-                <MotionSwapEditorSplitPane
+                <MotionCloneEditorSplitPane
                   firstFrameUrl={displayFirstFramePreviewUrl}
                   originalVideoUrl={selectedVideo?.video_cdn_url || null}
                   generatedVideoUrl={
@@ -1193,7 +1193,7 @@ export default function MotionSwapPage() {
                     effectiveSegmentStatus === "generating_video"
                   }
                   form={
-                    <MotionSwapEditorFormColumn
+                    <MotionCloneEditorFormColumn
                       photoPrompt={editPhotoPrompt}
                       onPhotoPromptChange={setEditPhotoPrompt}
                       videoPrompt={editVideoPrompt}

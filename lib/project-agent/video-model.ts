@@ -1,6 +1,6 @@
 import type { VideoModel } from '@/lib/constants';
 
-export type ProjectAgentIntent = 'avatar_ads' | 'competitor_ugc_replication' | 'motion_swap';
+export type ProjectAgentIntent = 'avatar_ads' | 'competitor_ugc_replication' | 'motion_clone';
 
 export const PROJECT_AGENT_VIDEO_MODELS: VideoModel[] = ['kling_3'];
 

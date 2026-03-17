@@ -188,7 +188,7 @@ type DiscoverType =
   | "all"
   | "competitor-ugc-replication"
   | "character"
-  | "motion-swap";
+  | "motion-clone";
 
 interface DiscoverItem {
   id: string;
@@ -312,11 +312,11 @@ function DiscoverSection() {
                 Character
               </TabsTrigger>
               <TabsTrigger
-                value="motion-swap"
+                value="motion-clone"
                 className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md px-3 py-1.5 text-sm font-medium transition-all gap-2"
               >
                 <RefreshCw className="w-4 h-4" />
-                Motion Swap
+                Motion Clone
               </TabsTrigger>
             </TabsList>
           </div>

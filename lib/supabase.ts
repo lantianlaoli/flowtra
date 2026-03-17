@@ -306,8 +306,8 @@ export interface CreatorSource {
   updated_at: string
 }
 
-// Motion Swap projects
-export interface MotionSwapProject {
+// Motion Clone projects
+export interface MotionCloneProject {
   id: string
   user_id: string
   creator_source_id?: string | null
@@ -376,6 +376,11 @@ export type Database = {
         Row: CompetitorUgcReplicationSegment
         Insert: Omit<CompetitorUgcReplicationSegment, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<CompetitorUgcReplicationSegment, 'id' | 'created_at' | 'updated_at'>>
+      }
+      motion_clone_projects: {
+        Row: MotionCloneProject
+        Insert: Omit<MotionCloneProject, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<MotionCloneProject, 'id' | 'created_at' | 'updated_at'>>
       }
       user_avatars: {
         Row: UserAvatar

@@ -7,7 +7,7 @@ import BottomBarDropdown from '@/components/ui/BottomBarDropdown';
 import { cn } from '@/lib/utils';
 import { getLanguageDisplayInfo } from '@/lib/language';
 
-interface MotionSwapVideo {
+interface MotionCloneVideo {
   id: string;
   platform: string;
   platform_video_id?: string | null;
@@ -20,8 +20,8 @@ interface MotionSwapVideo {
   stats?: Record<string, unknown> | null;
 }
 
-interface MotionSwapReferenceControlsProps {
-  videos: MotionSwapVideo[];
+interface MotionCloneReferenceControlsProps {
+  videos: MotionCloneVideo[];
   selectedVideoId: string;
   onSelectVideoId: (id: string) => void;
   requireFirstFrameForSelection?: boolean;
@@ -36,7 +36,7 @@ const getStatCount = (stats: Record<string, unknown> | null | undefined, key: st
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-export default function MotionSwapReferenceControls({
+export default function MotionCloneReferenceControls({
   videos,
   selectedVideoId,
   onSelectVideoId,
@@ -44,7 +44,7 @@ export default function MotionSwapReferenceControls({
   variant = 'stacked',
   showLabel = true,
   className
-}: MotionSwapReferenceControlsProps) {
+}: MotionCloneReferenceControlsProps) {
   const [videoOpen, setVideoOpen] = useState(false);
 
   const selectedVideo = useMemo(

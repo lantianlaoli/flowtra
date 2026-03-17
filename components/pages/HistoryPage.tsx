@@ -76,7 +76,7 @@ interface AvatarAdsItem {
   errorMessage?: string;
 }
 
-interface MotionSwapItem {
+interface MotionCloneItem {
   id: string;
   coverImageUrl?: string;
   videoUrl?: string;
@@ -90,7 +90,7 @@ interface MotionSwapItem {
   createdAt: string;
   progress?: number;
   currentStep?: string;
-  adType: 'motion-swap';
+  adType: 'motion-clone';
   videoAspectRatio?: string;
   videoDurationSeconds?: number;
   photoPrompt?: string;
@@ -98,7 +98,7 @@ interface MotionSwapItem {
   errorMessage?: string;
 }
 
-type HistoryItem = CompetitorUgcReplicationItem | AvatarAdsItem | MotionSwapItem;
+type HistoryItem = CompetitorUgcReplicationItem | AvatarAdsItem | MotionCloneItem;
 
 const ITEMS_PER_PAGE = 8; // 2 rows × 4 columns (desktop) = 8 items per page
 
@@ -122,8 +122,8 @@ const AD_TYPE_OPTIONS = [
     description: 'Character-driven videos and image sets',
   },
   {
-    value: 'motion-swap',
-    label: 'Motion Swap',
+    value: 'motion-clone',
+    label: 'Motion Clone',
     icon: Shuffle,
     description: 'Kling motion-controlled swaps from reference videos',
   },
@@ -145,8 +145,8 @@ const isCompetitorUgcReplication = (item: HistoryItem): item is CompetitorUgcRep
   return 'adType' in item && item.adType === 'competitor-ugc-replication';
 };
 
-const isMotionSwap = (item: HistoryItem): item is MotionSwapItem => {
-  return 'adType' in item && item.adType === 'motion-swap';
+const isMotionClone = (item: HistoryItem): item is MotionCloneItem => {
+  return 'adType' in item && item.adType === 'motion-clone';
 };
 
 const getBaseDownloadCost = (model: VideoModel) => {
@@ -207,7 +207,7 @@ export default function HistoryPage() {
         adTypeFilter === 'all' ||
         (adTypeFilter === 'competitor-ugc-replication' && isCompetitorUgcReplication(item)) ||
         (adTypeFilter === 'character' && isCharacterAds(item)) ||
-        (adTypeFilter === 'motion-swap' && isMotionSwap(item))
+        (adTypeFilter === 'motion-clone' && isMotionClone(item))
       );
     });
   }, [history, adTypeFilter]);
@@ -780,11 +780,11 @@ export default function HistoryPage() {
     }
   };
 
-  const downloadMotionSwapCover = async (historyId: string) => {
+  const downloadMotionCloneCover = async (historyId: string) => {
     if (!user?.id) return;
 
     const item = history.find(h => h.id === historyId);
-    if (!item || !isMotionSwap(item) || !item.coverImageUrl) return;
+    if (!item || !isMotionClone(item) || !item.coverImageUrl) return;
     if (isMyAdExpired(item.createdAt)) {
       showError(`This asset expired after ${MY_ADS_RETENTION_DAYS} days. You can still view it, but downloads are disabled.`);
       return;
@@ -799,7 +799,7 @@ export default function HistoryPage() {
 
       const link = document.createElement('a');
       link.href = url;
-      link.download = `motion-swap-cover-${historyId}.${ext}`;
+      link.download = `motion-clone-cover-${historyId}.${ext}`;
       link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
@@ -822,8 +822,8 @@ export default function HistoryPage() {
         await downloadCompetitorUgcReplicationCover(item.id);
       } else if (isCharacterAds(item)) {
         await downloadCharacterAdsCover(item.id);
-      } else if (isMotionSwap(item)) {
-        await downloadMotionSwapCover(item.id);
+      } else if (isMotionClone(item)) {
+        await downloadMotionCloneCover(item.id);
       }
       // Mark as done to show a pleasant finish message
       setCoverStates(prev => ({ ...prev, [id]: 'done' }));
@@ -840,7 +840,7 @@ export default function HistoryPage() {
     const id = item.id;
     setVideoStates(prev => ({ ...prev, [id]: 'packing' }));
     try {
-      if (isCompetitorUgcReplication(item) || isCharacterAds(item) || isMotionSwap(item)) {
+      if (isCompetitorUgcReplication(item) || isCharacterAds(item) || isMotionClone(item)) {
         await downloadVideo(item, '720p');
       }
       setVideoStates(prev => ({ ...prev, [id]: 'done' }));
@@ -1022,7 +1022,7 @@ export default function HistoryPage() {
                         )}
                       </span>
                       <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-background text-foreground border border-border">
-                        {isCharacterAds(item) ? 'Character' : isMotionSwap(item) ? 'Motion Swap' : 'UGC Clone'}
+                        {isCharacterAds(item) ? 'Character' : isMotionClone(item) ? 'Motion Clone' : 'UGC Clone'}
                       </span>
                     </div>
 

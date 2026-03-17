@@ -187,21 +187,21 @@ export default function VideoAssetDetailsModal({
     }
   };
 
-  const handleUseInMotionSwap = () => {
+  const handleUseInMotionClone = () => {
     if (!currentVideo) return;
 
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem(
-        "preselect_motion_swap_video",
+        "preselect_motion_clone_video",
         JSON.stringify({
           videoId: currentVideo.id,
         }),
       );
     }
 
-    showSuccess("Video selected for Motion Swap.");
+    showSuccess("Video selected for Motion Clone.");
     onClose();
-    router.push("/dashboard/motion-swap");
+    router.push("/dashboard/motion-clone");
   };
 
   const handleDeleteVideo = async () => {
@@ -257,7 +257,7 @@ export default function VideoAssetDetailsModal({
 
       setCurrentVideo(nextVideo);
       onVideoUpdated?.(nextVideo);
-      showSuccess("First frame uploaded. Motion Swap is now available.");
+      showSuccess("First frame uploaded. Motion Clone is now available.");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to upload first frame image.";
@@ -334,7 +334,7 @@ export default function VideoAssetDetailsModal({
                           ) : (
                             <>
                               <p className="text-sm font-medium text-gray-800">First Frame</p>
-                              <p className="text-xs text-gray-500">Optional, required for Motion Swap</p>
+                              <p className="text-xs text-gray-500">Optional, required for Motion Clone</p>
                             </>
                           )}
                           {firstFrameUploadError ? (
@@ -478,13 +478,13 @@ export default function VideoAssetDetailsModal({
                   {!isAgentSelectionMode && onDeleteVideo ? (
                     <>
                       <button
-                        onClick={handleUseInMotionSwap}
+                        onClick={handleUseInMotionClone}
                         disabled={!currentVideo.source_id}
                         className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-black text-white rounded-lg border border-black hover:bg-gray-900 transition-all duration-200 group/btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <span className="font-medium flex items-center gap-2">
                           <Shuffle className="w-4 h-4 text-white/90" />
-                          Use in Motion Swap
+                          Use in Motion Clone
                         </span>
                       </button>
                       <button

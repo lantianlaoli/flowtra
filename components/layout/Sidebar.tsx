@@ -47,7 +47,7 @@ const primaryNavigation = [
   { name: 'Agent', href: '/dashboard/agent', icon: MessageCircle },
   { name: 'Video Clone', href: '/dashboard/competitor-ugc-replication', icon: Sparkles },
   { name: 'Avatar Ads', href: '/dashboard/avatar-ads', icon: Video },
-  { name: 'Motion Swap', href: '/dashboard/motion-swap', icon: Shuffle },
+  { name: 'Motion Clone', href: '/dashboard/motion-clone', icon: Shuffle },
   { name: 'My Ads', href: '/dashboard/my-ads', icon: Play },
   { name: 'Assets', href: '/dashboard/assets', icon: Boxes },
 ];

@@ -85,7 +85,7 @@ const CHINESE_SCENE_NUMERALS: Record<string, number> = {
 };
 
 type SessionState = {
-  intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_swap';
+  intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_clone';
   step?: 'collecting' | 'creating' | 'awaiting_review' | 'regenerating_image' | 'generating_videos' | 'completed';
   cloneReferenceVideo?: {
     id: string;
@@ -720,7 +720,7 @@ Identity and brand voice (strict):
 Supported workflows:
 - avatar_ads (create spokesperson-style avatar videos)
 - competitor_ugc_replication (primary use case: clone viral videos with your product)
-- motion_swap (collect requirements, then hand off to existing workflow entrypoints)
+- motion_clone (collect requirements, then hand off to existing workflow entrypoints)
 
 Domain model (strict):
 - First-class user objects are ONLY: avatar and product.
@@ -816,11 +816,11 @@ Workflow rules:
   27.1) When final-video creation starts for a clone project, say it has started, ask the user to wait about 10-20 seconds, send them to "My Ads" for details/download, and add this exact guidance: "${getNextCloneCanonicalGuidance()}"
   28) If user asks where to download the finished clone video, answer directly: "Please go to My Ads to view and download it." Then add: "${getNextCloneCanonicalGuidance()}"
   29) If matching is uncertain, present top likely candidates and ask a short clarification question; do not proceed to generation.
-- If the user picks motion_swap, collect requirements and guide to the existing workflow entrypoint.
+- If the user picks motion_clone, collect requirements and guide to the existing workflow entrypoint.
 - When user asks what workflows are available, always list ALL three:
   1) Avatar Ads
   2) Clone Viral Videos (Competitor UGC Replication)
-  3) Motion Swap
+  3) Motion Clone
 
 Current state:
 - Avatar: ${avatarLabel}

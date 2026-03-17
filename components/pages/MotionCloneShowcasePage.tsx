@@ -10,7 +10,7 @@ import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
 const steps = [
   {
     title: 'Import the reference clip',
-    description: 'Bring in a TikTok URL, local upload, or saved creator video to start the motion swap flow.'
+    description: 'Bring in a TikTok URL, local upload, or saved creator video to start the motion clone flow.'
   },
   {
     title: 'Set the replacement assets',
@@ -22,16 +22,16 @@ const steps = [
   }
 ];
 
-const primaryCta = { href: '/dashboard/motion-swap', label: 'Start Motion Swap' };
+const primaryCta = { href: '/dashboard/motion-clone', label: 'Start Motion Clone' };
 const secondaryCta = { href: '/#pricing', label: 'View Pricing' };
 
-export default function MotionSwapShowcasePage() {
+export default function MotionCloneShowcasePage() {
   return (
     <div className="min-h-screen bg-white">
       <Header />
 
       <FeatureHero
-        title="Motion Swap"
+        title="Motion Clone"
         description="Preserve the movement, pacing, and camera behavior of a strong reference ad while swapping in your own product and character."
         primaryCta={primaryCta}
         secondaryCta={secondaryCta}
@@ -44,7 +44,7 @@ export default function MotionSwapShowcasePage() {
               </p>
               <div className="relative aspect-[9/16] overflow-hidden rounded-[20px] border border-[#E5E5E5] bg-[#F5F5F5]">
                 <LazyVideoPlayer
-                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_refer.mp4"
+                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_clone_refer.mp4"
                   wrapperClassName="h-full w-full"
                   className="h-full w-full object-cover"
                   showControls={false}
@@ -56,11 +56,11 @@ export default function MotionSwapShowcasePage() {
             </div>
             <div className="space-y-3">
               <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-black">
-                Motion Swap
+                Motion Clone
               </p>
               <div className="relative aspect-[9/16] overflow-hidden rounded-[20px] border border-black bg-[#F5F5F5]">
                 <LazyVideoPlayer
-                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_result.mp4"
+                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_clone_result.mp4"
                   wrapperClassName="h-full w-full"
                   className="h-full w-full object-cover"
                   showControls={false}
@@ -138,7 +138,7 @@ export default function MotionSwapShowcasePage() {
         media={
           <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-[#FAFAFA] shadow-[0_18px_40px_rgba(0,0,0,0.06)] transition-transform duration-200 hover:-translate-y-1">
             <LazyVideoPlayer
-              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_demo.mp4"
+              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_clone_demo.mp4"
               wrapperClassName="w-full"
               className="w-full h-auto"
               showControls={false}

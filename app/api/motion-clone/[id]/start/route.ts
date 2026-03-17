@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createMotionSwapPreviewTask, createMotionSwapVideoTask, buildMotionSwapPreviewPrompt, buildMotionSwapVideoPrompt } from '@/lib/motion-swap-workflow';
+import { createMotionClonePreviewTask, createMotionCloneVideoTask, buildMotionClonePreviewPrompt, buildMotionCloneVideoPrompt } from '@/lib/motion-clone-workflow';
 import { checkCredits, deductCredits, recordCreditTransaction, refundCredits } from '@/lib/credits';
 import { fetchTikTokVideoUrl } from '@/lib/fetch-tiktok-video';
 import { downloadVideoBuffer, uploadCreatorVideoCoverToStorage } from '@/lib/creator-videos-storage';
 import { fetchTikTokCoverByUrl } from '@/lib/tiktok-creator-source';
-import { getMotionSwapGenerationCost, normalizeMotionSwapQuality } from '@/lib/constants';
+import { getMotionCloneGenerationCost, normalizeMotionCloneQuality } from '@/lib/constants';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 import {
   buildKlingElementsFromMentions,
@@ -17,7 +17,7 @@ import { replaceMentionsForPlainText } from '@/lib/competitor-ugc-replication-pr
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-const EDITABLE_MOTION_SWAP_STATUSES = new Set([
+const EDITABLE_MOTION_CLONE_STATUSES = new Set([
   'pending',
   'preview_ready',
   'completed',
@@ -45,14 +45,14 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     const supabase = getSupabaseAdmin();
 
-    // Schema verified via Supabase MCP (2026-03-12): motion_swap_projects
+    // Schema verified via Supabase MCP (2026-03-12): motion_clone_projects
     // Columns used below are confirmed to exist:
     // preview_task_id, preview_image_url, preview_webhook_received_at,
     // video_task_id, output_video_url, video_webhook_received_at,
     // status, progress_percentage, credits_cost, generation_credits_used,
     // mode, error_message, auto_generate_video
     const { data: project, error: projectError } = await supabase
-      .from('motion_swap_projects')
+      .from('motion_clone_projects')
       .select('*')
       .eq('id', id)
       .eq('user_id', userId)
@@ -62,12 +62,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    const selectedQuality = normalizeMotionSwapQuality(
+    const selectedQuality = normalizeMotionCloneQuality(
       typeof body?.mode === 'string' ? body.mode : project.mode
     );
 
     // Allow regenerating from idle states, but never while a task is already running.
-    if (!EDITABLE_MOTION_SWAP_STATUSES.has(project.status)) {
+    if (!EDITABLE_MOTION_CLONE_STATUSES.has(project.status)) {
       return NextResponse.json({ error: 'Project is not ready for editing' }, { status: 409 });
     }
 
@@ -205,14 +205,14 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
             .eq('id', referenceVideo.id);
         }
       } catch (fallbackError) {
-        console.warn('[Motion Swap Start] Cover download failed:', fallbackError);
+        console.warn('[Motion Clone Start] Cover download failed:', fallbackError);
       }
     }
     if (!coverUrl) {
       return NextResponse.json({ error: 'Cover image is missing' }, { status: 400 });
     }
 
-    const creditsCost = getMotionSwapGenerationCost(durationSeconds, selectedQuality);
+    const creditsCost = getMotionCloneGenerationCost(durationSeconds, selectedQuality);
     const shouldChargeForGeneration = action === 'video';
     const resetVideoGenerationState = {
       video_task_id: null,
@@ -270,27 +270,27 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           userId,
           'usage',
           creditsCost,
-          `Motion Swap generation (${durationSeconds}s @ ${selectedQuality})`,
+          `Motion Clone generation (${durationSeconds}s @ ${selectedQuality})`,
           project.id,
           true
         );
 
-        const callbackUrl = new URL('/api/motion-swap/webhooks/video', baseUrl).toString();
-        const videoTaskId = await createMotionSwapVideoTask({
+        const callbackUrl = new URL('/api/motion-clone/webhooks/video', baseUrl).toString();
+        const videoTaskId = await createMotionCloneVideoTask({
           previewImageUrl: project.preview_image_url,
           referenceVideoUrl: videoCdnUrl,
           mode: selectedQuality,
-          prompt: compiledVideoPrompt || buildMotionSwapVideoPrompt({ hasAvatar, hasProduct }),
+          prompt: compiledVideoPrompt || buildMotionCloneVideoPrompt({ hasAvatar, hasProduct }),
           elements: elements.length > 0 ? elements : undefined,
         }, callbackUrl);
 
         const { data: updatedProject, error: updateError } = await supabase
-          .from('motion_swap_projects')
+          .from('motion_clone_projects')
           .update({
             ...resetVideoGenerationState,
             video_task_id: videoTaskId,
             photo_prompt: photoPrompt || project.photo_prompt || null,
-            video_prompt: videoPrompt || buildMotionSwapVideoPrompt({ hasAvatar, hasProduct }),
+            video_prompt: videoPrompt || buildMotionCloneVideoPrompt({ hasAvatar, hasProduct }),
             avatar_id: persistableAvatarId,
             product_id: product?.id || null,
             product_photo_id: productPhoto?.id || null,
@@ -311,9 +311,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
         return NextResponse.json({ project: updatedProject });
       } catch (error) {
-        console.error('[Motion Swap Start] Video task error:', error);
+        console.error('[Motion Clone Start] Video task error:', error);
         await supabase
-          .from('motion_swap_projects')
+          .from('motion_clone_projects')
           .update({
             status: 'failed',
             error_message: error instanceof Error ? error.message : 'Failed to start video task',
@@ -322,7 +322,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           .eq('id', project.id);
 
         if (creditsDeducted && creditsCost > 0) {
-          await refundCredits(userId, creditsCost, 'Motion Swap video task failed', project.id);
+          await refundCredits(userId, creditsCost, 'Motion Clone video task failed', project.id);
         }
 
         return NextResponse.json({
@@ -345,23 +345,23 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           userId,
           'usage',
           creditsCost,
-          `Motion Swap generation (${durationSeconds}s @ ${selectedQuality})`,
+          `Motion Clone generation (${durationSeconds}s @ ${selectedQuality})`,
           project.id,
           true
         );
       }
 
-      const callbackUrl = new URL('/api/motion-swap/webhooks/preview', baseUrl).toString();
-      const previewTaskId = await createMotionSwapPreviewTask({
+      const callbackUrl = new URL('/api/motion-clone/webhooks/preview', baseUrl).toString();
+      const previewTaskId = await createMotionClonePreviewTask({
         coverUrl,
         avatarUrl: avatar?.photo_url || null,
         productUrl: productPhoto?.photo_url || null,
         aspectRatio: '9:16',
-          prompt: compiledPhotoPrompt || photoPrompt || buildMotionSwapPreviewPrompt({ hasAvatar, hasProduct })
+          prompt: compiledPhotoPrompt || photoPrompt || buildMotionClonePreviewPrompt({ hasAvatar, hasProduct })
       }, callbackUrl);
 
       const { data: updatedProject, error: updateError } = await supabase
-        .from('motion_swap_projects')
+        .from('motion_clone_projects')
         .update({
           ...resetPreviewGenerationState,
           creator_source_id: referenceVideo.source_id,
@@ -374,7 +374,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           reference_cover_url: coverUrl,
           reference_duration_seconds: durationSeconds,
           photo_prompt: photoPrompt || null,
-          video_prompt: videoPrompt || buildMotionSwapVideoPrompt({ hasAvatar, hasProduct }),
+          video_prompt: videoPrompt || buildMotionCloneVideoPrompt({ hasAvatar, hasProduct }),
           credits_cost: shouldChargeForGeneration ? creditsCost : 0,
           generation_credits_used: shouldChargeForGeneration ? creditsCost : 0,
           preview_task_id: previewTaskId,
@@ -393,9 +393,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
       return NextResponse.json({ project: updatedProject });
     } catch (error) {
-      console.error('[Motion Swap Start] Preview task error:', error);
+      console.error('[Motion Clone Start] Preview task error:', error);
       await supabase
-        .from('motion_swap_projects')
+        .from('motion_clone_projects')
         .update({
           status: 'failed',
           error_message: error instanceof Error ? error.message : 'Failed to start preview task',
@@ -404,7 +404,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         .eq('id', project.id);
 
       if (creditsDeducted && creditsCost > 0) {
-        await refundCredits(userId, creditsCost, 'Motion Swap preview task failed', project.id);
+        await refundCredits(userId, creditsCost, 'Motion Clone preview task failed', project.id);
       }
 
       return NextResponse.json({
@@ -412,7 +412,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       }, { status: 500 });
     }
   } catch (error) {
-    console.error('[Motion Swap Start] Unexpected error:', error);
+    console.error('[Motion Clone Start] Unexpected error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

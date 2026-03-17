@@ -156,7 +156,7 @@ export default function Header({
                     </div>
                   </Link>
                   <Link
-                    href="/features/motion-swap"
+                    href="/features/motion-clone"
                     className="flex items-start gap-3 px-4 py-3 text-[14px] text-[#666666] hover:bg-[#F7F7F7] hover:text-black transition-colors"
                   >
                     <div className="flex-shrink-0 w-10 h-10 bg-[#F7F7F7] rounded-lg flex items-center justify-center mt-0.5">
@@ -164,7 +164,7 @@ export default function Header({
                     </div>
                     <div className="flex-1">
                       <div className="font-semibold text-black">
-                        Motion Swap
+                        Motion Clone
                       </div>
                       <div className="text-[12px] opacity-70">
                         Clone viral ad movements
@@ -347,11 +347,11 @@ export default function Header({
             Viral Clone
           </Link>
           <Link
-            href="/features/motion-swap"
+            href="/features/motion-clone"
             className="text-[16px] font-medium text-black"
             onClick={() => setMobileMenuOpen(false)}
           >
-            Motion Swap
+            Motion Clone
           </Link>
           <div className="text-[12px] font-medium text-[#666666] uppercase tracking-[0.2em]">
             Tools

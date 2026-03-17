@@ -5,9 +5,9 @@ import type { KlingElement } from '@/lib/kling-elements';
 const KIE_CREATE_TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const KIE_FILE_URL_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-url-upload';
 
-export const MOTION_SWAP_MODE = '720p' as const;
+export const MOTION_CLONE_MODE = '720p' as const;
 
-export interface MotionSwapPreviewInput {
+export interface MotionClonePreviewInput {
   coverUrl: string;
   avatarUrl?: string | null;
   productUrl?: string | null;
@@ -15,7 +15,7 @@ export interface MotionSwapPreviewInput {
   prompt?: string;
 }
 
-export interface MotionSwapVideoInput {
+export interface MotionCloneVideoInput {
   previewImageUrl: string;
   referenceVideoUrl: string;
   mode?: '720p' | '1080p';
@@ -79,7 +79,7 @@ const uploadKieFileFromUrl = async (fileUrl: string, uploadPath: string, fileTyp
   return data.data.downloadUrl as string;
 };
 
-export const buildMotionSwapPreviewPrompt = (options?: { hasAvatar: boolean; hasProduct: boolean }) => {
+export const buildMotionClonePreviewPrompt = (options?: { hasAvatar: boolean; hasProduct: boolean }) => {
   const hasAvatar = options?.hasAvatar ?? true;
   const hasProduct = options?.hasProduct ?? true;
   const replacementLine = hasAvatar && hasProduct
@@ -88,14 +88,14 @@ export const buildMotionSwapPreviewPrompt = (options?: { hasAvatar: boolean; has
       ? 'Replace the person with the provided avatar reference.'
       : 'Replace the product with the provided product reference.';
   return [
-    'Motion Swap preview: keep the exact composition, lighting, and background from the reference cover image.',
+    'Motion Clone preview: keep the exact composition, lighting, and background from the reference cover image.',
     replacementLine,
     'Do not change camera angle, framing, or color grading.',
     'Match the original pose, clothing silhouette, and environment while swapping only the specified targets.'
   ].join(' ');
 };
 
-export const buildMotionSwapVideoPrompt = (options?: { hasAvatar: boolean; hasProduct: boolean }) => {
+export const buildMotionCloneVideoPrompt = (options?: { hasAvatar: boolean; hasProduct: boolean }) => {
   const hasAvatar = options?.hasAvatar ?? true;
   const hasProduct = options?.hasProduct ?? true;
   const guidance = hasAvatar && hasProduct
@@ -104,20 +104,20 @@ export const buildMotionSwapVideoPrompt = (options?: { hasAvatar: boolean; hasPr
       ? 'Use the swapped preview image as the appearance guide for the person.'
       : 'Use the swapped preview image as the appearance guide for the product.';
   return [
-    'Motion Swap: preserve the original motion, rhythm, and camera movement from the reference video.',
+    'Motion Clone: preserve the original motion, rhythm, and camera movement from the reference video.',
     guidance,
     'Do not alter the background, lighting, or scene composition.'
   ].join(' ');
 };
 
-export const createMotionSwapPreviewTask = async (
-  input: MotionSwapPreviewInput,
+export const createMotionClonePreviewTask = async (
+  input: MotionClonePreviewInput,
   callbackUrl: string
 ): Promise<string> => {
   const requestBody = {
     model: NON_AGENT_IMAGE_MODEL,
     input: {
-      prompt: input.prompt || buildMotionSwapPreviewPrompt({ hasAvatar: Boolean(input.avatarUrl), hasProduct: Boolean(input.productUrl) }),
+      prompt: input.prompt || buildMotionClonePreviewPrompt({ hasAvatar: Boolean(input.avatarUrl), hasProduct: Boolean(input.productUrl) }),
       image_input: [input.coverUrl, input.avatarUrl, input.productUrl].filter(Boolean).slice(0, 8),
       aspect_ratio: input.aspectRatio || '9:16',
       resolution: NON_AGENT_IMAGE_RESOLUTION,
@@ -136,33 +136,33 @@ export const createMotionSwapPreviewTask = async (
   }, 5, 30000);
 
   if (!response.ok) {
-    throw new Error(`Motion Swap preview task failed: ${response.status}`);
+    throw new Error(`Motion Clone preview task failed: ${response.status}`);
   }
 
   const data = await response.json();
   if (data.code !== 200 || !data.data?.taskId) {
-    throw new Error(data.msg || 'Failed to start Motion Swap preview task');
+    throw new Error(data.msg || 'Failed to start Motion Clone preview task');
   }
 
   return data.data.taskId as string;
 };
 
-export const createMotionSwapVideoTask = async (
-  input: MotionSwapVideoInput,
+export const createMotionCloneVideoTask = async (
+  input: MotionCloneVideoInput,
   callbackUrl: string
 ): Promise<string> => {
   const previewImageUrl = await uploadKieFileFromUrl(
     input.previewImageUrl,
-    'motion-swap/preview-images',
+    'motion-clone/preview-images',
     'image'
   );
   const referenceVideoUrl = await uploadKieFileFromUrl(
     input.referenceVideoUrl,
-    'motion-swap/reference-videos',
+    'motion-clone/reference-videos',
     'video'
   );
 
-  const requestBody = buildMotionSwapVideoRequestBody({
+  const requestBody = buildMotionCloneVideoRequestBody({
     previewImageUrl,
     referenceVideoUrl,
     mode: input.mode,
@@ -181,18 +181,18 @@ export const createMotionSwapVideoTask = async (
   }, 5, 30000);
 
   if (!response.ok) {
-    throw new Error(`Motion Swap video task failed: ${response.status}`);
+    throw new Error(`Motion Clone video task failed: ${response.status}`);
   }
 
   const data = await response.json();
   if (data.code !== 200 || !data.data?.taskId) {
-    throw new Error(data.msg || 'Failed to start Motion Swap video task');
+    throw new Error(data.msg || 'Failed to start Motion Clone video task');
   }
 
   return data.data.taskId as string;
 };
 
-export const buildMotionSwapVideoRequestBody = ({
+export const buildMotionCloneVideoRequestBody = ({
   previewImageUrl,
   referenceVideoUrl,
   mode,
@@ -210,11 +210,11 @@ export const buildMotionSwapVideoRequestBody = ({
   const requestBody: Record<string, unknown> = {
     model: 'kling-3.0/motion-control',
     input: {
-      prompt: prompt || buildMotionSwapVideoPrompt(),
+      prompt: prompt || buildMotionCloneVideoPrompt(),
       input_urls: [previewImageUrl],
       video_urls: [referenceVideoUrl],
       character_orientation: 'video',
-      mode: mode || MOTION_SWAP_MODE
+      mode: mode || MOTION_CLONE_MODE
     },
     callBackUrl: callbackUrl
   };
@@ -230,5 +230,5 @@ export const buildMotionSwapVideoRequestBody = ({
 };
 
 export const __test__ = {
-  buildMotionSwapVideoRequestBody
+  buildMotionCloneVideoRequestBody
 };

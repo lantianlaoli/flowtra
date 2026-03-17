@@ -103,7 +103,7 @@ export default function FeaturesSection() {
         <div className="flex flex-col gap-14 md:gap-24">
           <FeatureSection
             title="AI Agent"
-            description="Talk through clone workflows with an agent that already supports clone videos today, with avatar and motion swap support coming next."
+            description="Talk through clone workflows with an agent that already supports clone videos today, with avatar and motion clone support coming next."
             href="/features/ai-agent"
             icon={Bot}
             isNew
@@ -225,9 +225,9 @@ export default function FeaturesSection() {
           />
 
           <FeatureSection
-            title="Motion Swap"
+            title="Motion Clone"
             description="Clone viral ads in seconds. Enter a creator&apos;s name and swap person and product while preserving the exact movements."
-            href="/features/motion-swap"
+            href="/features/motion-clone"
             icon={RefreshCw}
             mediaFirst
             bullets={[
@@ -245,7 +245,7 @@ export default function FeaturesSection() {
 
                   <div className="relative aspect-[9/16] w-full bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
                     <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_refer.mp4"
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_clone_refer.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
                       playsInline
@@ -256,12 +256,12 @@ export default function FeaturesSection() {
 
                 <div className="space-y-4">
                   <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-black text-white rounded-full text-[12px] font-bold uppercase tracking-wider">
-                    Motion Swap
+                    Motion Clone
                   </div>
 
                   <div className="relative aspect-[9/16] w-full bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border border-[#E5E5E5]">
                     <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_result.mp4"
+                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_clone_result.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
                       playsInline

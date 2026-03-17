@@ -140,7 +140,7 @@ interface GenerationProgressDisplayProps {
     productIds?: string[];
     characterIds?: string[];
   }) => Promise<void> | void;
-  projectType?: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-swap';
+  projectType?: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-clone';
   selectedLanguage?: LanguageCode;
 }
 
@@ -280,7 +280,7 @@ interface GenerationCardProps {
     productIds?: string[];
     characterIds?: string[];
   }) => Promise<void> | void;
-  projectType?: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-swap';
+  projectType?: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-clone';
   selectedLanguage?: LanguageCode;
 }
 
@@ -916,7 +916,7 @@ function FeedbackButtons({
   projectType
 }: {
   projectId: string;
-  projectType: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-swap';
+  projectType: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-clone';
 }) {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState<'positive' | 'negative' | null>(null);
