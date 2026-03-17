@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { auth, clerkClient } from '@clerk/nextjs/server'
 import { sendEmail } from '@/lib/resend'
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events'
+import { captureServerEvent } from '@/lib/analytics/server'
 
 export async function POST(req: Request) {
   try {
@@ -63,6 +65,14 @@ export async function POST(req: Request) {
       `Timestamp: ${new Date().toISOString()}`
 
     await sendEmail({ to: notifyTo, subject, html, text })
+    captureServerEvent(ANALYTICS_EVENTS.landing_store_link_submitted, {
+      distinctId: userId,
+      request: req,
+      properties: {
+        feature: 'landing',
+        surface: 'store_link_api',
+      }
+    })
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Store link capture failed:', error)

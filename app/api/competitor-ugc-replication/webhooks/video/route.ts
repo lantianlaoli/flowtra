@@ -3,6 +3,8 @@ import { getSupabaseAdmin, type CompetitorUgcReplicationSegment, type SingleVide
 import { buildSegmentStatusPayload, startSegmentVideoTask, type SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
 import { isKlingPromptValidationError } from '@/lib/kling-prompt-budget';
 import { mergeVideosWithFal } from '@/lib/video-merge';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -232,6 +234,15 @@ export async function POST(request: NextRequest) {
       }
 
       console.log(`✅ [UGC Video Webhook] Segment ${segment.segment_index} video ready`);
+      captureServerEvent(ANALYTICS_EVENTS.ugc_clone_video_generation_completed, {
+        request,
+        properties: {
+          feature: 'ugc_clone',
+          surface: 'ugc_video_webhook',
+          project_id: segment.project_id,
+          segment_index: segment.segment_index,
+        }
+      });
 
       // Update project last_processed_at to keep workflow active
       await supabase
@@ -387,6 +398,17 @@ export async function POST(request: NextRequest) {
       // Failure case
       const failureMessage = failMsg || msg || (code === 200 ? 'Video generation failed with empty result' : 'Video generation failed');
       const failureCode = failCode || String(code);
+      captureServerEvent(ANALYTICS_EVENTS.ugc_clone_video_generation_failed, {
+        request,
+        properties: {
+          feature: 'ugc_clone',
+          surface: 'ugc_video_webhook',
+          project_id: segment.project_id,
+          segment_index: segment.segment_index,
+          error_code: failureCode,
+          error_message: failureMessage,
+        }
+      });
       console.error('[UGC Video Webhook] Video generation failed for segment', segment.segment_index, {
         code,
         state: webhookState || null,

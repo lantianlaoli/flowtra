@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useToast } from '@/contexts/ToastContext';
 import { Link as LinkIcon, ArrowRight, HelpCircle } from 'lucide-react';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { trackEvent } from '@/lib/analytics/client';
 
 const TikTokAnalysisModal = dynamic(
   () => import('@/components/showcase/TikTokAnalysisModal').then((mod) => mod.TikTokAnalysisModal),
@@ -50,6 +52,11 @@ export default function TikTokInputHero() {
 
   const handleAnalyzeTikTok = () => {
     if (!isSignedIn) {
+      trackEvent(ANALYTICS_EVENTS.landing_sign_in_clicked, {
+        feature: 'landing',
+        surface: 'hero_tiktok_input',
+        cta_name: 'analyze_tiktok_unauthenticated',
+      });
       showError('Sign in to analyze TikTok videos.');
       window.location.href = '/sign-up?redirect_url=/';
       return;
@@ -60,6 +67,18 @@ export default function TikTokInputHero() {
       showError('Please enter a valid TikTok video URL');
       return;
     }
+
+    trackEvent(ANALYTICS_EVENTS.landing_tiktok_url_submitted, {
+      feature: 'landing',
+      surface: 'hero_tiktok_input',
+      section: 'hero',
+      signed_in_state: isSignedIn,
+    });
+    trackEvent(ANALYTICS_EVENTS.landing_tiktok_analysis_opened, {
+      feature: 'landing',
+      surface: 'hero_tiktok_input',
+      section: 'hero',
+    });
 
     // Open modal
     setSelectedTikTokUrl(tiktokUrl);

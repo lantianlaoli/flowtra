@@ -18,6 +18,8 @@ import VideoDetailsModal from '@/components/VideoDetailsModal';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import { useToast } from '@/contexts/ToastContext';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { trackEvent } from '@/lib/analytics/client';
 
 interface CompetitorUgcReplicationItem {
   id: string;
@@ -213,6 +215,23 @@ export default function HistoryPage() {
   }, [history, adTypeFilter]);
 
   const filteredHistory = adTypeFilteredHistory;
+
+  useEffect(() => {
+    if (!user?.id) return;
+    trackEvent(ANALYTICS_EVENTS.my_ads_viewed, {
+      feature: 'my_ads',
+      surface: 'history_page',
+    });
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    trackEvent(ANALYTICS_EVENTS.my_ads_filter_changed, {
+      feature: 'my_ads',
+      surface: 'history_page',
+      filter_value: adTypeFilter,
+    });
+  }, [adTypeFilter, user?.id]);
 
   // Memoized pagination calculations
   const { totalPages, currentHistory } = useMemo(() => {
@@ -576,6 +595,13 @@ export default function HistoryPage() {
       }
 
       setDownloadStates(prev => ({ ...prev, [historyId]: 'processing' }));
+      trackEvent(ANALYTICS_EVENTS.export_download_started, {
+        feature: item.adType,
+        surface: 'my_ads',
+        project_id: historyId,
+        download_type: resolution,
+        is_first_download: isFirstDownload,
+      });
 
       try {
         const apiEndpoint = isCharacterAds(item) ? '/api/avatar-ads/download' : '/api/download-video';
@@ -631,9 +657,22 @@ export default function HistoryPage() {
         setTimeout(() => {
           setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
         }, 3000);
+        trackEvent(ANALYTICS_EVENTS.export_download_completed, {
+          feature: item.adType,
+          surface: 'my_ads',
+          project_id: historyId,
+          download_type: resolution,
+          is_first_download: isFirstDownload,
+        });
         return 'ready';
       } catch (error) {
         console.error('Error downloading video:', error);
+        trackEvent(ANALYTICS_EVENTS.export_download_failed, {
+          feature: item.adType,
+          surface: 'my_ads',
+          project_id: historyId,
+          download_type: resolution,
+        });
         showError('An error occurred while downloading the video');
         setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
         return 'error';
@@ -647,6 +686,12 @@ export default function HistoryPage() {
     }
 
     setDownloadStates(prev => ({ ...prev, [historyId]: 'processing' }));
+    trackEvent(ANALYTICS_EVENTS.high_res_upgrade_requested, {
+      feature: item.adType,
+      surface: 'my_ads',
+      project_id: historyId,
+      download_type: resolution,
+    });
 
     try {
       const response = await fetch('/api/my-ads/high-res', {
@@ -696,6 +741,12 @@ export default function HistoryPage() {
         setTimeout(() => {
           setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
         }, 3000);
+        trackEvent(ANALYTICS_EVENTS.high_res_upgrade_completed, {
+          feature: item.adType,
+          surface: 'my_ads',
+          project_id: historyId,
+          download_type: resolution,
+        });
         return 'ready';
       }
 
@@ -704,6 +755,12 @@ export default function HistoryPage() {
       return 'processing';
     } catch (error) {
       console.error('Error downloading high-res video:', error);
+      trackEvent(ANALYTICS_EVENTS.high_res_upgrade_failed, {
+        feature: item.adType,
+        surface: 'my_ads',
+        project_id: historyId,
+        download_type: resolution,
+      });
       showError('An error occurred while starting the high-res download');
       setDownloadStates(prev => ({ ...prev, [historyId]: 'idle' }));
       return 'error';
@@ -855,6 +912,11 @@ export default function HistoryPage() {
 
   // Handler for opening video details modal
   const handleViewDetails = (item: HistoryItem) => {
+    trackEvent(ANALYTICS_EVENTS.my_ads_item_opened, {
+      feature: item.adType,
+      surface: 'my_ads',
+      project_id: item.id,
+    });
     setSelectedItem(item);
     setIsModalOpen(true);
   };

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -140,6 +142,15 @@ export async function POST(request: NextRequest) {
       }
 
       console.log('🎉 [Avatar Ads Merge Webhook] Project completed successfully:', project.id);
+      captureServerEvent(ANALYTICS_EVENTS.avatar_ads_video_generation_completed, {
+        request,
+        properties: {
+          feature: 'avatar_ads',
+          surface: 'avatar_ads_merge_webhook',
+          project_id: project.id,
+          status: 'completed',
+        }
+      });
 
       return NextResponse.json({ success: true, message: 'Merge completed' }, { status: 200 });
 
@@ -167,6 +178,16 @@ export async function POST(request: NextRequest) {
       if (updateError) {
         console.error('[Avatar Ads Merge Webhook] Failed to update project:', updateError);
       }
+
+      captureServerEvent(ANALYTICS_EVENTS.avatar_ads_video_generation_failed, {
+        request,
+        properties: {
+          feature: 'avatar_ads',
+          surface: 'avatar_ads_merge_webhook',
+          project_id: project.id,
+          error_message: errorMessage,
+        }
+      });
 
       return NextResponse.json({ success: true, message: 'Merge failed' }, { status: 200 });
 

@@ -3,6 +3,8 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
 import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 interface DownloadVideoRequest {
   historyId: string;
@@ -116,6 +118,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
       }
 
       try {
+        captureServerEvent(ANALYTICS_EVENTS.motion_clone_download_completed, {
+          distinctId: userId,
+          request,
+          properties: {
+            feature: 'motion_clone',
+            surface: 'download_video_api',
+            project_id: historyId,
+            is_first_download: isFirstDownload,
+          }
+        });
         const videoResponse = await fetch(motionCloneRecord.output_video_url);
         if (!videoResponse.ok) {
           throw new Error(`Failed to fetch video: ${videoResponse.status}`);
@@ -132,6 +144,15 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
         });
       } catch (downloadError) {
         console.error('Failed to download motion clone video:', downloadError);
+        captureServerEvent(ANALYTICS_EVENTS.motion_clone_download_failed, {
+          distinctId: userId,
+          request,
+          properties: {
+            feature: 'motion_clone',
+            surface: 'download_video_api',
+            project_id: historyId,
+          }
+        });
         return NextResponse.json({
           success: false,
           message: 'Failed to download video file'
@@ -207,6 +228,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
     // Stream the video file from the external URL directly to the client
     // This avoids loading the entire video in server memory, providing instant download start
     try {
+      captureServerEvent(ANALYTICS_EVENTS.ugc_clone_download_completed, {
+        distinctId: userId,
+        request,
+        properties: {
+          feature: 'ugc_clone',
+          surface: 'download_video_api',
+          project_id: historyId,
+          is_first_download: isFirstDownload,
+        }
+      });
       const videoResponse = await fetch(downloadableVideoUrl);
       if (!videoResponse.ok) {
         throw new Error(`Failed to fetch video: ${videoResponse.status}`);
@@ -224,6 +255,15 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
       });
     } catch (downloadError) {
       console.error('Failed to download video:', downloadError);
+      captureServerEvent(ANALYTICS_EVENTS.ugc_clone_download_failed, {
+        distinctId: userId,
+        request,
+        properties: {
+          feature: 'ugc_clone',
+          surface: 'download_video_api',
+          project_id: historyId,
+        }
+      });
       return NextResponse.json({
         success: false,
         message: 'Failed to download video file'

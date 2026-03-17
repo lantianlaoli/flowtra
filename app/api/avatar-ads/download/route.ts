@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -119,6 +121,16 @@ export async function POST(request: NextRequest) {
     // videoUrl is already determined above based on video duration and available videos
 
     try {
+      captureServerEvent(ANALYTICS_EVENTS.avatar_ads_download_completed, {
+        distinctId: userId,
+        request,
+        properties: {
+          feature: 'avatar_ads',
+          surface: 'avatar_ads_download_api',
+          project_id: historyId,
+          is_first_download: isFirstDownload,
+        }
+      });
       const videoResponse = await fetchWithRetry(videoUrl, {}, 3, 30000); // 3 retries, 30s timeout
 
       if (!videoResponse.ok) {
@@ -136,6 +148,15 @@ export async function POST(request: NextRequest) {
 
     } catch (fetchError) {
       console.error('Failed to download video file:', fetchError);
+      captureServerEvent(ANALYTICS_EVENTS.avatar_ads_download_failed, {
+        distinctId: userId,
+        request,
+        properties: {
+          feature: 'avatar_ads',
+          surface: 'avatar_ads_download_api',
+          project_id: historyId,
+        }
+      });
       return NextResponse.json({
         error: 'Failed to download video file',
         details: fetchError instanceof Error ? fetchError.message : 'Unknown error'

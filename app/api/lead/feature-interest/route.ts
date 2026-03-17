@@ -8,6 +8,8 @@ import {
   getFeatureInterestLabel,
   type FeatureInterestOption,
 } from '@/lib/feature-interest';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 const FEATURE_INTEREST_REWARD_DESCRIPTION = 'Feature interest reward (100 credits)';
 const FEATURE_INTEREST_REWARD_AMOUNT = 100;
@@ -142,6 +144,17 @@ export async function POST(req: Request) {
 
       await sendEmail({ to: notifyTo, subject, html, text });
     }
+
+    captureServerEvent(ANALYTICS_EVENTS.feature_interest_submitted, {
+      distinctId: userId,
+      request: req,
+      properties: {
+        feature: 'lead_capture',
+        surface: 'feature_interest_api',
+        selected_platform: selectedPlatform || undefined,
+        reward_credits: FEATURE_INTEREST_REWARD_AMOUNT,
+      }
+    });
 
     return NextResponse.json({
       success: true,

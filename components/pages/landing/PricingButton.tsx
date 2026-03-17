@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { SignInButton, useUser } from '@clerk/nextjs';
 import { handleCreemCheckout } from '@/lib/payment';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { trackEvent } from '@/lib/analytics/client';
 
 type PackageName = 'lite' | 'basic' | 'pro';
 
@@ -63,7 +65,17 @@ export function PricingButton({ packageName }: PricingButtonProps) {
   if (!user) {
     return (
       <SignInButton mode="modal" forceRedirectUrl="/dashboard">
-        <button className={purchaseButtonClass}>
+        <button
+          className={purchaseButtonClass}
+          onClick={() => {
+            trackEvent(ANALYTICS_EVENTS.landing_sign_in_clicked, {
+              feature: 'landing',
+              surface: 'pricing',
+              cta_name: `pricing_sign_in_${packageName}`,
+              package_name: packageName,
+            });
+          }}
+        >
           Get Started
         </button>
       </SignInButton>
@@ -110,6 +122,19 @@ export function PricingButton({ packageName }: PricingButtonProps) {
     }
 
     try {
+      trackEvent(ANALYTICS_EVENTS.landing_pricing_cta_clicked, {
+        feature: 'landing',
+        surface: 'pricing',
+        section: 'pricing',
+        package_name: packageName,
+        subscribed_tier: subscribedTier || undefined,
+      });
+      trackEvent(ANALYTICS_EVENTS.checkout_started, {
+        feature: 'billing',
+        surface: 'pricing',
+        package_name: packageName,
+        billing_mode: 'subscription',
+      });
       await handleCreemCheckout({
         packageName,
         userEmail: email,

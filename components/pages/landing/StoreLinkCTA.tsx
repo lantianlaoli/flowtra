@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { Sparkles, LogIn } from 'lucide-react';
 import { SignInButton, useUser } from '@clerk/nextjs';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { trackEvent } from '@/lib/analytics/client';
 
 export function StoreLinkCTA() {
   const tiktokUrl = process.env.NEXT_PUBLIC_TIKTOK || '';
@@ -49,6 +51,11 @@ export function StoreLinkCTA() {
         throw new Error(data?.error || 'Failed to submit');
       }
 
+      trackEvent(ANALYTICS_EVENTS.landing_store_link_submitted, {
+        feature: 'landing',
+        surface: 'store_link_cta',
+        section: 'store_link',
+      });
       setSubmitted(true);
       setStoreUrl('');
     } catch (e: unknown) {
@@ -108,6 +115,13 @@ export function StoreLinkCTA() {
                   <button
                     type="button"
                     className="landing-press-button w-full shrink-0 font-semibold sm:w-auto"
+                    onClick={() => {
+                      trackEvent(ANALYTICS_EVENTS.landing_sign_in_clicked, {
+                        feature: 'landing',
+                        surface: 'store_link_cta',
+                        cta_name: 'store_link_sign_in',
+                      });
+                    }}
                   >
                     <LogIn className="w-5 h-5" />
                     Sign in to submit

@@ -41,6 +41,8 @@ import type {
   SegmentPrompt,
 } from "@/lib/competitor-ugc-replication-workflow";
 import type { CreatorSourceVideo } from "@/lib/supabase";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
+import { trackEvent } from "@/lib/analytics/client";
 
 const CLONE_TUTORIAL_EMBED_URL = "https://www.youtube.com/embed/BX5XLe3JbQ8?rel=0";
 
@@ -257,12 +259,36 @@ export default function CompetitorUgcReplicationPage() {
   const [assetVideos, setAssetVideos] = useState<ReferenceVideo[]>([]);
   const [isLoadingAssetVideos, setIsLoadingAssetVideos] = useState(true);
   const [selectedReferenceVideoId, setSelectedReferenceVideoId] = useState("");
+  const trackedReferenceSelectionRef = useRef("");
   const selectedReferenceVideo = useMemo(
     () =>
       assetVideos.find((video) => video.id === selectedReferenceVideoId) ||
       null,
     [assetVideos, selectedReferenceVideoId],
   );
+
+  useEffect(() => {
+    if (!user?.id) return;
+    trackEvent(ANALYTICS_EVENTS.asset_library_viewed, {
+      feature: "ugc_clone",
+      surface: "competitor_ugc_replication_page",
+    });
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (
+      !selectedReferenceVideoId ||
+      trackedReferenceSelectionRef.current === selectedReferenceVideoId
+    ) {
+      return;
+    }
+    trackedReferenceSelectionRef.current = selectedReferenceVideoId;
+    trackEvent(ANALYTICS_EVENTS.project_agent_clone_reference_selected, {
+      feature: "ugc_clone",
+      surface: "competitor_ugc_replication_page",
+      reference_type: selectedReferenceVideo?.source_type || "creator",
+    });
+  }, [selectedReferenceVideo?.source_type, selectedReferenceVideoId]);
   const hasCompetitorReference = Boolean(selectedReferenceVideo);
   // Competitor ads are now video-only, so photo mode is never active from competitor selection
   const isCompetitorPhotoMode = false;
@@ -1191,6 +1217,13 @@ export default function CompetitorUgcReplicationPage() {
           throw new Error(message);
         }
 
+        trackEvent(ANALYTICS_EVENTS.ugc_clone_segment_edited, {
+          feature: "ugc_clone",
+          surface: "competitor_ugc_replication_page",
+          project_id: projectId,
+          segment_index: segmentIndex,
+        });
+
         await fetchStatusForProject(projectId);
         if (type === "video" && refetchCredits) {
           await refetchCredits();
@@ -1373,6 +1406,11 @@ export default function CompetitorUgcReplicationPage() {
       if (!projectId) return;
       setMergeSubmitting((prev) => ({ ...prev, [projectId]: true }));
       try {
+        trackEvent(ANALYTICS_EVENTS.ugc_clone_merge_started, {
+          feature: "ugc_clone",
+          surface: "competitor_ugc_replication_page",
+          project_id: projectId,
+        });
         const response = await fetch(
           `/api/competitor-ugc-replication/${projectId}/merge`,
           {
@@ -1397,6 +1435,11 @@ export default function CompetitorUgcReplicationPage() {
         showSuccess("Merge started. We will notify you when it is ready.");
         await fetchStatusForProject(projectId);
       } catch (error) {
+        trackEvent(ANALYTICS_EVENTS.ugc_clone_merge_failed, {
+          feature: "ugc_clone",
+          surface: "competitor_ugc_replication_page",
+          project_id: projectId,
+        });
         showError(
           error instanceof Error ? error.message : "Failed to start merge",
         );
@@ -1489,6 +1532,11 @@ export default function CompetitorUgcReplicationPage() {
       setDownloadingProjects((prev) => ({ ...prev, [projectId]: true }));
 
       try {
+        trackEvent(ANALYTICS_EVENTS.ugc_clone_download_started, {
+          feature: "ugc_clone",
+          surface: "competitor_ugc_replication_page",
+          project_id: projectId,
+        });
         // ✅ STEP 1: Fast validation (check auth + credits) without downloading
         const validationResponse = await fetch("/api/download-video", {
           method: "POST",
@@ -1558,6 +1606,11 @@ export default function CompetitorUgcReplicationPage() {
         showSuccess("Video download started");
       } catch (error) {
         console.error("Competitor UGC Replication download failed:", error);
+        trackEvent(ANALYTICS_EVENTS.ugc_clone_download_failed, {
+          feature: "ugc_clone",
+          surface: "competitor_ugc_replication_page",
+          project_id: projectId,
+        });
         showError(
           error instanceof Error ? error.message : "Failed to download video",
         );
@@ -1588,6 +1641,11 @@ export default function CompetitorUgcReplicationPage() {
       );
 
       try {
+        trackEvent(ANALYTICS_EVENTS.ugc_clone_video_generation_started, {
+          feature: "ugc_clone",
+          surface: "competitor_ugc_replication_page",
+          project_id: generation.projectId,
+        });
         const response = await fetch(
           `/api/competitor-ugc-replication/${generation.projectId}/start-video`,
           {
@@ -1707,6 +1765,17 @@ export default function CompetitorUgcReplicationPage() {
       !isCompetitorPhotoMode && (format === "16:9" || format === "9:16")
         ? (format as "16:9" | "9:16")
         : "16:9";
+
+    trackEvent(ANALYTICS_EVENTS.ugc_clone_generation_requested, {
+      feature: "ugc_clone",
+      surface: "competitor_ugc_replication_page",
+      workflow: isCompetitorPhotoMode ? "replica_photo" : "clone_video",
+      video_model: shouldGenerateVideo ? selectedModel : undefined,
+      duration_seconds: shouldGenerateVideo ? Number(effectiveVideoDuration) : undefined,
+      aspect_ratio: selectedVideoAspectRatio,
+      segment_count: initialSegmentCount ?? undefined,
+      credits_cost: generationCost,
+    });
 
     // Create new generation entry
     // Initialize with proper segment status structure to ensure polling is triggered

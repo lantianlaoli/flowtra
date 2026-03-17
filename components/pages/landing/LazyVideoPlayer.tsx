@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import type VideoPlayerComponent from '@/components/ui/VideoPlayer';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { trackEvent } from '@/lib/analytics/client';
 
 type VideoPlayerProps = ComponentProps<typeof VideoPlayerComponent>;
 
@@ -14,16 +16,23 @@ interface LazyVideoPlayerProps extends VideoPlayerProps {
   wrapperClassName?: string;
   placeholder?: ReactNode;
   eager?: boolean;
+  analyticsName?: string;
+  analyticsFeature?: string;
+  analyticsSurface?: string;
 }
 
 export function LazyVideoPlayer({
   wrapperClassName,
   placeholder,
   eager = false,
+  analyticsName,
+  analyticsFeature = 'landing',
+  analyticsSurface = 'landing_page',
   ...videoProps
 }: LazyVideoPlayerProps) {
   const [shouldRender, setShouldRender] = useState(eager);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const trackedPlaybackRef = useRef(false);
 
   useEffect(() => {
     if (eager) {
@@ -48,7 +57,20 @@ export function LazyVideoPlayer({
     observer.observe(containerRef.current);
 
     return () => observer.disconnect();
-  }, []);
+  }, [eager]);
+
+  useEffect(() => {
+    if (!shouldRender || trackedPlaybackRef.current || !analyticsName) {
+      return;
+    }
+
+    trackedPlaybackRef.current = true;
+    trackEvent(ANALYTICS_EVENTS.landing_demo_video_played, {
+      feature: analyticsFeature,
+      surface: analyticsSurface,
+      section: analyticsName,
+    });
+  }, [analyticsFeature, analyticsName, analyticsSurface, shouldRender]);
 
   return (
     <div ref={containerRef} className={wrapperClassName}>

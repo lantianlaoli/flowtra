@@ -55,6 +55,8 @@ import {
 } from '@/lib/project-agent/next-clone-intent';
 import { buildWorkspaceScenes } from '@/lib/project-agent/workspace-scenes';
 import { analysisToLegacyFlatShots } from '@/lib/video-analysis-schema';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { trackEvent } from '@/lib/analytics/client';
 
 interface SessionState {
   intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_clone';
@@ -978,6 +980,15 @@ export default function ProjectAgentPage() {
     ensureHistoryTracked(nextId, { prependIfNew: true });
   }, [sessionId, ensureHistoryTracked]);
 
+  useEffect(() => {
+    if (!sessionId) return;
+    trackEvent(ANALYTICS_EVENTS.project_agent_session_started, {
+      feature: 'project_agent',
+      surface: 'project_agent_page',
+      session_id: sessionId,
+    });
+  }, [sessionId]);
+
   const {
     messages,
     setMessages,
@@ -1163,6 +1174,11 @@ export default function ProjectAgentPage() {
         setHandledCloneIntentUserMessageId(null);
       }
 
+      trackEvent(ANALYTICS_EVENTS.project_agent_message_sent, {
+        feature: 'project_agent',
+        surface: 'project_agent_page',
+        session_id: sessionId || undefined,
+      });
       await sendMessage({ text });
       return true;
     } catch (sendError) {
@@ -1173,7 +1189,7 @@ export default function ProjectAgentPage() {
       }
       return false;
     }
-  }, [messages, resetLocalCloneSurfaceForNextReference, sendMessage, sessionState?.cloneExecution?.mergedVideoUrl, sessionState?.cloneExecution?.phase]);
+  }, [messages, resetLocalCloneSurfaceForNextReference, sendMessage, sessionId, sessionState?.cloneExecution?.mergedVideoUrl, sessionState?.cloneExecution?.phase]);
 
   const requestBrowserNotificationPermissionOnce = useCallback(() => {
     if (notificationPermissionRequestedRef.current) return;

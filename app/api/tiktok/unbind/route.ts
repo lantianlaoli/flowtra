@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -37,6 +39,14 @@ export async function POST() {
         { status: 500 }
       );
     }
+
+    captureServerEvent(ANALYTICS_EVENTS.tiktok_unbound, {
+      distinctId: userId,
+      properties: {
+        feature: 'tiktok',
+        surface: 'tiktok_unbind_api',
+      }
+    });
 
     return NextResponse.json({
       success: true,

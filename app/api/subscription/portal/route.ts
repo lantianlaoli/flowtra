@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { getUserSubscription } from '@/lib/subscription'
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events'
+import { captureServerEvent } from '@/lib/analytics/server'
 
 export async function POST(request: NextRequest) {
   try {
@@ -160,6 +162,15 @@ export async function POST(request: NextRequest) {
     const portalUrl = data.customer_portal_link
 
     console.log(`✅ Customer portal created: ${portalUrl}`)
+    captureServerEvent(ANALYTICS_EVENTS.subscription_portal_opened, {
+      distinctId: userId,
+      request,
+      properties: {
+        feature: 'billing',
+        surface: 'subscription_portal_api',
+        status: subscription.status
+      }
+    })
 
     return NextResponse.json({
       success: true,

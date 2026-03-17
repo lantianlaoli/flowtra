@@ -28,6 +28,8 @@ import {
 import { type Format } from '@/components/ui/FormatSelector';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { trackEvent } from '@/lib/analytics/client';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -240,6 +242,40 @@ const formatDurationLabel = (seconds: number) => {
   const [downloadingProjects, setDownloadingProjects] = useState<Record<string, boolean>>({});
   const isMountedRef = useRef(true);
   const notifiedProjectsRef = useRef<Record<string, Generation['status']>>({});
+  const trackedAvatarSelectionRef = useRef<string>('');
+  const trackedProductSelectionRef = useRef<string>('');
+
+  useEffect(() => {
+    if (!user?.id) return;
+    trackEvent(ANALYTICS_EVENTS.asset_library_viewed, {
+      feature: 'avatar_ads',
+      surface: 'avatar_ads_page',
+    });
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!selectedPersonPhotoUrl || trackedAvatarSelectionRef.current === selectedPersonPhotoUrl) {
+      return;
+    }
+    trackedAvatarSelectionRef.current = selectedPersonPhotoUrl;
+    trackEvent(ANALYTICS_EVENTS.avatar_selected, {
+      feature: 'avatar_ads',
+      surface: 'avatar_ads_page',
+    });
+  }, [selectedPersonPhotoUrl]);
+
+  useEffect(() => {
+    const productId = selectedProduct?.id;
+    if (!productId || trackedProductSelectionRef.current === productId) {
+      return;
+    }
+    trackedProductSelectionRef.current = productId;
+    trackEvent(ANALYTICS_EVENTS.product_selected, {
+      feature: 'avatar_ads',
+      surface: 'avatar_ads_page',
+      product_id: productId,
+    });
+  }, [selectedProduct?.id]);
 
   const dialogueWordLimit = useMemo(
     () => getAvatarAdsDialogueWordLimit(Number(videoDuration)),
@@ -394,6 +430,15 @@ const formatDurationLabel = (seconds: number) => {
       };
 
       // Add to generations list immediately
+      trackEvent(ANALYTICS_EVENTS.avatar_ads_generation_requested, {
+        feature: 'avatar_ads',
+        surface: 'avatar_ads_page',
+        workflow: isTalkingHeadMode ? 'talking_head' : 'product_avatar_ads',
+        video_model: DEFAULT_VIDEO_MODEL,
+        duration_seconds: Number(videoDuration),
+        aspect_ratio: format,
+        credits_cost: requiredCredits
+      });
       setGenerations((prev) => {
         const filtered = prev.filter((gen) => gen.id !== clientProjectId);
         return sortGenerations([optimisticGeneration, ...filtered]);
@@ -822,9 +867,19 @@ const formatDurationLabel = (seconds: number) => {
         await refetchCredits();
       }
 
+      trackEvent(ANALYTICS_EVENTS.avatar_ads_download_started, {
+        feature: 'avatar_ads',
+        surface: 'avatar_ads_page',
+        project_id: projectId,
+      });
       showSuccess('Video download started');
     } catch (error) {
       console.error('Character ads download failed:', error);
+      trackEvent(ANALYTICS_EVENTS.avatar_ads_download_failed, {
+        feature: 'avatar_ads',
+        surface: 'avatar_ads_page',
+        project_id: projectId,
+      });
       showError(error instanceof Error ? error.message : 'Failed to download video');
     } finally {
       setDownloadingProjects((prev) => {
@@ -850,6 +905,11 @@ const formatDurationLabel = (seconds: number) => {
         throw new Error(errorData.error || 'Failed to confirm generation');
       }
 
+      trackEvent(ANALYTICS_EVENTS.avatar_ads_cover_confirmed, {
+        feature: 'avatar_ads',
+        surface: 'avatar_ads_page',
+        project_id: projectId,
+      });
       showSuccess('Video generation successfully resumed!');
       // ✅ No manual refresh needed - Realtime will auto-update
       refetchCredits(); // Credits might have changed
@@ -875,6 +935,11 @@ const formatDurationLabel = (seconds: number) => {
         throw new Error(errorData.error || 'Failed to regenerate image');
       }
 
+      trackEvent(ANALYTICS_EVENTS.avatar_ads_cover_regenerated, {
+        feature: 'avatar_ads',
+        surface: 'avatar_ads_page',
+        project_id: projectId,
+      });
       showSuccess('Image regeneration started!');
       // ✅ No manual refresh needed - Realtime will auto-update
       refetchCredits(); // In case image regeneration costs credits
@@ -935,6 +1000,12 @@ const formatDurationLabel = (seconds: number) => {
         setVideoDuration(autoDuration);
       }
       setHasAIGeneratedDialogue(true);
+      trackEvent(ANALYTICS_EVENTS.avatar_ads_dialogue_generated, {
+        feature: 'avatar_ads',
+        surface: 'avatar_ads_page',
+        duration_seconds: Number(videoDuration),
+        language: selectedLanguage,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to generate dialogue.';
       setDialogueError(message);

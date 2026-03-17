@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createCipheriv, randomBytes } from 'crypto';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -52,6 +54,16 @@ export async function GET(request: NextRequest) {
     // Handle OAuth errors
     if (error) {
       console.error('TikTok OAuth error:', error, errorDescription);
+      captureServerEvent(ANALYTICS_EVENTS.tiktok_connect_failed, {
+        distinctId: request.cookies.get('tiktok_oauth_user')?.value || 'anonymous',
+        request,
+        properties: {
+          feature: 'tiktok',
+          surface: 'tiktok_oauth_callback',
+          error_code: error,
+          error_message: errorDescription || error,
+        }
+      });
       return NextResponse.redirect(
         `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/account?tiktok_error=${encodeURIComponent(errorDescription || error)}`
       );
@@ -170,6 +182,15 @@ export async function GET(request: NextRequest) {
 
     if (dbError) {
       console.error('Database error:', dbError);
+      captureServerEvent(ANALYTICS_EVENTS.tiktok_connect_failed, {
+        distinctId: userId,
+        request,
+        properties: {
+          feature: 'tiktok',
+          surface: 'tiktok_oauth_callback',
+          error_message: dbError.message,
+        }
+      });
       return NextResponse.redirect(
         `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/account?tiktok_error=database_error`
       );
@@ -179,6 +200,14 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/account?tiktok_success=true`
     );
+    captureServerEvent(ANALYTICS_EVENTS.tiktok_connect_completed, {
+      distinctId: userId,
+      request,
+      properties: {
+        feature: 'tiktok',
+        surface: 'tiktok_oauth_callback',
+      }
+    });
 
     // Clear OAuth cookies
     response.cookies.delete('tiktok_oauth_state');

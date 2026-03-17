@@ -137,13 +137,14 @@ export default function HeroSection() {
               </div>
             </div>
             <div className="relative aspect-[9/16] bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.05)] border border-[#E5E5E5]">
-                <LazyVideoPlayer
-                  wrapperClassName="w-full h-full"
-                  className="w-full h-full object-cover"
-                  src={`${SITE_ASSET_BASE_URL}/landing/clone_reference.mp4`}
-                  ariaLabel="Competitor viral video reference"
-                  autoPlay
-                  loop
+              <LazyVideoPlayer
+                wrapperClassName="w-full h-full"
+                className="w-full h-full object-cover"
+                src={`${SITE_ASSET_BASE_URL}/landing/clone_reference.mp4`}
+                ariaLabel="Competitor viral video reference"
+                analyticsName="hero_reference_video"
+                autoPlay
+                loop
                 playsInline
               />
 
@@ -198,6 +199,7 @@ export default function HeroSection() {
                 className="w-full h-full object-cover"
                 src={`${SITE_ASSET_BASE_URL}/landing/clone_result.mp4`}
                 ariaLabel="AI Generated result video"
+                analyticsName="hero_result_video"
                 autoPlay
                 loop
                 playsInline

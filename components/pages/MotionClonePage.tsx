@@ -33,6 +33,8 @@ import {
   normalizeMotionCloneQuality,
   type CloneVideoQuality,
 } from "@/lib/constants";
+import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
+import { trackEvent } from "@/lib/analytics/client";
 
 interface MotionCloneVideo {
   id: string;
@@ -185,6 +187,14 @@ export default function MotionClonePage() {
     Record<string, "idle" | "processing" | "success">
   >({});
   const invalidSelectionToastRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    trackEvent(ANALYTICS_EVENTS.asset_library_viewed, {
+      feature: "motion_clone",
+      surface: "motion_clone_page",
+    });
+  }, [user?.id]);
 
   const selectedVideo = useMemo(
     () => videos.find((video) => video.id === selectedVideoId),
@@ -574,6 +584,13 @@ export default function MotionClonePage() {
 
   const handleGenerate = async () => {
     setIsGenerating(true);
+    trackEvent(ANALYTICS_EVENTS.motion_clone_generation_requested, {
+      feature: "motion_clone",
+      surface: "motion_clone_page",
+      aspect_ratio: selectedSize,
+      video_model: "kling_3",
+      download_type: selectedVideoQuality,
+    });
 
     try {
       const response = await fetch("/api/motion-clone/create", {
@@ -904,6 +921,12 @@ export default function MotionClonePage() {
       const isFirstDownload = !project.downloaded;
 
       setDownloadStates((prev) => ({ ...prev, [historyId]: "processing" }));
+      trackEvent(ANALYTICS_EVENTS.motion_clone_download_started, {
+        feature: "motion_clone",
+        surface: "motion_clone_page",
+        project_id: historyId,
+        is_first_download: isFirstDownload,
+      });
 
       try {
         const validationResponse = await fetch("/api/download-video", {
@@ -941,11 +964,23 @@ export default function MotionClonePage() {
           await refetchCredits();
         }
 
+        trackEvent(ANALYTICS_EVENTS.motion_clone_download_completed, {
+          feature: "motion_clone",
+          surface: "motion_clone_page",
+          project_id: historyId,
+          is_first_download: isFirstDownload,
+        });
+
         window.setTimeout(() => {
           setDownloadStates((prev) => ({ ...prev, [historyId]: "idle" }));
         }, 2500);
       } catch (error) {
         console.error("[Motion Clone] Download failed:", error);
+        trackEvent(ANALYTICS_EVENTS.motion_clone_download_failed, {
+          feature: "motion_clone",
+          surface: "motion_clone_page",
+          project_id: historyId,
+        });
         showError("An error occurred while downloading the video.");
         setDownloadStates((prev) => ({ ...prev, [historyId]: "idle" }));
       }

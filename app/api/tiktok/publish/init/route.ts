@@ -8,6 +8,8 @@ import {
   fetchVideoBuffer,
   validateVideo
 } from '@/lib/tiktok-upload-helper';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -81,6 +83,16 @@ export async function POST(request: NextRequest) {
       commercialBrandedContent = false,
       expressConsent = false
     } = body;
+
+    captureServerEvent(ANALYTICS_EVENTS.tiktok_connect_started, {
+      distinctId: userId,
+      request,
+      properties: {
+        feature: 'tiktok_publish',
+        surface: 'tiktok_publish_init',
+        project_id: historyId,
+      }
+    });
 
     // Validate required fields
     if (!historyId || !title || !privacyLevel) {

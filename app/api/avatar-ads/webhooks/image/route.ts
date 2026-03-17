@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -90,6 +92,16 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      captureServerEvent(ANALYTICS_EVENTS.avatar_ads_cover_generated, {
+        distinctId: project.user_id,
+        request,
+        properties: {
+          feature: 'avatar_ads',
+          surface: 'avatar_ads_image_webhook',
+          project_id: project.id,
+        }
+      });
+
     } else if (state === 'fail' || code !== 200) {
       console.error('[Avatar Ads Image Webhook] Image generation failed:', {
         failCode,
@@ -110,6 +122,18 @@ export async function POST(request: NextRequest) {
       if (updateError) {
         console.error('[Avatar Ads Image Webhook] Failed to update project:', updateError);
       }
+
+      captureServerEvent(ANALYTICS_EVENTS.avatar_ads_video_generation_failed, {
+        distinctId: project.user_id,
+        request,
+        properties: {
+          feature: 'avatar_ads',
+          surface: 'avatar_ads_image_webhook',
+          project_id: project.id,
+          error_code: failCode || String(code),
+          error_message: failMsg || msg || 'Image generation failed',
+        }
+      });
     } else {
       // Mark as received even if unexpected state to prevent retries
       await supabase

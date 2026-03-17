@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -82,6 +84,16 @@ export async function POST(request: NextRequest) {
           { status: 200 }
         );
       }
+
+      captureServerEvent(ANALYTICS_EVENTS.avatar_ads_video_generation_completed, {
+        request,
+        properties: {
+          feature: 'avatar_ads',
+          surface: 'avatar_ads_video_webhook',
+          project_id: scene.project_id,
+          segment_index: scene.scene_number,
+        }
+      });
 
       // Update project last_processed_at to keep workflow active
       await supabase
@@ -169,6 +181,18 @@ export async function POST(request: NextRequest) {
       if (updateError) {
         console.error('[Avatar Ads Video Webhook] Failed to update scene:', updateError);
       }
+
+      captureServerEvent(ANALYTICS_EVENTS.avatar_ads_video_generation_failed, {
+        request,
+        properties: {
+          feature: 'avatar_ads',
+          surface: 'avatar_ads_video_webhook',
+          project_id: scene.project_id,
+          segment_index: scene.scene_number,
+          error_code: String(code),
+          error_message: msg,
+        }
+      });
 
       // Update project last_processed_at
       await supabase

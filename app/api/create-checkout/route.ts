@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { getPackageByName } from '@/lib/constants'
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events'
+import { captureServerEvent } from '@/lib/analytics/server'
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,6 +17,16 @@ export async function POST(request: NextRequest) {
 
     const { packageName, userEmail, isSubscription } = await request.json()
     console.log(`📦 Package: ${packageName}, Email: ${userEmail}, User: ${userId}, Subscription: ${isSubscription}`)
+    captureServerEvent(ANALYTICS_EVENTS.checkout_started, {
+      distinctId: userId,
+      request,
+      properties: {
+        feature: 'billing',
+        surface: 'create_checkout_api',
+        package_name: packageName,
+        billing_mode: isSubscription ? 'subscription' : 'one_time',
+      }
+    })
 
     if (!packageName) {
       console.log('❌ Package name is missing')
@@ -141,6 +153,17 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`🔗 Checkout URL: ${data.checkout_url}`)
+    captureServerEvent(ANALYTICS_EVENTS.checkout_created, {
+      distinctId: userId,
+      request,
+      properties: {
+        feature: 'billing',
+        surface: 'create_checkout_api',
+        package_name: packageName,
+        billing_mode: isSubscription ? 'subscription' : 'one_time',
+        checkout_id: data.id
+      }
+    })
 
     return NextResponse.json({
       success: true,
@@ -150,6 +173,14 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Create checkout error:', error)
+    captureServerEvent(ANALYTICS_EVENTS.checkout_failed, {
+      request,
+      properties: {
+        feature: 'billing',
+        surface: 'create_checkout_api',
+        error_message: error instanceof Error ? error.message : 'Unknown error'
+      }
+    })
 
     // Provide more detailed error information
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'

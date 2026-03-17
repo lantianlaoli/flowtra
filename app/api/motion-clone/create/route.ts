@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { MOTION_CLONE_MODE } from '@/lib/motion-clone-workflow';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -34,6 +36,18 @@ export async function POST(request: NextRequest) {
       console.error('[Motion Clone Create] Project insert error:', projectError);
       return NextResponse.json({ error: 'Failed to create project' }, { status: 500 });
     }
+
+    captureServerEvent(ANALYTICS_EVENTS.motion_clone_project_created, {
+      distinctId: userId,
+      request,
+      properties: {
+        feature: 'motion_clone',
+        surface: 'motion_clone_create_api',
+        project_id: project.id,
+        workflow: MOTION_CLONE_MODE,
+        credits_cost: project.credits_cost,
+      }
+    });
 
     return NextResponse.json({ project });
   } catch (error) {

@@ -9,6 +9,8 @@ import type { VideoModel } from '@/lib/constants';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { enforceRateLimit, getRequestIp, RateLimitError } from '@/lib/security/rate-limit';
 import { verifyInternalUserRequest } from '@/lib/security/internal-request';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 /**
  * Validates that the video model is one of the supported models
@@ -188,6 +190,20 @@ export async function POST(request: NextRequest) {
     console.log('📊 startWorkflowProcess result:', result);
 
     if (result.success) {
+      captureServerEvent(ANALYTICS_EVENTS.ugc_clone_project_created, {
+        distinctId: clerkUserId,
+        request,
+        properties: {
+          feature: 'ugc_clone',
+          surface: 'ugc_clone_create_api',
+          project_id: typeof result.projectId === 'string' ? result.projectId : undefined,
+          video_model: requestData.videoModel,
+          duration_seconds: Number(requestData.videoDuration || 0) || undefined,
+          aspect_ratio: requestData.videoAspectRatio,
+          workflow: requestData.photoOnly ? 'replica_photo' : 'clone_video',
+          source_type: requestData.creatorSourceVideoId ? 'creator' : 'competitor_ad',
+        }
+      });
       return NextResponse.json(result);
     } else {
       console.error('❌ Competitor UGC Replication workflow failed:', result.error, result.details);

@@ -1,15 +1,12 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { Suspense, useEffect } from 'react'
 import { useUser } from '@clerk/nextjs'
-import type { PostHog } from 'posthog-js'
+import posthog from 'posthog-js'
+import { identifyUser } from '@/lib/analytics/client'
 
 function PostHogRuntimeInner() {
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
   const { user } = useUser()
-  const [client, setClient] = useState<PostHog | null>(null)
 
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY
@@ -25,18 +22,14 @@ function PostHogRuntimeInner() {
         return
       }
 
-      const { default: posthog } = await import('posthog-js')
-      if (cancelled) {
-        return
-      }
-
       const sessionReplayEnabled = process.env.NEXT_PUBLIC_POSTHOG_SESSION_REPLAY_ENABLED === 'true'
       const sampleRate = parseFloat(process.env.NEXT_PUBLIC_POSTHOG_SESSION_REPLAY_SAMPLE_RATE || '0.1')
 
       posthog.init(apiKey, {
         api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
+        defaults: '2026-01-30',
         person_profiles: 'identified_only',
-        capture_pageview: false,
+        capture_pageview: true,
         capture_pageleave: true,
         capture_heatmaps: true,
         capture_dead_clicks: true,
@@ -90,8 +83,6 @@ function PostHogRuntimeInner() {
         window.removeEventListener('error', handleWindowError)
         window.removeEventListener('unhandledrejection', handleRejection)
       }
-
-      setClient(posthog)
     }
 
     const idleCallback = (
@@ -125,31 +116,16 @@ function PostHogRuntimeInner() {
   }, [])
 
   useEffect(() => {
-    if (!client || !pathname) {
+    if (!user) {
       return
     }
 
-    let url = window.origin + pathname
-    if (searchParams.toString()) {
-      url = `${url}?${searchParams.toString()}`
-    }
-
-    client.capture('$pageview', {
-      $current_url: url,
-    })
-  }, [client, pathname, searchParams])
-
-  useEffect(() => {
-    if (!client || !user) {
-      return
-    }
-
-    client.identify(user.id, {
+    identifyUser(user.id, {
       email: user.emailAddresses[0]?.emailAddress,
-      firstName: user.firstName,
-      lastName: user.lastName,
+      firstName: user.firstName ?? undefined,
+      lastName: user.lastName ?? undefined,
     })
-  }, [client, user])
+  }, [user])
 
   return null
 }

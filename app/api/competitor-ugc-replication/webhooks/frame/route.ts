@@ -9,6 +9,8 @@ import {
   type SerializedSegmentPlanSegment
 } from '@/lib/competitor-ugc-replication-workflow';
 import type { VideoModel } from '@/lib/constants';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -186,6 +188,15 @@ export async function POST(request: NextRequest) {
       }
 
       console.log(`✅ [UGC Frame Webhook] Segment ${segment.segment_index} frame ready`);
+      captureServerEvent(ANALYTICS_EVENTS.ugc_clone_frame_generation_completed, {
+        request,
+        properties: {
+          feature: 'ugc_clone',
+          surface: 'ugc_frame_webhook',
+          project_id: segment.project_id,
+          segment_index: segment.segment_index,
+        }
+      });
 
       // CRITICAL: Update previous segment's closing_frame_url
       // This ensures smooth visual transitions between segments
@@ -523,6 +534,19 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Mark as received even if unexpected state to prevent retries
+      if (code !== 200) {
+        captureServerEvent(ANALYTICS_EVENTS.ugc_clone_frame_generation_failed, {
+          request,
+          properties: {
+            feature: 'ugc_clone',
+            surface: 'ugc_frame_webhook',
+            project_id: segment.project_id,
+            segment_index: segment.segment_index,
+            error_code: failCode || String(code),
+            error_message: failMsg || msg || 'Frame generation failed',
+          }
+        });
+      }
       await supabase
         .from('competitor_ugc_replication_segments')
         .update({

@@ -4,6 +4,7 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { demoVideos } from '@/lib/landing-data';
 import HeroSection from '@/components/pages/landing/sections/HeroSection';
+import { SectionViewTracker } from '@/components/analytics/SectionViewTracker';
 
 import FeaturesSection from '@/components/pages/landing/sections/FeaturesSection';
 import ComparisonSection from '@/components/pages/landing/sections/ComparisonSection';
@@ -49,27 +50,34 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <main className="mx-auto max-w-[90rem] px-4 pt-2 sm:px-6 sm:pt-3 lg:px-8">
+        <SectionViewTracker section="hero" />
         <HeroSection />
 
 
 
         {/* Features Section */}
+        <SectionViewTracker section="features" />
         <FeaturesSection />
 
         {/* Comparison Section */}
+        <SectionViewTracker section="comparison" />
         <ComparisonSection />
 
         {/* Model Pricing Section */}
+        <SectionViewTracker section="model_pricing" />
         <ModelPricingSection />
 
         {/* Pricing Section */}
+        <SectionViewTracker section="pricing" />
         <PricingSection />
       </main>
 
       {/* Blog Preview Section */}
+      <SectionViewTracker section="blog_preview" />
       <BlogPreview />
 
       {/* FAQ Section */}
+      <SectionViewTracker section="faq" />
       <FAQ />
 
       <Footer />

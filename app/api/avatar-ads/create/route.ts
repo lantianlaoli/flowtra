@@ -7,6 +7,8 @@ import { CREDIT_COSTS } from '@/lib/constants';
 import { validateKieCredits } from '@/lib/kie-credits-check';
 import { deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { AVATAR_ADS_DURATION_OPTIONS } from '@/lib/avatar-ads-dialogue';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const AVATAR_ADS_PERSISTED_IMAGE_MODEL = 'nano_banana_pro' as const;
@@ -301,6 +303,20 @@ export async function POST(request: NextRequest) {
     // Fire-and-forget IIFE would be killed before processAvatarAdsProject executes
     console.log(`✅ Avatar Ads project ${project.id} created with status='pending'`);
     console.log(`Starting workflow: generate_prompts → generate_image → awaiting_review...`);
+    captureServerEvent(ANALYTICS_EVENTS.avatar_ads_project_created, {
+      distinctId: userId,
+      request,
+      properties: {
+        feature: 'avatar_ads',
+        surface: 'avatar_ads_create_api',
+        project_id: project.id,
+        workflow: talkingHeadMode ? 'talking_head' : 'product_avatar_ads',
+        video_model: resolvedVideoModel,
+        duration_seconds: videoDurationSeconds,
+        aspect_ratio: normalizedAspectRatio,
+        credits_cost: totalCredits,
+      }
+    });
     const workflowSupabase = getSupabaseAdmin();
 
     try {

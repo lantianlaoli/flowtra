@@ -9,6 +9,8 @@ import DashboardContentTransition from '@/components/layout/DashboardContentTran
 import { Coins, Link2, XCircle, Sparkles, CreditCard, Calendar, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
 import { HiPlus, HiMinus, HiLightningBolt, HiClipboardList } from 'react-icons/hi';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { trackEvent } from '@/lib/analytics/client';
 
 interface CreditTransaction {
   id: string;
@@ -57,6 +59,18 @@ export default function CreditsPage() {
       window.location.href = '/sign-in';
     }
   }, [isLoaded, user]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    trackEvent(ANALYTICS_EVENTS.credits_page_viewed, {
+      feature: 'account',
+      surface: 'credits_page',
+    });
+    trackEvent(ANALYTICS_EVENTS.subscription_status_viewed, {
+      feature: 'billing',
+      surface: 'credits_page',
+    });
+  }, [user?.id]);
 
   useEffect(() => {
     // Credits are now managed by CreditsContext
@@ -282,6 +296,10 @@ export default function CreditsPage() {
 
   // Handle TikTok connection
   const handleConnectTikTok = () => {
+    trackEvent(ANALYTICS_EVENTS.tiktok_connect_started, {
+      feature: 'tiktok',
+      surface: 'credits_page',
+    });
     window.location.href = '/api/tiktok/auth/authorize';
   };
 
@@ -302,6 +320,10 @@ export default function CreditsPage() {
       if (data.success) {
         setTiktokConnected(false);
         setTiktokConnection(null);
+        trackEvent(ANALYTICS_EVENTS.tiktok_unbound, {
+          feature: 'tiktok',
+          surface: 'credits_page',
+        });
         alert('TikTok account disconnected successfully');
       } else {
         alert('Failed to disconnect TikTok account');
@@ -324,6 +346,10 @@ export default function CreditsPage() {
       const data = await response.json();
 
       if (data.success && data.portal_url) {
+        trackEvent(ANALYTICS_EVENTS.subscription_portal_opened, {
+          feature: 'billing',
+          surface: 'credits_page',
+        });
         window.open(data.portal_url, '_blank');
       } else {
         alert('Failed to open billing portal. Please try again.');
