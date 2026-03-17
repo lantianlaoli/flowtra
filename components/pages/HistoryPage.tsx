@@ -6,8 +6,9 @@ import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import Sidebar from '@/components/layout/Sidebar';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, HelpCircle, Download, Check, Droplets, AlertCircle, Volume2, CalendarClock, Send, ArrowRight, Shuffle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, HelpCircle, Download, Check, Droplets, AlertCircle, Volume2, Send, ArrowRight, Shuffle } from 'lucide-react';
 import { getCreditCost, type HighResResolution, type VideoModel } from '@/lib/constants';
+import { isMyAdExpired, MY_ADS_RETENTION_DAYS } from '@/lib/my-ads-retention';
 import { cn } from '@/lib/utils';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { useRouter } from 'next/navigation';
@@ -551,6 +552,11 @@ export default function HistoryPage() {
       return 'error';
     }
 
+    if (isMyAdExpired(item.createdAt)) {
+      showError(`This asset expired after ${MY_ADS_RETENTION_DAYS} days. You can still view it, but downloads are disabled.`);
+      return 'error';
+    }
+
     if (typeof userCredits !== 'number') {
       showError('Credits are still loading. Please try again in a moment.');
       return 'error';
@@ -713,6 +719,10 @@ export default function HistoryPage() {
 
     const item = history.find(h => h.id === historyId);
     if (!item || !('coverImageUrl' in item) || !item.coverImageUrl) return;
+    if (isMyAdExpired(item.createdAt)) {
+      showError(`This asset expired after ${MY_ADS_RETENTION_DAYS} days. You can still view it, but downloads are disabled.`);
+      return;
+    }
 
     try {
       // Fetch as blob to force background download without navigation
@@ -742,6 +752,10 @@ export default function HistoryPage() {
 
     const item = history.find(h => h.id === historyId);
     if (!item || !isCharacterAds(item) || !item.coverImageUrl) return;
+    if (isMyAdExpired(item.createdAt)) {
+      showError(`This asset expired after ${MY_ADS_RETENTION_DAYS} days. You can still view it, but downloads are disabled.`);
+      return;
+    }
 
     try {
       // Fetch as blob to force background download without navigation
@@ -770,6 +784,10 @@ export default function HistoryPage() {
 
     const item = history.find(h => h.id === historyId);
     if (!item || !isMotionSwap(item) || !item.coverImageUrl) return;
+    if (isMyAdExpired(item.createdAt)) {
+      showError(`This asset expired after ${MY_ADS_RETENTION_DAYS} days. You can still view it, but downloads are disabled.`);
+      return;
+    }
 
     try {
       const res = await fetch(item.coverImageUrl, { mode: 'cors' });
@@ -876,14 +894,13 @@ export default function HistoryPage() {
 
               {/* Warning Notice */}
               <div className="md:max-w-md">
-                <div className="flex items-start gap-4 rounded-lg border border-border bg-background px-5 py-4">
-                  <CalendarClock className="w-5 h-5 text-foreground flex-shrink-0 mt-0.5" />
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold text-foreground tracking-wide uppercase">
-                      15-Day Retention
-                    </p>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      All assets expire after 15 days. Download important files before automatic deletion.
+                <div className="rounded-2xl border border-red-200/80 bg-white px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.04)]">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600 ring-1 ring-red-100">
+                      <AlertCircle className="h-4.5 w-4.5" />
+                    </div>
+                    <p className="pt-0.5 text-sm font-medium leading-6 text-red-700">
+                      Videos stay available for {MY_ADS_RETENTION_DAYS} days. After that, they can no longer be viewed or downloaded.
                     </p>
                   </div>
                 </div>
@@ -953,7 +970,10 @@ export default function HistoryPage() {
           ) : (
             <>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {currentHistory.map((item) => (
+                {currentHistory.map((item) => {
+                  const isExpired = isMyAdExpired(item.createdAt);
+
+                  return (
                   <motion.div
                     key={item.id}
                     initial={{ opacity: 0, y: 20 }}
@@ -1013,7 +1033,7 @@ export default function HistoryPage() {
                           getAspectRatioClass('videoAspectRatio' in item ? item.videoAspectRatio : '9:16')
                         )}
                         onMouseEnter={() => {
-                          if (item.status === 'completed' && item.videoUrl) {
+                          if (!isExpired && item.status === 'completed' && item.videoUrl) {
                             setHoveredVideo(item.id);
                           }
                         }}
@@ -1084,6 +1104,17 @@ export default function HistoryPage() {
                             })()}
                           </div>
                         )}
+
+                        {isExpired && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/58 backdrop-blur-[2px]">
+                            <div className="rounded-2xl border border-white/15 bg-black/55 px-4 py-3 text-center text-white shadow-lg">
+                              <p className="text-sm font-semibold uppercase tracking-[0.18em]">Expired</p>
+                              <p className="mt-1 text-xs text-white/80">
+                                View only. Downloads are unavailable after {MY_ADS_RETENTION_DAYS} days.
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1116,7 +1147,8 @@ export default function HistoryPage() {
                       </div>
                     </div>
                   </motion.div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Pagination */}
@@ -1216,6 +1248,7 @@ export default function HistoryPage() {
         item={selectedItem}
         onDownload={handleModalDownload}
         isDownloading={isModalDownloading}
+        isExpired={selectedItem ? isMyAdExpired(selectedItem.createdAt) : false}
       />
     </div>
   );

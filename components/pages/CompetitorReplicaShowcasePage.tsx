@@ -1,4 +1,3 @@
-import Script from 'next/script';
 import Link from 'next/link';
 import { Clock3, Globe2, Scissors } from 'lucide-react';
 import Header from '@/components/layout/Header';
@@ -58,6 +57,7 @@ const analysisShots = [
 
 const primaryCta = { href: '/dashboard/competitor-ugc-replication', label: 'Start Cloning' };
 const secondaryCta = { href: '/#pricing', label: 'View Pricing' };
+const CLONE_TUTORIAL_EMBED_URL = 'https://www.youtube.com/embed/BX5XLe3JbQ8?rel=0';
 
 export default function CompetitorReplicaShowcasePage() {
   return (
@@ -114,22 +114,16 @@ export default function CompetitorReplicaShowcasePage() {
         primaryCta={primaryCta}
         secondaryCta={secondaryCta}
         media={
-          <div className="w-fit max-w-full lg:ml-auto">
-            <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-white shadow-[0_18px_40px_rgba(0,0,0,0.06)]">
-              <blockquote
-                className="tiktok-embed !my-0"
-                cite="https://www.tiktok.com/@laolilantian/video/7600702812682587400?lang=en"
-                data-video-id="7600702812682587400"
-                style={{ maxWidth: '380px', minWidth: '280px' }}
-              >
-                <section>
-                  <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">
-                    @laolilantian
-                  </a>{' '}
-                  Watch how we quickly clone viral videos and swap products using our optimized tool. Adjust every frame and prompt in the editor for precise results.
-                </section>
-              </blockquote>
-              <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />
+          <div className="w-full max-w-[760px] overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-black shadow-[0_18px_40px_rgba(0,0,0,0.06)] lg:ml-auto">
+            <div className="aspect-video w-full">
+              <iframe
+                className="h-full w-full"
+                src={CLONE_TUTORIAL_EMBED_URL}
+                title="Flowtra Viral Clone tutorial"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
             </div>
           </div>
         }

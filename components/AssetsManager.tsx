@@ -382,6 +382,27 @@ export default function AssetsManager() {
     setSelectedVideo((current) => (current?.id === videoId ? null : current));
   };
 
+  const handleVideoUpdated = (updatedVideo: VideoAsset) => {
+    setAssetsData((prev) => {
+      const nextVideos = dedupeVideoAssets(
+        prev.videos.map((video) => (video.id === updatedVideo.id ? { ...video, ...updatedVideo } : video)),
+      );
+
+      return {
+        ...prev,
+        videos: nextVideos,
+        stats: {
+          ...prev.stats,
+          totalCreatorVideos: nextVideos.length,
+        },
+      };
+    });
+
+    setSelectedVideo((current) => (
+      current?.id === updatedVideo.id ? { ...current, ...updatedVideo } : current
+    ));
+  };
+
   const handleDeleteVideo = async (video: VideoAsset) => {
     if (deletingVideoId) {
       return;
@@ -696,6 +717,7 @@ export default function AssetsManager() {
         onClose={() => setShowVideoDetails(false)}
         video={selectedVideo}
         onDeleteVideo={handleDeleteVideo}
+        onVideoUpdated={handleVideoUpdated}
       />
     </div>
   );

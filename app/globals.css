@@ -90,6 +90,80 @@
   border-color: var(--border);
 }
 
+.dashboard-theme .sidebar-shell {
+  background-color: var(--sidebar);
+  color: var(--sidebar-foreground);
+}
+
+.dashboard-theme .sidebar-topbar,
+.dashboard-theme .sidebar-bottomdock {
+  border-color: transparent;
+}
+
+.dashboard-theme .sidebar-collapse-button {
+  background-color: var(--card);
+  border-color: var(--sidebar-border);
+  color: var(--sidebar-foreground);
+  box-shadow: none;
+}
+
+.dashboard-theme .sidebar-collapse-button:hover {
+  background-color: var(--sidebar-accent);
+  border-color: var(--sidebar-border);
+}
+
+.dashboard-theme .sidebar-credits-shell {
+  background-color: var(--card);
+  border-color: var(--sidebar-border);
+  box-shadow: none;
+}
+
+.dashboard-theme .sidebar-credits-icon,
+.dashboard-theme .sidebar-credits-primary {
+  background-color: var(--sidebar-foreground);
+  border-color: var(--sidebar-foreground);
+  color: var(--sidebar);
+}
+
+.dashboard-theme .sidebar-credits-secondary {
+  background-color: var(--sidebar-accent);
+  border-color: var(--sidebar-border);
+  color: var(--sidebar-foreground);
+}
+
+.dashboard-theme .sidebar-credits-value {
+  color: var(--sidebar-foreground);
+}
+
+.dashboard-theme .sidebar-shell .text-\[\#5F5F5F\],
+.dashboard-theme .sidebar-shell .text-\[\#4F4F4F\],
+.dashboard-theme .sidebar-shell .text-\[\#6A6A6A\] {
+  color: var(--muted-foreground);
+}
+
+.dashboard-theme .sidebar-shell .border-\[\#E3E3E3\],
+.dashboard-theme .sidebar-shell .border-\[\#E9E9E9\],
+.dashboard-theme .sidebar-shell .border-\[\#DFDFDF\],
+.dashboard-theme .sidebar-shell .border-\[\#DDDDDD\] {
+  border-color: var(--sidebar-border);
+}
+
+.dashboard-theme .sidebar-shell .bg-\[\#FCFCFC\] {
+  background-color: var(--sidebar);
+}
+
+.dashboard-theme .sidebar-shell .bg-\[\#F7F7F7\] {
+  background-color: var(--sidebar-accent);
+}
+
+.dashboard-theme .sidebar-shell .bg-\[\#111111\] {
+  background-color: var(--sidebar-foreground);
+}
+
+.dashboard-theme .sidebar-shell .text-\[\#111111\] {
+  color: var(--sidebar-foreground);
+}
+
 .dashboard-theme .text-\[\#666666\] {
   color: var(--muted-foreground);
 }

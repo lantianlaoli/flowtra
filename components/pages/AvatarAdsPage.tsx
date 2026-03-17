@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Image from 'next/image';
-import Script from 'next/script';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -10,7 +9,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import { LanguageCode } from '@/components/ui/LanguageSelector';
 import MaintenanceMessage from '@/components/MaintenanceMessage';
 import GenerationProgressDisplay, { type Generation } from '@/components/ui/GenerationProgressDisplay';
-import { Video, Package, ChevronDown, ChevronUp } from 'lucide-react';
+import { User, ShoppingBag, ChevronDown, ChevronUp } from 'lucide-react';
 import BottomComposerBar from '@/components/ui/BottomComposerBar';
 import ConfigPopover from '@/components/ui/ConfigPopover';
 import BottomBarDropdown from '@/components/ui/BottomBarDropdown';
@@ -39,6 +38,7 @@ interface KieCreditsStatus {
 
 const DEFAULT_VIDEO_MODEL = 'veo3_fast' as const;
 const SESSION_STORAGE_KEY = 'flowtra_avatar_ads_generations';
+const AVATAR_ADS_TUTORIAL_EMBED_URL = 'https://www.youtube.com/embed/B_UjnFsbitk?rel=0';
 
 // Format AVATAR_ADS_DURATION_OPTIONS for ConfigPopover
 const AVATAR_ADS_DURATION_OPTIONS_FORMATTED: VideoDurationOption[] = AVATAR_ADS_DURATION_OPTIONS.map((seconds) => ({
@@ -58,7 +58,11 @@ const generateClientProjectId = () => {
   return `proj-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 };
 
-type AvatarGeneration = Generation & { projectId?: string; coverUrl?: string | null };
+type AvatarGeneration = Generation & {
+  projectId?: string;
+  coverUrl?: string | null;
+  isOptimistic?: boolean;
+};
 const sortGenerations = (items: AvatarGeneration[]) =>
   [...items].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 const CHARACTER_EMPTY_STEPS = [
@@ -252,6 +256,27 @@ const formatDurationLabel = (seconds: number) => {
     () => avatarOptions.find(avatar => avatar.photo_url === selectedPersonPhotoUrl) || null,
     [avatarOptions, selectedPersonPhotoUrl]
   );
+  const avatarMentionOptions = useMemo(
+    () =>
+      avatarOptions.map((avatar) => ({
+        id: avatar.id,
+        label: avatar.avatar_name || 'Character',
+        imageUrl: avatar.photo_url || null,
+      })),
+    [avatarOptions]
+  );
+  const productMentionOptions = useMemo(
+    () =>
+      productOptions.map((product) => ({
+        id: product.id,
+        label: product.product_name || 'Product',
+        imageUrl:
+          product.user_product_photos?.find((photo) => photo.is_primary)?.photo_url ||
+          product.user_product_photos?.[0]?.photo_url ||
+          null,
+      })),
+    [productOptions]
+  );
 
   const getProductCover = useCallback((product: UserProduct | null) => {
     if (!product?.user_product_photos?.length) return '';
@@ -352,6 +377,7 @@ const formatDurationLabel = (seconds: number) => {
       const optimisticGeneration: AvatarGeneration = {
         id: clientProjectId,
         projectId: clientProjectId,
+        isOptimistic: true,
         timestamp: new Date(),
         status: 'pending',
         progress: 5,
@@ -404,12 +430,15 @@ const formatDurationLabel = (seconds: number) => {
         })
         .then((project) => {
           if (!project?.id) return;
-          if (project.id === clientProjectId) return;
-          // Fallback: ensure optimistic entry matches actual ID if server ignored clientProjectId
           setGenerations((prev) =>
             prev.map((gen) =>
               gen.id === clientProjectId
-                ? { ...gen, id: project.id, projectId: project.id }
+                ? {
+                    ...gen,
+                    id: project.id,
+                    projectId: project.id,
+                    isOptimistic: false,
+                  }
                 : gen
             )
           );
@@ -614,6 +643,7 @@ const formatDurationLabel = (seconds: number) => {
   const activeProjectIds = useMemo(() => {
     const ids = generations
       .filter((gen) =>
+        !gen.isOptimistic &&
         (gen.status === 'pending' || gen.status === 'processing' || gen.status === 'awaiting_review') &&
         gen.projectId
       )
@@ -820,7 +850,6 @@ const formatDurationLabel = (seconds: number) => {
       }
 
       showSuccess('Video generation successfully resumed!');
-      setInspectorProjectId(null); // Close inspector
       // ✅ No manual refresh needed - Realtime will auto-update
       refetchCredits(); // Credits might have changed
     } catch (error) {
@@ -985,19 +1014,18 @@ const formatDurationLabel = (seconds: number) => {
                         onDownload={handleDownloadGeneration}
                         emptyStateSteps={CHARACTER_EMPTY_STEPS}
                         emptyStateRightContent={
-                          <>
-                            <blockquote
-                              className="tiktok-embed"
-                              cite="https://www.tiktok.com/@laolilantian/video/7600701595625688327?lang=en"
-                              data-video-id="7600701595625688327"
-                              style={{ maxWidth: '605px', minWidth: '325px' }}
-                            >
-                              <section>
-                                <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">@laolilantian</a> Learn to create viral UGC videos faster. Set up your brand in Assets, choose an avatar, and let AI script the rest. Preview and refine for perfect results. <a title="aiavatar" target="_blank" href="https://www.tiktok.com/tag/aiavatar?refer=embed">#AIAvatar</a> <a title="ugc" target="_blank" href="https://www.tiktok.com/tag/ugc?refer=embed">#UGC</a> <a title="contentcreation" target="_blank" href="https://www.tiktok.com/tag/contentcreation?refer=embed">#ContentCreation</a> <a target="_blank" title="♬ original sound  - Lantian laoli" href="https://www.tiktok.com/music/original-sound-Lantian-laoli-7588829377820527361?refer=embed">♬ original sound  - Lantian laoli</a>
-                              </section>
-                            </blockquote>
-                            <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />
-                          </>
+                          <div className="w-full max-w-[605px] overflow-hidden rounded-[24px] border border-border bg-black shadow-[0_18px_40px_rgba(0,0,0,0.06)]">
+                            <div className="aspect-video w-full">
+                              <iframe
+                                className="h-full w-full"
+                                src={AVATAR_ADS_TUTORIAL_EMBED_URL}
+                                title="Flowtra Avatar Ads tutorial"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                referrerPolicy="strict-origin-when-cross-origin"
+                                allowFullScreen
+                              />
+                            </div>
+                          </div>
                         }
                         onReview={(generation) => setInspectorProjectId((generation as AvatarGeneration).projectId!)}
                         projectType="avatar-ads"
@@ -1022,7 +1050,7 @@ const formatDurationLabel = (seconds: number) => {
                 panelWidthClassName="w-[320px]"
                 disabled={isLoadingAssets || avatarOptions.length === 0}
                 trigger={
-                  <div className="flex items-center gap-3">
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
                     <div className="h-8 w-8 rounded-lg bg-muted border border-border flex items-center justify-center overflow-hidden">
                       {selectedAvatar?.photo_url ? (
                         <Image
@@ -1033,10 +1061,10 @@ const formatDurationLabel = (seconds: number) => {
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <Video className="w-4 h-4 text-muted-foreground" />
+                        <User className="w-4 h-4 text-muted-foreground" />
                       )}
                     </div>
-                    <p className="text-sm font-medium text-foreground truncate max-w-[110px]">
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
                       {selectedAvatar?.avatar_name || 'Select character'}
                     </p>
                   </div>
@@ -1090,7 +1118,7 @@ const formatDurationLabel = (seconds: number) => {
                 panelWidthClassName="w-[320px]"
                 disabled={isLoadingAssets || productOptions.length === 0}
                 trigger={
-                  <div className="flex items-center gap-3">
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
                     <div className="h-8 w-8 rounded-lg bg-muted border border-border flex items-center justify-center overflow-hidden">
                       {primaryProductPhoto ? (
                         <Image
@@ -1101,10 +1129,10 @@ const formatDurationLabel = (seconds: number) => {
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <Package className="w-4 h-4 text-muted-foreground" />
+                        <ShoppingBag className="w-4 h-4 text-muted-foreground" />
                       )}
                     </div>
-                    <p className="text-sm font-medium text-foreground truncate max-w-[240px]">
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
                       {selectedProductName || 'Select product'}
                     </p>
                   </div>
@@ -1123,10 +1151,10 @@ const formatDurationLabel = (seconds: number) => {
                           ? 'border-foreground bg-muted'
                           : 'border-border hover:border-foreground'
                       }`}
-                    >
+                      >
                       <div className="flex items-center gap-3">
                         <div className="h-12 w-12 rounded-md bg-muted border border-border flex items-center justify-center">
-                          <Package className="w-4 h-4 text-muted-foreground" />
+                          <ShoppingBag className="w-4 h-4 text-muted-foreground" />
                         </div>
                         <div>
                           <p className="text-sm font-medium text-foreground">No product (talking head)</p>
@@ -1161,7 +1189,7 @@ const formatDurationLabel = (seconds: number) => {
                                   className="h-full w-full object-cover"
                                 />
                               ) : (
-                                <Package className="w-4 h-4 text-muted-foreground" />
+                                <ShoppingBag className="w-4 h-4 text-muted-foreground" />
                               )}
                             </div>
                             <div>
@@ -1268,7 +1296,7 @@ const formatDurationLabel = (seconds: number) => {
           isGenerating={false}
           generationCost={requiredCredits}
           userCredits={userCredits || 0}
-          generateButtonText="Generate"
+          generateButtonText="Start"
         />
       )}
 
@@ -1280,6 +1308,8 @@ const formatDurationLabel = (seconds: number) => {
           onClose={handleCloseInspector}
           onConfirmGeneration={handleConfirmGeneration}
           onRegenerateImage={handleRegenerateImage}
+          characterMentions={avatarMentionOptions}
+          productMentions={productMentionOptions}
         />
       )}
     </div>

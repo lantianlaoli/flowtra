@@ -16,11 +16,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     console.log(`[Status API] Fetching status for project: ${id}`);
 
     const supabase = getSupabaseAdmin();
+    // Schema verified via Supabase MCP (2026-03-17):
+    // avatar_ads_projects includes id, status, current_step, progress_percentage,
+    // image_prompt, generated_image_url, generated_video_urls, merged_video_url, error_message.
     const { data: project, error } = await supabase
       .from('avatar_ads_projects')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error(`[Status API] Error fetching project ${id}:`, error);

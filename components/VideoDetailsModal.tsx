@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Download, Loader2, Check, ChevronDown, ChevronUp, User, MessageSquare, Music, Play, Sparkles, Layout, Camera, Clock, Eye, Video, Sun, Cpu, Maximize, Languages, Coins, Calendar, Film, ThumbsUp, ThumbsDown, Send, ArrowLeft } from 'lucide-react';
+import { X, Download, Loader2, Check, ChevronDown, ChevronUp, User, MessageSquare, Music, Play, Sparkles, Layout, Camera, Clock, Eye, Video, Sun, Cpu, Maximize, Languages, Coins, Calendar, Film, ThumbsUp, ThumbsDown, Send, ArrowLeft, AlertCircle } from 'lucide-react';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { HIGH_RES_DOWNLOAD_COSTS, type HighResResolution, type VideoModel } from '@/lib/constants';
+import { MY_ADS_RETENTION_DAYS } from '@/lib/my-ads-retention';
 import TikTokPublishDialog from '@/components/TikTokPublishDialog';
 
 // Type definitions matching HistoryPage
@@ -96,6 +97,7 @@ interface VideoDetailsModalProps {
   item: HistoryItem | null;
   onDownload: (item: HistoryItem, resolution: HighResResolution) => Promise<'ready' | 'processing' | 'error'>;
   isDownloading: boolean;
+  isExpired: boolean;
 }
 
 // Helper functions
@@ -181,7 +183,7 @@ const getVideoDurationSeconds = (item: HistoryItem | null): number | null => {
   return null;
 };
 
-export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, isDownloading }: VideoDetailsModalProps) {
+export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, isDownloading, isExpired }: VideoDetailsModalProps) {
   const [expandedShots, setExpandedShots] = useState<Set<string>>(new Set());
   const [selectedResolution, setSelectedResolution] = useState<HighResResolution>('720p');
   const [resolutionMenuOpen, setResolutionMenuOpen] = useState(false);
@@ -560,7 +562,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
     setSelectedResolution('720p');
   }, [item?.id, isSeedanceModel]);
 
-  const canDownload = !!item && item.status === 'completed' && item.videoUrl;
+  const canDownload = !!item && item.status === 'completed' && item.videoUrl && !isExpired;
   const canPublishToTikTok = useMemo(() => {
     if (!item) return false;
     return (isCompetitorUgcReplication(item) || isCharacterAds(item)) && item.status === 'completed' && !!item.videoUrl;
@@ -662,6 +664,16 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/5">
                       <p className="my-ads-details-muted text-[#666666] text-sm font-medium">No preview</p>
+                    </div>
+                  )}
+                  {isExpired && (
+                    <div className="absolute inset-x-4 bottom-4 rounded-xl border border-red-200/70 bg-red-50/95 px-4 py-3 text-red-700 shadow-lg backdrop-blur-sm">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                        <p className="text-sm font-medium leading-relaxed">
+                          This asset has expired after {MY_ADS_RETENTION_DAYS} days. You can still view it here, but downloads are disabled.
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -795,7 +807,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                 </AnimatePresence>
 
                 {/* Fixed Download Button at Bottom Right */}
-                {canDownload && !showTikTokPanel && (
+                {(!showTikTokPanel && (canDownload || isExpired)) && (
                   <div className="my-ads-details-footer border-t border-[#E5E5E5] bg-white px-8 py-4">
                     <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:justify-between">
                       {/* Feedback Buttons */}
@@ -814,6 +826,13 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
 
                       {/* Download Controls */}
                       <div className="flex items-center gap-3">
+                      {isExpired ? (
+                        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700">
+                          <AlertCircle className="h-4 w-4" />
+                          <span>Expired after {MY_ADS_RETENTION_DAYS} days. Preview only.</span>
+                        </div>
+                      ) : (
+                        <>
                       {canPublishToTikTok && (
                         <button
                           onClick={() => setShowTikTokPanel(true)}
@@ -916,8 +935,10 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                               </span>
                             ) : null}
                           </>
-                        )}
+                          )}
                       </button>
+                        </>
+                      )}
                       </div>
                     </div>
                   </div>

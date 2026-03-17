@@ -26,6 +26,26 @@ interface BottomComposerBarProps {
   compact?: boolean;
 }
 
+export function resolveBottomComposerButtonLabel(input: {
+  showInsufficientCredits: boolean;
+  isGenerating: boolean;
+  generateButtonText?: string;
+}) {
+  const { showInsufficientCredits, isGenerating, generateButtonText = 'Generate' } = input;
+
+  if (showInsufficientCredits) {
+    return 'Insufficient';
+  }
+
+  if (!isGenerating) {
+    return generateButtonText;
+  }
+
+  return generateButtonText.trim().toLowerCase() === 'start'
+    ? 'Processing...'
+    : 'Generating...';
+}
+
 export default function BottomComposerBar({
   leftControls,
   centerInput,
@@ -42,6 +62,11 @@ export default function BottomComposerBar({
   const canAfford = userCredits >= generationCost;
   const showInsufficientCredits = !canAfford && generationCost > 0;
   const isButtonDisabled = !canGenerate || isGenerating || showInsufficientCredits;
+  const buttonLabel = resolveBottomComposerButtonLabel({
+    showInsufficientCredits,
+    isGenerating,
+    generateButtonText,
+  });
 
   return (
     <div className={`bottom-composer-bar fixed bottom-0 left-0 right-0 md:left-72 z-40 px-3 md:px-12 lg:px-16 pb-4 md:pb-6 pointer-events-none ${className}`}>
@@ -84,14 +109,7 @@ export default function BottomComposerBar({
               `}
             >
               <Sparkles className="w-4 h-4 flex-shrink-0" />
-              <span>
-                {showInsufficientCredits
-                  ? 'Insufficient'
-                  : isGenerating
-                  ? 'Generating...'
-                  : generateButtonText
-                }
-              </span>
+              <span>{buttonLabel}</span>
             </button>
           </div>
         </div>

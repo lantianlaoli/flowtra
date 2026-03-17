@@ -13,6 +13,7 @@ import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { generateDialogueLengthGuidance, validateSceneDurations } from '@/lib/dialogue-duration-estimator';
 import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
+import { MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
 // Events table removed: no tracking imports
 
 // Avatar Ads fixed configuration - only supports veo3_fast
@@ -59,6 +60,79 @@ interface ProcessResult {
   message: string;
   nextStep?: string;
 }
+
+export const compileAvatarAdsMentionText = (value: string) => {
+  if (!value) return value;
+  return value.replace(MENTION_TOKEN_REGEX, (match) => {
+    const parsed = parseMentionToken(match);
+    if (!parsed) return match;
+    return (parsed.label || parsed.key || match).replace(/[_-]+/g, ' ').trim();
+  });
+};
+
+const buildAvatarAdsTalkingHeadVisualLines = (hasProductContext: boolean) => {
+  const actionSuffix = hasProductContext
+    ? 'while naturally holding or presenting the product when appropriate.'
+    : 'with natural gestures and no unnecessary props.';
+
+  return [
+    'Subject: spokesperson from the provided character image.',
+    `Action: speak directly to camera with clear eye contact ${actionSuffix}`,
+    'Style: authentic user-generated talking-head ad.',
+    'Camera: centered framing, stable medium shot, minimal movement.',
+    'Composition: character centered in frame with clean separation from the background.',
+    'Lighting: natural, flattering UGC lighting with realistic contrast.',
+  ];
+};
+
+export const buildAvatarAdsVideoExecutionPrompt = (
+  prompt: Record<string, unknown>,
+  options?: { hasProductContext?: boolean }
+) => {
+  const promptObj = prompt as {
+    voice_type?: string;
+    subject?: string;
+    context_environment?: string;
+    action?: string;
+    style?: string;
+    camera_motion_positioning?: string;
+    composition?: string;
+    ambiance_color_lighting?: string;
+    audio?: string;
+    dialog?: string;
+    [key: string]: unknown;
+  };
+
+  const hasProductContext = Boolean(options?.hasProductContext);
+  const visualParts = [
+    promptObj.subject ? `Subject: ${compileAvatarAdsMentionText(String(promptObj.subject))}` : '',
+    promptObj.context_environment ? `Context: ${compileAvatarAdsMentionText(String(promptObj.context_environment))}` : '',
+    promptObj.action ? `Action: ${compileAvatarAdsMentionText(String(promptObj.action))}` : '',
+    promptObj.style ? `Style: ${compileAvatarAdsMentionText(String(promptObj.style))}` : '',
+    promptObj.camera_motion_positioning ? `Camera: ${compileAvatarAdsMentionText(String(promptObj.camera_motion_positioning))}` : '',
+    promptObj.composition ? `Composition: ${compileAvatarAdsMentionText(String(promptObj.composition))}` : '',
+    promptObj.ambiance_color_lighting ? `Lighting: ${compileAvatarAdsMentionText(String(promptObj.ambiance_color_lighting))}` : '',
+    promptObj.audio ? `Audio: ${compileAvatarAdsMentionText(String(promptObj.audio))}` : '',
+  ].filter(Boolean);
+
+  const dialogText = typeof promptObj.dialog === 'string'
+    ? compileAvatarAdsMentionText(promptObj.dialog).replace(/^"|"$/g, '').trim()
+    : '';
+
+  const parts = visualParts.length > 0
+    ? visualParts
+    : buildAvatarAdsTalkingHeadVisualLines(hasProductContext);
+
+  if (dialogText) {
+    parts.push(`dialogue, the character in the video says: ${dialogText}`);
+  }
+
+  if (promptObj.voice_type) {
+    parts.push(`Voice Type: ${compileAvatarAdsMentionText(String(promptObj.voice_type))}`);
+  }
+
+  return parts.join('\n\n').trim();
+};
 
 // Fallback product analysis for temporary products (no database record)
 async function analyzeProductImageOnly(imageUrl: string): Promise<string> {
@@ -498,6 +572,7 @@ async function generateImageWithKIE(
   } else {
     promptValue = JSON.stringify(prompt);
   }
+  promptValue = compileAvatarAdsMentionText(promptValue);
 
   // Construct webhook callback URL (webhook-first architecture with polling fallback)
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
@@ -554,7 +629,8 @@ export async function generateVideoWithKIE(
   prompt: Record<string, unknown>,
   referenceImageUrls: string[],
   videoAspectRatio?: '16:9' | '9:16',
-  language?: string
+  language?: string,
+  options?: { hasProductContext?: boolean }
 ): Promise<{ taskId: string }> {
   // ✅ Validate prompt parameter
   if (!prompt || typeof prompt !== 'object') {
@@ -590,31 +666,7 @@ export async function generateVideoWithKIE(
 
     if (hasNewStructuredFields) {
       // Construct prompt from new fields
-      const parts = [];
-      
-      // Main visual description
-      if (promptObj.subject) parts.push(`Subject: ${promptObj.subject}`);
-      if (promptObj.context_environment) parts.push(`Context: ${promptObj.context_environment}`);
-      if (promptObj.action) parts.push(`Action: ${promptObj.action}`);
-      if (promptObj.style) parts.push(`Style: ${promptObj.style}`);
-      if (promptObj.camera_motion_positioning) parts.push(`Camera: ${promptObj.camera_motion_positioning}`);
-      if (promptObj.composition) parts.push(`Composition: ${promptObj.composition}`);
-      if (promptObj.ambiance_color_lighting) parts.push(`Lighting: ${promptObj.ambiance_color_lighting}`);
-      
-      // Audio/Dialogue section
-      if (promptObj.audio) parts.push(`Audio: ${promptObj.audio}`);
-      
-      // Dialogue is special - needs specific prefix for Veo/KIE
-      if (promptObj.dialog) {
-         // Ensure it starts with standard prefix if not already
-         const dialogText = String(promptObj.dialog).replace(/^"|"$/g, ''); // Remove quotes if present
-         parts.push(`dialogue, the character in the video says: ${dialogText}`);
-      }
-      
-      // Metadata (voice_type is assumed to be present from initial prompt generation)
-      if (promptObj.voice_type) parts.push(`Voice Type: ${promptObj.voice_type}`);
-      
-      videoPromptText = parts.join('\n\n');
+      videoPromptText = buildAvatarAdsVideoExecutionPrompt(promptObj, options);
     } else {
       // Fallback to old logic (if the prompt doesn't have the new structured fields)
       // This path is for backwards compatibility and should eventually be phased out.
@@ -629,7 +681,7 @@ export async function generateVideoWithKIE(
         [key: string]: unknown;
       };
 
-      const videoPrompt = oldPromptObj.video_prompt || '';
+      const videoPrompt = compileAvatarAdsMentionText(oldPromptObj.video_prompt || '');
       const voiceType = oldPromptObj.voice_type || '';
       const camera = oldPromptObj.camera || '';
       const emotion = oldPromptObj.emotion || '';
@@ -1226,7 +1278,8 @@ export async function processAvatarAdsProject(
             videoPrompt as Record<string, unknown>,
             [project.generated_image_url, project.generated_image_url], // Use generated image as start AND end frame for consistency
             project.video_aspect_ratio as '16:9' | '9:16' | undefined,
-            project.language // Pass language for video prompt
+            project.language, // Pass language for video prompt
+            { hasProductContext: Boolean(project.product_context?.product_name || project.product_image_urls?.length) }
           );
 
           videoTaskIds.push(taskId);

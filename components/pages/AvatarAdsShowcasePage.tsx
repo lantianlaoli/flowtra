@@ -1,4 +1,3 @@
-import Script from 'next/script';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { FeatureSignupCTA } from '@/components/cta/FeatureSignupCTA';
@@ -32,6 +31,7 @@ const steps = [
 
 const primaryCta = { href: '/dashboard/character-ads', label: 'Start Avatar Ads' };
 const secondaryCta = { href: '/#pricing', label: 'View Pricing' };
+const AVATAR_ADS_TUTORIAL_EMBED_URL = 'https://www.youtube.com/embed/B_UjnFsbitk?rel=0';
 
 export default function AvatarAdsShowcasePage() {
   return (
@@ -65,22 +65,16 @@ export default function AvatarAdsShowcasePage() {
         primaryCta={primaryCta}
         secondaryCta={secondaryCta}
         media={
-          <div className="w-fit max-w-full lg:ml-auto">
-            <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-white shadow-[0_18px_40px_rgba(0,0,0,0.06)]">
-              <blockquote
-                className="tiktok-embed !my-0"
-                cite="https://www.tiktok.com/@laolilantian/video/7600701595625688327?lang=en"
-                data-video-id="7600701595625688327"
-                style={{ maxWidth: '380px', minWidth: '280px' }}
-              >
-                <section>
-                  <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">
-                    @laolilantian
-                  </a>{' '}
-                  Learn to create viral UGC videos faster. Set up your brand in Assets, choose an avatar, and let AI script the rest. Preview and refine for perfect results.
-                </section>
-              </blockquote>
-              <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />
+          <div className="w-full max-w-[760px] overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-black shadow-[0_18px_40px_rgba(0,0,0,0.06)] lg:ml-auto">
+            <div className="aspect-video w-full">
+              <iframe
+                className="h-full w-full"
+                src={AVATAR_ADS_TUTORIAL_EMBED_URL}
+                title="Flowtra Avatar Ads tutorial"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
             </div>
           </div>
         }

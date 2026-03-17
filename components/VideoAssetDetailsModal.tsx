@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -12,6 +12,7 @@ import {
   Film,
   Tag,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/contexts/ToastContext";
@@ -46,6 +47,7 @@ interface VideoAssetDetailsModalProps {
   cloneActionLabel?: string;
   onDeleteVideo?: (video: VideoAsset) => Promise<void> | void;
   onVideoDeleted?: (videoId: string) => void;
+  onVideoUpdated?: (video: VideoAsset) => void;
 }
 
 export default function VideoAssetDetailsModal({
@@ -57,19 +59,29 @@ export default function VideoAssetDetailsModal({
   cloneActionLabel = "Use for Clone",
   onDeleteVideo,
   onVideoDeleted,
+  onVideoUpdated,
 }: VideoAssetDetailsModalProps) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [isCreatingClone, setIsCreatingClone] = useState(false);
   const [deletingVideoIds, setDeletingVideoIds] = useState<Set<string>>(new Set());
+  const [currentVideo, setCurrentVideo] = useState<VideoAsset | null>(video);
+  const [isUploadingFirstFrame, setIsUploadingFirstFrame] = useState(false);
+  const [firstFrameUploadError, setFirstFrameUploadError] = useState<string | null>(null);
+  const firstFrameInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setCurrentVideo(video);
+    setFirstFrameUploadError(null);
+  }, [video]);
 
   const parsedShots = useMemo(
-    () => parseShotsFromAnalysis(video?.analysis_result || null),
-    [video?.analysis_result],
+    () => parseShotsFromAnalysis(currentVideo?.analysis_result || null),
+    [currentVideo?.analysis_result],
   );
 
   const displayDurationSeconds = useMemo(() => {
-    const normalizedAnalysis = normalizeAnalysisToV2(video?.analysis_result || null);
+    const normalizedAnalysis = normalizeAnalysisToV2(currentVideo?.analysis_result || null);
     const analysisDuration = normalizedAnalysis?.video_duration_seconds;
     const summedShotDuration = parsedShots.reduce(
       (sum, shot) => sum + (Number(shot.duration_seconds) || 0),
@@ -84,48 +96,52 @@ export default function VideoAssetDetailsModal({
       return summedShotDuration;
     }
 
-    return video?.duration_seconds || null;
-  }, [parsedShots, video?.analysis_result, video?.duration_seconds]);
+    return currentVideo?.duration_seconds || null;
+  }, [currentVideo?.analysis_result, currentVideo?.duration_seconds, parsedShots]);
 
   const analysisName = useMemo(() => {
-    if (!video?.analysis_result || typeof video.analysis_result !== "object") {
+    if (!currentVideo?.analysis_result || typeof currentVideo.analysis_result !== "object") {
       return null;
     }
-    const name = (video.analysis_result as { name?: unknown }).name;
+    const name = (currentVideo.analysis_result as { name?: unknown }).name;
     return typeof name === "string" && name.trim() ? name.trim() : null;
-  }, [video?.analysis_result]);
+  }, [currentVideo?.analysis_result]);
 
   const detectedLanguage = useMemo(() => {
-    if (video?.analysis_result && typeof video.analysis_result === "object") {
-      const detected = (video.analysis_result as { detected_language?: unknown }).detected_language;
+    if (currentVideo?.analysis_result && typeof currentVideo.analysis_result === "object") {
+      const detected = (currentVideo.analysis_result as { detected_language?: unknown }).detected_language;
       if (typeof detected === "string") return detected;
     }
-    return video?.analysis_language || null;
-  }, [video?.analysis_result, video?.analysis_language]);
+    return currentVideo?.analysis_language || null;
+  }, [currentVideo?.analysis_result, currentVideo?.analysis_language]);
 
-  const hasAnalysis = Boolean(video?.analysis_result);
+  const hasAnalysis = Boolean(currentVideo?.analysis_result);
   const isCompact = size === "compact";
   const isAgentSelectionMode = Boolean(onUseForClone);
+  const shouldShowFirstFramePanel = currentVideo?.source_type === "creator";
+  const previewCardClassName = isCompact
+    ? "aspect-[9/16] w-full max-w-[320px]"
+    : "aspect-[9/16] w-full max-w-[320px] xl:max-w-[300px] 2xl:max-w-[320px]";
 
   const displayName = useMemo(() => {
-    if (!video) return "TikTok Video";
-    return video.source_name || "TikTok Video";
-  }, [video]);
+    if (!currentVideo) return "TikTok Video";
+    return currentVideo.source_name || "TikTok Video";
+  }, [currentVideo]);
 
   const overviewName = useMemo(() => {
-    if (!video) return "—";
+    if (!currentVideo) return "—";
     return (
-      video.description?.trim()
+      currentVideo.description?.trim()
       || analysisName
-      || video.source_name?.trim()
+      || currentVideo.source_name?.trim()
       || "—"
     );
-  }, [analysisName, video]);
+  }, [analysisName, currentVideo]);
 
-  const isDeletingCurrentVideo = Boolean(video?.id && deletingVideoIds.has(video.id));
+  const isDeletingCurrentVideo = Boolean(currentVideo?.id && deletingVideoIds.has(currentVideo.id));
 
   const handleUseForClone = async () => {
-    if (!video?.analysis_result || !video) {
+    if (!currentVideo?.analysis_result || !currentVideo) {
       showError("Video analysis is still running. Please try again shortly.");
       return;
     }
@@ -135,7 +151,7 @@ export default function VideoAssetDetailsModal({
       // then continue async work in the background.
       onClose();
       try {
-        await onUseForClone(video);
+        await onUseForClone(currentVideo);
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to start clone flow";
@@ -150,11 +166,11 @@ export default function VideoAssetDetailsModal({
         window.sessionStorage.setItem(
           "preselect_competitor_ad",
           JSON.stringify({
-            videoId: video.id,
-            analysis: video.analysis_result,
-            language: video.analysis_language || "en",
-            videoUrl: video.video_cdn_url || null,
-            tiktokUrl: video.video_url || null,
+            videoId: currentVideo.id,
+            analysis: currentVideo.analysis_result,
+            language: currentVideo.analysis_language || "en",
+            videoUrl: currentVideo.video_cdn_url || null,
+            tiktokUrl: currentVideo.video_url || null,
           }),
         );
       }
@@ -172,13 +188,13 @@ export default function VideoAssetDetailsModal({
   };
 
   const handleUseInMotionSwap = () => {
-    if (!video) return;
+    if (!currentVideo) return;
 
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem(
         "preselect_motion_swap_video",
         JSON.stringify({
-          videoId: video.id,
+          videoId: currentVideo.id,
         }),
       );
     }
@@ -189,14 +205,14 @@ export default function VideoAssetDetailsModal({
   };
 
   const handleDeleteVideo = async () => {
-    if (!video || !onDeleteVideo || deletingVideoIds.has(video.id)) return;
+    if (!currentVideo || !onDeleteVideo || deletingVideoIds.has(currentVideo.id)) return;
 
     onClose();
 
     try {
-      setDeletingVideoIds((current) => new Set(current).add(video.id));
-      await onDeleteVideo(video);
-      onVideoDeleted?.(video.id);
+      setDeletingVideoIds((current) => new Set(current).add(currentVideo.id));
+      await onDeleteVideo(currentVideo);
+      onVideoDeleted?.(currentVideo.id);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to delete video";
@@ -204,15 +220,57 @@ export default function VideoAssetDetailsModal({
     } finally {
       setDeletingVideoIds((current) => {
         const next = new Set(current);
-        next.delete(video.id);
+        next.delete(currentVideo.id);
         return next;
       });
     }
   };
 
+  const handleUploadFirstFrame = async (file: File | null) => {
+    if (!file || !currentVideo?.id) return;
+
+    setIsUploadingFirstFrame(true);
+    setFirstFrameUploadError(null);
+
+    try {
+      if (!file.type.startsWith("image/")) {
+        throw new Error("Please upload an image file for the first frame.");
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(`/api/creator-videos/${currentVideo.id}/first-frame`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.video) {
+        throw new Error(data.error || "Failed to upload first frame image.");
+      }
+
+      const nextVideo = {
+        ...currentVideo,
+        ...data.video,
+      } as VideoAsset;
+
+      setCurrentVideo(nextVideo);
+      onVideoUpdated?.(nextVideo);
+      showSuccess("First frame uploaded. Motion Swap is now available.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to upload first frame image.";
+      setFirstFrameUploadError(message);
+      showError(message);
+    } finally {
+      setIsUploadingFirstFrame(false);
+    }
+  };
+
   return (
     <AnimatePresence>
-      {isOpen && video && (
+      {isOpen && currentVideo && (
         <motion.div
           className="assets-modal assets-video-details fixed inset-0 z-50 flex items-center justify-center p-4"
           initial={{ opacity: 0 }}
@@ -255,23 +313,69 @@ export default function VideoAssetDetailsModal({
             </div>
 
             <div className={`assets-modal-body grid min-h-0 flex-1 grid-cols-1 items-stretch gap-6 p-6 overflow-hidden ${isCompact ? "lg:grid-cols-[420px_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]"}`}>
-              <div className="min-h-0 h-full flex items-center justify-center">
-                <div className={`assets-video-details-preview bg-black/95 rounded-xl overflow-hidden aspect-[9/16] ${isCompact ? "w-full max-w-[380px] h-auto" : "h-full w-auto max-w-full"}`}>
-                  {video.video_cdn_url ? (
-                    <VideoPlayer
-                      src={video.video_cdn_url}
-                      className="w-full h-full object-contain"
-                      showControls
-                    />
-                  ) : (
-                    <div
-                      className={`assets-video-details-preview-empty flex h-full w-full items-center justify-center text-gray-400 ${
-                        isCompact ? "min-h-[320px]" : "aspect-[9/16]"
-                      }`}
-                    >
-                      Video unavailable
+              <div className={`grid min-h-0 h-full min-w-0 content-start items-start gap-4 overflow-hidden ${shouldShowFirstFramePanel ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1 justify-items-center"}`}>
+                {shouldShowFirstFramePanel ? (
+                  <label className={`assets-video-details-preview flex min-w-0 overflow-hidden justify-self-center rounded-xl border-2 border-dashed border-gray-300 bg-white transition-colors hover:border-gray-500 cursor-pointer ${previewCardClassName}`}>
+                    <div className="flex h-full w-full items-center justify-center overflow-hidden px-5 text-center">
+                      {currentVideo.cover_url ? (
+                        <img
+                          src={currentVideo.cover_url}
+                          alt="First frame"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center gap-3">
+                          <Upload className="w-5 h-5 text-gray-500" />
+                          {isUploadingFirstFrame ? (
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>Uploading first frame...</span>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-sm font-medium text-gray-800">First Frame</p>
+                              <p className="text-xs text-gray-500">Optional, required for Motion Swap</p>
+                            </>
+                          )}
+                          {firstFrameUploadError ? (
+                            <p className="max-w-[220px] text-xs text-red-500">{firstFrameUploadError}</p>
+                          ) : null}
+                        </div>
+                      )}
+                      <span className="sr-only">Upload first frame</span>
+                      <input
+                        ref={firstFrameInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={isUploadingFirstFrame}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] || null;
+                          void handleUploadFirstFrame(file);
+                          event.currentTarget.value = "";
+                        }}
+                      />
                     </div>
-                  )}
+                  </label>
+                ) : null}
+                <div className="min-h-0 flex items-start justify-center">
+                  <div className={`assets-video-details-preview bg-black/95 rounded-xl overflow-hidden ${previewCardClassName}`}>
+                    {currentVideo.video_cdn_url ? (
+                      <VideoPlayer
+                        src={currentVideo.video_cdn_url}
+                        className="w-full h-full object-cover"
+                        showControls
+                      />
+                    ) : (
+                      <div
+                        className={`assets-video-details-preview-empty flex h-full w-full items-center justify-center text-gray-400 ${
+                          isCompact ? "min-h-[320px]" : "aspect-[9/16]"
+                        }`}
+                      >
+                        Video unavailable
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -295,7 +399,7 @@ export default function VideoAssetDetailsModal({
                     </div>
                     <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5">
                       <Film className="h-4 w-4 shrink-0 text-gray-400" />
-                      <span className="font-medium text-gray-800">{getAnalysisShotCount(video.analysis_result || null) || "—"}</span>
+                      <span className="font-medium text-gray-800">{getAnalysisShotCount(currentVideo.analysis_result || null) || "—"}</span>
                     </div>
                     <div className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5">
                       <Tag className="h-4 w-4 shrink-0 text-gray-400" />
@@ -325,15 +429,15 @@ export default function VideoAssetDetailsModal({
                     </div>
                   ) : (
                     <div className="assets-video-details-alert rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500 space-y-3">
-                      {video?.analysis_status === "failed" ? (
+                      {currentVideo?.analysis_status === "failed" ? (
                         <>
                           <p className="text-red-600">
                             Analysis failed. Please retry by re-importing the
                             video.
                           </p>
-                          {video.analysis_error && (
+                          {currentVideo.analysis_error && (
                             <p className="text-xs text-red-500">
-                              {video.analysis_error}
+                              {currentVideo.analysis_error}
                             </p>
                           )}
                         </>
@@ -375,7 +479,7 @@ export default function VideoAssetDetailsModal({
                     <>
                       <button
                         onClick={handleUseInMotionSwap}
-                        disabled={!video.source_id}
+                        disabled={!currentVideo.source_id}
                         className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-black text-white rounded-lg border border-black hover:bg-gray-900 transition-all duration-200 group/btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <span className="font-medium flex items-center gap-2">

@@ -1,6 +1,5 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import Script from 'next/script';
 import {
   SparklesIcon,
   PlayCircleIcon,
@@ -17,6 +16,7 @@ import Footer from '@/components/layout/Footer';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
 
 const SITE_ASSET_BASE_URL = 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets';
+const CLONE_TUTORIAL_EMBED_URL = 'https://www.youtube.com/embed/BX5XLe3JbQ8?rel=0';
 
 // Helper function to convert credits to USD
 const creditsToUSD = (credits: number | string): string => {
@@ -114,37 +114,20 @@ export default function CompetitorUgcReplicationShowcasePage() {
             </div>
           </div>
 
-          {/* TikTok Embed */}
+          {/* Tutorial Video */}
           <div className="flex justify-center lg:justify-end">
-            <blockquote
-              className="tiktok-embed"
-              cite="https://www.tiktok.com/@laolilantian/video/7600702812682587400?lang=en"
-              data-video-id="7600702812682587400"
-              style={{ maxWidth: '605px', minWidth: '325px' }}
-            >
-              <section>
-                <a target="_blank" title="@laolilantian" href="https://www.tiktok.com/@laolilantian?refer=embed">
-                  @laolilantian
-                </a>{' '}
-                Watch how we quickly clone viral videos and swap products using our optimized tool. Adjust every frame and prompt in the editor for perfect results.{' '}
-                <a title="videoai" target="_blank" href="https://www.tiktok.com/tag/videoai?refer=embed">
-                  #VideoAI
-                </a>{' '}
-                <a title="contentcreation" target="_blank" href="https://www.tiktok.com/tag/contentcreation?refer=embed">
-                  #ContentCreation
-                </a>{' '}
-                <a title="productmarketing" target="_blank" href="https://www.tiktok.com/tag/productmarketing?refer=embed">
-                  #ProductMarketing
-                </a>{' '}
-                <a title="techdemo" target="_blank" href="https://www.tiktok.com/tag/techdemo?refer=embed">
-                  #TechDemo
-                </a>{' '}
-                <a target="_blank" title="♬ original sound  - Lantian laoli" href="https://www.tiktok.com/mus/original-sound-Lantian-laoli-7588830007134063381?refer=embed">
-                  ♬ original sound  - Lantian laoli
-                </a>
-              </section>
-            </blockquote>
-            <Script src="https://www.tiktok.com/embed.js" strategy="afterInteractive" />
+            <div className="w-full max-w-[605px] overflow-hidden rounded-[24px] border border-gray-200 bg-black shadow-[0_18px_40px_rgba(0,0,0,0.06)]">
+              <div className="aspect-video w-full">
+                <iframe
+                  className="h-full w-full"
+                  src={CLONE_TUTORIAL_EMBED_URL}
+                  title="Flowtra Viral Clone tutorial"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
+                />
+              </div>
+            </div>
           </div>
         </div>
       </section>

@@ -1134,7 +1134,7 @@ export default function MotionSwapPage() {
         >
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-            <Dialog.Content className="motion-swap-editor-dialog fixed left-[50%] top-[50%] z-50 h-[61vh] w-[calc(100vw-3rem)] max-w-[1680px] translate-x-[-50%] translate-y-[-50%] bg-background shadow-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] overflow-hidden rounded-2xl">
+            <Dialog.Content className="motion-swap-editor-dialog fixed left-[50%] top-[50%] z-50 flex h-[78dvh] min-h-[760px] max-h-[920px] w-[calc(100vw-3rem)] max-w-[1680px] translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-2xl bg-background shadow-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]">
               <div className="motion-swap-editor-header flex items-center justify-between border-b border-border px-5 py-2.5">
                 <div className="flex items-center gap-4">
                   <Dialog.Title className="motion-swap-editor-title text-lg font-semibold text-foreground">
@@ -1176,7 +1176,7 @@ export default function MotionSwapPage() {
                   </button>
                 </Dialog.Close>
               </div>
-              <div className="h-[calc(61vh-58px)]">
+              <div className="min-h-0 flex-1">
                 <MotionSwapEditorSplitPane
                   firstFrameUrl={displayFirstFramePreviewUrl}
                   originalVideoUrl={selectedVideo?.video_cdn_url || null}

@@ -5,27 +5,19 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, X, Loader2,
-  Image as ImageIcon, Film, User, MapPin, Zap, Palette,
-  Camera, Layout, Sun, Music, MessageSquare, Mic, RefreshCw, CheckCircle
+  Image as ImageIcon, Film, Coins, MessageSquare, RefreshCw, CheckCircle
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { countDialogueWords } from '@/lib/avatar-ads-dialogue';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
 
 // Define the shape of the structured video prompt
 export interface StructuredVideoPrompt {
-  subject?: string;
-  context_environment?: string;
-  action?: string;
-  style?: string;
-  camera_motion_positioning?: string;
-  composition?: string;
-  ambiance_color_lighting?: string;
-  audio?: string;
   dialog?: string;
-  voice_type?: string;
+  [key: string]: unknown;
 }
 
 // Define the shape of the project data for the inspector
@@ -39,9 +31,16 @@ interface InspectorProject {
     scenes: Array<{ prompt: StructuredVideoPrompt }>;
     language?: string;
   };
+  credits_cost?: number;
   status: string;
   current_step: string;
 }
+
+type MentionOption = {
+  id: string;
+  label: string;
+  imageUrl?: string | null;
+};
 
 interface AvatarAdInspectorProps {
   projectId: string;
@@ -50,46 +49,34 @@ interface AvatarAdInspectorProps {
   onConfirmGeneration: (projectId: string, updatedPrompts: any) => Promise<void>;
   onRefetchProjectStatus?: (projectId: string) => void; // ✅ Optional - no longer needed with Realtime
   onRegenerateImage: (projectId: string, imagePrompt: string) => Promise<void>;
+  characterMentions?: MentionOption[];
+  productMentions?: MentionOption[];
 }
 
-const FIELD_ORDER: Array<keyof StructuredVideoPrompt> = [
-  'subject',
-  'context_environment',
-  'action',
-  'style',
-  'camera_motion_positioning',
-  'composition',
-  'ambiance_color_lighting',
-  'audio',
-  'dialog',
-  'voice_type'
-];
+const normalizeScenePromptForEditor = (prompt: StructuredVideoPrompt | undefined | null): StructuredVideoPrompt => {
+  const dialog = typeof prompt?.dialog === 'string'
+    ? prompt.dialog
+    : typeof prompt?.dialogue === 'string'
+      ? String(prompt.dialogue)
+      : typeof prompt?.video_prompt === 'string'
+        ? String(prompt.video_prompt).replace('dialogue, the character in the video says: ', '').trim()
+        : '';
 
-const FIELD_LABELS: Record<keyof StructuredVideoPrompt, string> = {
-  subject: 'Subject',
-  context_environment: 'Context & Environment',
-  action: 'Action',
-  style: 'Style',
-  camera_motion_positioning: 'Camera Motion',
-  composition: 'Composition',
-  ambiance_color_lighting: 'Lighting & Ambiance',
-  audio: 'Audio',
-  dialog: 'Dialogue',
-  voice_type: 'Voice Type'
+  return { dialog };
 };
 
-const FIELD_ICONS: Record<keyof StructuredVideoPrompt, React.ElementType> = {
-  subject: User,
-  context_environment: MapPin,
-  action: Zap,
-  style: Palette,
-  camera_motion_positioning: Camera,
-  composition: Layout,
-  ambiance_color_lighting: Sun,
-  audio: Music,
-  dialog: MessageSquare,
-  voice_type: Mic
-};
+const buildDialogueOnlyPrompts = (
+  generatedPrompts: InspectorProject['generated_prompts'],
+  imagePrompt: string,
+  editedScenes: StructuredVideoPrompt[]
+) => ({
+  ...generatedPrompts,
+  image_prompt: imagePrompt,
+  scenes: generatedPrompts?.scenes.map((scene, index) => ({
+    ...scene,
+    prompt: normalizeScenePromptForEditor(editedScenes[index] || scene.prompt)
+  })) || []
+});
 
 export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   projectId,
@@ -97,6 +84,8 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   onClose,
   onConfirmGeneration,
   onRegenerateImage,
+  characterMentions = [],
+  productMentions = [],
 }) => {
   const supabase = useSupabaseBrowserClient();
   const { showSuccess, showError } = useToast();
@@ -215,7 +204,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
         setEditedImagePrompt(project.image_prompt);
       }
       if (project.generated_prompts?.scenes?.length) {
-        setEditedScenes(project.generated_prompts.scenes.map(scene => ({ ...scene.prompt })));
+        setEditedScenes(project.generated_prompts.scenes.map(scene => normalizeScenePromptForEditor(scene.prompt)));
       } else {
         setEditedScenes([]);
       }
@@ -267,7 +256,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   const handleFieldChange = useCallback((field: keyof StructuredVideoPrompt, value: string) => {
     setEditedScenes(prev => {
       const next = [...prev];
-      const fallback = project?.generated_prompts?.scenes?.[activeSceneIndex]?.prompt ?? {};
+      const fallback = normalizeScenePromptForEditor(project?.generated_prompts?.scenes?.[activeSceneIndex]?.prompt);
       const current = next[activeSceneIndex] ?? fallback;
       next[activeSceneIndex] = {
         ...current,
@@ -301,12 +290,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
     setAutoSaveStatus('saving');
     try {
       const updatedGeneratedPrompts = {
-        ...project.generated_prompts,
-        image_prompt: editedImagePrompt,
-        scenes: project.generated_prompts?.scenes.map((scene, index) => {
-          const editedPrompt = editedScenes[index];
-          return editedPrompt ? { ...scene, prompt: editedPrompt } : scene;
-        })
+        ...buildDialogueOnlyPrompts(project.generated_prompts, editedImagePrompt, editedScenes)
       };
 
       const response = await fetch(`/api/avatar-ads/${projectId}/update-prompts`, {
@@ -352,9 +336,8 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
     // Check if there are actual changes
     const imagePromptChanged = editedImagePrompt !== (project.image_prompt || '');
     const scenesChanged = editedScenes.some((editedScene, index) => {
-      const originalScene = project.generated_prompts?.scenes?.[index]?.prompt;
-      if (!originalScene) return true;
-      return JSON.stringify(editedScene) !== JSON.stringify(originalScene);
+      const originalScene = normalizeScenePromptForEditor(project.generated_prompts?.scenes?.[index]?.prompt);
+      return JSON.stringify(normalizeScenePromptForEditor(editedScene)) !== JSON.stringify(originalScene);
     });
 
     if (!imagePromptChanged && !scenesChanged) {
@@ -379,12 +362,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
     setSubmitting(true);
     try {
       const updatedGeneratedPrompts = {
-        ...project.generated_prompts,
-        image_prompt: editedImagePrompt,
-        scenes: project.generated_prompts?.scenes.map((scene, index) => {
-          const editedPrompt = editedScenes[index];
-          return editedPrompt ? { ...scene, prompt: editedPrompt } : scene;
-        })
+        ...buildDialogueOnlyPrompts(project.generated_prompts, editedImagePrompt, editedScenes)
       };
 
       await onConfirmGeneration(projectId, updatedGeneratedPrompts);
@@ -544,15 +522,17 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                               </p>
                             </div>
                           </div>
-                          <textarea
-                            rows={3}
-                            className={`avatar-ads-editor-textarea block w-full rounded-md border-gray-200 shadow-sm focus:border-black focus:ring-black text-sm resize-none p-3 transition-all duration-200 ${
-                              focusedField === 'image_prompt' ? 'h-32 bg-gray-50' : 'bg-white'
-                            }`}
+                          <PromptMentionTextarea
                             value={editedImagePrompt}
-                            onChange={(e) => handleImagePromptChange(e.target.value)}
-                            onFocus={() => setFocusedField('image_prompt')}
-                            onBlur={() => setFocusedField(null)}
+                            onChange={handleImagePromptChange}
+                            rows={3}
+                            resizable="vertical"
+                            characterMentions={characterMentions}
+                            productMentions={productMentions}
+                            className={`avatar-ads-editor-textarea text-sm p-3 transition-all duration-200 ${
+                              focusedField === 'image_prompt' ? 'min-h-32 bg-gray-50' : 'min-h-[88px] bg-white'
+                            }`}
+                            preventHorizontalScroll
                             placeholder="Describe the character and setting..."
                           />
                         </div>
@@ -565,10 +545,10 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                              <div className="space-y-0.5">
                                <div className="avatar-ads-editor-section-title flex items-center gap-2 text-sm font-semibold text-gray-900">
                                  <Film className="w-4 h-4" />
-                                 Video Prompts
+                                 Scene Dialogue
                                </div>
                                <p className="avatar-ads-editor-helper text-[11px] text-gray-500 pl-6">
-                                 Please check and modify to meet expectations.
+                                 Edit what the character says in each segment.
                                </p>
                              </div>
                            </div>
@@ -604,45 +584,42 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                              <p className="avatar-ads-editor-helper text-sm text-gray-400 italic">No scenes to edit.</p>
                            ) : (
                              <div className="grid grid-cols-1 gap-4">
-                               {FIELD_ORDER.map((field) => {
-                                  const Icon = FIELD_ICONS[field];
-                                  const isFocused = focusedField === field;
-                                  const fieldValue = activeScenePrompt?.[field] || '';
+                               {(() => {
+                                 const field = 'dialog' as const;
+                                 const isFocused = focusedField === field;
+                                 const fieldValue = activeScenePrompt?.dialog || '';
+                                 const dialogueWordCount = countDialogueWords(fieldValue);
+                                 const dialogueWarning = dialogueWordCount > 0 && dialogueWordCount < 17
+                                   ? `Only ${dialogueWordCount} words. Recommended: 17-20 words per 8-second segment to avoid pauses.`
+                                   : null;
 
-                                    // Dialogue validation
-                                    const isDialogField = field === 'dialog';
-                                    const dialogueWordCount = isDialogField ? countDialogueWords(fieldValue) : 0;
-                                    const dialogueWarning = isDialogField && dialogueWordCount > 0 && dialogueWordCount < 17
-                                      ? `⚠️ Only ${dialogueWordCount} words. Recommended: 17-20 words per 8-second segment to avoid pauses.`
-                                      : null;
-
-                                    return (
-                                      <div key={field} className="avatar-ads-editor-field group space-y-1.5">
-                                        <label
-                                          htmlFor={`field_${field}`}
-                                          className="avatar-ads-editor-label flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wider group-focus-within:text-black transition-colors"
-                                        >
-                                          <Icon className="w-3.5 h-3.5" />
-                                          {FIELD_LABELS[field]}
-                                        </label>
-                                        <textarea
-                                          id={`field_${field}`}
-                                          className={`avatar-ads-editor-textarea block w-full rounded-md border-gray-200 shadow-sm focus:border-black focus:ring-black text-sm resize-none p-3 transition-all duration-200 ${
-                                            isFocused ? 'h-32 bg-gray-50' : 'h-10 bg-white overflow-hidden'
-                                          }`}
-                                          value={fieldValue}
-                                          onChange={(e) => handleFieldChange(field, e.target.value)}
-                                          onFocus={() => setFocusedField(field)}
-                                          onBlur={() => setFocusedField(null)}
-                                        />
-                                        {dialogueWarning && (
-                                          <p className="avatar-ads-editor-warning text-[11px] text-amber-600 mt-1">
-                                            {dialogueWarning}
-                                          </p>
-                                        )}
-                                      </div>
-                                    );
-                                 })}
+                                 return (
+                                   <div key={field} className="avatar-ads-editor-field group space-y-1.5">
+                                     <label
+                                       htmlFor={`field_${field}`}
+                                       className="avatar-ads-editor-label flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wider group-focus-within:text-black transition-colors"
+                                     >
+                                       <MessageSquare className="w-3.5 h-3.5" />
+                                       Dialogue
+                                     </label>
+                                     <textarea
+                                       id={`field_${field}`}
+                                       className={`avatar-ads-editor-textarea block w-full rounded-md border-gray-200 shadow-sm focus:border-black focus:ring-black text-sm resize-y p-3 transition-all duration-200 ${
+                                         isFocused ? 'min-h-32 bg-gray-50' : 'min-h-[96px] bg-white'
+                                       }`}
+                                       value={fieldValue}
+                                       onChange={(e) => handleFieldChange(field, e.target.value)}
+                                       onFocus={() => setFocusedField(field)}
+                                       onBlur={() => setFocusedField(null)}
+                                     />
+                                     {dialogueWarning && (
+                                       <p className="avatar-ads-editor-warning text-[11px] text-amber-600 mt-1">
+                                         {dialogueWarning}
+                                       </p>
+                                     )}
+                                   </div>
+                                 );
+                               })()}
                               </div>
                             )}
                            </div>
@@ -682,8 +659,9 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                     <>
                       <Film className="w-4 h-4" />
                       Generate Video
-                      <span className="ml-1 inline-flex items-center rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
-                        FREE
+                      <span className="ml-1 inline-flex items-center gap-1 rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                        <Coins className="h-3 w-3" />
+                        {project?.credits_cost ?? 0}
                       </span>
                     </>
                   )}

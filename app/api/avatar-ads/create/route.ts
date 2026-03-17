@@ -3,12 +3,13 @@ import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
 import { uploadImageToStorage } from '@/lib/supabase';
-import { CREDIT_COSTS, NON_AGENT_IMAGE_MODEL } from '@/lib/constants';
+import { CREDIT_COSTS } from '@/lib/constants';
 import { validateKieCredits } from '@/lib/kie-credits-check';
 import { deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { AVATAR_ADS_DURATION_OPTIONS } from '@/lib/avatar-ads-dialogue';
 
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+const AVATAR_ADS_PERSISTED_IMAGE_MODEL = 'nano_banana_pro' as const;
 
 export async function POST(request: NextRequest) {
   try {
@@ -232,7 +233,6 @@ export async function POST(request: NextRequest) {
       productImageUrls.push(uploadResult.publicUrl);
     }
 
-    const resolvedImageModel = NON_AGENT_IMAGE_MODEL;
     const resolvedVideoModel = 'veo3_fast' as const;
 
     const sceneUnitSeconds = 8;
@@ -244,7 +244,9 @@ export async function POST(request: NextRequest) {
 
     // Create project in database
     const supabase = await createServerUserSupabaseClient();
-    // Schema verified via Supabase MCP (2026-02-27): avatar_ads_projects includes image_model and nullable image_size.
+    // Schema verified via Supabase MCP (2026-03-17):
+    // avatar_ads_projects.image_model exists and constraint long_video_projects_image_model_check
+    // only allows: nano_banana, seedream, nano_banana_pro.
     const projectInsert: Record<string, unknown> = {
       user_id: userId,
       person_image_urls: personImageUrls,
@@ -252,7 +254,7 @@ export async function POST(request: NextRequest) {
       selected_product_id: selectedProductId && !selectedProductId.startsWith('temp') ? selectedProductId : null,
       product_context: productContext,
       video_duration_seconds: videoDurationSeconds,
-      image_model: resolvedImageModel,
+      image_model: AVATAR_ADS_PERSISTED_IMAGE_MODEL,
       video_model: resolvedVideoModel,
       video_aspect_ratio: normalizedAspectRatio,
       image_size: enforcedImageSize,
