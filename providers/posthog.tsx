@@ -4,13 +4,15 @@ import { Suspense, useEffect } from 'react'
 import { useUser } from '@clerk/nextjs'
 import posthog from 'posthog-js'
 import { identifyUser } from '@/lib/analytics/client'
+import { useCookieConsent } from '@/providers/cookie-consent'
 
 function PostHogRuntimeInner() {
   const { user } = useUser()
+  const { analyticsEnabled } = useCookieConsent()
 
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY
-    if (typeof window === 'undefined' || !apiKey) {
+    if (typeof window === 'undefined' || !apiKey || !analyticsEnabled) {
       return
     }
 
@@ -113,10 +115,20 @@ function PostHogRuntimeInner() {
       cleanup?.()
       window.clearTimeout(timeout)
     }
-  }, [])
+  }, [analyticsEnabled])
 
   useEffect(() => {
-    if (!user) {
+    if (!analyticsEnabled) {
+      posthog.opt_out_capturing()
+      posthog.stopSessionRecording()
+      return
+    }
+
+    posthog.opt_in_capturing()
+  }, [analyticsEnabled])
+
+  useEffect(() => {
+    if (!user || !analyticsEnabled) {
       return
     }
 
@@ -125,7 +137,7 @@ function PostHogRuntimeInner() {
       firstName: user.firstName ?? undefined,
       lastName: user.lastName ?? undefined,
     })
-  }, [user])
+  }, [analyticsEnabled, user])
 
   return null
 }

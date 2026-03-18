@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import Script from 'next/script';
 import { ClerkProvider } from '@clerk/nextjs';
 import { DeferredAnalytics } from '@/components/analytics/DeferredAnalytics';
+import { CookieConsentManager } from '@/components/consent/CookieConsentManager';
+import { CookieConsentProvider } from '@/providers/cookie-consent';
 import { ToastProvider } from '@/contexts/ToastContext';
 import "@fontsource/plus-jakarta-sans/400.css";
 import "@fontsource/plus-jakarta-sans/500.css";
@@ -232,22 +233,13 @@ export default function RootLayout({
           />
         </head>
         <body className="font-sans antialiased">
-          <Script
-            src="https://www.googletagmanager.com/gtag/js?id=G-CP7HSQFTCP"
-            strategy="lazyOnload"
-          />
-          <Script id="google-analytics" strategy="lazyOnload">
-            {`
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              gtag('config', 'G-CP7HSQFTCP');
-            `}
-          </Script>
-          <ToastProvider>
-            {children}
-          </ToastProvider>
-          <DeferredAnalytics />
+          <CookieConsentProvider>
+            <ToastProvider>
+              {children}
+            </ToastProvider>
+            <CookieConsentManager />
+            <DeferredAnalytics />
+          </CookieConsentProvider>
         </body>
       </html>
     </ClerkProvider>

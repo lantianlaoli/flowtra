@@ -10,7 +10,7 @@ export default function PrivacyPage() {
           <h1 className="text-4xl font-bold text-gray-900 mb-8">Privacy Policy</h1>
           
           <div className="text-sm text-gray-500 mb-8">
-            Last updated: January 2025
+            Last updated: March 2026
           </div>
 
           <section className="mb-8">
@@ -90,7 +90,13 @@ export default function PrivacyPage() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">8. Cookies and Tracking Technologies</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              We use cookies and similar technologies to provide and improve our services, analyze usage, and deliver personalized content. You can control cookie preferences through your browser settings.
+              We use strictly necessary cookies to keep Flowtra secure and functional, including cookies required for authentication, account sessions, and fraud prevention.
+            </p>
+            <p className="text-gray-600 leading-relaxed mb-4">
+              We also use optional analytics and performance technologies, including Google Analytics, PostHog, Vercel Analytics, and Vercel Speed Insights, to understand site usage, diagnose issues, and improve the product. These optional analytics tools load only after you give consent through our cookie banner or cookie settings controls.
+            </p>
+            <p className="text-gray-600 leading-relaxed mb-4">
+              You can change your cookie preferences at any time using the Cookie settings control available on the site.
             </p>
           </section>
 
