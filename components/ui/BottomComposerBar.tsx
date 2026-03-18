@@ -99,12 +99,13 @@ export default function BottomComposerBar({
               data-generating={isGenerating}
               className={`
                 bottom-composer-generate
-                rounded-[20px] flex items-center justify-center gap-2 px-6 h-12 cursor-pointer
-                font-semibold text-sm whitespace-nowrap min-w-[140px]
+                my-ads-button ${!isButtonDisabled ? 'my-ads-button--primary' : ''}
+                rounded-[24px] flex items-center justify-center gap-2 px-6 h-14 cursor-pointer
+                font-semibold text-sm whitespace-nowrap min-w-[160px]
                 transition-all duration-200
                 ${!isButtonDisabled
-                  ? 'bg-black hover:bg-black/90 text-white shadow-sm'
-                  : 'bg-[#F7F7F7] text-[#999999] cursor-not-allowed border border-[#E5E5E5]'
+                  ? 'border border-black bg-black text-white'
+                  : 'bg-[#F7F7F7] text-[#999999] cursor-not-allowed border border-[#E5E5E5] shadow-none'
                 }
               `}
             >

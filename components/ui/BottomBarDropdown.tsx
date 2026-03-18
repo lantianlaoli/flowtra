@@ -48,19 +48,19 @@ export default function BottomBarDropdown({
         disabled={disabled}
         data-open={open}
         className={cn(
-          'bottom-bar-dropdown-trigger flex items-center justify-between gap-3 h-12 px-3 border border-gray-200 rounded-[20px] bg-white text-gray-700 transition-colors hover:border-black disabled:cursor-not-allowed disabled:opacity-60',
+          'bottom-bar-dropdown-trigger my-ads-button my-ads-button--secondary flex h-14 items-center justify-between gap-3 rounded-[26px] border border-[#dfdfd9] bg-white px-4 text-gray-700 transition-all disabled:cursor-not-allowed disabled:opacity-60',
           triggerClassName
         )}
       >
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {trigger}
         </div>
-        <ChevronDown className={cn('w-4 h-4 text-gray-400 transition-transform', open && 'rotate-180')} />
+        <ChevronDown className={cn('h-4 w-4 text-[#8a8a84] transition-transform', open && 'rotate-180')} />
       </button>
       {open && (
         <div
           className={cn(
-            'bottom-bar-dropdown-panel absolute bottom-14 left-0 bg-white border border-gray-200 rounded-[20px] shadow-lg p-3',
+            'bottom-bar-dropdown-panel absolute bottom-16 left-0 rounded-[28px] border border-[#e4e4df] bg-white p-3 shadow-[0_22px_48px_rgba(15,23,42,0.12)]',
             panelWidthClassName,
             panelClassName
           )}

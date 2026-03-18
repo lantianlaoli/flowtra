@@ -319,11 +319,11 @@ export default function ConfigPopover({
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
         className={cn(
-          'config-popover-button h-12 px-4 rounded-[20px] border flex items-center gap-2 transition-all duration-200 bg-white outline-none',
+          'config-popover-button my-ads-button my-ads-button--secondary h-14 rounded-[24px] border border-[#dfdfd9] bg-white px-5 flex items-center gap-2 transition-all duration-200 outline-none',
           disabled
             ? 'bg-[#F7F7F7] border-[#E5E5E5] text-[#999999] cursor-not-allowed'
-            : 'border-[#E5E5E5] hover:border-[#CCCCCC] text-black shadow-sm',
-          isOpen ? 'border-black ring-1 ring-black' : ''
+            : 'text-black',
+          isOpen ? 'border-black ring-1 ring-black/10' : ''
         )}
         aria-label="Open configuration"
         title="Advanced configuration"

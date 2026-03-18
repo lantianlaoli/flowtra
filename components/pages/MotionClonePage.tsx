@@ -45,6 +45,9 @@ interface MotionCloneVideo {
   cover_url?: string | null;
   description?: string | null;
   duration_seconds?: number | null;
+  analysis_result?: Record<string, unknown> | null;
+  analysis_language?: string | null;
+  source_name?: string | null;
   stats?: Record<string, unknown> | null;
   source_id?: string | null;
 }

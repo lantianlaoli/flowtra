@@ -1118,32 +1118,37 @@ const formatDurationLabel = (seconds: number) => {
               <BottomBarDropdown
                 open={personDropdownOpen}
                 onOpenChange={setPersonDropdownOpen}
-                triggerClassName="w-[180px]"
-                panelWidthClassName="w-[320px]"
+                triggerClassName="min-w-[200px] sm:min-w-[232px]"
+                panelWidthClassName="w-[280px] sm:w-[300px]"
                 disabled={isLoadingAssets || avatarOptions.length === 0}
                 trigger={
                   <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-muted border border-border flex items-center justify-center overflow-hidden">
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-[#d8d8d3] bg-[#f6f6f3]">
                       {selectedAvatar?.photo_url ? (
                         <Image
                           src={selectedAvatar.photo_url}
                           alt={selectedAvatar.avatar_name}
-                          width={32}
-                          height={32}
+                          width={44}
+                          height={44}
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <User className="w-4 h-4 text-muted-foreground" />
+                        <User className="h-4 w-4 text-[#7a7a74]" />
                       )}
                     </div>
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                      {selectedAvatar?.avatar_name || 'Select character'}
-                    </p>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold tracking-tight text-black">
+                        {selectedAvatar?.avatar_name || 'Select character'}
+                      </p>
+                      <p className="mt-0.5 text-xs text-[#7a7a74]">
+                        {selectedAvatar ? 'Character ready' : 'Choose the on-screen character'}
+                      </p>
+                    </div>
                   </div>
                 }
               >
                 {avatarOptions.length > 0 ? (
-                  <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                  <div className="max-h-[340px] space-y-2 overflow-y-auto pr-1">
                     {avatarOptions.map((avatar) => (
                       <button
                         key={avatar.id}
@@ -1152,14 +1157,14 @@ const formatDurationLabel = (seconds: number) => {
                           setSelectedPersonPhotoUrl(avatar.photo_url);
                           setPersonDropdownOpen(false);
                         }}
-                        className={`w-full rounded-lg border p-2 text-left transition-colors ${
+                        className={`w-full rounded-[20px] border px-3 py-2.5 text-left transition-all ${
                           selectedPersonPhotoUrl === avatar.photo_url
-                            ? 'border-foreground bg-muted'
-                            : 'border-border hover:border-foreground'
+                            ? 'border-black bg-[#f8f8f5] shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_2px_0_rgba(232,232,228,0.98)]'
+                            : 'border-[#e1e1dc] bg-white hover:border-black/45 hover:bg-[#fcfcfa]'
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="h-12 w-12 rounded-md bg-muted border border-border overflow-hidden">
+                          <div className="h-12 w-12 overflow-hidden rounded-[15px] border border-[#d8d8d3] bg-[#f4f4f1]">
                             <Image
                               src={avatar.photo_url}
                               alt={avatar.avatar_name}
@@ -1168,10 +1173,13 @@ const formatDurationLabel = (seconds: number) => {
                               className="h-full w-full object-cover"
                             />
                           </div>
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{avatar.avatar_name}</p>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold tracking-tight text-black">{avatar.avatar_name}</p>
                             {avatar.isSystem && (
-                              <p className="text-xs text-muted-foreground">System avatar</p>
+                              <p className="mt-0.5 text-xs text-[#7a7a74]">System avatar</p>
+                            )}
+                            {!avatar.isSystem && (
+                              <p className="mt-0.5 text-xs text-[#7a7a74]">Custom character</p>
                             )}
                           </div>
                         </div>
@@ -1186,51 +1194,56 @@ const formatDurationLabel = (seconds: number) => {
               <BottomBarDropdown
                 open={productDropdownOpen}
                 onOpenChange={setProductDropdownOpen}
-                triggerClassName="min-w-[180px]"
-                panelWidthClassName="w-[320px]"
+                triggerClassName="min-w-[220px] sm:min-w-[260px]"
+                panelWidthClassName="w-[320px] sm:w-[360px]"
                 disabled={isLoadingAssets || productOptions.length === 0}
                 trigger={
                   <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-muted border border-border flex items-center justify-center overflow-hidden">
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-[#d8d8d3] bg-[#f6f6f3]">
                       {primaryProductPhoto ? (
                         <Image
                           src={primaryProductPhoto}
                           alt={selectedProductName || 'Product'}
-                          width={32}
-                          height={32}
+                          width={44}
+                          height={44}
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <ShoppingBag className="w-4 h-4 text-muted-foreground" />
+                        <ShoppingBag className="h-4 w-4 text-[#7a7a74]" />
                       )}
                     </div>
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                      {selectedProductName || 'Select product'}
-                    </p>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold tracking-tight text-black">
+                        {selectedProductName || 'Select product'}
+                      </p>
+                      <p className="mt-0.5 text-xs text-[#7a7a74]">
+                        {selectedProduct ? 'Product linked' : 'Optional product context'}
+                      </p>
+                    </div>
                   </div>
                 }
               >
                 {productOptions.length > 0 ? (
-                  <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                  <div className="max-h-[340px] space-y-2 overflow-y-auto pr-1">
                     <button
                       type="button"
                       onClick={() => {
                         setSelectedProduct(null);
                         setProductDropdownOpen(false);
                       }}
-                      className={`w-full rounded-lg border p-2 text-left transition-colors ${
+                      className={`w-full rounded-[22px] border px-3 py-3 text-left transition-all ${
                         !selectedProduct
-                          ? 'border-foreground bg-muted'
-                          : 'border-border hover:border-foreground'
+                          ? 'border-black bg-[#f8f8f5] shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_2px_0_rgba(232,232,228,0.98)]'
+                          : 'border-[#e1e1dc] bg-white hover:border-black/45 hover:bg-[#fcfcfa]'
                       }`}
                       >
                       <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-md bg-muted border border-border flex items-center justify-center">
-                          <ShoppingBag className="w-4 h-4 text-muted-foreground" />
+                        <div className="flex h-14 w-14 items-center justify-center rounded-[16px] border border-[#d8d8d3] bg-[#f4f4f1]">
+                          <ShoppingBag className="h-4 w-4 text-[#7a7a74]" />
                         </div>
-                        <div>
-                          <p className="text-sm font-medium text-foreground">No product (talking head)</p>
-                          <p className="text-xs text-muted-foreground">Skip product context</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[15px] font-semibold tracking-tight text-black">No product</p>
+                          <p className="mt-1 text-xs text-[#7a7a74]">Talking-head mode without product context</p>
                         </div>
                       </div>
                     </button>
@@ -1244,28 +1257,29 @@ const formatDurationLabel = (seconds: number) => {
                             setSelectedProduct(product);
                             setProductDropdownOpen(false);
                           }}
-                          className={`w-full rounded-lg border p-2 text-left transition-colors ${
+                          className={`w-full rounded-[22px] border px-3 py-3 text-left transition-all ${
                             selectedProduct?.id === product.id
-                              ? 'border-foreground bg-muted'
-                              : 'border-border hover:border-foreground'
+                              ? 'border-black bg-[#f8f8f5] shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_2px_0_rgba(232,232,228,0.98)]'
+                              : 'border-[#e1e1dc] bg-white hover:border-black/45 hover:bg-[#fcfcfa]'
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <div className="h-12 w-16 rounded-md bg-muted border border-border flex items-center justify-center overflow-hidden">
+                            <div className="flex h-14 w-[72px] items-center justify-center overflow-hidden rounded-[16px] border border-[#d8d8d3] bg-[#f4f4f1]">
                               {cover ? (
                                 <Image
                                   src={cover}
                                   alt={product.product_name || 'Product'}
-                                  width={64}
-                                  height={48}
+                                  width={72}
+                                  height={56}
                                   className="h-full w-full object-cover"
                                 />
                               ) : (
-                                <ShoppingBag className="w-4 h-4 text-muted-foreground" />
+                                <ShoppingBag className="h-4 w-4 text-[#7a7a74]" />
                               )}
                             </div>
-                            <div>
-                              <p className="text-sm font-medium text-foreground">{product.product_name || 'Untitled product'}</p>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-[15px] font-semibold tracking-tight text-black">{product.product_name || 'Untitled product'}</p>
+                              <p className="mt-1 text-xs text-[#7a7a74]">Product context for script and visuals</p>
                             </div>
                           </div>
                         </button>

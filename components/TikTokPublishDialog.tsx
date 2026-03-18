@@ -37,6 +37,71 @@ interface CreatorInfo {
   cannotPostReason?: string;
 }
 
+const panelCardClasses =
+  'rounded-[28px] border border-black/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(250,250,250,0.98)_100%)] p-5 shadow-[0_1px_0_rgba(255,255,255,0.9)_inset,0_14px_34px_rgba(15,23,42,0.06)]';
+
+const inputShellClasses =
+  'w-full rounded-[22px] border border-[#d9d9d4] bg-white px-4 py-3.5 text-[15px] text-black shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_2px_0_rgba(232,232,228,0.98)] transition-[border-color,box-shadow,transform] duration-150 placeholder:text-[#8a8a85] focus:border-black/30 focus:outline-none focus:ring-0 focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_1px_0_rgba(232,232,228,0.98)]';
+
+function TikTokGlyph({ className }: { className?: string }) {
+  return (
+    <svg
+      className={cn('fill-current', className)}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+    </svg>
+  );
+}
+
+interface ToggleChipProps {
+  label: string;
+  description?: string;
+  checked: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
+}
+
+function ToggleChip({ label, description, checked, disabled = false, onToggle }: ToggleChipProps) {
+  return (
+    <button
+      type="button"
+      aria-pressed={checked}
+      disabled={disabled}
+      onClick={onToggle}
+      className={cn(
+        'my-ads-button my-ads-button--secondary flex min-h-[88px] w-full items-start justify-between rounded-[24px] border px-4 py-4 text-left transition-all',
+        checked
+          ? 'border-black bg-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_0_rgba(58,58,58,0.92),0_12px_20px_rgba(0,0,0,0.12)]'
+          : 'border-[#dfdfd9] bg-white text-black',
+        disabled && 'cursor-not-allowed opacity-45'
+      )}
+    >
+      <div className="pr-3">
+        <p className={cn('text-sm font-semibold tracking-tight', checked ? 'text-white' : 'text-black')}>
+          {label}
+        </p>
+        {description ? (
+          <p className={cn('mt-1 text-xs leading-relaxed', checked ? 'text-white/72' : 'text-[#6f6f69]')}>
+            {description}
+          </p>
+        ) : null}
+      </div>
+      <span
+        className={cn(
+          'mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border transition-colors',
+          checked
+            ? 'border-white/18 bg-white text-black'
+            : 'border-[#d2d2cc] bg-[#f7f7f4] text-transparent'
+        )}
+      >
+        <Check className="h-3.5 w-3.5" />
+      </span>
+    </button>
+  );
+}
+
 export default function TikTokPublishDialog({
   isOpen,
   onClose,
@@ -365,44 +430,37 @@ export default function TikTokPublishDialog({
       {!inline && status !== 'uploading' && status !== 'processing' && (
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors z-10"
+          className="my-ads-button my-ads-button--secondary absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-[#dfdfd9] bg-white text-[#63635e]"
           aria-label="Close dialog"
         >
-          <X className="w-4 h-4 text-gray-500" />
+          <X className="h-4 w-4" />
         </button>
       )}
 
       {/* Content */}
       <div className={inline ? "p-0" : "p-6"}>
         {inline && (
-          <div className="mb-4">
-            <h3 id="dialog-title" className="text-xl font-bold text-gray-900">Post to TikTok</h3>
-            <p className="text-sm text-gray-500 mt-0.5">Share your video with the world</p>
+          <div className="mb-5">
+            <h3 id="dialog-title" className="text-[2rem] font-semibold tracking-[-0.03em] text-black">Post to TikTok</h3>
+            <p className="mt-1 text-[15px] text-[#6f6f69]">Polish your caption, privacy, and interaction settings before posting.</p>
           </div>
         )}
               {/* Title with TikTok branding */}
               {!inline && (
-                <div className="flex items-center gap-3 mb-6">
-                <div className="relative w-12 h-12 rounded-xl bg-black flex items-center justify-center overflow-hidden">
+                <div className="mb-6 flex items-center gap-3">
+                <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-[18px] bg-black">
                   {/* Animated gradient background */}
                   <div className="absolute inset-0 bg-gradient-to-br from-[#00f2ea] via-[#ff0050] to-[#00f2ea] opacity-20 animate-tiktok-shimmer bg-[length:200%_200%]" />
-
-                  {/* TikTok icon */}
-                  <svg
-                    className="w-7 h-7 fill-white relative z-10"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
-                  </svg>
+                  <TikTokGlyph className="relative z-10 h-7 w-7 text-white" />
                 </div>
                 <div>
                   <h3
                     id="dialog-title"
-                    className="text-xl font-bold text-gray-900"
+                    className="text-xl font-semibold tracking-tight text-black"
                   >
                     Post to TikTok
                   </h3>
-                  <p className="text-sm text-gray-500 mt-0.5">Share your video with the world</p>
+                  <p className="mt-0.5 text-sm text-[#6f6f69]">Refine the post details and publish from one clean panel.</p>
                 </div>
               </div>
               )}
@@ -520,9 +578,9 @@ export default function TikTokPublishDialog({
               {status === 'idle' && (
                 <div className="space-y-5">
                   {/* Creator Info */}
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <div className={cn(panelCardClasses, 'overflow-hidden')}>
                     {creatorInfoLoading ? (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <div className="flex items-center gap-2 text-sm text-[#6f6f69]">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Loading TikTok creator info...
                       </div>
@@ -532,29 +590,44 @@ export default function TikTokPublishDialog({
                         <span>{creatorInfoError}</span>
                       </div>
                     ) : creatorInfo ? (
-                      <div className="flex items-center gap-3">
-                        {creatorInfo.creatorAvatarUrl ? (
-                          <Image
-                            src={creatorInfo.creatorAvatarUrl}
-                            alt={creatorInfo.creatorNickname || 'TikTok creator'}
-                            width={40}
-                            height={40}
-                            className="h-10 w-10 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="h-10 w-10 rounded-full bg-black/10" />
-                        )}
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-gray-900">
-                            Posting as {creatorInfo.creatorNickname || 'TikTok creator'}
-                          </p>
-                          {creatorInfo.creatorUsername && (
-                            <p className="text-xs text-gray-500">@{creatorInfo.creatorUsername}</p>
-                          )}
-                          {typeof creatorInfo.maxVideoPostDurationSec === 'number' && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Max video length: {creatorInfo.maxVideoPostDurationSec}s
+                      <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+                        <div className="flex items-center gap-4">
+                          <div className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-[20px] bg-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_0_rgba(58,58,58,0.92)]">
+                            <div className="absolute inset-0 bg-gradient-to-br from-[#00f2ea] via-[#ff0050] to-[#00f2ea] opacity-15" />
+                            {creatorInfo.creatorAvatarUrl ? (
+                              <Image
+                                src={creatorInfo.creatorAvatarUrl}
+                                alt={creatorInfo.creatorNickname || 'TikTok creator'}
+                                width={56}
+                                height={56}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <TikTokGlyph className="relative z-10 h-6 w-6" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7b7b75]">
+                              Connected account
                             </p>
+                            <p className="mt-1 text-lg font-semibold tracking-tight text-black">
+                              {creatorInfo.creatorNickname || 'TikTok creator'}
+                            </p>
+                            {creatorInfo.creatorUsername && (
+                              <p className="mt-0.5 text-sm text-[#6f6f69]">@{creatorInfo.creatorUsername}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                          <div className="rounded-[22px] border border-black/8 bg-white/88 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_2px_0_rgba(232,232,228,0.9)]">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7b7b75]">Publish status</p>
+                            <p className="mt-1 text-sm font-semibold text-black">{creatorInfo.canPost ? 'Ready to post' : 'Posting unavailable'}</p>
+                          </div>
+                          {typeof creatorInfo.maxVideoPostDurationSec === 'number' && (
+                            <div className="rounded-[22px] border border-black/8 bg-white/88 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_2px_0_rgba(232,232,228,0.9)]">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7b7b75]">Account limit</p>
+                              <p className="mt-1 text-sm font-semibold text-black">{creatorInfo.maxVideoPostDurationSec}s max length</p>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -593,167 +666,164 @@ export default function TikTokPublishDialog({
                   )}
 
                   {formError && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                    <div className="rounded-[22px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
                       {formError}
                     </div>
                   )}
 
-                  {/* Title */}
-                  <div>
-                    <label htmlFor="title" className="block text-sm font-semibold text-gray-900 mb-2">
-                      Video Title <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      id="title"
-                      type="text"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="Make it catchy..."
-                      maxLength={150}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-black focus:border-black transition-all text-sm"
-                    />
-                    <div className="flex items-center justify-between mt-1.5">
-                      <p className="text-xs text-gray-500">
-                        Create an engaging title for your video
-                      </p>
-                      <p className={cn(
-                        "text-xs font-medium",
-                        title.length > 140 ? "text-orange-600" : "text-gray-400"
-                      )}>
-                        {title.length}/150
-                      </p>
+                  <div className={panelCardClasses}>
+                    <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+                      <div>
+                        <label htmlFor="title" className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6f6f69]">
+                          Video title <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          id="title"
+                          type="text"
+                          value={title}
+                          onChange={(e) => setTitle(e.target.value)}
+                          placeholder="Write a sharp, scroll-stopping caption..."
+                          maxLength={150}
+                          className={inputShellClasses}
+                        />
+                        <div className="mt-2 flex items-center justify-between gap-3">
+                          <p className="text-xs leading-relaxed text-[#6f6f69]">
+                            Keep it crisp, readable, and native to how TikTok captions feel.
+                          </p>
+                          <p className={cn(
+                            'text-xs font-semibold tabular-nums',
+                            title.length > 140 ? 'text-orange-600' : 'text-[#9a9a94]'
+                          )}>
+                            {title.length}/150
+                          </p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label htmlFor="privacy" className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6f6f69]">
+                          Privacy <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          id="privacy"
+                          value={privacyLevel || ''}
+                          onChange={(e) => setPrivacyLevel(e.target.value as PrivacyLevel)}
+                          className={cn(inputShellClasses, 'appearance-none bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(249,249,247,1)_100%)]')}
+                        >
+                          <option value="" disabled>
+                            Select privacy
+                          </option>
+                          {privacyOptions.map((option) => (
+                            <option
+                              key={option}
+                              value={option}
+                              disabled={disabledPrivacyOptions.has(option)}
+                              title={disabledPrivacyOptions.has(option) && option === 'SELF_ONLY'
+                                ? 'Branded content visibility cannot be set to private.'
+                                : undefined}
+                            >
+                              {privacyLabelMap[option] || option}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="mt-2 text-xs leading-relaxed text-[#6f6f69]">
+                          Choose who can see the post once TikTok finishes processing it.
+                        </p>
+                        {brandedContentSelected && (
+                          <p className="mt-2 text-xs font-medium text-red-600">
+                            Branded content visibility cannot be set to private.
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Privacy */}
-                  <div>
-                    <label htmlFor="privacy" className="block text-sm font-semibold text-gray-900 mb-2">
-                      Privacy <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      id="privacy"
-                      value={privacyLevel || ''}
-                      onChange={(e) => setPrivacyLevel(e.target.value as PrivacyLevel)}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-black focus:border-black transition-all text-sm bg-white text-gray-900"
-                    >
-                      <option value="" disabled>
-                        Select privacy
-                      </option>
-                      {privacyOptions.map((option) => (
-                        <option
-                          key={option}
-                          value={option}
-                          disabled={disabledPrivacyOptions.has(option)}
-                          title={disabledPrivacyOptions.has(option) && option === 'SELF_ONLY'
-                            ? 'Branded content visibility cannot be set to private.'
-                            : undefined}
-                        >
-                          {privacyLabelMap[option] || option}
-                        </option>
-                      ))}
-                    </select>
-                    {brandedContentSelected && (
-                      <p className="text-xs text-red-600 mt-2">
-                        Branded content visibility cannot be set to private.
-                      </p>
-                    )}
-                  </div>
-
                   {/* Interaction Settings */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-3">
-                      Interaction Settings
-                    </label>
-                    <div className="grid gap-2.5 sm:grid-cols-3">
-                      <label className={cn(
-                        "flex items-center gap-3 p-2.5 rounded-lg transition-colors",
-                        (creatorInfo?.commentDisabled ?? false) ? "opacity-60 cursor-not-allowed bg-gray-50" : "hover:bg-gray-50 cursor-pointer"
-                      )}>
-                        <input
-                          type="checkbox"
-                          checked={allowComment}
-                          onChange={(e) => setAllowComment(e.target.checked)}
-                          disabled={creatorInfo?.commentDisabled}
-                          className="w-4 h-4 text-black border-gray-300 rounded"
-                        />
-                        <span className="text-sm text-gray-700">Allow Comments</span>
-                      </label>
+                  <div className={panelCardClasses}>
+                    <div className="mb-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6f6f69]">Interaction settings</p>
+                      <p className="mt-1 text-sm text-[#6f6f69]">Choose which TikTok-native interactions stay available on the post.</p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      <ToggleChip
+                        label="Allow Comments"
+                        description="Let viewers react directly under the post."
+                        checked={allowComment}
+                        disabled={creatorInfo?.commentDisabled}
+                        onToggle={() => setAllowComment((prev) => !prev)}
+                      />
                       {!isPhotoPost && (
-                        <label className={cn(
-                          "flex items-center gap-3 p-2.5 rounded-lg transition-colors",
-                          (creatorInfo?.duetDisabled ?? false) ? "opacity-60 cursor-not-allowed bg-gray-50" : "hover:bg-gray-50 cursor-pointer"
-                        )}>
-                          <input
-                            type="checkbox"
-                            checked={allowDuet}
-                            onChange={(e) => setAllowDuet(e.target.checked)}
-                            disabled={creatorInfo?.duetDisabled}
-                            className="w-4 h-4 text-black border-gray-300 rounded"
-                          />
-                          <span className="text-sm text-gray-700">Allow Duet</span>
-                        </label>
+                        <ToggleChip
+                          label="Allow Duet"
+                          description="Enable audience remixing with a split response."
+                          checked={allowDuet}
+                          disabled={creatorInfo?.duetDisabled}
+                          onToggle={() => setAllowDuet((prev) => !prev)}
+                        />
                       )}
                       {!isPhotoPost && (
-                        <label className={cn(
-                          "flex items-center gap-3 p-2.5 rounded-lg transition-colors",
-                          (creatorInfo?.stitchDisabled ?? false) ? "opacity-60 cursor-not-allowed bg-gray-50" : "hover:bg-gray-50 cursor-pointer"
-                        )}>
-                          <input
-                            type="checkbox"
-                            checked={allowStitch}
-                            onChange={(e) => setAllowStitch(e.target.checked)}
-                            disabled={creatorInfo?.stitchDisabled}
-                            className="w-4 h-4 text-black border-gray-300 rounded"
-                          />
-                          <span className="text-sm text-gray-700">Allow Stitch</span>
-                        </label>
+                        <ToggleChip
+                          label="Allow Stitch"
+                          description="Allow creators to quote and build on your clip."
+                          checked={allowStitch}
+                          disabled={creatorInfo?.stitchDisabled}
+                          onToggle={() => setAllowStitch((prev) => !prev)}
+                        />
                       )}
                     </div>
                   </div>
 
                   {/* Commercial Content Disclosure */}
-                  <div className="border border-gray-200 rounded-xl p-4 bg-white">
-                    <label className="flex items-center justify-between text-sm font-semibold text-gray-900">
-                      Commercial Content Disclosure
-                      <input
-                        type="checkbox"
-                        checked={commercialToggle}
-                        onChange={(e) => {
-                          setCommercialToggle(e.target.checked);
-                          if (!e.target.checked) {
+                  <div className={panelCardClasses}>
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="max-w-xl">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6f6f69]">Commercial disclosure</p>
+                        <p className="mt-1 text-base font-semibold tracking-tight text-black">Declare promotional or partnership context before publishing.</p>
+                        <p className="mt-2 text-sm leading-relaxed text-[#6f6f69]">
+                          Turn this on when the post promotes your own offer, a paid partner, or both.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-pressed={commercialToggle}
+                        onClick={() => {
+                          const nextValue = !commercialToggle;
+                          setCommercialToggle(nextValue);
+                          if (!nextValue) {
                             setCommercialYourBrand(false);
                             setCommercialBrandedContent(false);
                           }
                         }}
-                        className="w-4 h-4 text-black border-gray-300 rounded"
-                      />
-                    </label>
+                        className={cn(
+                          'my-ads-button inline-flex min-w-[148px] items-center justify-center rounded-full border px-4 py-2.5 text-sm font-semibold',
+                          commercialToggle
+                            ? 'my-ads-button--primary border-black bg-black text-white'
+                            : 'my-ads-button--secondary border-[#dfdfd9] bg-white text-black'
+                        )}
+                      >
+                        {commercialToggle ? 'Disclosure on' : 'Disclosure off'}
+                      </button>
+                    </div>
 
                     {commercialToggle && (
-                      <div className="mt-3 space-y-2">
-                        <label className="flex items-center gap-3 text-sm text-gray-700">
-                          <input
-                            type="checkbox"
-                            checked={commercialYourBrand}
-                            onChange={(e) => setCommercialYourBrand(e.target.checked)}
-                            className="w-4 h-4 text-black border-gray-300 rounded"
-                          />
-                          Your brand
-                        </label>
-                        <label className={cn(
-                          "flex items-center gap-3 text-sm text-gray-700",
-                          !brandedContentAllowed ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
-                        )}>
-                          <input
-                            type="checkbox"
-                            checked={commercialBrandedContent}
-                            onChange={(e) => setCommercialBrandedContent(e.target.checked)}
-                            disabled={!brandedContentAllowed}
-                            className="w-4 h-4 text-black border-gray-300 rounded"
-                          />
-                          Branded content
-                        </label>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <ToggleChip
+                          label="Your brand"
+                          description="Use this when the post promotes your own product or store."
+                          checked={commercialYourBrand}
+                          onToggle={() => setCommercialYourBrand((prev) => !prev)}
+                        />
+                        <ToggleChip
+                          label="Branded content"
+                          description="Use this when a third-party brand or paid partnership is involved."
+                          checked={commercialBrandedContent}
+                          disabled={!brandedContentAllowed}
+                          onToggle={() => setCommercialBrandedContent((prev) => !prev)}
+                        />
+                      </div>
+                    )}
 
+                    {commercialToggle && (
+                      <div className="mt-4 space-y-2">
                         {requiresCommercialSelection && (
                           <p className="text-xs text-red-600" title="You need to indicate if your content promotes yourself, a third party, or both.">
                             You need to indicate if your content promotes yourself, a third party, or both.
@@ -779,14 +849,14 @@ export default function TikTokPublishDialog({
                     )}
                   </div>
 
-                  <p className="text-xs text-gray-500">
+                  <div className="rounded-[22px] border border-black/8 bg-[linear-gradient(135deg,rgba(0,242,234,0.06)_0%,rgba(255,255,255,0.95)_38%,rgba(255,0,80,0.06)_100%)] px-4 py-3 text-sm text-[#5f5f5a] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
                     After publishing, TikTok may take a few minutes to process and show your post on the profile.
-                  </p>
+                  </div>
                 </div>
               )}
 
               {status === 'idle' && (
-                <p className="mt-6 text-xs text-gray-600">
+                <p className="mt-6 text-xs leading-relaxed text-[#6f6f69]">
                   By posting, you agree to TikTok&apos;s{' '}
                   {confirmationIncludesBrandedPolicy && (
                     <>
@@ -820,7 +890,7 @@ export default function TikTokPublishDialog({
                     <button
                       onClick={handleClose}
                       className={cn(
-                        "flex-1 px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all font-medium",
+                        "my-ads-button my-ads-button--secondary flex-1 rounded-[24px] border border-[#dfdfd9] px-5 py-3 text-sm font-semibold text-[#4d4d47]",
                         inline && "hidden"
                       )}
                     >
@@ -829,20 +899,15 @@ export default function TikTokPublishDialog({
                     <button
                       onClick={handleSubmit}
                       disabled={publishDisabled}
-                      className="group relative flex-1 overflow-hidden rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="my-ads-button my-ads-button--primary group relative flex-1 overflow-hidden rounded-[24px] border border-black transition-all duration-300 disabled:pointer-events-none disabled:opacity-50"
                     >
-                      {/* Gradient background */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-[#00f2ea] via-[#ff0050] to-[#00f2ea] bg-[length:200%_100%] animate-tiktok-shimmer" />
-
-                      {/* Dark overlay */}
-                      <div className="absolute inset-0 bg-black/80 group-hover:bg-black/70 transition-colors" />
+                      <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(0,242,234,0.18)_0%,rgba(255,255,255,0)_32%,rgba(255,0,80,0.18)_100%)] opacity-90" />
+                      <div className="absolute inset-0 bg-black/88 transition-colors group-hover:bg-black/84" />
 
                       {/* Button content */}
-                      <div className="relative flex items-center justify-center gap-2 px-5 py-2.5">
-                        <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
-                          <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
-                        </svg>
-                        <span className="font-bold text-white">Publish to TikTok</span>
+                      <div className="relative flex items-center justify-center gap-2.5 px-5 py-3">
+                        <TikTokGlyph className="h-4 w-4 text-white" />
+                        <span className="font-semibold tracking-tight text-white">Publish to TikTok</span>
                       </div>
                     </button>
                   </>
@@ -851,10 +916,10 @@ export default function TikTokPublishDialog({
                     onClick={(status === 'success' || status === 'failed') ? handleClose : undefined}
                     disabled={status === 'uploading' || status === 'processing'}
                     className={cn(
-                      "w-full px-5 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-colors",
+                      "my-ads-button flex w-full items-center justify-center gap-2 rounded-[24px] border px-5 py-3 text-sm font-semibold",
                       (status === 'uploading' || status === 'processing')
-                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                        : "bg-gray-900 text-white hover:bg-gray-800"
+                        ? "border-[#dfdfd9] bg-[#f3f3f0] text-[#9b9b95] cursor-not-allowed shadow-none"
+                        : "my-ads-button--primary border-black bg-black text-white"
                     )}
                   >
                     {(status === 'uploading' || status === 'processing') ? (
