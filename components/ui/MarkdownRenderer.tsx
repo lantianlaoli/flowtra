@@ -134,13 +134,13 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
                 {children}
               </code>
             ) : (
-              <code className={`${className} block bg-gray-100 p-4 rounded-lg text-sm font-mono overflow-x-auto`}>
+              <code className={`${className} block p-0 text-[13px] leading-6 font-mono`}>
                 {children}
               </code>
             );
           },
           pre: ({ children }) => (
-            <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto my-4">
+            <pre className="bg-gray-900 text-gray-100 px-5 py-4 rounded-2xl overflow-x-auto my-3">
               {children}
             </pre>
           ),
