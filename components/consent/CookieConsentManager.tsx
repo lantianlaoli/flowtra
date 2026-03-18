@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { CookieConsentBanner } from "@/components/consent/CookieConsentBanner";
 import { CookiePreferencesDialog } from "@/components/consent/CookiePreferencesDialog";
 import { CookieSettingsLink } from "@/components/consent/CookieSettingsLink";
 import { useCookieConsent } from "@/providers/cookie-consent";
 
 export function CookieConsentManager() {
+  const pathname = usePathname();
   const {
     consent,
     isHydrated,
@@ -16,8 +18,9 @@ export function CookieConsentManager() {
   } = useCookieConsent();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draftAnalytics, setDraftAnalytics] = useState(false);
+  const isDashboardRoute = pathname?.startsWith("/dashboard") ?? false;
 
-  const shouldShowBanner = isHydrated && consent.status === "unknown";
+  const shouldShowBanner = isHydrated && consent.status === "unknown" && !isDashboardRoute;
 
   const openPreferences = () => {
     setDraftAnalytics(consent.analytics);
@@ -42,8 +45,8 @@ export function CookieConsentManager() {
   };
 
   const showSettingsLink = useMemo(
-    () => isHydrated && !shouldShowBanner,
-    [isHydrated, shouldShowBanner],
+    () => isHydrated && !shouldShowBanner && !isDashboardRoute,
+    [isDashboardRoute, isHydrated, shouldShowBanner],
   );
 
   return (

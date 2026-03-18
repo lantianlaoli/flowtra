@@ -19,6 +19,7 @@ import {
   mapCloneQualityToSeedanceResolution,
   normalizeCloneVideoQualityForModel,
   snapDurationToModel,
+  SUPPORTED_LANGUAGE_CODES,
   type LanguageCode,
   type PersistedVideoQuality,
   type VideoDuration,
@@ -2485,8 +2486,7 @@ EXAMPLE OUTPUT STRUCTURE:
 
   // Extract language and validate it's a valid LanguageCode
   const rawDetectedLanguage = typeof result.detected_language === 'string' ? (result.detected_language as string) : undefined;
-  const validLanguageCodes: LanguageCode[] = ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'sv', 'no', 'da', 'fi', 'pl', 'ru', 'el', 'tr', 'cs', 'ro', 'zh', 'ur', 'pa', 'id'];
-  const language: LanguageCode = rawDetectedLanguage && validLanguageCodes.includes(rawDetectedLanguage as LanguageCode)
+  const language: LanguageCode = rawDetectedLanguage && SUPPORTED_LANGUAGE_CODES.includes(rawDetectedLanguage as LanguageCode)
     ? (rawDetectedLanguage as LanguageCode)
     : 'en'; // Default to English if invalid
   const analysis = normalizeAnalysisToV2(result);

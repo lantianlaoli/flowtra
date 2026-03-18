@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 export type LanguageCode =
   | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'nl' | 'sv' | 'no' | 'da'
-  | 'fi' | 'pl' | 'ru' | 'el' | 'tr' | 'cs' | 'ro' | 'zh' | 'ur' | 'pa' | 'id';
+  | 'fi' | 'pl' | 'ru' | 'el' | 'tr' | 'cs' | 'ro' | 'zh' | 'ur' | 'pa' | 'id' | 'ar';
 
 interface LanguageSelectorProps {
   selectedLanguage: LanguageCode;
@@ -24,6 +24,7 @@ const LANGUAGE_OPTIONS: Array<{
   flag: string;
 }> = [
   { value: 'en', label: 'English', nativeName: 'English', flag: '🇺🇸' },
+  { value: 'ar', label: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
   { value: 'zh', label: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
   { value: 'cs', label: 'Czech', nativeName: 'Čeština', flag: '🇨🇿' },
   { value: 'da', label: 'Danish', nativeName: 'Dansk', flag: '🇩🇰' },

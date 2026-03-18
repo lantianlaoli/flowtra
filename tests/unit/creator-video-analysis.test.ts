@@ -196,3 +196,51 @@ test('creator video analysis validation allows small duration mismatch within to
 
   assert.equal(result.valid, true);
 });
+
+test('creator video analysis parser keeps Arabic as a valid detected language', () => {
+  const payload = {
+    choices: [{
+      message: {
+        content: JSON.stringify({
+          schema_version: 2,
+          name: 'arabic-demo',
+          video_duration_seconds: 8,
+          detected_language: 'ar',
+          shots: [{
+            shot_id: 1,
+            timing: {
+              start_time: '00:00',
+              end_time: '00:08',
+              duration_seconds: 8
+            },
+            opening_frame: {
+              description: 'A creator holds a skincare bottle toward the camera.'
+            },
+            visual: {
+              subject: 'Creator and skincare bottle',
+              action: 'The creator presents the product and smiles.',
+              environment: 'Bright bathroom vanity.',
+              style: 'Clean handheld UGC.',
+              camera: 'Static medium close-up.',
+              composition: 'Centered talking-head frame.',
+              focus_lens_effects: '',
+              ambiance: 'Soft daylight across the vanity.'
+            },
+            audio: {
+              dialogue: 'هذا المنتج أعجبني كثيرًا.',
+              sfx: '',
+              ambient: 'Light room tone underneath the speech.'
+            },
+            flags: {}
+          }]
+        })
+      }
+    }]
+  };
+
+  const result = __test__.parseCreatorVideoAnalysisResponse(payload);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+
+  assert.equal(result.parsed.detected_language, 'ar');
+});

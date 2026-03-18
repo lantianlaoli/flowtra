@@ -90,6 +90,7 @@ interface SegmentFormColumnProps {
 
 const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: string }> = [
   { value: 'en', label: 'English', native: 'English' },
+  { value: 'ar', label: 'Arabic', native: 'العربية' },
   { value: 'zh', label: 'Chinese', native: '中文' },
   { value: 'es', label: 'Spanish', native: 'Español' },
   { value: 'fr', label: 'French', native: 'Français' },

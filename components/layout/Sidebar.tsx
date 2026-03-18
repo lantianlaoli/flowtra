@@ -53,13 +53,13 @@ const primaryNavigation = [
 ];
 
 const sidebarNavButtonBase =
-  'relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-[20px] border px-2.5 py-3 text-sm font-medium transition-all duration-150';
+  'sidebar-nav-button relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-[20px] border px-2.5 py-3 text-sm font-medium transition-all duration-150';
 
 const sidebarNavButtonInactive =
-  'border-[#ECECE8] bg-[linear-gradient(180deg,#FFFFFF_0%,#FCFCFB_100%)] text-[#5F5F5F] shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_3px_0_rgba(232,232,228,0.98),0_10px_18px_rgba(15,23,42,0.035)] hover:translate-y-[2px] hover:border-[#E7E7E2] hover:bg-[linear-gradient(180deg,#FDFDFC_0%,#F8F8F6_100%)] hover:text-[#111111] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_1px_0_rgba(232,232,228,0.98),0_7px_12px_rgba(15,23,42,0.028)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_0px_0_rgba(232,232,228,0.98),0_4px_8px_rgba(15,23,42,0.022)]';
+  'sidebar-nav-button--inactive border-[#ECECE8] bg-[linear-gradient(180deg,#FFFFFF_0%,#FCFCFB_100%)] text-[#5F5F5F] shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_3px_0_rgba(232,232,228,0.98),0_10px_18px_rgba(15,23,42,0.035)] hover:translate-y-[2px] hover:border-[#E7E7E2] hover:bg-[linear-gradient(180deg,#FDFDFC_0%,#F8F8F6_100%)] hover:text-[#111111] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_1px_0_rgba(232,232,228,0.98),0_7px_12px_rgba(15,23,42,0.028)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_0px_0_rgba(232,232,228,0.98),0_4px_8px_rgba(15,23,42,0.022)]';
 
 const sidebarNavButtonActive =
-  'border-[#111111] bg-[#111111] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_0_rgba(22,22,22,0.98),0_14px_24px_rgba(0,0,0,0.12)] hover:translate-y-[2px] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_2px_0_rgba(22,22,22,0.98),0_10px_18px_rgba(0,0,0,0.1)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_0_rgba(22,22,22,0.98),0_7px_14px_rgba(0,0,0,0.09)]';
+  'sidebar-nav-button--active border-[#111111] bg-[#111111] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_0_rgba(22,22,22,0.98),0_14px_24px_rgba(0,0,0,0.12)] hover:translate-y-[2px] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_2px_0_rgba(22,22,22,0.98),0_10px_18px_rgba(0,0,0,0.1)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_0_rgba(22,22,22,0.98),0_7px_14px_rgba(0,0,0,0.09)]';
 
 export default function Sidebar({ credits, creditsData }: SidebarProps) {
   const pathname = usePathname();
@@ -161,16 +161,16 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
                 />
               ) : null}
 
-              <item.icon className={cn('h-4.5 w-4.5 shrink-0 pointer-events-none', isActive ? 'text-white' : 'text-[#6A6A6A]')} />
+              <item.icon className={cn('sidebar-nav-icon h-4.5 w-4.5 shrink-0 pointer-events-none', isActive ? 'text-white' : 'text-[#6A6A6A]')} />
 
               <div className="inline-flex min-w-0 items-center gap-2 pointer-events-none">
-                <span className={cn('truncate', isActive ? 'text-white' : 'text-[#4F4F4F]')}>
+                <span className={cn('sidebar-nav-label truncate', isActive ? 'text-white' : 'text-[#4F4F4F]')}>
                   {item.name}
                 </span>
                 {isAgentEntry ? (
                   <span
                     className={cn(
-                      'rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide leading-none',
+                      'sidebar-nav-badge rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide leading-none',
                       isActive
                         ? 'border-white/20 bg-white/10 text-white'
                         : 'border-[#E3E3E3] bg-white text-[#8A8A8A]'
@@ -227,7 +227,7 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
 
       <button
         type="button"
-        className="fixed left-4 top-4 z-40 flex items-center gap-2 rounded-[20px] border border-[#E0E0E0] bg-white px-4 py-2.5 text-sm font-medium text-[#111111] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] md:hidden"
+        className="sidebar-mobile-trigger fixed left-4 top-4 z-40 flex items-center gap-2 rounded-[20px] border border-[#E0E0E0] bg-white px-4 py-2.5 text-sm font-medium text-[#111111] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] md:hidden"
         onClick={() => setMobileOpen(true)}
         aria-label="Open menu"
       >

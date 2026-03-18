@@ -504,11 +504,11 @@ function ProjectAgentModelSelector({
       <button
         type="button"
         onClick={() => setIsOpen((open) => !open)}
-        className="inline-flex h-12 items-center gap-2 rounded-[22px] border border-[#d9d9d7] bg-white px-3.5 text-sm font-medium text-[#1f1f1e] shadow-[0_1px_0_rgba(15,15,15,0.03)] transition-all duration-200 ease-out hover:-translate-y-[1px] hover:border-[#c9c9c5] hover:bg-[#fdfdfc] hover:shadow-[0_10px_24px_rgba(15,15,15,0.08)] active:translate-y-0 active:scale-[0.985] active:shadow-[0_4px_12px_rgba(15,15,15,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f1f1e]/10"
+        className="project-agent-model-button inline-flex h-12 items-center gap-2 rounded-[22px] border border-[#d9d9d7] bg-white px-3.5 text-sm font-medium text-[#1f1f1e] shadow-[0_1px_0_rgba(15,15,15,0.03)] transition-all duration-200 ease-out hover:-translate-y-[1px] hover:border-[#c9c9c5] hover:bg-[#fdfdfc] hover:shadow-[0_10px_24px_rgba(15,15,15,0.08)] active:translate-y-0 active:scale-[0.985] active:shadow-[0_4px_12px_rgba(15,15,15,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f1f1e]/10"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#e6e6e4] bg-[#fcfcfb]">
+        <span className="project-agent-model-button-icon inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#e6e6e4] bg-[#fcfcfb]">
           <selectedMeta.icon className="h-[18px] w-[18px] text-[#1f1f1e]" />
         </span>
         <span className="flex flex-col items-start leading-none">
@@ -524,7 +524,7 @@ function ProjectAgentModelSelector({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.98 }}
             transition={{ duration: 0.16 }}
-            className="absolute bottom-full left-0 z-20 mb-2 w-[300px] rounded-[24px] border border-[#e6e6e4] bg-white p-2 shadow-[0_24px_60px_rgba(15,15,15,0.12)]"
+            className="project-agent-model-popover absolute bottom-full left-0 z-20 mb-2 w-[300px] rounded-[24px] border border-[#e6e6e4] bg-white p-2 shadow-[0_24px_60px_rgba(15,15,15,0.12)]"
             role="listbox"
             aria-label="Video model"
           >
@@ -539,14 +539,14 @@ function ProjectAgentModelSelector({
                     onModelChange(modelOption);
                     setIsOpen(false);
                   }}
-                  className={`flex w-full items-center justify-between rounded-[20px] border px-3 py-3 text-left transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f1f1e]/8 ${
+                  className={`project-agent-model-option flex w-full items-center justify-between rounded-[20px] border px-3 py-3 text-left transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f1f1e]/8 ${
                     isSelected
-                      ? 'border-[#d9d9d7] bg-[#fcfcfb] text-[#1f1f1e]'
-                      : 'border-transparent text-[#1f1f1e] hover:-translate-y-[1px] hover:border-[#e7e7e4] hover:bg-[#fcfcfb] hover:shadow-[0_8px_18px_rgba(15,15,15,0.06)] active:translate-y-0 active:scale-[0.99]'
+                      ? 'project-agent-model-option--selected border-[#d9d9d7] bg-[#fcfcfb] text-[#1f1f1e]'
+                      : 'project-agent-model-option--idle border-transparent text-[#1f1f1e] hover:-translate-y-[1px] hover:border-[#e7e7e4] hover:bg-[#fcfcfb] hover:shadow-[0_8px_18px_rgba(15,15,15,0.06)] active:translate-y-0 active:scale-[0.99]'
                   }`}
                 >
                   <span className="flex min-w-0 items-center gap-3">
-                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#e6e6e4] bg-white">
+                    <span className="project-agent-model-option-icon inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#e6e6e4] bg-white">
                       <PROJECT_AGENT_MODEL_META.icon className="h-[18px] w-[18px] text-current" />
                     </span>
                     <span className="min-w-0">
@@ -555,7 +555,7 @@ function ProjectAgentModelSelector({
                   </span>
                   <span className="ml-3 inline-flex h-5 w-5 items-center justify-center">
                     {isSelected ? (
-                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#0f0f0f] bg-[#0f0f0f] text-white shadow-[0_6px_14px_rgba(15,15,15,0.12)]">
+                      <span className="project-agent-model-option-check inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#0f0f0f] bg-[#0f0f0f] text-white shadow-[0_6px_14px_rgba(15,15,15,0.12)]">
                         <Check className="h-3.5 w-3.5" />
                       </span>
                     ) : null}
@@ -3086,7 +3086,7 @@ export default function ProjectAgentPage() {
   }
 
   return (
-    <div className="h-[100dvh] overflow-hidden bg-[#f7f7f5]">
+    <div className="project-agent-page h-[100dvh] overflow-hidden bg-[#f7f7f5]">
       <Sidebar
         credits={credits}
         creditsData={creditsData}
@@ -3097,12 +3097,12 @@ export default function ProjectAgentPage() {
       <DashboardContentTransition className="dashboard-content-offset h-[100dvh] overflow-hidden min-h-0">
         <div className="h-full box-border min-h-0 p-4 md:p-6 lg:p-8">
           <div className="grid h-full min-h-0 grid-cols-1 xl:grid-cols-[minmax(0,7fr)_minmax(320px,3fr)] gap-4">
-            <section className="relative h-full min-h-0 rounded-xl border border-[#e6e6e4] bg-[#fbfbfa] overflow-hidden">
+            <section className="project-agent-surface relative h-full min-h-0 overflow-hidden rounded-xl border border-[#e6e6e4] bg-[#fbfbfa]">
               <div className={showLeftSurfaceContent ? 'h-full overflow-y-auto px-4 py-4 md:px-6 md:py-5' : 'h-full grid place-items-center px-6'}>
                 {showLeftSurfaceContent ? (
                   <div className="w-full min-h-full space-y-4">
                     {showCloneableVideos && (
-                    <div className="w-full rounded-xl border border-[#e6e6e4] bg-white p-4">
+                    <div className="project-agent-card w-full rounded-xl border border-[#e6e6e4] bg-white p-4">
                       <div className="mb-3">
                         <div>
                           <p className="text-sm font-semibold text-[#1f1f1e]">Step 1: Choose Reference Video</p>
@@ -3111,11 +3111,11 @@ export default function ProjectAgentPage() {
                       </div>
 
                       {isCloneableVideosLoading && cloneableVideos.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
+                        <div className="project-agent-empty rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
                           Loading your video assets...
                         </div>
                       ) : cloneableVideos.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
+                        <div className="project-agent-empty rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
                           No videos found in Assets. Import a video first, then ask to clone.
                         </div>
                       ) : (
@@ -3137,7 +3137,7 @@ export default function ProjectAgentPage() {
                     )}
 
                     {showCloneReplacementSelectors && !showCloneSceneWorkspaceStep && (
-                    <div className="relative isolate w-full rounded-xl border border-[#e6e6e4] bg-white p-4 space-y-4">
+                    <div className="project-agent-card relative isolate w-full rounded-xl border border-[#e6e6e4] bg-white p-4 space-y-4">
                       <div>
                         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Step 2</p>
                         <p className="text-sm font-medium text-[#4f4f4d]">Choose replacement avatar and/or product</p>
@@ -3145,13 +3145,13 @@ export default function ProjectAgentPage() {
                       </div>
 
                       {sessionState?.cloneReplacementDraft?.status === 'failed' && sessionState.cloneReplacementDraft.error ? (
-                        <div className="rounded-xl border border-[#ead2cf] bg-[#fff7f5] px-4 py-3 text-xs text-[#8a4d45]">
+                        <div className="project-agent-warning rounded-xl border border-[#ead2cf] bg-[#fff7f5] px-4 py-3 text-xs text-[#8a4d45]">
                           Draft prep failed: {sessionState.cloneReplacementDraft.error}
                         </div>
                       ) : null}
 
                       {isCloneOptionsLoading ? (
-                        <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
+                        <div className="project-agent-empty rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
                           Loading avatar and product options...
                         </div>
                       ) : (
@@ -3170,16 +3170,16 @@ export default function ProjectAgentPage() {
                                   key={avatar.id}
                                   type="button"
                                   onClick={() => handleManualAvatarSelection(avatar.id)}
-                                  className={`relative z-10 pointer-events-auto rounded-xl p-1.5 text-left transition-colors ${selectedCloneAvatarIds.includes(avatar.id) ? 'border-2 border-[#0f0f0f] bg-white shadow-[0_1px_0_rgba(15,15,15,0.04)]' : 'border border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                  className={`project-agent-selection-card relative z-10 pointer-events-auto rounded-xl p-1.5 text-left transition-colors ${selectedCloneAvatarIds.includes(avatar.id) ? 'project-agent-selection-card--selected border-2 border-[#0f0f0f] bg-white shadow-[0_1px_0_rgba(15,15,15,0.04)]' : 'project-agent-selection-card--idle border border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
                                 >
-                                  <div className="w-full aspect-square rounded-[10px] overflow-hidden bg-[#efefed] mb-1">
+                                  <div className="project-agent-selection-media mb-1 w-full aspect-square overflow-hidden rounded-[10px] bg-[#efefed]">
                                     {avatar.photoUrl ? (
                                       // eslint-disable-next-line @next/next/no-img-element
                                       <img src={avatar.photoUrl} alt={avatar.name} className="w-full h-full object-cover" />
                                     ) : null}
                                   </div>
                                   <span
-                                    className={`inline-flex max-w-full rounded-md px-2 py-1 text-[11px] font-medium ${selectedCloneAvatarIds.includes(avatar.id) ? 'bg-[#0f0f0f] text-white' : 'bg-[#f3f3f2] text-[#1f1f1e]'}`}
+                                    className={`project-agent-selection-chip inline-flex max-w-full rounded-md px-2 py-1 text-[11px] font-medium ${selectedCloneAvatarIds.includes(avatar.id) ? 'project-agent-selection-chip--selected bg-[#0f0f0f] text-white' : 'project-agent-selection-chip--idle bg-[#f3f3f2] text-[#1f1f1e]'}`}
                                   >
                                     <span className="truncate">{avatar.name}</span>
                                   </span>
@@ -3197,7 +3197,7 @@ export default function ProjectAgentPage() {
                             </div>
                             <p className="text-xs text-[#787876]">Optional. Select one or more if you want to replace the product in the reference.</p>
                             {cloneProductOptions.length === 0 ? (
-                              <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-5 text-center text-xs text-[#787876]">
+                              <div className="project-agent-empty rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-5 text-center text-xs text-[#787876]">
                                 No products are available in Assets yet. Product replacement is optional, so you can still continue with avatar-only replacement.
                               </div>
                             ) : (
@@ -3208,16 +3208,16 @@ export default function ProjectAgentPage() {
                                       key={product.id}
                                       type="button"
                                       onClick={() => handleManualProductSelection(product.id)}
-                                      className={`relative z-10 pointer-events-auto rounded-xl p-1.5 text-left transition-colors ${selectedCloneProductIds.includes(product.id) ? 'border-2 border-[#0f0f0f] bg-white shadow-[0_1px_0_rgba(15,15,15,0.04)]' : 'border border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                      className={`project-agent-selection-card relative z-10 pointer-events-auto rounded-xl p-1.5 text-left transition-colors ${selectedCloneProductIds.includes(product.id) ? 'project-agent-selection-card--selected border-2 border-[#0f0f0f] bg-white shadow-[0_1px_0_rgba(15,15,15,0.04)]' : 'project-agent-selection-card--idle border border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
                                     >
-                                      <div className="w-full aspect-square rounded-[10px] overflow-hidden bg-[#efefed] mb-1">
+                                      <div className="project-agent-selection-media mb-1 w-full aspect-square overflow-hidden rounded-[10px] bg-[#efefed]">
                                         {product.photoUrl ? (
                                           // eslint-disable-next-line @next/next/no-img-element
                                           <img src={product.photoUrl} alt={product.name} className="w-full h-full object-cover" />
                                         ) : null}
                                       </div>
                                       <span
-                                        className={`inline-flex max-w-full rounded-md px-2 py-1 text-[11px] font-medium ${selectedCloneProductIds.includes(product.id) ? 'bg-[#0f0f0f] text-white' : 'bg-[#f3f3f2] text-[#1f1f1e]'}`}
+                                        className={`project-agent-selection-chip inline-flex max-w-full rounded-md px-2 py-1 text-[11px] font-medium ${selectedCloneProductIds.includes(product.id) ? 'project-agent-selection-chip--selected bg-[#0f0f0f] text-white' : 'project-agent-selection-chip--idle bg-[#f3f3f2] text-[#1f1f1e]'}`}
                                       >
                                         <span className="truncate">{product.name}</span>
                                       </span>
@@ -3276,7 +3276,7 @@ export default function ProjectAgentPage() {
                     </p>
                     {!isWorkflowSurfacePending && !shouldHoldLeftSurfaceForAssistantReply ? (
                       <>
-                        <div className="mx-auto mt-5 w-full max-w-[420px] overflow-hidden rounded-2xl border border-[#e6e6e4] bg-white">
+                        <div className="project-agent-card mx-auto mt-5 w-full max-w-[420px] overflow-hidden rounded-2xl border border-[#e6e6e4] bg-white">
                           <div className="aspect-video w-full bg-black">
                             <iframe
                               className="h-full w-full"
@@ -3311,7 +3311,7 @@ export default function ProjectAgentPage() {
                               key={hint.text}
                               type="button"
                               onClick={() => handleQuickStart(hint.action)}
-                              className="inline-flex items-center gap-1.5 rounded-full border border-[#e4e4e2] bg-white px-3 py-1.5 text-xs text-[#5f5f5d] hover:bg-[#f3f3f2]"
+                              className="project-agent-chip inline-flex items-center gap-1.5 rounded-full border border-[#e4e4e2] bg-white px-3 py-1.5 text-xs text-[#5f5f5d] hover:bg-[#f3f3f2]"
                             >
                               <hint.icon className="h-3.5 w-3.5 text-[#7a7a77]" />
                               <span>{hint.text}</span>
@@ -3325,8 +3325,8 @@ export default function ProjectAgentPage() {
               </div>
             </section>
 
-            <section className="flowgen-chat-font h-full min-h-0 rounded-xl border border-[#e6e6e4] bg-[#fbfbfa] flex flex-col">
-              <div className="relative flex items-center justify-between px-4 py-3 border-b border-[#e6e6e4]">
+            <section className="project-agent-chat-surface flowgen-chat-font flex h-full min-h-0 flex-col rounded-xl border border-[#e6e6e4] bg-[#fbfbfa]">
+              <div className="project-agent-chat-header relative flex items-center justify-between border-b border-[#e6e6e4] px-4 py-3">
                 <div className="flex min-w-0 items-center gap-2 text-[#1f1f1e]">
                   <MessageCircle className="w-4 h-4" />
                   <span className="truncate whitespace-nowrap text-sm font-semibold">{activeChatTitle}</span>
@@ -3336,13 +3336,13 @@ export default function ProjectAgentPage() {
                     <button
                       type="button"
                       onClick={() => setIsHistoryPopoverOpen((prev) => !prev)}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#d9d9d7] bg-white text-[#1f1f1e] hover:bg-[#f3f3f2]"
+                      className="project-agent-toolbar-button inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#d9d9d7] bg-white text-[#1f1f1e] hover:bg-[#f3f3f2]"
                       aria-label="Open history"
                     >
                       <History className="w-4 h-4" />
                     </button>
                     {isHistoryPopoverOpen ? (
-                      <div className="absolute right-0 top-11 z-50 w-[320px] max-w-[calc(100vw-2rem)] rounded-xl border border-[#e6e6e4] bg-white shadow-[0_12px_36px_rgba(0,0,0,0.14)]">
+                      <div className="project-agent-history-popover absolute right-0 top-11 z-50 w-[320px] max-w-[calc(100vw-2rem)] rounded-xl border border-[#e6e6e4] bg-white shadow-[0_12px_36px_rgba(0,0,0,0.14)]">
                         <div className="px-3 py-3 border-b border-[#efefed]">
                           <p className="text-xs font-semibold text-[#1f1f1e]">History</p>
                           <div className="mt-2 relative">
@@ -3351,13 +3351,13 @@ export default function ProjectAgentPage() {
                               value={historyQuery}
                               onChange={(event) => setHistoryQuery(event.target.value)}
                               placeholder="Search..."
-                              className="h-9 w-full rounded-xl border border-[#d9d9d7] bg-[#fbfbfa] pl-8 pr-3 text-xs text-[#1f1f1e] placeholder:text-[#a3a3a0] focus:outline-none focus:ring-2 focus:ring-black"
+                            className="project-agent-history-search h-9 w-full rounded-xl border border-[#d9d9d7] bg-[#fbfbfa] pl-8 pr-3 text-xs text-[#1f1f1e] placeholder:text-[#a3a3a0] focus:outline-none focus:ring-2 focus:ring-black"
                             />
                           </div>
                           <button
                             type="button"
                             onClick={startNewChat}
-                            className="mt-2 inline-flex min-h-8 items-center gap-1 rounded-xl border border-[#d9d9d7] bg-white px-2.5 text-xs font-medium text-[#1f1f1e] hover:bg-[#f3f3f2]"
+                            className="project-agent-toolbar-button mt-2 inline-flex min-h-8 items-center gap-1 rounded-xl border border-[#d9d9d7] bg-white px-2.5 text-xs font-medium text-[#1f1f1e] hover:bg-[#f3f3f2]"
                           >
                             <Plus className="w-3.5 h-3.5" />
                             New chat
@@ -3374,10 +3374,10 @@ export default function ProjectAgentPage() {
                                 key={item.sessionId}
                                 type="button"
                                 onClick={() => selectHistory(item.sessionId)}
-                                className={`w-full text-left rounded-xl px-2.5 py-2 border transition-colors ${
+                                className={`project-agent-history-item w-full text-left rounded-xl px-2.5 py-2 border transition-colors ${
                                   item.sessionId === sessionId
-                                    ? 'bg-[#f7f7f5] border-[#1f1f1e]'
-                                    : 'bg-transparent border-transparent hover:bg-[#f7f7f5] hover:border-[#e6e6e4]'
+                                    ? 'project-agent-history-item--active bg-[#f7f7f5] border-[#1f1f1e]'
+                                    : 'project-agent-history-item--idle bg-transparent border-transparent hover:bg-[#f7f7f5] hover:border-[#e6e6e4]'
                                 }`}
                               >
                                 <div className="text-[12px] text-[#1f1f1e] font-medium truncate">{item.title}</div>
@@ -3395,7 +3395,7 @@ export default function ProjectAgentPage() {
               </div>
 
               {statusNote ? (
-                <div className="mx-4 mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 inline-flex items-start gap-2">
+                <div className="project-agent-status-note mx-4 mt-3 inline-flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span>{statusNote}</span>
                 </div>
@@ -3419,10 +3419,10 @@ export default function ProjectAgentPage() {
                       return (
                         <div key={message.id} className={isUserMessage ? 'ml-auto w-fit max-w-[94%]' : 'max-w-[94%]'}>
                           <div
-                            className={`rounded-xl px-4 py-3 text-sm ${
+                            className={`project-agent-chat-bubble rounded-xl px-4 py-3 text-sm ${
                               isUserMessage
-                                ? 'bg-[#0f0f0f] text-white leading-7'
-                                : 'bg-[#efefed] text-[#1f1f1e] leading-6'
+                                ? 'project-agent-chat-bubble--user bg-[#0f0f0f] text-white leading-7'
+                                : 'project-agent-chat-bubble--assistant bg-[#efefed] text-[#1f1f1e] leading-6'
                             }`}
                           >
                             <ReactMarkdown
@@ -3434,7 +3434,7 @@ export default function ProjectAgentPage() {
                                 li: ({ children }) => <li className="mb-1 last:mb-0">{children}</li>,
                                 strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
                                 code: ({ children }) => (
-                                  <code className="rounded bg-black/10 px-1 py-0.5 text-xs">{children}</code>
+                                  <code className="project-agent-inline-code rounded bg-black/10 px-1 py-0.5 text-xs">{children}</code>
                                 )
                               }}
                             >
@@ -3446,7 +3446,7 @@ export default function ProjectAgentPage() {
                               <button
                                 type="button"
                                 onClick={handleRetryLatestUserMessage}
-                                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#d9d9d7] bg-white px-3 text-xs font-medium text-[#1f1f1e] hover:bg-[#f3f3f2]"
+                                className="project-agent-toolbar-button inline-flex h-8 items-center gap-1.5 rounded-full border border-[#d9d9d7] bg-white px-3 text-xs font-medium text-[#1f1f1e] hover:bg-[#f3f3f2]"
                                 aria-label="Retry this message"
                                 title="Retry"
                               >
@@ -3460,13 +3460,13 @@ export default function ProjectAgentPage() {
                     })}
 
                     {pendingUserText && !hasPendingInMessages ? (
-                      <div className="w-fit max-w-[94%] rounded-xl px-4 py-3 text-sm leading-7 ml-auto bg-[#0f0f0f] text-white">
+                      <div className="project-agent-chat-bubble project-agent-chat-bubble--user ml-auto w-fit max-w-[94%] rounded-xl bg-[#0f0f0f] px-4 py-3 text-sm leading-7 text-white">
                         {pendingUserText}
                       </div>
                     ) : null}
 
                     {shouldShowAssistantPlaceholder ? (
-                      <div className="max-w-[94%] rounded-xl px-4 py-3 text-sm bg-[#efefed] text-[#787876]">
+                      <div className="project-agent-chat-bubble project-agent-chat-bubble--assistant max-w-[94%] rounded-xl bg-[#efefed] px-4 py-3 text-sm text-[#787876]">
                         <div className="flex items-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin" />
                           <AnimatePresence mode="wait" initial={false}>
@@ -3488,7 +3488,7 @@ export default function ProjectAgentPage() {
                 </AnimatePresence>
               </div>
 
-              <div className="border-t border-[#e6e6e4] px-4 py-4">
+                <div className="project-agent-chat-footer border-t border-[#e6e6e4] px-4 py-4">
                 {!awaitingAssistantTurn && visiblePromptChipSuggestions.chips.length > 0 ? (
                   <div className="mb-3 flex flex-wrap items-center gap-2">
                     {visiblePromptChipSuggestions.chips.map((chip) => (
@@ -3497,7 +3497,7 @@ export default function ProjectAgentPage() {
                         type="button"
                         onClick={() => handlePromptChipClick(chip)}
                         disabled={!isReady || awaitingAssistantTurn}
-                        className="inline-flex items-center rounded-full border border-[#d9d9d7] bg-[#f7f7f5] px-3 py-1.5 text-xs font-medium text-[#4c4c49] transition hover:border-[#bfbfbb] hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
+                        className="project-agent-chip inline-flex items-center rounded-full border border-[#d9d9d7] bg-[#f7f7f5] px-3 py-1.5 text-xs font-medium text-[#4c4c49] transition hover:border-[#bfbfbb] hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
                       >
                         {chip}
                       </button>
@@ -3513,21 +3513,21 @@ export default function ProjectAgentPage() {
                 </div>
                 <form
                   onSubmit={handleSubmit}
-                  className="mt-3 flex items-center gap-2 rounded-[26px] border border-[#d9d9d7] bg-white p-2 shadow-[0_18px_40px_rgba(15,15,15,0.06)]"
+                  className="project-agent-chat-input mt-3 flex items-center gap-2 rounded-[26px] border border-[#d9d9d7] bg-white p-2 shadow-[0_18px_40px_rgba(15,15,15,0.06)]"
                 >
                   <input
                     ref={inputRef}
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
                     placeholder="Ask Flowgen what to make viral next..."
-                    className="flex-1 min-h-12 rounded-[18px] bg-transparent px-4 text-sm text-[#1f1f1e] placeholder:text-[#9b9b98] focus:outline-none disabled:opacity-50"
+                    className="project-agent-chat-input-field flex-1 min-h-12 rounded-[18px] bg-transparent px-4 text-sm text-[#1f1f1e] placeholder:text-[#9b9b98] focus:outline-none disabled:opacity-50"
                     disabled={!isReady || awaitingAssistantTurn}
                   />
                   <button
                     type="submit"
                     disabled={!isReady || awaitingAssistantTurn || !draft.trim()}
                     aria-label={awaitingAssistantTurn ? 'Waiting for response' : 'Send message'}
-                    className={`h-12 w-12 shrink-0 rounded-full text-white inline-flex items-center justify-center transition-all duration-200 ease-out disabled:opacity-50 ${
+                    className={`project-agent-send-button inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white transition-all duration-200 ease-out disabled:opacity-50 ${
                       awaitingAssistantTurn
                         ? 'bg-[#8d8d8a]'
                         : 'bg-[#0f0f0f] shadow-[0_10px_24px_rgba(15,15,15,0.16)] hover:-translate-y-[1px] hover:scale-[1.03] hover:bg-[#1a1a1a] hover:shadow-[0_16px_32px_rgba(15,15,15,0.2)] active:translate-y-0 active:scale-[0.97] active:bg-black active:shadow-[0_8px_18px_rgba(15,15,15,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f1f1e]/12'

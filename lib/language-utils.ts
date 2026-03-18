@@ -34,6 +34,7 @@ const LANGUAGE_FLAG_MAP: Record<LanguageCode, string> = {
   'ur': '🇵🇰', // Urdu - Pakistan
   'pa': '🇮🇳', // Punjabi - India
   'id': '🇮🇩', // Indonesian - Indonesia
+  'ar': '🇸🇦', // Arabic - Saudi Arabia
 };
 
 /**

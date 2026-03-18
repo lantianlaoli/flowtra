@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { LanguageCode } from '@/lib/constants';
+import { SUPPORTED_LANGUAGE_CODES, type LanguageCode } from '@/lib/constants';
 import { sendOpenRouterChat } from '@/lib/openrouter';
 import { normalizeAnalysisToV2, type CanonicalAnalysisV2 } from '@/lib/video-analysis-schema';
 
@@ -642,8 +642,7 @@ const analyzeCreatorVideoByUrl = async (input: {
     }
 
     const retriedLanguage = typeof retriedResult.detected_language === 'string' ? retriedResult.detected_language : undefined;
-    const validLanguageCodes: LanguageCode[] = ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'sv', 'no', 'da', 'fi', 'pl', 'ru', 'el', 'tr', 'cs', 'ro', 'zh', 'ur', 'pa', 'id'];
-    const language: LanguageCode = retriedLanguage && validLanguageCodes.includes(retriedLanguage as LanguageCode)
+    const language: LanguageCode = retriedLanguage && SUPPORTED_LANGUAGE_CODES.includes(retriedLanguage as LanguageCode)
       ? (retriedLanguage as LanguageCode)
       : 'en';
 
@@ -658,8 +657,7 @@ const analyzeCreatorVideoByUrl = async (input: {
   }
 
   const rawDetectedLanguage = typeof result.detected_language === 'string' ? result.detected_language : undefined;
-  const validLanguageCodes: LanguageCode[] = ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'sv', 'no', 'da', 'fi', 'pl', 'ru', 'el', 'tr', 'cs', 'ro', 'zh', 'ur', 'pa', 'id'];
-  const language: LanguageCode = rawDetectedLanguage && validLanguageCodes.includes(rawDetectedLanguage as LanguageCode)
+  const language: LanguageCode = rawDetectedLanguage && SUPPORTED_LANGUAGE_CODES.includes(rawDetectedLanguage as LanguageCode)
     ? (rawDetectedLanguage as LanguageCode)
     : 'en';
 
