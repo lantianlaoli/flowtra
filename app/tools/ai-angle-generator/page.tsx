@@ -98,6 +98,12 @@ function AngleSkeletonCard({ label, description }: AngleSlot) {
 }
 
 export default function AiAngleGeneratorPage() {
+  const imageInputId = "tool-angle-image-upload";
+  const primaryButtonClass =
+    "landing-press-button landing-press-button--compact text-sm font-medium";
+  const secondaryButtonClass =
+    "landing-press-button landing-press-button--secondary landing-press-button--compact text-sm font-medium";
+
   const [status, setStatus] = useState<GenerationStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [frontalPreview, setFrontalPreview] = useState<string | null>(null);
@@ -343,16 +349,30 @@ export default function AiAngleGeneratorPage() {
                 </div>
               </div>
 
-              <label className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3">
                 <span className="text-sm font-medium text-black">Select frontal image</span>
                 <input
+                  id={imageInputId}
                   type="file"
                   accept={getAcceptedImageFormats()}
                   onChange={handleFileChange}
                   disabled={isBusy}
-                  className="block w-full cursor-pointer rounded-lg border border-[#E5E5E5] px-4 py-3 text-sm text-black file:mr-4 file:rounded-md file:border-0 file:bg-black file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-[#333333]"
+                  className="sr-only"
                 />
-              </label>
+                <label
+                  htmlFor={imageInputId}
+                  className={`${secondaryButtonClass} w-fit ${isBusy ? "pointer-events-none opacity-60" : ""}`}
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>{isBusy ? "Processing..." : "Choose Image"}</span>
+                </label>
+                <input
+                  readOnly
+                  value={selectedFileName ?? ""}
+                  placeholder="No image selected"
+                  className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none"
+                />
+              </div>
 
               {selectedFileName && (
                 <p className="text-xs text-[#666666]">Selected file: {selectedFileName}</p>
@@ -377,7 +397,7 @@ export default function AiAngleGeneratorPage() {
                   {needsSignIn && (
                     <Link
                       href="/sign-in?redirect_url=/tools/ai-angle-generator"
-                      className="mt-2 inline-flex items-center font-medium underline"
+                      className={`${secondaryButtonClass} mt-3 w-fit`}
                     >
                       Sign in and try again
                     </Link>
@@ -443,7 +463,7 @@ export default function AiAngleGeneratorPage() {
                         <button
                           type="button"
                           onClick={() => handleCopyUrl(image.taskId, image.imageUrl)}
-                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-black px-3 py-2 text-xs font-medium text-white transition hover:bg-[#333333]"
+                          className={`${primaryButtonClass} w-full justify-center gap-2 text-xs`}
                         >
                           {copiedTaskId === image.taskId ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                           <span>{copiedTaskId === image.taskId ? "Copied" : "Copy URL"}</span>
@@ -454,7 +474,7 @@ export default function AiAngleGeneratorPage() {
                           download={`${image.key}.png`}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#E5E5E5] px-3 py-2 text-xs font-medium text-black transition hover:bg-[#F7F7F7]"
+                          className={`${secondaryButtonClass} w-full justify-center gap-2 text-xs`}
                         >
                           <Download className="h-3.5 w-3.5" />
                           <span>Download</span>

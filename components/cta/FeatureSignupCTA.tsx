@@ -38,12 +38,12 @@ export function FeatureSignupCTA({
           {isLoaded ? (
             <Link
               href={href}
-              className="inline-flex min-h-12 items-center justify-center rounded-xl bg-black px-6 py-3 text-[15px] font-semibold text-white transition-colors hover:bg-[#1A1A1A]"
+              className="landing-press-button text-[15px] font-semibold"
             >
               {label}
             </Link>
           ) : (
-            <div className="inline-flex min-h-12 items-center justify-center rounded-xl bg-black px-6 py-3 text-[15px] font-semibold text-white opacity-60">
+            <div className="landing-press-button text-[15px] font-semibold opacity-60">
               Loading...
             </div>
           )}

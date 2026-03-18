@@ -15,6 +15,13 @@ type UploadResult = {
 };
 
 export default function ToolsPage() {
+  const videoInputId = "tool-video-upload";
+  const imageInputId = "tool-image-upload";
+  const primaryButtonClass =
+    "landing-press-button landing-press-button--compact text-sm font-medium";
+  const secondaryButtonClass =
+    "landing-press-button landing-press-button--secondary landing-press-button--compact text-sm font-medium";
+
   const { isLoaded, isSignedIn } = useUser();
   const { openSignIn } = useClerk();
   const [isUploading, setIsUploading] = useState(false);
@@ -263,16 +270,30 @@ export default function ToolsPage() {
                   </p>
                 </div>
               </div>
-              <label className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3">
                 <span className="text-sm font-medium text-black">Select a video file</span>
                 <input
+                  id={videoInputId}
                   type="file"
                   accept="video/*"
                   onChange={handleFileChange}
                   disabled={isUploading}
-                  className="block w-full cursor-pointer rounded-lg border border-[#E5E5E5] px-4 py-3 text-sm text-black file:mr-4 file:rounded-md file:border-0 file:bg-black file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-[#333333]"
+                  className="sr-only"
                 />
-              </label>
+                <label
+                  htmlFor={videoInputId}
+                  className={`${secondaryButtonClass} w-fit ${isUploading ? "pointer-events-none opacity-60" : ""}`}
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>{isUploading ? "Uploading..." : "Choose Video"}</span>
+                </label>
+                <input
+                  readOnly
+                  value={selectedFileName ?? ""}
+                  placeholder="No video selected"
+                  className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none"
+                />
+              </div>
 
               {isUploading && (
                 <div className="rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] px-4 py-3 text-sm text-black">
@@ -303,7 +324,7 @@ export default function ToolsPage() {
                     <button
                       type="button"
                       onClick={handleCopy}
-                      className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-[#333333] flex items-center gap-2"
+                      className={`${primaryButtonClass} flex items-center gap-2`}
                     >
                       {videoCopied ? (
                         <>
@@ -321,7 +342,7 @@ export default function ToolsPage() {
                       href={result.downloadUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-lg border border-[#E5E5E5] px-4 py-2 text-sm font-medium text-black transition hover:bg-[#F7F7F7] flex items-center gap-2"
+                      className={`${secondaryButtonClass} flex items-center gap-2`}
                     >
                       <ExternalLink className="h-4 w-4" />
                       <span>Open URL</span>
@@ -345,16 +366,30 @@ export default function ToolsPage() {
                   </p>
                 </div>
               </div>
-              <label className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3">
                 <span className="text-sm font-medium text-black">Select an image file</span>
                 <input
+                  id={imageInputId}
                   type="file"
                   accept="image/*"
                   onChange={handleImageChange}
                   disabled={isImageUploading}
-                  className="block w-full cursor-pointer rounded-lg border border-[#E5E5E5] px-4 py-3 text-sm text-black file:mr-4 file:rounded-md file:border-0 file:bg-black file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-[#333333]"
+                  className="sr-only"
                 />
-              </label>
+                <label
+                  htmlFor={imageInputId}
+                  className={`${secondaryButtonClass} w-fit ${isImageUploading ? "pointer-events-none opacity-60" : ""}`}
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>{isImageUploading ? "Uploading..." : "Choose Image"}</span>
+                </label>
+                <input
+                  readOnly
+                  value={selectedImageName ?? ""}
+                  placeholder="No image selected"
+                  className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none"
+                />
+              </div>
 
               {isImageUploading && (
                 <div className="rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] px-4 py-3 text-sm text-black">
@@ -385,7 +420,7 @@ export default function ToolsPage() {
                     <button
                       type="button"
                       onClick={handleCopyImageUrl}
-                      className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-[#333333] flex items-center gap-2"
+                      className={`${primaryButtonClass} flex items-center gap-2`}
                     >
                       {imageCopied ? (
                         <>
@@ -403,7 +438,7 @@ export default function ToolsPage() {
                       href={imageResult.downloadUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-lg border border-[#E5E5E5] px-4 py-2 text-sm font-medium text-black transition hover:bg-[#F7F7F7] flex items-center gap-2"
+                      className={`${secondaryButtonClass} flex items-center gap-2`}
                     >
                       <ExternalLink className="h-4 w-4" />
                       <span>Open URL</span>

@@ -20,6 +20,7 @@ import {
   LayoutDashboard,
   Moon,
   Sun,
+  type LucideIcon,
 } from "lucide-react";
 
 type ViewTransitionCapableDocument = Document & {
@@ -33,6 +34,85 @@ type ViewTransitionCapableDocument = Document & {
 interface HeaderProps {
   showAuthButtons?: boolean;
   showThemeToggle?: boolean;
+}
+
+type HeaderNavItem = {
+  href: string;
+  title: string;
+  icon: LucideIcon;
+  isNew?: boolean;
+};
+
+const featureItems: HeaderNavItem[] = [
+  {
+    href: "/features/ai-agent",
+    title: "AI Agent",
+    icon: Bot,
+    isNew: true,
+  },
+  {
+    href: "/features/avatar-ads",
+    title: "Avatar Ads",
+    icon: UserCircle,
+  },
+  {
+    href: "/features/viral-clone",
+    title: "Viral Clone",
+    icon: Copy,
+  },
+  {
+    href: "/features/motion-clone",
+    title: "Motion Clone",
+    icon: RefreshCw,
+  },
+];
+
+const toolItems: HeaderNavItem[] = [
+  {
+    href: "/tools/upload-assets",
+    title: "Upload Assets to URL",
+    icon: Upload,
+  },
+  {
+    href: "/tools/roas-calculator",
+    title: "ROAS Calculator",
+    icon: Calculator,
+  },
+  {
+    href: "/tools/ai-angle-generator",
+    title: "AI Multi-Angle Photo",
+    icon: Sparkles,
+  },
+];
+
+function HeaderMenuItem({
+  href,
+  title,
+  icon: Icon,
+  isNew = false,
+  onClick,
+}: HeaderNavItem & { onClick?: () => void }) {
+  return (
+    <Link
+      href={href}
+      className="landing-dropdown-item landing-press-button landing-press-button--secondary landing-press-button--compact"
+      onClick={onClick}
+    >
+      <div className="landing-dropdown-item__icon" aria-hidden="true">
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <div className="landing-dropdown-item__title">{title}</div>
+          {isNew ? (
+            <span className="landing-dropdown-item__badge">
+              New
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </Link>
+  );
 }
 
 export default function Header({
@@ -170,73 +250,11 @@ export default function Header({
                 Features
                 <ChevronDownIcon className="w-3.5 h-3.5" />
               </button>
-              <div className="landing-floating-panel absolute left-1/2 top-full z-50 mt-4 w-64 -translate-x-1/2 rounded-[24px] border border-[#E5E5E5] bg-white p-2 shadow-[0_24px_60px_rgba(0,0,0,0.12)] invisible opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
-                <div className="py-2">
-                  <Link
-                    href="/features/ai-agent"
-                    className="flex items-start gap-3 rounded-[18px] px-4 py-3 text-[14px] text-[#666666] transition-colors hover:bg-[#F7F7F7] hover:text-black"
-                  >
-                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F7F7F7]">
-                      <Bot className="w-5 h-5 text-black" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <div className="font-semibold text-black">AI Agent</div>
-                        <span className="rounded-full bg-black px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white">
-                          New
-                        </span>
-                      </div>
-                      <div className="text-[12px] opacity-70">
-                        Talk through clone workflows
-                      </div>
-                    </div>
-                  </Link>
-                  <Link
-                    href="/features/avatar-ads"
-                    className="flex items-start gap-3 rounded-[18px] px-4 py-3 text-[14px] text-[#666666] transition-colors hover:bg-[#F7F7F7] hover:text-black"
-                  >
-                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F7F7F7]">
-                      <UserCircle className="w-5 h-5 text-black" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-semibold text-black">Avatar Ads</div>
-                      <div className="text-[12px] opacity-70">
-                        AI character-driven videos
-                      </div>
-                    </div>
-                  </Link>
-                  <Link
-                    href="/features/viral-clone"
-                    className="flex items-start gap-3 rounded-[18px] px-4 py-3 text-[14px] text-[#666666] transition-colors hover:bg-[#F7F7F7] hover:text-black"
-                  >
-                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F7F7F7]">
-                      <Copy className="w-5 h-5 text-black" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-semibold text-black">
-                        Viral Clone
-                      </div>
-                      <div className="text-[12px] opacity-70">
-                        Clone viral videos
-                      </div>
-                    </div>
-                  </Link>
-                  <Link
-                    href="/features/motion-clone"
-                    className="flex items-start gap-3 rounded-[18px] px-4 py-3 text-[14px] text-[#666666] transition-colors hover:bg-[#F7F7F7] hover:text-black"
-                  >
-                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F7F7F7]">
-                      <RefreshCw className="w-5 h-5 text-black" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-semibold text-black">
-                        Motion Clone
-                      </div>
-                      <div className="text-[12px] opacity-70">
-                        Clone viral ad movements
-                      </div>
-                    </div>
-                  </Link>
+              <div className="landing-floating-panel absolute left-1/2 top-full z-50 mt-4 min-w-[15.5rem] w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-[22px] border border-[#E5E5E5] bg-white p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.12)] invisible opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
+                <div className="flex flex-col gap-2 py-2">
+                  {featureItems.map((item) => (
+                    <HeaderMenuItem key={item.href} {...item} />
+                  ))}
                 </div>
               </div>
             </div>
@@ -245,56 +263,11 @@ export default function Header({
                 Tools
                 <ChevronDownIcon className="w-3.5 h-3.5" />
               </button>
-              <div className="landing-floating-panel absolute left-1/2 top-full z-50 mt-4 w-64 -translate-x-1/2 rounded-[24px] border border-[#E5E5E5] bg-white p-2 shadow-[0_24px_60px_rgba(0,0,0,0.12)] invisible opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
-                <div className="py-2">
-                  <Link
-                    href="/tools/upload-assets"
-                    className="flex items-start gap-3 rounded-[18px] px-4 py-3 text-[14px] text-[#666666] transition-colors hover:bg-[#F7F7F7] hover:text-black"
-                  >
-                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F7F7F7]">
-                      <Upload className="w-5 h-5 text-black" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-semibold text-black">
-                        Upload Assets to URL
-                      </div>
-                      <div className="text-[12px] opacity-70">
-                        Video and image upload tools
-                      </div>
-                    </div>
-                  </Link>
-                  <Link
-                    href="/tools/roas-calculator"
-                    className="flex items-start gap-3 rounded-[18px] px-4 py-3 text-[14px] text-[#666666] transition-colors hover:bg-[#F7F7F7] hover:text-black"
-                  >
-                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F7F7F7]">
-                      <Calculator className="w-5 h-5 text-black" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-semibold text-black">
-                        ROAS Calculator
-                      </div>
-                      <div className="text-[12px] opacity-70">
-                        Measure profitability and break-even goals
-                      </div>
-                    </div>
-                  </Link>
-                  <Link
-                    href="/tools/ai-angle-generator"
-                    className="flex items-start gap-3 rounded-[18px] px-4 py-3 text-[14px] text-[#666666] transition-colors hover:bg-[#F7F7F7] hover:text-black"
-                  >
-                    <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F7F7F7]">
-                      <Sparkles className="w-5 h-5 text-black" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-semibold text-black">
-                        AI Multi-Angle Photo
-                      </div>
-                      <div className="text-[12px] opacity-70">
-                        Generate 3 additional viewing angles
-                      </div>
-                    </div>
-                  </Link>
+              <div className="landing-floating-panel absolute left-1/2 top-full z-50 mt-4 min-w-[15.5rem] w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-[22px] border border-[#E5E5E5] bg-white p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.12)] invisible opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
+                <div className="flex flex-col gap-2 py-2">
+                  {toolItems.map((item) => (
+                    <HeaderMenuItem key={item.href} {...item} />
+                  ))}
                 </div>
               </div>
             </div>
@@ -386,61 +359,23 @@ export default function Header({
         }`}
       >
         <div className="mx-auto mt-2 flex w-full max-w-[1280px] flex-col gap-4 rounded-[28px] border border-[#E5E5E5] bg-white px-5 py-6 shadow-[0_20px_52px_rgba(0,0,0,0.08)]">
-          <Link
-            href="/features/ai-agent"
-            className="inline-flex items-center gap-2 rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            <span>AI Agent</span>
-            <span className="rounded-full bg-black px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white">
-              New
-            </span>
-          </Link>
-          <Link
-            href="/features/avatar-ads"
-            className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            Avatar Ads
-          </Link>
-          <Link
-            href="/features/viral-clone"
-            className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            Viral Clone
-          </Link>
-          <Link
-            href="/features/motion-clone"
-            className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            Motion Clone
-          </Link>
+          {featureItems.map((item) => (
+            <HeaderMenuItem
+              key={item.href}
+              {...item}
+              onClick={() => setMobileMenuOpen(false)}
+            />
+          ))}
           <div className="text-[12px] font-medium text-[#666666] uppercase tracking-[0.2em]">
             Tools
           </div>
-          <Link
-            href="/tools/upload-assets"
-            className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            Upload Assets to URL
-          </Link>
-          <Link
-            href="/tools/roas-calculator"
-            className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            ROAS Calculator
-          </Link>
-          <Link
-            href="/tools/ai-angle-generator"
-            className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            AI Multi-Angle Photo
-          </Link>
+          {toolItems.map((item) => (
+            <HeaderMenuItem
+              key={item.href}
+              {...item}
+              onClick={() => setMobileMenuOpen(false)}
+            />
+          ))}
           <Link
             href="/#pricing"
             className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"

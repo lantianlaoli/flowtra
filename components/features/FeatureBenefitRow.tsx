@@ -58,14 +58,14 @@ export default function FeatureBenefitRow({
             <div className="flex flex-col gap-3 pt-2 sm:flex-row">
               <Link
                 href={primaryCta.href}
-                className="inline-flex min-h-12 items-center justify-center rounded-xl bg-black px-6 py-3 text-[15px] font-semibold text-white transition-colors hover:bg-[#1A1A1A]"
+                className="landing-press-button text-[15px] font-semibold"
               >
                 {primaryCta.label}
               </Link>
               {secondaryCta ? (
                 <Link
                   href={secondaryCta.href}
-                  className="inline-flex min-h-12 items-center justify-center rounded-xl border border-[#E5E5E5] bg-white px-6 py-3 text-[15px] font-semibold text-black transition-colors hover:bg-[#F7F7F7]"
+                  className="landing-press-button landing-press-button--secondary text-[15px] font-semibold"
                 >
                   {secondaryCta.label}
                 </Link>
