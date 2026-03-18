@@ -429,6 +429,308 @@
   pointer-events: none;
 }
 
+.assets-primary-button,
+.assets-modal-primary,
+.assets-avatar-card-action,
+.assets-video-card-action,
+.assets-video-details-action,
+.assets-product-card-action.w-full {
+  border-color: #111111 !important;
+  background: linear-gradient(180deg, #171717 0%, #101010 100%) !important;
+  color: #ffffff !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 4px 0 rgba(58, 58, 58, 0.92),
+    0 12px 20px rgba(0, 0, 0, 0.1) !important;
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease,
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease !important;
+}
+
+.assets-primary-button:hover,
+.assets-modal-primary:hover,
+.assets-avatar-card-action:hover,
+.assets-video-card-action:hover,
+.assets-video-details-action:hover,
+.assets-product-card-action.w-full:hover {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 2px 0 rgba(58, 58, 58, 0.92),
+    0 8px 14px rgba(0, 0, 0, 0.08) !important;
+}
+
+.assets-primary-button:active,
+.assets-modal-primary:active,
+.assets-avatar-card-action:active,
+.assets-video-card-action:active,
+.assets-video-details-action:active,
+.assets-product-card-action.w-full:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 1px 0 rgba(58, 58, 58, 0.92),
+    0 5px 10px rgba(0, 0, 0, 0.07) !important;
+}
+
+.assets-secondary-button,
+.assets-modal-secondary,
+.assets-video-import-back,
+.assets-modal-close,
+.assets-video-import-option,
+.assets-library-upload-card,
+.assets-video-import-preview,
+.assets-product-card-action:not(.w-full),
+.assets-product-card-add,
+.assets-product-card-thumb-remove,
+.assets-modal-chip-close,
+.assets-video-import-tile {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 3px 0 rgba(232, 232, 228, 0.98),
+    0 10px 18px rgba(15, 23, 42, 0.035);
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease,
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    opacity 150ms ease !important;
+}
+
+.assets-secondary-button,
+.assets-modal-secondary,
+.assets-video-import-option,
+.assets-library-upload-card,
+.assets-video-import-preview,
+.assets-product-card-add,
+.assets-video-import-tile {
+  border-color: #ecece8 !important;
+  background: linear-gradient(180deg, #ffffff 0%, #fcfcfb 100%) !important;
+}
+
+.assets-video-import-back,
+.assets-modal-close,
+.assets-product-card-action:not(.w-full) {
+  border: 1px solid #ecece8;
+  background: linear-gradient(180deg, #ffffff 0%, #fcfcfb 100%);
+}
+
+.assets-video-import-back {
+  min-height: 2.5rem;
+  padding: 0.625rem 1rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.assets-product-card-thumb-remove {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 3px 0 rgba(185, 28, 28, 0.85),
+    0 10px 16px rgba(127, 29, 29, 0.14) !important;
+}
+
+.assets-modal-chip-close {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 3px 0 rgba(72, 72, 72, 0.88),
+    0 10px 16px rgba(0, 0, 0, 0.14) !important;
+}
+
+.assets-secondary-button:hover,
+.assets-modal-secondary:hover,
+.assets-video-import-back:hover,
+.assets-modal-close:hover,
+.assets-video-import-option:hover,
+.assets-library-upload-card:hover,
+.assets-video-import-preview:hover,
+.assets-product-card-action:not(.w-full):hover,
+.assets-product-card-add:hover,
+.assets-product-card-thumb-remove:hover,
+.assets-modal-chip-close:hover,
+.assets-video-import-tile:hover {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 1px 0 rgba(232, 232, 228, 0.98),
+    0 7px 12px rgba(15, 23, 42, 0.028) !important;
+}
+
+.assets-product-card-thumb-remove:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 1px 0 rgba(185, 28, 28, 0.85),
+    0 7px 12px rgba(127, 29, 29, 0.12) !important;
+}
+
+.assets-modal-chip-close:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 1px 0 rgba(72, 72, 72, 0.88),
+    0 7px 12px rgba(0, 0, 0, 0.12) !important;
+}
+
+.assets-secondary-button:active,
+.assets-modal-secondary:active,
+.assets-video-import-back:active,
+.assets-modal-close:active,
+.assets-video-import-option:active,
+.assets-library-upload-card:active,
+.assets-video-import-preview:active,
+.assets-product-card-action:not(.w-full):active,
+.assets-product-card-add:active,
+.assets-product-card-thumb-remove:active,
+.assets-modal-chip-close:active,
+.assets-video-import-tile:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 0 0 rgba(232, 232, 228, 0.98),
+    0 4px 8px rgba(15, 23, 42, 0.022) !important;
+}
+
+.assets-product-card-thumb-remove:active {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 0 0 rgba(185, 28, 28, 0.85),
+    0 4px 8px rgba(127, 29, 29, 0.11) !important;
+}
+
+.assets-modal-chip-close:active {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 rgba(72, 72, 72, 0.88),
+    0 4px 8px rgba(0, 0, 0, 0.11) !important;
+}
+
+.assets-modal-upload {
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    box-shadow 150ms ease !important;
+}
+
+.assets-modal-upload:hover,
+.assets-modal-upload:focus-within {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    0 8px 18px rgba(15, 23, 42, 0.03) !important;
+}
+
+.assets-ai-generate-button {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 3px 0 rgba(232, 232, 228, 0.98),
+    0 10px 18px rgba(15, 23, 42, 0.035) !important;
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease,
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease !important;
+}
+
+.assets-ai-generate-button:hover {
+  transform: translateY(2px);
+  border-color: #111111 !important;
+  color: #111111 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 1px 0 rgba(232, 232, 228, 0.98),
+    0 7px 12px rgba(15, 23, 42, 0.028) !important;
+}
+
+.assets-ai-generate-button:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 0 0 rgba(232, 232, 228, 0.98),
+    0 4px 8px rgba(15, 23, 42, 0.022) !important;
+}
+
+.assets-ai-generate-button:disabled {
+  transform: none !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 2px 0 rgba(232, 232, 228, 0.92) !important;
+}
+
+.my-ads-button {
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease,
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease !important;
+}
+
+.my-ads-button--primary {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 4px 0 rgba(58, 58, 58, 0.92),
+    0 12px 20px rgba(0, 0, 0, 0.1) !important;
+}
+
+.my-ads-button--primary:hover {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 2px 0 rgba(58, 58, 58, 0.92),
+    0 8px 14px rgba(0, 0, 0, 0.08) !important;
+}
+
+.my-ads-button--primary:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 1px 0 rgba(58, 58, 58, 0.92),
+    0 5px 10px rgba(0, 0, 0, 0.07) !important;
+}
+
+.my-ads-button--secondary {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 3px 0 rgba(232, 232, 228, 0.98),
+    0 10px 18px rgba(15, 23, 42, 0.035) !important;
+}
+
+.my-ads-button--secondary:hover {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 1px 0 rgba(232, 232, 228, 0.98),
+    0 7px 12px rgba(15, 23, 42, 0.028) !important;
+}
+
+.my-ads-button--secondary:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 0 0 rgba(232, 232, 228, 0.98),
+    0 4px 8px rgba(15, 23, 42, 0.022) !important;
+}
+
+.my-ads-button--compact {
+  min-width: 2.75rem;
+}
+
+.assets-modal-primary:disabled,
+.assets-primary-button:disabled,
+.assets-modal-secondary:disabled {
+  transform: none !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 2px 0 rgba(215, 215, 211, 0.9),
+    none !important;
+}
+
 .landing-nav-shell {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.8),
@@ -2004,6 +2306,43 @@
 
 .dashboard-theme .my-ads-details-primary:hover {
   background: #242424 !important;
+}
+
+.dashboard-theme .my-ads-button--secondary {
+  background: #0b0f16 !important;
+  border-color: #1f2937 !important;
+  color: #e5e7eb !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 3px 0 rgba(10, 15, 22, 0.96),
+    0 10px 18px rgba(2, 8, 23, 0.2) !important;
+}
+
+.dashboard-theme .my-ads-button--secondary:hover {
+  background: #111827 !important;
+  border-color: #334155 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 1px 0 rgba(10, 15, 22, 0.96),
+    0 7px 12px rgba(2, 8, 23, 0.18) !important;
+}
+
+.dashboard-theme .my-ads-button--primary {
+  background: #1b1b1b !important;
+  border-color: #2a2a2a !important;
+  color: #f8fafc !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 4px 0 rgba(58, 58, 58, 0.92),
+    0 12px 20px rgba(0, 0, 0, 0.2) !important;
+}
+
+.dashboard-theme .my-ads-button--primary:hover {
+  background: #242424 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 2px 0 rgba(58, 58, 58, 0.92),
+    0 8px 14px rgba(0, 0, 0, 0.18) !important;
 }
 
 /* Assets manager (dashboard dark theme) */

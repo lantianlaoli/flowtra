@@ -234,12 +234,12 @@ export default function ProductCard({
           </div>
 
           {/* Product Info and Actions */}
-          <div className="assets-product-card-body p-3">
+          <div className="assets-product-card-body flex flex-col gap-3 p-3">
             {/* Product Name */}
-            <h4 className="assets-product-card-title font-medium text-sm text-gray-900 line-clamp-2 min-h-[2.5rem]">
+            <h4 className="assets-product-card-title min-h-[2rem] line-clamp-2 text-base font-medium text-gray-900">
               {product.product_name}
             </h4>
-            <div className="mt-3">
+            <div>
               <button
                 onClick={handleEditClick}
                 className="assets-product-card-action w-full min-h-[42px] inline-flex items-center justify-center gap-2 rounded-lg border border-black bg-black px-3 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"

@@ -84,6 +84,7 @@ interface MotionCloneItem {
   adType: 'motion-clone';
   videoAspectRatio?: string;
   videoDurationSeconds?: number;
+  quality?: string;
   photoPrompt?: string;
   videoPrompt?: string;
   errorMessage?: string;
@@ -114,7 +115,6 @@ const isMotionClone = (item: HistoryItem | null): item is MotionCloneItem => {
 };
 
 const getModelDisplayName = (model: string): string => {
-  // Handle both current and legacy models for display purposes
   const modelNames: Record<string, string> = {
     'veo3': 'Veo3.1',
     'veo3_fast': 'Veo3.1 fast',
@@ -122,10 +122,47 @@ const getModelDisplayName = (model: string): string => {
     'kling_3': 'Kling 3.0',
     'sora2': 'Sora2 (Legacy)',
     'sora2_pro': 'Sora2 Pro (Legacy)',
-    'grok': 'Grok (Legacy)',
-    'kling_2_6': 'Kling 2.6 (Legacy)'
+    'grok': 'Grok (Legacy)'
   };
   return modelNames[model] || model;
+};
+
+const getProjectModelDisplayName = (item: HistoryItem): string => {
+  if (isMotionClone(item) && item.videoModel === 'kling_3') {
+    return 'Kling 3.0 Motion Control';
+  }
+
+  return getModelDisplayName(item.videoModel);
+};
+
+const getStatusLabel = (status: HistoryItem['status']): string => {
+  switch (status) {
+    case 'completed':
+      return 'Completed';
+    case 'processing':
+      return 'Processing';
+    case 'failed':
+      return 'Failed';
+    default:
+      return status;
+  }
+};
+
+const getStatusBadgeLabel = (item: HistoryItem): string => {
+  if (item.status === 'processing' && typeof item.progress === 'number') {
+    const progress = Math.max(0, Math.min(100, Math.round(item.progress)));
+    return `Status: Processing ${progress}%`;
+  }
+
+  return `Status: ${getStatusLabel(item.status)}`;
+};
+
+const getQualityDisplayValue = (item: HistoryItem): string | null => {
+  if (isMotionClone(item)) {
+    return item.quality?.toUpperCase() || '720P';
+  }
+
+  return null;
 };
 
 const formatDuration = (item: HistoryItem): string => {
@@ -694,22 +731,8 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
 
                     {/* Compact Parameters Card */}
                       <div className="my-ads-details-card border border-[#E5E5E5] rounded-xl p-5 bg-[#FAFAFA] shadow-sm">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="my-ads-details-section-title text-xs font-bold text-black uppercase tracking-wider">Project Info</h3>
-                          <span
-                            className={cn(
-                              'my-ads-details-status inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-tight',
-                              item.status === 'completed' && 'bg-black text-white',
-                              item.status === 'processing' && 'bg-white text-black border border-[#E5E5E5]',
-                              item.status === 'failed' && 'bg-white text-black border border-black'
-                            )}
-                          >
-                          {item.status === 'completed' && <Check className="w-3 h-3" />}
-                          {item.status === 'processing' && <Loader2 className="w-3 h-3 animate-spin" />}
-                          {item.status === 'completed' && 'Completed'}
-                          {item.status === 'processing' && `${item.progress || 0}%`}
-                          {item.status === 'failed' && 'Failed'}
-                        </span>
+                      <div className="mb-4">
+                        <h3 className="my-ads-details-section-title text-xs font-bold text-black uppercase tracking-wider">Project Info</h3>
                       </div>
 
                       {/* Compact Grid */}
@@ -717,7 +740,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                         <CompactParam 
                           icon={<Cpu className="w-3.5 h-3.5" />} 
                           label="Video Model" 
-                          value={isMotionClone(item) ? 'Kling 2.6 Motion Control' : getModelDisplayName(item.videoModel)} 
+                          value={getProjectModelDisplayName(item)} 
                         />
                         <CompactParam 
                           icon={<Maximize className="w-3.5 h-3.5" />} 
@@ -729,6 +752,18 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                           label="Duration" 
                           value={formatDuration(item)} 
                         />
+                        <CompactParam
+                          icon={<Check className="w-3.5 h-3.5" />}
+                          label="Status"
+                          value={getStatusLabel(item.status)}
+                        />
+                        {getQualityDisplayValue(item) && (
+                          <CompactParam
+                            icon={<Video className="w-3.5 h-3.5" />}
+                            label="Quality"
+                            value={getQualityDisplayValue(item)!}
+                          />
+                        )}
 
                         {(isCompetitorUgcReplication(item) || isCharacterAds(item)) && item.language && (
                           <CompactParam 
@@ -787,7 +822,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                       <div className="mb-4 flex items-center gap-2">
                         <button
                           onClick={() => setShowTikTokPanel(false)}
-                          className="my-ads-details-back inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-black transition-colors"
+                          className="my-ads-details-back my-ads-button my-ads-button--secondary inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:text-black"
                         >
                           <ArrowLeft className="w-4 h-4" />
                           Back to details
@@ -836,7 +871,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                       {canPublishToTikTok && (
                         <button
                           onClick={() => setShowTikTokPanel(true)}
-                          className="my-ads-details-secondary flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#E5E5E5] text-sm font-medium text-black bg-white hover:bg-[#F7F7F7] transition-all"
+                          className="my-ads-details-secondary my-ads-button my-ads-button--secondary flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#E5E5E5] text-sm font-medium text-black bg-white transition-all"
                         >
                           <Send className="w-4 h-4" />
                           <span>Share to TikTok</span>
@@ -850,7 +885,8 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                             disabled={isDownloading}
                             className={cn(
                               'my-ads-details-secondary flex h-11 items-center gap-2 rounded-lg border border-[#E5E5E5] bg-white px-3 text-sm font-medium text-black shadow-sm transition',
-                              isDownloading ? 'cursor-not-allowed opacity-70' : 'hover:bg-[#F7F7F7]'
+                              'my-ads-button my-ads-button--secondary',
+                              isDownloading ? 'cursor-not-allowed opacity-70' : ''
                             )}
                           >
                             {(() => {
@@ -885,8 +921,8 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                                       option.disabled
                                         ? 'cursor-not-allowed text-[#999999] bg-[#FAFAFA]'
                                         : isSelected
-                                          ? 'bg-black text-white'
-                                          : 'text-black hover:bg-[#F7F7F7]'
+                                          ? 'my-ads-button my-ads-button--primary bg-black text-white'
+                                          : 'my-ads-button my-ads-button--secondary text-black'
                                     )}
                                   >
                                     <div className="flex items-center gap-2">
@@ -909,9 +945,9 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                         onClick={handleDownloadClick}
                         disabled={isButtonBusy}
                         className={cn(
-                          'my-ads-details-primary flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all shadow-sm',
+                          'my-ads-details-primary my-ads-button flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all shadow-sm',
                           !isButtonBusy
-                            ? 'bg-black text-white hover:bg-black/90 hover:shadow-md'
+                            ? 'my-ads-button--primary bg-black text-white'
                             : 'bg-[#E5E5E5] text-[#666666] cursor-not-allowed'
                         )}
                       >
@@ -1009,6 +1045,12 @@ function FeedbackButtons({
   projectId: string;
   projectType: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-clone';
 }) {
+  const feedbackButtonBase =
+    'inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-[13px] font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/35';
+  const feedbackButton =
+    `${feedbackButtonBase} border border-zinc-900 bg-gradient-to-b from-zinc-900 to-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_3px_0_rgba(58,58,58,0.92),0_8px_14px_rgba(0,0,0,0.16)] hover:translate-y-[2px] hover:from-black hover:to-zinc-900 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_1px_0_rgba(58,58,58,0.92),0_6px_10px_rgba(0,0,0,0.12)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_0px_0_rgba(58,58,58,0.92),0_4px_8px_rgba(0,0,0,0.1)]`;
+  const feedbackButtonDisabled =
+    `${feedbackButtonBase} border border-zinc-900/60 bg-zinc-900/75 text-white/75 cursor-not-allowed shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_2px_0_rgba(58,58,58,0.68)]`;
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState<'positive' | 'negative' | null>(null);
 
@@ -1045,7 +1087,7 @@ function FeedbackButtons({
       <button
         onClick={() => handleFeedback('positive')}
         disabled={submitting !== null}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-lg text-[13px] font-medium hover:border-gray-900 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        className={submitting !== null ? feedbackButtonDisabled : feedbackButton}
       >
         {submitting === 'positive' ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1057,7 +1099,7 @@ function FeedbackButtons({
       <button
         onClick={() => handleFeedback('negative')}
         disabled={submitting !== null}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 bg-white text-gray-900 rounded-lg text-[13px] font-medium hover:border-gray-900 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        className={submitting !== null ? feedbackButtonDisabled : feedbackButton}
       >
         {submitting === 'negative' ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin" />

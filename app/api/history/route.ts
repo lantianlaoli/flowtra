@@ -79,6 +79,7 @@ interface MotionCloneItem {
   adType: 'motion-clone';
   videoAspectRatio?: string;
   videoDurationSeconds?: number;
+  quality?: string;
   photoPrompt?: string;
   videoPrompt?: string;
   errorMessage?: string;
@@ -116,7 +117,7 @@ const resolveCoverAspectRatio = (ratio?: string | null): SupportedAspectRatio | 
 };
 
 const ALLOWED_COMPETITOR_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'seedance_1_5_pro', 'kling_3'];
-const LEGACY_MODELS = ['sora2', 'sora2_pro', 'grok', 'kling_2_6'];
+const LEGACY_MODELS = ['sora2', 'sora2_pro', 'grok'];
 
 const normalizeCompetitorVideoModel = (model?: string | null): VideoModel => {
   if (model === 'seedance-1.5-pro' || model === 'bytedance/seedance-1.5-pro') {
@@ -195,9 +196,9 @@ export async function GET() {
     }
 
     // Fetch Motion Clone data
-    // Schema verified via Supabase MCP (2026-01-23): motion_clone_projects columns include
+    // Schema verified via Supabase MCP (2026-03-18): motion_clone_projects columns include
     // id, user_id, status, preview_image_url, reference_cover_url, output_video_url,
-    // credits_cost, generation_credits_used, downloaded, progress_percentage,
+    // credits_cost, generation_credits_used, downloaded, progress_percentage, mode,
     // reference_duration_seconds, photo_prompt, video_prompt, error_message, created_at
     const { data: motionCloneItems, error: motionCloneError } = await supabase
       .from('motion_clone_projects')
@@ -317,7 +318,7 @@ export async function GET() {
         downloaded: item.downloaded || false,
         downloadCreditsUsed: 0,
         generationCreditsUsed: item.generation_credits_used || 0,
-        videoModel: 'veo3_fast',
+        videoModel: 'kling_3',
         creditsUsed: item.credits_cost || 0,
         status: mappedStatus,
         createdAt: item.created_at,
@@ -326,6 +327,7 @@ export async function GET() {
         adType: 'motion-clone',
         videoAspectRatio: resolveVideoAspectRatio('9:16', '9:16'),
         videoDurationSeconds: item.reference_duration_seconds || undefined,
+        quality: item.mode || undefined,
         photoPrompt: item.photo_prompt || undefined,
         videoPrompt: item.video_prompt || undefined,
         errorMessage: item.error_message || undefined

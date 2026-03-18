@@ -527,7 +527,7 @@ export default function EditProductModal({
                           type="button"
                           onClick={handleGenerateReferences}
                           disabled={!frontalPhoto || referencePhotos.length >= 3 || isSaving || isUploadingPhotos || isGeneratingReferences}
-                          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition-colors hover:border-gray-900 hover:text-gray-900 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                          className="assets-ai-generate-button inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
                         >
                           {isGeneratingReferences ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />

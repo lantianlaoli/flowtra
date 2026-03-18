@@ -95,6 +95,7 @@ interface MotionCloneItem {
   adType: 'motion-clone';
   videoAspectRatio?: string;
   videoDurationSeconds?: number;
+  quality?: string;
   photoPrompt?: string;
   videoPrompt?: string;
   errorMessage?: string;
@@ -134,10 +135,10 @@ const AD_TYPE_OPTIONS = [
 type AdTypeFilterValue = (typeof AD_TYPE_OPTIONS)[number]['value'];
 
 const interactiveCardActionClasses =
-  'cursor-pointer transition-all duration-150 ease-out hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:translate-y-0';
+  'my-ads-button cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20 focus-visible:ring-offset-2 focus-visible:ring-offset-white';
 
 const paginationButtonClasses =
-  'cursor-pointer transition-all duration-150 ease-out hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/15 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:translate-y-0 disabled:pointer-events-none';
+  'my-ads-button my-ads-button--compact cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/15 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none';
 
 const isCharacterAds = (item: HistoryItem): item is AvatarAdsItem => {
   return 'adType' in item && item.adType === 'character';
@@ -956,14 +957,14 @@ export default function HistoryPage() {
               </div>
 
               {/* Warning Notice */}
-              <div className="md:max-w-md">
+              <div className="md:max-w-xl">
                 <div className="rounded-2xl border border-red-200/80 bg-white px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.04)]">
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600 ring-1 ring-red-100">
                       <AlertCircle className="h-4.5 w-4.5" />
                     </div>
-                    <p className="pt-0.5 text-sm font-medium leading-6 text-red-700">
-                      Videos stay available for {MY_ADS_RETENTION_DAYS} days. After that, they can no longer be viewed or downloaded.
+                    <p className="text-sm font-medium leading-6 text-red-700 md:whitespace-nowrap">
+                      Videos expire after {MY_ADS_RETENTION_DAYS} days with viewing and downloads disabled.
                     </p>
                   </div>
                 </div>
@@ -984,10 +985,10 @@ export default function HistoryPage() {
                     onClick={() => setAdTypeFilter(option.value)}
                     aria-pressed={isActive}
                     className={cn(
-                      'inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20',
+                      'my-ads-button inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20',
                       isActive
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-background text-foreground border-border hover:border-foreground'
+                        ? 'my-ads-button--primary bg-primary text-primary-foreground border-primary'
+                        : 'my-ads-button--secondary bg-background text-foreground border-border hover:border-foreground'
                     )}
                   >
                     <option.icon className="h-4 w-4" />
@@ -1024,7 +1025,7 @@ export default function HistoryPage() {
               <p className="text-muted-foreground mb-8 max-w-md mx-auto">Start creating your first AI-powered advertisement</p>
               <button
                 onClick={() => window.location.href = '/dashboard'}
-                className="bg-primary text-primary-foreground px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium inline-flex items-center gap-2"
+                className="my-ads-button my-ads-button--primary inline-flex items-center gap-2 rounded-lg px-6 py-3 font-medium"
               >
                 <FileVideo className="w-4 h-4" />
                 Create Project
@@ -1199,7 +1200,7 @@ export default function HistoryPage() {
                           <button
                             onClick={() => handleViewDetails(item)}
                             className={cn(
-                              'w-full flex items-center justify-between px-3 py-2.5 text-sm bg-background text-foreground rounded-lg border border-border hover:border-foreground transition-all',
+                              'my-ads-button my-ads-button--secondary w-full flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground transition-all hover:border-foreground',
                               interactiveCardActionClasses
                             )}
                           >
@@ -1222,7 +1223,7 @@ export default function HistoryPage() {
                       onClick={() => goToPage(currentPage - 1)}
                       disabled={currentPage === 1}
                       className={cn(
-                        'px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:border-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-all',
+                        'my-ads-button my-ads-button--secondary rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:border-foreground disabled:cursor-not-allowed disabled:opacity-30 transition-all',
                         paginationButtonClasses
                       )}
                     >
@@ -1269,10 +1270,10 @@ export default function HistoryPage() {
                             <button
                               onClick={() => goToPage(page as number)}
                               className={cn(
-                                'px-3 py-2 text-sm font-medium rounded-lg transition-all',
+                                'my-ads-button rounded-lg px-3 py-2 text-sm font-medium transition-all',
                                 currentPage === page
-                                  ? 'bg-primary text-primary-foreground'
-                                  : 'text-foreground bg-background border border-border hover:border-foreground',
+                                  ? 'my-ads-button--primary bg-primary text-primary-foreground'
+                                  : 'my-ads-button--secondary text-foreground bg-background border border-border hover:border-foreground',
                                 paginationButtonClasses
                               )}
                             >
@@ -1287,7 +1288,7 @@ export default function HistoryPage() {
                       onClick={() => goToPage(currentPage + 1)}
                       disabled={currentPage === totalPages}
                       className={cn(
-                        'px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:border-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-all',
+                        'my-ads-button my-ads-button--secondary rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:border-foreground disabled:cursor-not-allowed disabled:opacity-30 transition-all',
                         paginationButtonClasses
                       )}
                     >

@@ -85,7 +85,7 @@ function ReferenceImageCard({
       <button
         type="button"
         onClick={onRemove}
-        className="absolute right-2 top-2 rounded-full bg-black/65 p-1.5 text-white transition hover:bg-black"
+        className="assets-modal-chip-close absolute right-2 top-2 rounded-full bg-black/65 p-1.5 text-white transition hover:bg-black"
         disabled={removeDisabled}
         aria-label={`Remove ${alt}`}
       >

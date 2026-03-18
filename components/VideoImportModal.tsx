@@ -884,10 +884,10 @@ export default function VideoImportModal({
               <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
                 <button
                   onClick={handleBackToChoose}
-                  className="assets-video-import-back inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+                  className="assets-video-import-back inline-flex items-center gap-2 rounded-full text-sm text-gray-500 hover:text-gray-700"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  Back to options
+                  <span>BACK</span>
                 </button>
 
                 <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] gap-6">
@@ -988,10 +988,10 @@ export default function VideoImportModal({
               <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
                 <button
                   onClick={handleBackToChoose}
-                  className="assets-video-import-back inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+                  className="assets-video-import-back inline-flex items-center gap-2 rounded-full text-sm text-gray-500 hover:text-gray-700"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  Back to options
+                  <span>BACK</span>
                 </button>
 
                 <div className="assets-video-import-form space-y-4">
@@ -1024,10 +1024,10 @@ export default function VideoImportModal({
               <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
                 <button
                   onClick={() => setStep('creator')}
-                  className="assets-video-import-back inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+                  className="assets-video-import-back inline-flex items-center gap-2 rounded-full text-sm text-gray-500 hover:text-gray-700"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  Back to search
+                  <span>BACK</span>
                 </button>
 
                 <div className="flex items-center justify-between">
@@ -1198,7 +1198,7 @@ export default function VideoImportModal({
                           type="button"
                           onClick={() => void handleRetryAnalysis()}
                           disabled={isRetryingAnalysis}
-                          className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="assets-modal-secondary inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {isRetryingAnalysis ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -1231,7 +1231,7 @@ export default function VideoImportModal({
                     <button
                       onClick={handleUseForClone}
                       disabled={!canUseForClone}
-                      className="w-full h-11 px-4 text-sm font-semibold text-white rounded-xl border border-black bg-gradient-to-b from-[#141414] to-black shadow-[0_8px_20px_rgba(0,0,0,0.24)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(0,0,0,0.30)] active:translate-y-0 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-[0_8px_20px_rgba(0,0,0,0.24)] flex items-center justify-center gap-2"
+                      className="assets-modal-primary flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-black bg-gradient-to-b from-[#141414] to-black px-4 text-sm font-semibold text-white transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       <span className="w-6 h-6 rounded-md border border-white/20 bg-white/10 flex items-center justify-center">
                         <Sparkles className="w-3.5 h-3.5" />
@@ -1241,7 +1241,7 @@ export default function VideoImportModal({
                     <button
                       onClick={handleUseInMotionClone}
                       disabled={!canUseForMotionClone || isFirstFrameUploading}
-                      className="w-full h-11 px-4 text-sm font-semibold text-white rounded-xl border border-black bg-gradient-to-b from-[#101010] to-black shadow-[0_8px_20px_rgba(0,0,0,0.24)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(0,0,0,0.30)] active:translate-y-0 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-[0_8px_20px_rgba(0,0,0,0.24)] flex items-center justify-center gap-2"
+                      className="assets-modal-primary flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-black bg-gradient-to-b from-[#101010] to-black px-4 text-sm font-semibold text-white transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       <span className="w-6 h-6 rounded-md border border-white/20 bg-white/10 flex items-center justify-center">
                         <Shuffle className="w-3.5 h-3.5" />

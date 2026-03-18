@@ -52,6 +52,15 @@ const primaryNavigation = [
   { name: 'Assets', href: '/dashboard/assets', icon: Boxes },
 ];
 
+const sidebarNavButtonBase =
+  'relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-[20px] border px-2.5 py-3 text-sm font-medium transition-all duration-150';
+
+const sidebarNavButtonInactive =
+  'border-[#ECECE8] bg-[linear-gradient(180deg,#FFFFFF_0%,#FCFCFB_100%)] text-[#5F5F5F] shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_3px_0_rgba(232,232,228,0.98),0_10px_18px_rgba(15,23,42,0.035)] hover:translate-y-[2px] hover:border-[#E7E7E2] hover:bg-[linear-gradient(180deg,#FDFDFC_0%,#F8F8F6_100%)] hover:text-[#111111] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_1px_0_rgba(232,232,228,0.98),0_7px_12px_rgba(15,23,42,0.028)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_0px_0_rgba(232,232,228,0.98),0_4px_8px_rgba(15,23,42,0.022)]';
+
+const sidebarNavButtonActive =
+  'border-[#111111] bg-[#111111] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_0_rgba(22,22,22,0.98),0_14px_24px_rgba(0,0,0,0.12)] hover:translate-y-[2px] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_2px_0_rgba(22,22,22,0.98),0_10px_18px_rgba(0,0,0,0.1)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_0_rgba(22,22,22,0.98),0_7px_14px_rgba(0,0,0,0.09)]';
+
 export default function Sidebar({ credits, creditsData }: SidebarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -138,10 +147,10 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                'relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-[20px] border px-2.5 py-3 text-sm font-medium transition-all duration-150',
+                sidebarNavButtonBase,
                 isActive
-                  ? 'border-[#111111] bg-[#111111] text-white shadow-[0_14px_28px_rgba(0,0,0,0.12)]'
-                  : 'border-transparent bg-transparent text-[#5F5F5F] hover:border-[#E5E5E5] hover:bg-[#F7F7F7] hover:text-[#111111]'
+                  ? sidebarNavButtonActive
+                  : sidebarNavButtonInactive
               )}
             >
               {isActive ? (

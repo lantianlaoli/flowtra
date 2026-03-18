@@ -492,8 +492,8 @@ export default function CreateAvatarModal({
                       }
                     }}
                     className={cn(
-                      'relative w-full aspect-[4/5] max-h-[560px] overflow-hidden rounded-2xl border-2 border-dashed transition',
-                      primaryImage ? 'border-gray-300 bg-[#F8F8F8]' : 'border-gray-300 bg-[#FAFAFA] hover:border-gray-400'
+                      'assets-modal-upload relative w-full aspect-[4/5] max-h-[560px] overflow-hidden rounded-2xl border-2 border-dashed transition',
+                      primaryImage ? 'border-gray-300 bg-[#F8F8F8]' : 'border-gray-300 bg-[#FAFAFA]'
                     )}
                   >
                     <div className="absolute left-3 top-3">
@@ -509,7 +509,7 @@ export default function CreateAvatarModal({
                             event.stopPropagation();
                             setPrimaryImage(null);
                           }}
-                          className="absolute right-3 top-3 rounded-full bg-black/70 p-1.5 text-white hover:bg-black"
+                          className="assets-modal-chip-close absolute right-3 top-3 rounded-full bg-black/70 p-1.5 text-white hover:bg-black"
                         >
                           <X className="h-4 w-4" />
                         </button>
@@ -565,7 +565,7 @@ export default function CreateAvatarModal({
                       type="button"
                       onClick={handleGenerateReferences}
                       disabled={!primaryImage || referenceImages.length >= 3 || isCreating || isUploadingRefs || isGeneratingReferences}
-                      className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition-colors hover:border-gray-900 hover:text-gray-900 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                      className="assets-ai-generate-button inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
                     >
                       {isGeneratingReferences ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />

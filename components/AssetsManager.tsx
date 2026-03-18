@@ -550,7 +550,7 @@ export default function AssetsManager() {
               <button
                 type="button"
                 onClick={() => setShowCreateProductModal(true)}
-                className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-dashed border-gray-300 bg-white text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-400 hover:shadow-sm"
+                className="assets-library-upload-card group relative flex w-full flex-col overflow-hidden rounded-xl border border-dashed border-gray-300 bg-white text-left transition-all duration-200"
               >
                 <div className="flex aspect-[4/5] w-full flex-col items-center justify-center gap-4 bg-[#fcfcfc] px-4 text-center">
                   <div className="flex h-18 w-18 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 transition-colors group-hover:border-gray-300 group-hover:text-black">
@@ -580,7 +580,7 @@ export default function AssetsManager() {
               <button
                 type="button"
                 onClick={() => setShowCreateAvatarModal(true)}
-                className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-dashed border-gray-300 bg-white text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-400 hover:shadow-sm"
+                className="assets-library-upload-card group relative flex w-full flex-col overflow-hidden rounded-xl border border-dashed border-gray-300 bg-white text-left transition-all duration-200"
               >
                 <div className="flex aspect-[4/5] w-full flex-col items-center justify-center gap-4 bg-[#fcfcfc] px-4 text-center">
                   <div className="flex h-18 w-18 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 transition-colors group-hover:border-gray-300 group-hover:text-black">

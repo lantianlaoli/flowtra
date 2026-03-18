@@ -183,7 +183,7 @@ export default function CreditsPage() {
     'sora2': 'Sora 2',
     'sora2_pro': 'Sora 2 Pro',
     'grok': 'Grok',
-    'kling_2_6': 'Kling 2.6',
+    'kling_3': 'Kling 3.0',
     'nano-banana-2': 'Nano Banana 2',
     'seedance_1_5_pro': 'Seedance 1.5 Pro',
   };
