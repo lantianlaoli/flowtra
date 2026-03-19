@@ -13,6 +13,12 @@ interface VideoAsset {
   description?: string | null;
   duration_seconds?: number | null;
   source_id?: string | null;
+  source_name?: string | null;
+  source_type?: "creator" | "competitor_ad";
+  analysis_status?: string | null;
+  analysis_result?: Record<string, unknown> | null;
+  analysis_error?: string | null;
+  analysis_language?: string | null;
 }
 
 interface VideoAssetCardProps {

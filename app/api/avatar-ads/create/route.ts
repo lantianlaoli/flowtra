@@ -3,7 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
 import { uploadImageToStorage } from '@/lib/supabase';
-import { CREDIT_COSTS } from '@/lib/constants';
+import { getGenerationCost } from '@/lib/constants';
 import { validateKieCredits } from '@/lib/kie-credits-check';
 import { deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { AVATAR_ADS_DURATION_OPTIONS } from '@/lib/avatar-ads-dialogue';
@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
       return kieValidation;
     }
     const formData = await request.formData();
+    const isInternalAgentRequest = request.headers.get('x-project-agent-internal') === '1';
     console.log('FormData entries:', Array.from(formData.entries()).map(([key, value]) => [key, value instanceof File ? `File: ${value.name}` : value]));
 
     // Extract form data
@@ -45,6 +46,16 @@ export async function POST(request: NextRequest) {
     const clientProjectId = typeof clientProjectIdRaw === 'string' ? clientProjectIdRaw.trim() : null;
     const talkingHeadModeFlag = formData.get('talking_head_mode');
     let talkingHeadMode = typeof talkingHeadModeFlag === 'string' && talkingHeadModeFlag.toLowerCase() === 'true';
+    const prebuiltPromptsRaw = formData.get('prebuilt_prompts');
+    const prebuiltImagePromptRaw = formData.get('prebuilt_image_prompt');
+    const startAtStepRaw = formData.get('start_at_step');
+    const startAtStep = typeof startAtStepRaw === 'string' ? startAtStepRaw.trim() : '';
+    const prebuiltPrompts = typeof prebuiltPromptsRaw === 'string' && prebuiltPromptsRaw.trim()
+      ? JSON.parse(prebuiltPromptsRaw) as Record<string, unknown>
+      : null;
+    const prebuiltImagePrompt = typeof prebuiltImagePromptRaw === 'string' && prebuiltImagePromptRaw.trim()
+      ? prebuiltImagePromptRaw.trim()
+      : null;
 
     console.log('Extracted form data:', {
       userId,
@@ -98,7 +109,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate models
-    const validVideoModels = ['veo3_fast'];
+    const validVideoModels = isInternalAgentRequest ? ['veo3_fast', 'kling_3'] : ['veo3_fast'];
 
     if (!validVideoModels.includes(videoModel)) {
       return NextResponse.json(
@@ -235,12 +246,13 @@ export async function POST(request: NextRequest) {
       productImageUrls.push(uploadResult.publicUrl);
     }
 
-    const resolvedVideoModel = 'veo3_fast' as const;
+    const resolvedVideoModel: 'kling_3' | 'veo3_fast' = videoModel === 'kling_3' && isInternalAgentRequest
+      ? 'kling_3'
+      : 'veo3_fast';
 
     const sceneUnitSeconds = 8;
     const videoScenes = videoDurationSeconds / sceneUnitSeconds;
-    const videoCreditsPerScene = CREDIT_COSTS[resolvedVideoModel];
-    const totalCredits = videoScenes * videoCreditsPerScene;
+    const totalCredits = getGenerationCost(resolvedVideoModel, String(videoDurationSeconds));
 
     const generationCreditsUsed = 0;
 
@@ -265,9 +277,15 @@ export async function POST(request: NextRequest) {
       credits_cost: totalCredits,
       generation_credits_used: generationCreditsUsed,
       status: 'pending',
-      current_step: 'generating_prompts', // Start directly at prompt generation (skip analyze_images)
+      current_step: startAtStep === 'generate_image' && prebuiltPrompts ? 'generating_image' : 'generating_prompts',
       progress_percentage: 10,
     };
+    if (prebuiltPrompts) {
+      projectInsert.generated_prompts = prebuiltPrompts;
+    }
+    if (prebuiltImagePrompt) {
+      projectInsert.image_prompt = prebuiltImagePrompt;
+    }
     if (clientProjectId) {
       projectInsert.id = clientProjectId;
     }
@@ -323,7 +341,7 @@ export async function POST(request: NextRequest) {
       const { processAvatarAdsProject } = await import('@/lib/avatar-ads-workflow');
 
       // Start with generate_prompts and continue with subsequent steps
-      let currentStep = 'generate_prompts';
+      let currentStep = startAtStep === 'generate_image' && prebuiltPrompts ? 'generate_image' : 'generate_prompts';
       let result = await processAvatarAdsProject(project, currentStep);
       console.log(`✅ ${currentStep} completed for project ${project.id}`);
 

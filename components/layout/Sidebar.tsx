@@ -139,7 +139,6 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
       <nav className="flex flex-col gap-0.5">
         {primaryNavigation.map((item) => {
           const isActive = pathname === item.href;
-          const isAgentEntry = item.href === '/dashboard/agent';
 
           return (
             <Link
@@ -167,18 +166,6 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
                 <span className={cn('sidebar-nav-label truncate', isActive ? 'text-white' : 'text-[#4F4F4F]')}>
                   {item.name}
                 </span>
-                {isAgentEntry ? (
-                  <span
-                    className={cn(
-                      'sidebar-nav-badge rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide leading-none',
-                      isActive
-                        ? 'border-white/20 bg-white/10 text-white'
-                        : 'border-[#E3E3E3] bg-white text-[#8A8A8A]'
-                    )}
-                  >
-                    Beta
-                  </span>
-                ) : null}
               </div>
             </Link>
           );

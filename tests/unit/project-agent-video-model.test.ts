@@ -25,8 +25,13 @@ test('project agent exposes Kling 3 as the only selectable model', () => {
   );
 });
 
-test('avatar ads still force veo3_fast as the effective agent model', () => {
-  assert.equal(getEffectiveProjectAgentVideoModel('avatar_ads', 'kling_3'), 'veo3_fast');
-  assert.equal(isProjectAgentModelDisabledForIntent('veo3_fast', 'avatar_ads'), false);
-  assert.equal(isProjectAgentModelDisabledForIntent('kling_3', 'avatar_ads'), true);
+test('avatar ads keep kling_3 as the fixed effective agent model', () => {
+  assert.equal(getEffectiveProjectAgentVideoModel('avatar_ads', 'kling_3'), 'kling_3');
+  assert.equal(isProjectAgentModelDisabledForIntent('veo3_fast', 'avatar_ads'), true);
+  assert.equal(isProjectAgentModelDisabledForIntent('kling_3', 'avatar_ads'), false);
+});
+
+test('motion clone keeps kling_3 as the effective agent model', () => {
+  assert.equal(getEffectiveProjectAgentVideoModel('motion_clone', 'kling_3'), 'kling_3');
+  assert.equal(isProjectAgentModelDisabledForIntent('kling_3', 'motion_clone'), false);
 });

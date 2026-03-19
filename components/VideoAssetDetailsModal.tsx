@@ -48,6 +48,7 @@ interface VideoAssetDetailsModalProps {
   onDeleteVideo?: (video: VideoAsset) => Promise<void> | void;
   onVideoDeleted?: (videoId: string) => void;
   onVideoUpdated?: (video: VideoAsset) => void;
+  requireFirstFrameForClone?: boolean;
 }
 
 export default function VideoAssetDetailsModal({
@@ -60,6 +61,7 @@ export default function VideoAssetDetailsModal({
   onDeleteVideo,
   onVideoDeleted,
   onVideoUpdated,
+  requireFirstFrameForClone = false,
 }: VideoAssetDetailsModalProps) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
@@ -116,8 +118,18 @@ export default function VideoAssetDetailsModal({
   }, [currentVideo?.analysis_result, currentVideo?.analysis_language]);
 
   const hasAnalysis = Boolean(currentVideo?.analysis_result);
+  const hasFirstFrame = Boolean(currentVideo?.cover_url);
   const isCompact = size === "compact";
   const isAgentSelectionMode = Boolean(onUseForClone);
+  const cloneActionNeedsFirstFrame = Boolean(
+    requireFirstFrameForClone &&
+    currentVideo?.source_type === "creator",
+  );
+  const cloneActionBlockedByFirstFrame = cloneActionNeedsFirstFrame && !hasFirstFrame;
+  const cloneActionDisabled = !hasAnalysis || cloneActionBlockedByFirstFrame || isCreatingClone;
+  const cloneActionText = cloneActionBlockedByFirstFrame
+    ? "Upload first frame in Assets to continue"
+    : cloneActionLabel;
   const shouldShowFirstFramePanel = currentVideo?.source_type === "creator";
   const previewCardClassName = isCompact
     ? "aspect-[9/16] w-full max-w-[320px]"
@@ -287,8 +299,10 @@ export default function VideoAssetDetailsModal({
           />
 
           <motion.div
-            className={`assets-modal-panel assets-video-details-panel relative flex flex-col bg-white rounded-2xl shadow-xl border border-gray-200 w-full mx-auto overflow-hidden h-[86vh] ${
-              isCompact ? "max-w-[1320px] h-[78vh] max-h-[820px]" : "max-w-5xl"
+            className={`assets-modal-panel assets-video-details-panel relative mx-auto flex w-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${
+              isCompact
+                ? "h-[76vh] max-h-[820px] max-w-[980px]"
+                : "h-[86vh] max-w-5xl"
             }`}
             initial={{ opacity: 0, scale: 0.96, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -312,7 +326,7 @@ export default function VideoAssetDetailsModal({
               </button>
             </div>
 
-            <div className={`assets-modal-body grid min-h-0 flex-1 grid-cols-1 items-stretch gap-6 p-6 overflow-hidden ${isCompact ? "lg:grid-cols-[420px_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]"}`}>
+            <div className={`assets-modal-body grid min-h-0 flex-1 grid-cols-1 items-stretch gap-6 overflow-hidden p-6 ${isCompact ? "lg:grid-cols-[320px_minmax(420px,520px)] lg:justify-center" : "lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]"}`}>
               <div className={`grid min-h-0 h-full min-w-0 content-start items-start gap-4 overflow-hidden ${shouldShowFirstFramePanel ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1 justify-items-center"}`}>
                 {shouldShowFirstFramePanel ? (
                   <label className={`assets-video-details-preview flex min-w-0 overflow-hidden justify-self-center rounded-xl border-2 border-dashed border-gray-300 bg-white transition-colors hover:border-gray-500 cursor-pointer ${previewCardClassName}`}>
@@ -334,7 +348,7 @@ export default function VideoAssetDetailsModal({
                           ) : (
                             <>
                               <p className="text-sm font-medium text-gray-800">First Frame</p>
-                              <p className="text-xs text-gray-500">Optional, required for Motion Clone</p>
+                              <p className="text-xs text-gray-500">Upload in Assets to unlock Motion Clone selection.</p>
                             </>
                           )}
                           {firstFrameUploadError ? (
@@ -463,18 +477,26 @@ export default function VideoAssetDetailsModal({
                 <div className="assets-video-details-actions mt-auto flex flex-col gap-2 pt-2">
                   <button
                     onClick={handleUseForClone}
-                    disabled={!hasAnalysis || isCreatingClone}
-                    className="assets-video-details-action w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-[#0f0f0f] text-white rounded-lg border border-[#0f0f0f] hover:bg-[#1d1d1d] transition-all duration-200 group/btn disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-[#0f0f0f] disabled:border-[#0f0f0f]"
+                    disabled={cloneActionDisabled}
+                    className="assets-video-details-action flex w-full items-center justify-center gap-2 rounded-lg border border-[#0f0f0f] bg-[#0f0f0f] px-3 py-2.5 text-sm text-white transition-all duration-200 group/btn hover:bg-[#1d1d1d] disabled:cursor-not-allowed disabled:border-[#cfcfca] disabled:bg-[#e9e9e6] disabled:text-[#6f6f6a]"
                   >
                     <span className="font-medium flex items-center gap-2">
                       {isCreatingClone ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : cloneActionBlockedByFirstFrame ? (
+                        <Upload className="w-4 h-4" />
                       ) : (
                         <Sparkles className="w-4 h-4 text-white/80 group-hover/btn:text-white transition-colors" />
                       )}
-                      {cloneActionLabel}
+                      {cloneActionText}
                     </span>
                   </button>
+                  {cloneActionBlockedByFirstFrame ? (
+                    <p className="text-xs leading-5 text-[#6f6f6a]">
+                      This creator video already has analysis results, but Motion Clone still needs a first frame image.
+                      Upload it in Assets first, then come back and select this video.
+                    </p>
+                  ) : null}
                   {!isAgentSelectionMode && onDeleteVideo ? (
                     <>
                       <button

@@ -4,7 +4,9 @@ import {
   NON_AGENT_IMAGE_MODEL,
   NON_AGENT_IMAGE_OUTPUT_FORMAT,
   NON_AGENT_IMAGE_RESOLUTION,
+  getGenerationCost,
   getLanguagePromptName,
+  getSegmentVideoGenerationCost,
   getLanguageVoiceStyle,
   type LanguageCode
 } from '@/lib/constants';
@@ -16,10 +18,9 @@ import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrout
 import { MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
 // Events table removed: no tracking imports
 
-// Avatar Ads fixed configuration - only supports veo3_fast
-const UNIT_SECONDS = 8;  // veo3_fast unit duration
-const VIDEO_MODEL = 'veo3_fast' as const;
-const VIDEO_API_ENDPOINT = 'https://api.kie.ai/api/v1/veo/generate';
+const UNIT_SECONDS = 8;
+const DEFAULT_VIDEO_MODEL = 'veo3_fast' as const;
+const VEO_VIDEO_API_ENDPOINT = 'https://api.kie.ai/api/v1/veo/generate';
 
 interface AvatarAdsProject {
   id: string;
@@ -60,6 +61,14 @@ interface ProcessResult {
   message: string;
   nextStep?: string;
 }
+
+const resolveAvatarAdsVideoModel = (project: Pick<AvatarAdsProject, 'video_model'>) => (
+  project.video_model === 'kling_3' ? 'kling_3' : DEFAULT_VIDEO_MODEL
+);
+
+const isAvatarAdsKlingProject = (project: Pick<AvatarAdsProject, 'video_model'>) => (
+  resolveAvatarAdsVideoModel(project) === 'kling_3'
+);
 
 export const compileAvatarAdsMentionText = (value: string) => {
   if (!value) return value;
@@ -630,7 +639,7 @@ export async function generateVideoWithKIE(
   referenceImageUrls: string[],
   videoAspectRatio?: '16:9' | '9:16',
   language?: string,
-  options?: { hasProductContext?: boolean }
+  options?: { hasProductContext?: boolean; model?: 'veo3_fast' | 'kling_3'; durationSeconds?: number }
 ): Promise<{ taskId: string }> {
   // ✅ Validate prompt parameter
   if (!prompt || typeof prompt !== 'object') {
@@ -713,54 +722,49 @@ export async function generateVideoWithKIE(
 
   const basePrompt = videoPromptText;
 
-  // Add language metadata if not English (simple format for VEO3 API)
+  const resolvedModel = options?.model === 'kling_3' ? 'kling_3' : DEFAULT_VIDEO_MODEL;
   const lang = (language || 'en') as LanguageCode;
-
   const languageName = getLanguagePromptName(lang);
-
-  // Defensive check: ensure languageName is valid
   if (!languageName) {
     throw new Error(`Invalid language code: ${lang}`);
   }
-
-  const languagePrefix = languageName !== 'English'
-    ? `"language": "${languageName}"\n\n`
-    : '';
-
-  const finalPrompt = `${languagePrefix}${basePrompt}`;
-
-  // Determine generation mode based on images provided
-  let generationType = 'TEXT_2_VIDEO';
-  if (referenceImageUrls.length === 1) {
-    // Normal image-to-video
-    generationType = 'FIRST_AND_LAST_FRAMES_2_VIDEO'; // or rely on auto-detection, but manual is safer
-  } else if (referenceImageUrls.length === 2) {
-    // Start and end frame
-    generationType = 'FIRST_AND_LAST_FRAMES_2_VIDEO';
-  }
-
-  // Construct webhook callback URL (webhook-first architecture with polling fallback)
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
   const callBackUrl = siteUrl ? `${siteUrl}/api/avatar-ads/webhooks/video` : undefined;
+  const finalPrompt = languageName !== 'English'
+    ? `"language": "${languageName}"\n\n${basePrompt}`
+    : basePrompt;
 
-  // Avatar Ads only uses VEO3 Fast API
-  const requestBody = {
-    prompt: finalPrompt,
-    model: VIDEO_MODEL, // Fixed: 'veo3_fast'
-    aspectRatio: videoAspectRatio || "16:9",
-    imageUrls: referenceImageUrls,
-    generationType, // Explicitly set generation type
-    enableAudio: true,
-    audioEnabled: true,
-    generateVoiceover: false,
-    includeDialogue: true,
-    enableTranslation: false,
-    ...(callBackUrl && { callBackUrl }) // Add callBackUrl only if NEXT_PUBLIC_SITE_URL is set
-  };
-  const apiEndpoint = VIDEO_API_ENDPOINT; // Fixed: VEO3 endpoint
+  const requestBody = resolvedModel === 'kling_3'
+    ? {
+        model: 'kling-3.0/video',
+        ...(callBackUrl ? { callBackUrl } : {}),
+        input: {
+          mode: 'std',
+          image_urls: referenceImageUrls.slice(0, 2),
+          prompt: finalPrompt,
+          sound: true,
+          duration: String(options?.durationSeconds && options.durationSeconds > 0 ? options.durationSeconds : UNIT_SECONDS),
+          aspect_ratio: videoAspectRatio || '16:9',
+          multi_shots: false
+        }
+      }
+    : {
+        prompt: finalPrompt,
+        model: DEFAULT_VIDEO_MODEL,
+        aspectRatio: videoAspectRatio || '16:9',
+        imageUrls: referenceImageUrls,
+        generationType: referenceImageUrls.length >= 1 ? 'FIRST_AND_LAST_FRAMES_2_VIDEO' : 'TEXT_2_VIDEO',
+        enableAudio: true,
+        audioEnabled: true,
+        generateVoiceover: false,
+        includeDialogue: true,
+        enableTranslation: false,
+        ...(callBackUrl ? { callBackUrl } : {})
+      };
 
-  // ✅ FINAL STRICT VALIDATION before calling KIE API
-  const promptInBody = requestBody.prompt;
+  const promptInBody = resolvedModel === 'kling_3'
+    ? ((requestBody as { input?: { prompt?: string } }).input?.prompt)
+    : ((requestBody as { prompt?: string }).prompt);
 
   if (!promptInBody || typeof promptInBody !== 'string' || promptInBody.trim() === '' || promptInBody === '{}') {
     console.error('❌❌❌ CRITICAL: Attempting to call KIE API with empty/invalid prompt!');
@@ -768,7 +772,7 @@ export async function generateVideoWithKIE(
     throw new Error(`STOPPING WORKFLOW: Cannot call KIE API with empty prompt "${promptInBody}"`);
   }
 
-  const response = await fetchWithRetry(apiEndpoint, {
+  const response = await fetchWithRetry(resolvedModel === 'kling_3' ? 'https://api.kie.ai/api/v1/jobs/createTask' : VEO_VIDEO_API_ENDPOINT, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
@@ -864,18 +868,28 @@ async function checkKIEImageTaskStatus(taskId: string): Promise<{
   return { status: 'processing' };
 }
 
-export async function checkKIEVideoTaskStatus(taskId: string): Promise<{
+export async function checkKIEVideoTaskStatus(
+  taskId: string,
+  model: 'veo3_fast' | 'kling_3' = DEFAULT_VIDEO_MODEL
+): Promise<{
   status: string;
   result_url?: string;
   error?: string;
   errorCode?: string;  // NEW: Add error code for retry logic
   isRetryable?: boolean; // NEW: Flag for retryable errors
 }> {
-  const response = await fetchWithRetry(`https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`, {
-    headers: {
-      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-    }
-  }, 5, 30000);
+  const response = await fetchWithRetry(
+    model === 'kling_3'
+      ? `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`
+      : `https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
+      }
+    },
+    5,
+    30000
+  );
 
   if (!response.ok) {
     throw new Error(`KIE video task status check failed: ${response.statusText}`);
@@ -906,6 +920,8 @@ export async function checkKIEVideoTaskStatus(taskId: string): Promise<{
     result_url = taskData.outputUrl;
   } else if (taskData.response?.resultUrls?.[0]) {
     result_url = taskData.response.resultUrls[0];
+  } else if (Array.isArray(taskData.resultUrls) && taskData.resultUrls[0]) {
+    result_url = taskData.resultUrls[0];
   }
 
   if (successFlag === 1) {
@@ -1178,9 +1194,9 @@ export async function processAvatarAdsProject(
 
       case 'generate_videos': {
         // ===== VERSION 2.0: GENERATION-TIME BILLING =====
-        // Calculate video generation cost (veo3_fast: 20 credits per 8s segment)
         const videoScenes = project.video_duration_seconds / UNIT_SECONDS;
-        const generationCost = GENERATION_COSTS.veo3_fast * videoScenes; // 20 * number of segments
+        const resolvedVideoModel = resolveAvatarAdsVideoModel(project);
+        const generationCost = getGenerationCost(resolvedVideoModel, String(project.video_duration_seconds));
 
         // Check if user has enough credits
         const creditCheck = await checkCredits(project.user_id, generationCost);
@@ -1189,8 +1205,8 @@ export async function processAvatarAdsProject(
         }
 
         if (!creditCheck.hasEnoughCredits) {
-          throw new Error(
-            `Insufficient credits: Need ${generationCost} credits for ${videoScenes} video scenes (veo3_fast), have ${creditCheck.currentCredits || 0}`
+            throw new Error(
+            `Insufficient credits: Need ${generationCost} credits for ${videoScenes} video scenes (${resolvedVideoModel}), have ${creditCheck.currentCredits || 0}`
           );
         }
 
@@ -1205,7 +1221,7 @@ export async function processAvatarAdsProject(
           project.user_id,
           'usage',
           generationCost,
-          `Avatar Ads - Video generation (VEO3_FAST, ${videoScenes} scenes)`,
+          `Avatar Ads - Video generation (${resolvedVideoModel.toUpperCase()}, ${videoScenes} scenes)`,
           project.id,
           true
         );
@@ -1279,7 +1295,11 @@ export async function processAvatarAdsProject(
             [project.generated_image_url, project.generated_image_url], // Use generated image as start AND end frame for consistency
             project.video_aspect_ratio as '16:9' | '9:16' | undefined,
             project.language, // Pass language for video prompt
-            { hasProductContext: Boolean(project.product_context?.product_name || project.product_image_urls?.length) }
+            {
+              hasProductContext: Boolean(project.product_context?.product_name || project.product_image_urls?.length),
+              model: resolvedVideoModel,
+              durationSeconds: UNIT_SECONDS
+            }
           );
 
           videoTaskIds.push(taskId);
@@ -1332,7 +1352,7 @@ export async function processAvatarAdsProject(
 
         for (let i = 0; i < currentTaskIds.length; i++) {
           const taskId = currentTaskIds[i];
-          const status = await checkKIEVideoTaskStatus(taskId);
+          const status = await checkKIEVideoTaskStatus(taskId, resolveAvatarAdsVideoModel(project));
 
           if (status.status === 'completed' && status.result_url) {
             // Collect video URL
@@ -1373,7 +1393,11 @@ export async function processAvatarAdsProject(
                   videoPrompt as Record<string, unknown>,
                   [project.generated_image_url!, project.generated_image_url!],
                   project.video_aspect_ratio as '16:9' | '9:16' | undefined,
-                  project.language
+                  project.language,
+                  {
+                    model: resolveAvatarAdsVideoModel(project),
+                    durationSeconds: UNIT_SECONDS
+                  }
                 );
 
                 // Update task ID in local array
@@ -1561,7 +1585,7 @@ export async function processAvatarAdsProject(
         ) || [];
 
         if (permanentlyFailedScenes.length > 0) {
-          const costPerScene = GENERATION_COSTS.veo3_fast; // 20 credits per scene
+          const costPerScene = getSegmentVideoGenerationCost(resolveAvatarAdsVideoModel(project), UNIT_SECONDS);
           const refundAmount = permanentlyFailedScenes.length * costPerScene;
 
           const { refundCredits } = await import('@/lib/credits');
@@ -1582,7 +1606,7 @@ export async function processAvatarAdsProject(
           // If error occurred before scenes were created or during generation, refund full cost
           if (!scenes || scenes.length === 0 || step === 'generate_videos') {
             const videoScenes = project.video_duration_seconds / UNIT_SECONDS;
-            const generationCost = GENERATION_COSTS.veo3_fast * videoScenes;
+            const generationCost = getGenerationCost(resolveAvatarAdsVideoModel(project), String(project.video_duration_seconds));
 
             if (generationCost > 0) {
               const { refundCredits } = await import('@/lib/credits');
