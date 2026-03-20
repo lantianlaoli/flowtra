@@ -1,4 +1,5 @@
 import type { VideoModel } from '@/lib/constants';
+import { ensureAvatarImagePromptMentions } from '@/lib/project-agent/avatar-script-planning';
 
 export type ProjectAgentAvatarStage =
   | 'avatar_asset_selection'
@@ -54,7 +55,7 @@ export type ProjectAgentAvatarExecution = {
   error?: string | null;
 };
 
-type AvatarProjectLike = {
+export type AvatarProjectLike = {
   id: string;
   status?: string | null;
   current_step?: string | null;
@@ -67,7 +68,7 @@ type AvatarProjectLike = {
   custom_dialogue?: string | null;
 };
 
-type AvatarSceneLike = {
+export type AvatarSceneLike = {
   scene_number: number;
   status?: string | null;
   video_url?: string | null;
@@ -143,15 +144,22 @@ export const inferProjectAgentAvatarStage = (input: {
   currentStep?: string | null;
   hasExecution?: boolean;
 }): ProjectAgentAvatarStage => {
-  if (input.explicitStage) {
-    return normalizeProjectAgentAvatarStage(input.explicitStage);
-  }
-
   const phase = mapProjectAgentAvatarExecutionPhase(input.projectStatus, input.currentStep);
   if (phase === 'generating_cover') return 'avatar_generating_cover';
   if (phase === 'reviewing_cover') return 'avatar_reviewing_cover';
   if (phase === 'generating_videos') return 'avatar_generating_video';
   if (phase === 'completed') return 'avatar_completed';
+
+  if (input.explicitStage) {
+    const explicitStage = normalizeProjectAgentAvatarStage(input.explicitStage);
+    if (
+      explicitStage === 'avatar_asset_selection' ||
+      explicitStage === 'avatar_script_collection' ||
+      explicitStage === 'avatar_workspace'
+    ) {
+      return explicitStage;
+    }
+  }
 
   if (!input.hasAvatar) return 'avatar_asset_selection';
   if (!input.hasDraft && !input.hasCover) return 'avatar_script_collection';
@@ -176,7 +184,11 @@ export const extractAvatarPromptScenes = (
 
 export const buildProjectAgentAvatarDraft = (
   project: AvatarProjectLike | null | undefined,
-  sceneRows?: AvatarSceneLike[] | null
+  sceneRows?: AvatarSceneLike[] | null,
+  selections?: {
+    avatarName?: string | null;
+    productName?: string | null;
+  } | null
 ): ProjectAgentAvatarDraft | null => {
   if (!project) return null;
 
@@ -218,7 +230,11 @@ export const buildProjectAgentAvatarDraft = (
     status,
     scriptMode: explicitScript ? 'user_script' : 'agent_authored',
     scriptSource: explicitScript || inferredScriptSource,
-    imagePrompt: isNonEmptyString(project.image_prompt) ? project.image_prompt.trim() : null,
+    imagePrompt: ensureAvatarImagePromptMentions({
+      imagePrompt: isNonEmptyString(project.image_prompt) ? project.image_prompt.trim() : null,
+      avatarName: selections?.avatarName,
+      productName: selections?.productName
+    }) || null,
     coverImageUrl: project.generated_image_url ?? null,
     scenes,
     error: project.error_message ?? null

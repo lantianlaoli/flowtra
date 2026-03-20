@@ -29,6 +29,7 @@ type ProjectAgentPromptChipState = {
 export type ProjectAgentPromptChipStage =
   | 'starter'
   | 'avatar_setup'
+  | 'avatar_workspace'
   | 'avatar_review'
   | 'avatar_generating'
   | 'motion_reference_selection'
@@ -55,11 +56,17 @@ const CHIP_POOLS: Record<ProjectAgentPromptChipStage, string[]> = {
     'Use this avatar',
     'Choose a different avatar'
   ],
-  avatar_review: [
+  avatar_workspace: [
     'Generate the cover',
+    'Rewrite the image prompt',
+    'Rewrite the script',
+    'Continue with this draft'
+  ],
+  avatar_review: [
+    'Generate the video',
     'Regenerate the cover',
     'Adjust the dialogue',
-    'Generate the video'
+    'Show me the cover'
   ],
   avatar_generating: [
     'Show me the latest progress',
@@ -169,6 +176,9 @@ export const getProjectAgentPromptChipStage = (
     if (state.avatarStage === 'avatar_reviewing_cover' || state.step === 'awaiting_review') {
       return 'avatar_review';
     }
+    if (state.avatarStage === 'avatar_workspace') {
+      return 'avatar_workspace';
+    }
     if (
       state.avatarStage === 'avatar_generating_cover' ||
       state.avatarStage === 'avatar_generating_video' ||
@@ -277,6 +287,32 @@ export const getProjectAgentPromptChipPool = (
   }
 
   return CHIP_POOLS[stage];
+};
+
+const PLACEHOLDER_BY_STAGE: Partial<Record<ProjectAgentPromptChipStage, string>> = {
+  starter: 'Ask Flowgen what to make viral next...',
+  avatar_setup: 'Choose the avatar or product context for this ad...',
+  avatar_workspace: 'Ask Flowgen to rewrite the prompts or generate the cover...',
+  avatar_review: 'Ask Flowgen to generate the video or revise the cover...',
+  avatar_generating: 'Ask Flowgen for the latest avatar ad progress...',
+  motion_reference_selection: 'Ask Flowgen to help choose a reference video...',
+  motion_replacement_selection: 'Ask Flowgen to confirm the replacement selections...',
+  motion_preview: 'Ask Flowgen to refine the prompts or generate the preview...',
+  motion_video: 'Ask Flowgen to generate the final video or show progress...',
+  clone_reference_selection: 'Ask Flowgen to choose a reference video...',
+  clone_replacement_selection: 'Ask Flowgen to confirm the replacement assets...',
+  draft_review: 'Ask Flowgen to refine the draft or start frame generation...',
+  frame_generation: 'Ask Flowgen for frame generation progress...',
+  frame_review: 'Ask Flowgen to start video generation or revise a frame...',
+  video_generation: 'Ask Flowgen for video generation progress...',
+  completed: 'Ask Flowgen what to make viral next...'
+};
+
+export const getProjectAgentInputPlaceholder = (
+  state: ProjectAgentPromptChipState
+) => {
+  const stage = getProjectAgentPromptChipStage(state);
+  return PLACEHOLDER_BY_STAGE[stage || 'starter'] || 'Ask Flowgen what to make viral next...';
 };
 
 export const getProjectAgentPromptChipStageKey = (state: ProjectAgentPromptChipState) => {

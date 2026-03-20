@@ -76,7 +76,7 @@ export async function draftProjectAgentAvatarPrompts(input: {
         `Avatar name: ${input.avatar.name}`,
         `Preferred total runtime: about ${input.durationSeconds}s.`,
         `Language: ${languageName}.`,
-        `Aspect ratio: ${input.aspectRatio}.`,
+        'Output is already portrait by default, so do not mention aspect ratio in the image prompt.',
         input.product
           ? `Product name: ${input.product.name}.`
           : 'No product is selected. Keep this as a talking-head spokesperson script.',
@@ -118,7 +118,9 @@ export async function draftProjectAgentAvatarPrompts(input: {
           'dialog must feel spoken, concise, and conversion-oriented.',
           'For Kling 3.0, split the spoken script into natural segments between 3 and 15 seconds each.',
           'Choose as many segments as needed so the spoken pacing feels natural.',
-          'image_prompt must describe a single strong cover frame matching the script and visuals.'
+          'image_prompt must describe a single spoken-to-camera talking-head cover frame matching the script and selected assets.',
+          'Do not mention aspect ratio, resolution, or camera spec boilerplate in image_prompt.',
+          'Prefer direct-response creator language like speaking to camera, talking-head setup, natural light, clean background, product in hand when applicable.'
         ].join(' ')
       },
       {
@@ -167,18 +169,22 @@ export async function draftProjectAgentAvatarPrompts(input: {
 
   const imagePrompt = typeof parsed?.image_prompt === 'string' && parsed.image_prompt.trim()
     ? parsed.image_prompt.trim()
-    : `Confident avatar spokesperson cover for ${input.product?.name || 'a talking-head ad'}, ${input.aspectRatio}, clean creator composition, scroll-stopping expression.`;
+    : input.product
+      ? `${input.avatar.name} speaking directly to camera in a creator-style talking-head setup, naturally holding ${input.product.name}, clean lifestyle background, natural light.`
+      : `${input.avatar.name} speaking directly to camera in a creator-style talking-head setup, clean background, natural light.`;
 
   const normalizedDraft = buildAvatarGeneratedPrompts({
     imagePrompt,
     scriptSource,
     existingScenes: parsedScenes,
-    language: input.language
+    language: input.language,
+    avatarName: input.avatar.name,
+    productName: input.product?.name
   });
 
   return {
     scriptSource,
-    imagePrompt,
+    imagePrompt: normalizedDraft.generatedPrompts.image_prompt,
     scenes: normalizedDraft.scenes,
     totalDurationSeconds: normalizedDraft.totalDurationSeconds
   };

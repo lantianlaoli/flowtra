@@ -44,13 +44,13 @@ export default function AvatarWorkspaceEditor({
   };
 
   return (
-    <div className="rounded-xl border border-[#e6e6e4] bg-white p-4">
-      <div className="space-y-4">
-        <div className="rounded-xl border border-[#ececea] bg-[#fafaf9] p-3">
-          <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7c7c78]">
-            <ImageIcon className="h-3.5 w-3.5" />
-            <span>Image Prompt</span>
-          </div>
+    <div className="flex h-full min-h-full flex-col gap-3">
+      <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-[#E5E5E5] bg-white p-3">
+        <div className="flex items-center gap-2">
+          <ImageIcon className="h-4 w-4 text-black" />
+          <p className="text-sm font-semibold text-black">Image Prompt</p>
+        </div>
+        <div className="mt-2.5 flex-1 min-h-0">
           <PromptMentionTextarea
             value={normalizedDraft.imagePrompt || ''}
             onChange={(nextValue) => updateDraft({ imagePrompt: nextValue })}
@@ -58,15 +58,18 @@ export default function AvatarWorkspaceEditor({
             rows={5}
             characterMentions={characterMentions}
             productMentions={productMentions}
-            className="min-h-[112px] rounded-xl border-[#dfdfdc] bg-white text-sm text-[#1f1f1e]"
+            className="h-full min-h-[170px]"
+            preventHorizontalScroll
           />
         </div>
+      </div>
 
-        <div className="rounded-xl border border-[#ececea] bg-[#fafaf9] p-3">
-          <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7c7c78]">
-            <MessageSquare className="h-3.5 w-3.5" />
-            <span>Script</span>
-          </div>
+      <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-[#E5E5E5] bg-white p-3">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-4 w-4 text-black" />
+          <p className="text-sm font-semibold text-black">Script</p>
+        </div>
+        <div className="mt-2.5 flex-1 min-h-0">
           <PromptMentionTextarea
             value={normalizedDraft.scriptSource || ''}
             onChange={(nextValue) => updateDraft({ scriptSource: nextValue })}
@@ -74,10 +77,17 @@ export default function AvatarWorkspaceEditor({
             rows={8}
             characterMentions={characterMentions}
             productMentions={productMentions}
-            className="min-h-[176px] rounded-xl border-[#dfdfdc] bg-white text-sm text-[#1f1f1e]"
+            className="h-full min-h-[220px]"
+            preventHorizontalScroll
           />
         </div>
       </div>
+
+      {normalizedDraft.error ? (
+        <div className="rounded-lg border border-[#f1d2d2] bg-[#fff6f6] px-4 py-3 text-sm text-[#8c3f3f]">
+          {normalizedDraft.error}
+        </div>
+      ) : null}
     </div>
   );
 }

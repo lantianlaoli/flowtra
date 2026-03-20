@@ -4,6 +4,11 @@ import {
   type LanguageCode
 } from '@/lib/constants';
 import { estimateDialogueDuration } from '@/lib/dialogue-duration-estimator';
+import {
+  buildTypedMentionToken,
+  MENTION_TOKEN_REGEX,
+  parseMentionToken
+} from '@/lib/prompt-mention-tokens';
 
 type AvatarPromptScene = {
   sceneIndex: number;
@@ -15,6 +20,8 @@ type BuildAvatarGeneratedPromptsInput = {
   scriptSource: string | null | undefined;
   existingScenes?: AvatarPromptScene[] | null | undefined;
   language?: string | null;
+  avatarName?: string | null;
+  productName?: string | null;
 };
 
 const DEFAULT_VISUAL_PROMPT = {
@@ -29,6 +36,80 @@ const DEFAULT_VISUAL_PROMPT = {
 };
 
 const normalizeWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim();
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const stripAvatarImagePromptBoilerplate = (value: string) => (
+  normalizeWhitespace(
+    value
+      .replace(/\b(?:9\s*:\s*16|16\s*:\s*9)\b/gi, '')
+      .replace(/\bportrait\s+(?:ratio|format)\b/gi, 'portrait')
+      .replace(/\bhigh[-\s]?quality\b/gi, '')
+      .replace(/\s+([,.;:])/g, '$1')
+      .replace(/([,.;:]){2,}/g, '$1')
+  )
+);
+
+const getMentionKeys = (value: string) => {
+  const keys = new Set<string>();
+  if (!value) return keys;
+
+  for (const match of value.matchAll(MENTION_TOKEN_REGEX)) {
+    const parsed = parseMentionToken(match[0]);
+    if (!parsed?.key) continue;
+    keys.add(parsed.key);
+  }
+
+  return keys;
+};
+
+export const ensureAvatarImagePromptMentions = (input: {
+  imagePrompt: string | null | undefined;
+  avatarName?: string | null;
+  productName?: string | null;
+}) => {
+  const avatarToken = input.avatarName
+    ? buildTypedMentionToken({ type: 'character', label: input.avatarName })
+    : '';
+  const productToken = input.productName
+    ? buildTypedMentionToken({ type: 'product', label: input.productName })
+    : '';
+  const avatarKey = avatarToken ? parseMentionToken(avatarToken)?.key : '';
+  const productKey = productToken ? parseMentionToken(productToken)?.key : '';
+  const normalized = stripAvatarImagePromptBoilerplate(input.imagePrompt || '');
+  const existingKeys = getMentionKeys(normalized);
+  let nextPrompt = normalized;
+
+  if (!nextPrompt) {
+    if (avatarToken && productToken) {
+      return `${avatarToken} speaking directly to camera in a creator-style talking-head setup, naturally holding ${productToken}, clean lifestyle background, natural light.`;
+    }
+    if (avatarToken) {
+      return `${avatarToken} speaking directly to camera in a creator-style talking-head setup, clean background, natural light.`;
+    }
+    return '';
+  }
+
+  if (input.avatarName && avatarToken) {
+    const avatarLabelPattern = new RegExp(escapeRegExp(input.avatarName), 'gi');
+    nextPrompt = nextPrompt.replace(avatarLabelPattern, avatarToken);
+  }
+
+  if (input.productName && productToken) {
+    const productLabelPattern = new RegExp(escapeRegExp(input.productName), 'gi');
+    nextPrompt = nextPrompt.replace(productLabelPattern, productToken);
+  }
+
+  if (avatarToken && avatarKey && !existingKeys.has(avatarKey) && !nextPrompt.includes(avatarToken)) {
+    nextPrompt = `${avatarToken} speaking directly to camera, ${nextPrompt.charAt(0).toLowerCase()}${nextPrompt.slice(1)}`;
+  }
+
+  if (productToken && productKey && !existingKeys.has(productKey) && !nextPrompt.includes(productToken)) {
+    nextPrompt = `${nextPrompt.replace(/[.,\s]+$/, '')}, naturally featuring ${productToken}.`;
+  }
+
+  return normalizeWhitespace(nextPrompt);
+};
 
 const splitBySentence = (value: string) => {
   const normalized = normalizeWhitespace(value);
@@ -190,7 +271,11 @@ export const buildAvatarGeneratedPrompts = (input: BuildAvatarGeneratedPromptsIn
     language: input.language
   });
 
-  const imagePrompt = normalizeWhitespace(input.imagePrompt || '');
+  const imagePrompt = ensureAvatarImagePromptMentions({
+    imagePrompt: input.imagePrompt,
+    avatarName: input.avatarName,
+    productName: input.productName
+  });
   const totalDurationSeconds = scenes.reduce(
     (sum, scene) => sum + normalizeAvatarPromptDuration(scene.prompt.duration_seconds),
     0

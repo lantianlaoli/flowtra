@@ -8,7 +8,7 @@ import remarkGfm from 'remark-gfm';
 import { DefaultChatTransport } from 'ai';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { AlertTriangle, ArrowUpRight, ChevronDown, Clapperboard, Coins, History, Loader2, Lock, MessageCircle, Package, Plus, RefreshCw, Search, Sparkles, User } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, ChevronDown, Clapperboard, Coins, History, Image as ImageIcon, Loader2, Lock, MessageCircle, Package, Plus, RefreshCw, Search, Sparkles, User, Video as VideoIcon } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
@@ -47,7 +47,10 @@ import {
 import {
   normalizeProjectAgentVideoModel,
 } from '@/lib/project-agent/video-model';
-import { getProjectAgentPromptChips } from '@/lib/project-agent/prompt-chips';
+import {
+  getProjectAgentInputPlaceholder,
+  getProjectAgentPromptChips
+} from '@/lib/project-agent/prompt-chips';
 import { serializeProjectAgentCloneShot } from '@/lib/project-agent/clone-prompt-schema';
 import {
   resolveProjectAgentCloneMergedVideoUrl,
@@ -71,6 +74,8 @@ import {
 } from '@/lib/project-agent/next-clone-intent';
 import { buildWorkspaceScenes } from '@/lib/project-agent/workspace-scenes';
 import {
+  type AvatarProjectLike,
+  type AvatarSceneLike,
   buildProjectAgentAvatarDraft,
   buildProjectAgentAvatarExecution,
   inferProjectAgentAvatarStage,
@@ -1460,74 +1465,164 @@ export default function ProjectAgentPage() {
 
   useEffect(() => {
     if (sessionState?.intent !== 'avatar_ads') return;
-    if (!sessionState?.projectId) return;
+    const projectId = sessionState?.projectId;
+    if (!projectId) return;
+
+    const abortController = new AbortController();
+
+    type AvatarStatusPayload = {
+      project: AvatarProjectLike;
+      scenes: AvatarSceneLike[];
+    };
+
+    const fetchAvatarProjectStatus = async (
+      attempt = 1,
+      maxAttempts = 3
+    ): Promise<AvatarStatusPayload | null> => {
+      try {
+        const response = await fetch(`/api/avatar-ads/${projectId}/status`, {
+          cache: 'no-store',
+          signal: abortController.signal
+        });
+
+        if (!response.ok) {
+          if (response.status === 404 && attempt < maxAttempts) {
+            await new Promise((resolve) => window.setTimeout(resolve, 500 * attempt));
+            return fetchAvatarProjectStatus(attempt + 1, maxAttempts);
+          }
+          return null;
+        }
+
+        const payload = await response.json() as AvatarStatusPayload;
+        if (!payload?.project?.id) {
+          return null;
+        }
+        return payload;
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') {
+          return null;
+        }
+        console.error('Failed to fetch avatar project status:', error);
+        return null;
+      }
+    };
+
+    const syncAvatarProjectStatus = async () => {
+      try {
+        const payload = await fetchAvatarProjectStatus();
+        if (!payload?.project) return;
+
+        const latestState = latestSessionStateRef.current;
+        if (latestState?.intent !== 'avatar_ads') return;
+
+        const nextSelection = syncAvatarSelectionFromSession(latestState);
+        const nextDraft = buildProjectAgentAvatarDraft(payload.project, payload.scenes, {
+          avatarName: nextSelection.avatar?.name ?? null,
+          productName: nextSelection.product?.name ?? null
+        });
+        const nextExecution = buildProjectAgentAvatarExecution(payload.project, payload.scenes);
+        const nextStage = inferProjectAgentAvatarStage({
+          explicitStage: latestState?.avatarStage,
+          hasAvatar: Boolean(nextSelection.avatar?.id),
+          hasDraft: Boolean(nextDraft?.scenes.length),
+          hasCover: Boolean(nextDraft?.coverImageUrl || payload.project.generated_image_url),
+          projectStatus: payload.project.status,
+          currentStep: payload.project.current_step,
+          hasExecution: Boolean(nextExecution?.projectId)
+        });
+        const nextStep = payload.project.status ?? latestState?.step;
+        const nextImagePrompt = nextDraft?.imagePrompt ?? payload.project.image_prompt ?? latestState?.imagePrompt ?? null;
+        const nextGeneratedImageUrl = payload.project.generated_image_url ?? latestState?.generatedImageUrl ?? null;
+
+        const hasStatusChange = (
+          latestState?.step !== nextStep ||
+          latestState?.generatedPrompts !== (payload.project.generated_prompts ?? null) ||
+          latestState?.imagePrompt !== nextImagePrompt ||
+          latestState?.generatedImageUrl !== nextGeneratedImageUrl ||
+          latestState?.avatarStage !== nextStage ||
+          latestState?.avatarDraft?.coverImageUrl !== (nextDraft?.coverImageUrl ?? null) ||
+          latestState?.avatarExecution?.phase !== (nextExecution?.phase ?? null) ||
+          latestState?.avatarExecution?.finalVideoUrl !== (nextExecution?.finalVideoUrl ?? null) ||
+          latestState?.avatarExecution?.coverImageUrl !== (nextExecution?.coverImageUrl ?? null) ||
+          latestState?.avatarExecution?.error !== (nextExecution?.error ?? null)
+        );
+
+        if (!hasStatusChange) return;
+
+        setSessionState((prev) => {
+          if (!prev) return prev;
+          const nextState = {
+            ...prev,
+            step: nextStep,
+            generatedPrompts: payload.project.generated_prompts ?? prev.generatedPrompts ?? null,
+            imagePrompt: nextImagePrompt,
+            generatedImageUrl: nextGeneratedImageUrl,
+            avatarDraft: nextDraft,
+            avatarExecution: nextExecution,
+            avatarStage: nextStage
+          };
+          latestSessionStateRef.current = nextState;
+          return nextState;
+        });
+
+        await fetch('/api/project-agent/session', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            statePatch: {
+              step: nextStep,
+              generatedPrompts: payload.project.generated_prompts ?? null,
+              imagePrompt: nextImagePrompt,
+              generatedImageUrl: nextGeneratedImageUrl,
+              avatarDraft: nextDraft,
+              avatarExecution: nextExecution,
+              avatarStage: nextStage
+            },
+            projectId
+          })
+        });
+      } catch (syncError) {
+        console.error('Failed to sync avatar project status:', syncError);
+      }
+    };
 
     const channel: RealtimeChannel = supabase
-      .channel(`project-agent-${sessionState.projectId}`)
+      .channel(`project-agent-avatar-${projectId}`)
       .on(
         'postgres_changes',
         {
           event: 'UPDATE',
           schema: 'public',
           table: 'avatar_ads_projects',
-          filter: `id=eq.${sessionState.projectId}`
+          filter: `id=eq.${projectId}`
         },
-        async () => {
-          try {
-            const response = await fetch(`/api/avatar-ads/${sessionState.projectId}/status`, { cache: 'no-store' });
-            const payload = await response.json();
-            if (!response.ok || !payload?.project) return;
-            const nextDraft = buildProjectAgentAvatarDraft(payload.project, payload.scenes);
-            const nextExecution = buildProjectAgentAvatarExecution(payload.project, payload.scenes);
-            const nextStage = inferProjectAgentAvatarStage({
-              explicitStage: sessionState?.avatarStage,
-              hasAvatar: Boolean(syncAvatarSelectionFromSession(sessionState).avatar?.id),
-              hasDraft: Boolean(nextDraft?.scenes.length),
-              hasCover: Boolean(nextDraft?.coverImageUrl),
-              projectStatus: payload.project.status,
-              currentStep: payload.project.current_step,
-              hasExecution: Boolean(nextExecution?.projectId)
-            });
-
-            setSessionState((prev) => ({
-              ...prev,
-              step: payload.project.status,
-              generatedPrompts: payload.project.generated_prompts ?? prev?.generatedPrompts ?? null,
-              imagePrompt: payload.project.image_prompt ?? prev?.imagePrompt ?? null,
-              generatedImageUrl: payload.project.generated_image_url ?? prev?.generatedImageUrl ?? null,
-              avatarDraft: nextDraft,
-              avatarExecution: nextExecution,
-              avatarStage: nextStage
-            }));
-
-            await fetch('/api/project-agent/session', {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                sessionId,
-                statePatch: {
-                  step: payload.project.status,
-                  generatedPrompts: payload.project.generated_prompts ?? null,
-                  imagePrompt: payload.project.image_prompt ?? null,
-                  generatedImageUrl: payload.project.generated_image_url ?? null,
-                  avatarDraft: nextDraft,
-                  avatarExecution: nextExecution,
-                  avatarStage: nextStage
-                },
-                projectId: sessionState.projectId
-              })
-            });
-          } catch (syncError) {
-            console.error('Failed to sync project status:', syncError);
-          }
-        }
+        () => { void syncAvatarProjectStatus(); }
       )
       .subscribe();
 
+    void syncAvatarProjectStatus();
+
+    const shouldPollAvatarStatus = (
+      sessionState?.avatarExecution?.phase === 'generating_cover' ||
+      sessionState?.avatarExecution?.phase === 'generating_videos' ||
+      sessionState?.avatarStage === 'avatar_generating_cover' ||
+      sessionState?.avatarStage === 'avatar_generating_video'
+    );
+    const pollTimer = shouldPollAvatarStatus
+      ? window.setInterval(() => {
+          void syncAvatarProjectStatus();
+        }, 4000)
+      : null;
+
     return () => {
+      abortController.abort();
+      if (pollTimer) {
+        window.clearInterval(pollTimer);
+      }
       supabase.removeChannel(channel);
     };
-  }, [sessionId, sessionState?.intent, sessionState?.projectId, supabase]);
+  }, [sessionId, sessionState?.intent, sessionState?.projectId, sessionState?.avatarExecution?.phase, sessionState?.avatarStage, supabase]);
 
   useEffect(() => {
     if (sessionState?.intent !== 'motion_clone') return;
@@ -2816,6 +2911,44 @@ export default function ProjectAgentPage() {
     showCloneReplacementSelectors,
     showCloneableVideos
   ]);
+  const chatInputPlaceholder = useMemo(() => getProjectAgentInputPlaceholder({
+    intent: sessionState?.intent,
+    step: sessionState?.step,
+    avatarStage: sessionState?.avatarStage,
+    projectId: sessionState?.projectId,
+    showCloneableVideos,
+    showCloneReplacementSelectors: showCloneReplacementSelectors && !showCloneSceneWorkspaceStep,
+    showCloneSceneWorkspaceStep,
+    cloneReferenceVideo: sessionState?.cloneReferenceVideo
+      ? { id: sessionState.cloneReferenceVideo.id }
+      : null,
+    cloneReplacementDraft: sessionState?.cloneReplacementDraft
+      ? {
+          status: sessionState.cloneReplacementDraft.status,
+          scenes: sessionState.cloneReplacementDraft.scenes
+        }
+      : null,
+    cloneExecution: sessionState?.cloneExecution
+      ? {
+          projectId: sessionState.cloneExecution.projectId,
+          phase: sessionState.cloneExecution.phase,
+          mergedVideoUrl: sessionState.cloneExecution.mergedVideoUrl
+        }
+      : null,
+    motionClone: sessionState?.motionClone
+      ? {
+          stage: sessionState.motionClone.stage,
+          hasSelectedAvatar: Boolean(sessionState.motionClone.selectedAvatar?.id),
+          hasSelectedProduct: Boolean(sessionState.motionClone.selectedProduct?.id),
+          phase: sessionState.motionClone.phase
+        }
+      : null
+  }), [
+    sessionState,
+    showCloneSceneWorkspaceStep,
+    showCloneReplacementSelectors,
+    showCloneableVideos
+  ]);
   const [visiblePromptChipSuggestions, setVisiblePromptChipSuggestions] = useState(computedPromptChipSuggestions);
 
   useEffect(() => {
@@ -3465,6 +3598,24 @@ export default function ProjectAgentPage() {
     avatarStage === 'avatar_generating_video' ||
     avatarStage === 'avatar_completed'
   );
+  const avatarWorkspaceCoverUrl = (
+    sessionState?.avatarDraft?.coverImageUrl ||
+    sessionState?.generatedImageUrl ||
+    sessionState?.avatarExecution?.coverImageUrl ||
+    null
+  );
+  const avatarWorkspaceFinalVideoUrl = sessionState?.avatarExecution?.finalVideoUrl || null;
+  const avatarIsGeneratingCover = Boolean(
+    sessionState?.avatarExecution?.phase === 'generating_cover' ||
+    sessionState?.avatarStage === 'avatar_generating_cover' ||
+    sessionState?.step === 'generating_image' ||
+    sessionState?.step === 'regenerating_image'
+  );
+  const avatarIsGeneratingVideo = Boolean(
+    sessionState?.avatarExecution?.phase === 'generating_videos' ||
+    sessionState?.avatarStage === 'avatar_generating_video' ||
+    sessionState?.step === 'generating_videos'
+  );
   const showMotionCloneReferenceStep = sessionState?.intent === 'motion_clone' && motionCloneStage === 'reference_selection';
   const showMotionCloneReplacementStep = sessionState?.intent === 'motion_clone' && motionCloneStage === 'replacement_selection';
   const showMotionCloneWorkspace = sessionState?.intent === 'motion_clone' && motionCloneStage === 'workspace';
@@ -4076,74 +4227,110 @@ export default function ProjectAgentPage() {
                     ) : null}
 
                     {showAvatarWorkspace ? (
-                      <div className="space-y-4">
-                        <div className="grid gap-4 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)]">
-                          <div className="rounded-xl border border-[#e6e6e4] bg-white p-4">
-                            <p className="text-sm font-medium text-[#1f1f1e]">Workspace</p>
-                            <div className="mt-4 grid gap-4 md:grid-cols-2">
-                              <div className="overflow-hidden rounded-xl border border-[#ececea] bg-[#f3f3f2]">
-                                <div className="aspect-[9/16]">
-                                  {sessionState?.avatarDraft?.coverImageUrl || sessionState?.generatedImageUrl ? (
+                      <div className="flex h-full min-h-0 flex-col">
+                        <div className="flex h-full min-h-0 flex-col rounded-xl border border-[#e6e6e4] bg-white p-4">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Step 3 Workspace</p>
+                          <p className="mt-1 text-sm font-medium text-[#1f1f1e]">Avatar workspace</p>
+
+                          <div className="mt-4 grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)]">
+                            <div className="grid h-full min-h-0 grid-cols-2 gap-2.5">
+                              <div className="flex min-w-0 min-h-0 flex-col">
+                                <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-[#666666]">
+                                  <ImageIcon className="h-3.5 w-3.5" />
+                                  Generated Cover
+                                </div>
+                                <div className="relative flex-1 overflow-hidden rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] min-h-[420px]">
+                                  {avatarIsGeneratingCover ? (
+                                    <div className="relative flex h-full w-full overflow-hidden bg-[#f3f3f3]">
+                                      <div className="avatar-workspace-wave absolute inset-0 opacity-90" />
+                                      <div className="relative z-10 flex h-full w-full flex-col items-center justify-center text-center text-sm text-[#666666]">
+                                        <Loader2 className="h-6 w-6 animate-spin text-gray-600" />
+                                        <span className="mt-2 font-medium text-[#444444]">
+                                          Generating image...
+                                        </span>
+                                        <span className="mt-1 text-xs text-[#777777]">
+                                          Usually takes around 10-20 seconds.
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ) : avatarWorkspaceCoverUrl ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img
-                                      src={sessionState?.avatarDraft?.coverImageUrl || sessionState?.generatedImageUrl || ''}
+                                      src={avatarWorkspaceCoverUrl}
                                       alt="Generated avatar cover"
                                       className="h-full w-full object-cover"
                                     />
                                   ) : (
-                                    <div className="flex h-full items-center justify-center px-4 text-center text-sm text-[#787876]">
-                                      No generated cover yet. Ask Flowgen to generate the cover when the script looks right.
+                                    <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-sm text-[#666666]">
+                                      <ImageIcon className="h-6 w-6 text-[#8d8d8a]" />
+                                      <span>Cover generation has not started.</span>
                                     </div>
                                   )}
                                 </div>
                               </div>
-                              <div className="overflow-hidden rounded-xl border border-[#ececea] bg-[#111111]">
-                                <div className="aspect-[9/16]">
-                                  {sessionState?.avatarExecution?.finalVideoUrl ? (
+
+                              <div className="flex min-w-0 min-h-0 flex-col">
+                                <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-[#666666]">
+                                  <VideoIcon className="h-3.5 w-3.5" />
+                                  Final Video
+                                </div>
+                                <div className="relative flex-1 overflow-hidden rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] min-h-[420px]">
+                                  {avatarIsGeneratingVideo ? (
+                                    <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-gray-100 via-gray-200 to-gray-100 text-sm text-[#666666]">
+                                      <Loader2 className="h-6 w-6 animate-spin text-gray-600" />
+                                      <span className="mt-2">Rendering video...</span>
+                                    </div>
+                                  ) : avatarWorkspaceFinalVideoUrl ? (
                                     <video
-                                      src={sessionState.avatarExecution.finalVideoUrl}
+                                      src={avatarWorkspaceFinalVideoUrl}
                                       controls
                                       playsInline
-                                      className="h-full w-full object-cover"
+                                      className="h-full w-full rounded-lg bg-black object-contain"
                                     />
                                   ) : (
-                                    <div className="flex h-full items-center justify-center px-4 text-center text-sm text-white/70">
-                                      Final video preview will appear here when generation finishes.
+                                    <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-sm text-[#666666]">
+                                      <VideoIcon className="h-6 w-6 text-[#8d8d8a]" />
+                                      <span>Video generation has not started.</span>
                                     </div>
                                   )}
                                 </div>
                               </div>
                             </div>
-                          </div>
 
-                          <AvatarWorkspaceEditor
-                            draft={sessionState?.avatarDraft}
-                            characterMentions={avatarCharacterMentions}
-                            productMentions={avatarProductMentions}
-                            onDraftChange={(nextDraft) => {
-                              const nextPromptState = buildAvatarGeneratedPrompts({
-                                imagePrompt: nextDraft.imagePrompt,
-                                scriptSource: nextDraft.scriptSource,
-                                existingScenes: nextDraft.scenes,
-                                language: sessionState?.avatarSelection?.language ?? sessionState?.language ?? 'en'
-                              });
-                              setSessionState((prev) => prev ? {
-                                ...prev,
-                                videoDurationSeconds: nextPromptState.totalDurationSeconds,
-                                avatarSelection: prev.avatarSelection ? {
-                                  ...prev.avatarSelection,
-                                  durationSeconds: nextPromptState.totalDurationSeconds
-                                } : prev.avatarSelection,
-                                avatarDraft: {
-                                  ...nextDraft,
-                                  scenes: nextPromptState.scenes
-                                },
-                                generatedPrompts: nextPromptState.generatedPrompts,
-                                imagePrompt: nextDraft.imagePrompt,
-                                pendingUpdatedPrompts: nextPromptState.generatedPrompts
-                              } : prev);
-                            }}
-                          />
+                            <div className="h-full min-h-0">
+                              <AvatarWorkspaceEditor
+                                draft={sessionState?.avatarDraft}
+                                characterMentions={avatarCharacterMentions}
+                                productMentions={avatarProductMentions}
+                                onDraftChange={(nextDraft) => {
+                                const nextPromptState = buildAvatarGeneratedPrompts({
+                                  imagePrompt: nextDraft.imagePrompt,
+                                  scriptSource: nextDraft.scriptSource,
+                                  existingScenes: nextDraft.scenes,
+                                  language: sessionState?.avatarSelection?.language ?? sessionState?.language ?? 'en',
+                                  avatarName: avatarSelection.avatar?.name ?? null,
+                                  productName: avatarSelection.product?.name ?? null
+                                });
+                                  setSessionState((prev) => prev ? {
+                                    ...prev,
+                                    videoDurationSeconds: nextPromptState.totalDurationSeconds,
+                                    avatarSelection: prev.avatarSelection ? {
+                                      ...prev.avatarSelection,
+                                      durationSeconds: nextPromptState.totalDurationSeconds
+                                    } : prev.avatarSelection,
+                                  avatarDraft: {
+                                    ...nextDraft,
+                                    imagePrompt: nextPromptState.generatedPrompts.image_prompt as string,
+                                    scenes: nextPromptState.scenes
+                                  },
+                                  generatedPrompts: nextPromptState.generatedPrompts,
+                                    imagePrompt: nextPromptState.generatedPrompts.image_prompt as string,
+                                    pendingUpdatedPrompts: nextPromptState.generatedPrompts
+                                  } : prev);
+                                }}
+                              />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ) : null}
@@ -4723,7 +4910,7 @@ export default function ProjectAgentPage() {
                     ref={inputRef}
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
-                    placeholder="Ask Flowgen what to make viral next..."
+                    placeholder={chatInputPlaceholder}
                     className="project-agent-chat-input-field flex-1 min-h-12 rounded-[18px] bg-transparent px-4 text-sm text-[#1f1f1e] placeholder:text-[#9b9b98] focus:outline-none disabled:opacity-50"
                     disabled={!isReady || awaitingAssistantTurn}
                   />
@@ -4759,6 +4946,30 @@ export default function ProjectAgentPage() {
         requireFirstFrameForClone
         onUseForClone={(video) => handleSelectVideoFromDetails(video as CloneableVideoAsset)}
       />
+      <style jsx>{`
+        .avatar-workspace-wave {
+          background:
+            linear-gradient(
+              115deg,
+              rgba(255, 255, 255, 0) 20%,
+              rgba(255, 255, 255, 0.75) 36%,
+              rgba(255, 255, 255, 0.12) 52%,
+              rgba(255, 255, 255, 0) 68%
+            ),
+            linear-gradient(180deg, #efefef 0%, #e7e7e7 52%, #f4f4f4 100%);
+          background-size: 220% 100%, 100% 100%;
+          animation: avatarWorkspaceWaveSweep 1.7s linear infinite;
+        }
+
+        @keyframes avatarWorkspaceWaveSweep {
+          0% {
+            background-position: 140% 0, 0 0;
+          }
+          100% {
+            background-position: -40% 0, 0 0;
+          }
+        }
+      `}</style>
     </div>
   );
 }

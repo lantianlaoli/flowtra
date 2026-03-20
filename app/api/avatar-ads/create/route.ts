@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
 import { uploadImageToStorage } from '@/lib/supabase';
 import {
   getGenerationCost,
@@ -13,6 +12,7 @@ import { deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { AVATAR_ADS_DURATION_OPTIONS } from '@/lib/avatar-ads-dialogue';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
+import { verifyInternalUserRequest } from '@/lib/security/internal-request';
 
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const AVATAR_ADS_PERSISTED_IMAGE_MODEL = 'nano_banana_pro' as const;
@@ -20,7 +20,18 @@ const AVATAR_ADS_PERSISTED_IMAGE_MODEL = 'nano_banana_pro' as const;
 export async function POST(request: NextRequest) {
   try {
     console.log('Character ads create API called');
-    const { userId: clerkUserId } = await auth();
+    const internalUserId = request.headers.get('x-project-agent-user-id');
+    const internalTimestamp = request.headers.get('x-project-agent-timestamp');
+    const internalSignature = request.headers.get('x-project-agent-signature');
+    const hasValidInternalSignature = verifyInternalUserRequest({
+      userId: internalUserId,
+      timestamp: internalTimestamp,
+      signature: internalSignature,
+    });
+
+    const { userId: clerkUserId } = hasValidInternalSignature
+      ? { userId: internalUserId }
+      : await auth();
 
     if (!clerkUserId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -178,7 +189,7 @@ export async function POST(request: NextRequest) {
       } else {
         // Schema verified via Supabase MCP (2026-03-01) and migration 20260301_restructure_storage_and_remove_brands:
         // user_products is product-first and no longer depends on brand tables.
-        const supabase = await createServerUserSupabaseClient();
+        const supabase = getSupabaseAdmin();
         const { data: product, error: productError } = await supabase
           .from('user_products')
           .select(`
@@ -269,7 +280,7 @@ export async function POST(request: NextRequest) {
     const generationCreditsUsed = 0;
 
     // Create project in database
-    const supabase = await createServerUserSupabaseClient();
+    const supabase = getSupabaseAdmin();
     // Schema verified via Supabase MCP (2026-03-17):
     // avatar_ads_projects.image_model exists and constraint long_video_projects_image_model_check
     // only allows: nano_banana, seedream, nano_banana_pro.

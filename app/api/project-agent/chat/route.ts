@@ -83,7 +83,10 @@ import {
   type ProjectAgentAvatarStage
 } from '@/lib/project-agent/avatar-agent';
 import { draftProjectAgentAvatarPrompts } from '@/lib/project-agent/avatar-draft';
-import { buildAvatarGeneratedPrompts } from '@/lib/project-agent/avatar-script-planning';
+import {
+  buildAvatarGeneratedPrompts,
+  ensureAvatarImagePromptMentions
+} from '@/lib/project-agent/avatar-script-planning';
 import { signInternalUserRequest } from '@/lib/security/internal-request';
 import { buildTypedMentionToken } from '@/lib/prompt-mention-tokens';
 
@@ -441,6 +444,67 @@ const buildWorkflowFallbackReply = async (input: {
     return null;
   }
 
+  if (input.state.intent === 'avatar_ads') {
+    const hasCover = Boolean(
+      input.state.avatarDraft?.coverImageUrl ||
+      input.state.generatedImageUrl ||
+      input.state.avatarExecution?.coverImageUrl
+    );
+    const hasFinalVideo = Boolean(input.state.avatarExecution?.finalVideoUrl);
+    const isGeneratingCover = Boolean(
+      input.state.avatarExecution?.phase === 'generating_cover' ||
+      input.state.avatarStage === 'avatar_generating_cover' ||
+      input.state.step === 'creating' ||
+      input.state.step === 'regenerating_image'
+    );
+    const isGeneratingVideo = Boolean(
+      input.state.avatarExecution?.phase === 'generating_videos' ||
+      input.state.avatarStage === 'avatar_generating_video' ||
+      input.state.step === 'generating_videos'
+    );
+    const isReviewingCover = Boolean(
+      input.state.avatarStage === 'avatar_reviewing_cover' ||
+      input.state.step === 'awaiting_review'
+    );
+
+    if (hasFinalVideo) {
+      return 'Your avatar video is ready on the left. Review it in the Final Video panel whenever you want.';
+    }
+
+    if (isGeneratingVideo || (isStartVideoGenerationCommand(input.latestUserTurnText) && hasCover)) {
+      return 'Avatar video generation is already running. I will keep the Final Video panel on the left updated as soon as the render finishes.';
+    }
+
+    if (isStartVideoGenerationCommand(input.latestUserTurnText) && !hasCover) {
+      return 'Generate the cover first, then I can start the avatar video.';
+    }
+
+    if (isGeneratingCover) {
+      return 'Cover generation is in progress. I will update the Generated Cover panel on the left as soon as it is ready.';
+    }
+
+    if (isReviewingCover || hasCover) {
+      return 'The cover is ready for review. If it looks good, say "Generate the video" and I will start rendering the avatar video.';
+    }
+
+    return 'Select the avatar and finish the draft first, then I can generate the cover and video from this workspace.';
+  }
+
+  if (input.state.intent === 'motion_clone') {
+    if (input.state.motionClone?.outputVideoUrl) {
+      return 'Your motion clone video is ready on the left. Review the final video when you are ready.';
+    }
+    if (input.state.motionClone?.phase === 'generating_video') {
+      return 'Motion clone video generation is already running. I will update the Final Video panel on the left when it finishes.';
+    }
+    if (input.state.motionClone?.phase === 'preview_ready') {
+      return 'The preview image is ready. Review it on the left, then say "Generate the final video" when you want to continue.';
+    }
+    if (input.state.motionClone?.phase === 'generating_preview') {
+      return 'Preview generation is in progress. I will update the preview panel on the left as soon as it is ready.';
+    }
+  }
+
   if (isRegenerateFrameCommand(input.latestUserTurnText)) {
     const sceneIndex = parseSceneIndexFromUserTurn(input.latestUserTurnText);
     const sceneLabel = typeof sceneIndex === 'number' ? `scene ${sceneIndex}` : 'that scene';
@@ -605,6 +669,11 @@ const isCloneSelectionConfirmed = (state: SessionState, latestUserText: string) 
 type ForcedToolChoice = {
   type: 'tool';
   toolName:
+    | 'startAvatarCoverGeneration'
+    | 'regenerateAvatarCover'
+    | 'startAvatarVideoGeneration'
+    | 'regenerateAvatarVideo'
+    | 'syncAvatarProjectStatus'
     | 'startCloneVideoGeneration'
     | 'mergeCloneVideos'
     | 'regenerateCloneVideos'
@@ -633,6 +702,24 @@ const isMotionCloneStatusCommand = (text: string) => {
   );
 };
 
+const isAvatarCoverGenerationCommand = (text: string) => {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    /\b(generate|start|create|make|regenerate|retry)\b[\s\w-]{0,24}\b(cover|image)\b/.test(normalized) ||
+    /\b(generate the cover|regenerate the cover|generate cover|regenerate cover)\b/.test(normalized)
+  );
+};
+
+const isAvatarStatusCommand = (text: string) => {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    /\b(show|check|get|ping|refresh|sync)\b[\s\w-]{0,24}\b(progress|status|cover|video)\b/.test(normalized) ||
+    /\b(show me the cover|is the cover ready|is the video ready|show me the latest progress|show me the status|what'?s the status|how'?s it going)\b/.test(normalized)
+  );
+};
+
 const tryParseJsonObject = (raw: string): Record<string, unknown> | null => {
   const trimmed = raw.trim();
   if (!trimmed) return null;
@@ -657,6 +744,7 @@ const classifyToolIntent = async (input: {
   model: ReturnType<typeof openrouter.chat>;
   latestUserTurnText: string;
   currentIntent?: SessionState['intent'];
+  avatarHasCover: boolean;
   clonePhase?: SessionState['cloneExecution'] extends { phase: infer P } ? P : string;
   hasCloneProject: boolean;
   hasSelectedReplacements: boolean;
@@ -675,6 +763,24 @@ const classifyToolIntent = async (input: {
     }
     if (isStartVideoGenerationCommand(userText)) {
       return { type: 'tool', toolName: 'startMotionCloneVideoGeneration' };
+    }
+  }
+
+  if (input.currentIntent === 'avatar_ads') {
+    if (isAvatarStatusCommand(userText)) {
+      return { type: 'tool', toolName: 'syncAvatarProjectStatus' };
+    }
+    if (isAvatarCoverGenerationCommand(userText)) {
+      return {
+        type: 'tool',
+        toolName: input.avatarHasCover ? 'regenerateAvatarCover' : 'startAvatarCoverGeneration'
+      };
+    }
+    if (isStartVideoGenerationCommand(userText)) {
+      return { type: 'tool', toolName: 'startAvatarVideoGeneration' };
+    }
+    if (isRegenerateVideoCommand(userText)) {
+      return { type: 'tool', toolName: 'regenerateAvatarVideo' };
     }
   }
 
@@ -1007,7 +1113,9 @@ const deriveAvatarPromptState = (state: SessionState, draft: ProjectAgentAvatarD
     imagePrompt: draft.imagePrompt,
     scriptSource: draft.scriptSource,
     existingScenes: draft.scenes,
-    language: state.avatarSelection?.language ?? state.language ?? 'en'
+    language: state.avatarSelection?.language ?? state.language ?? 'en',
+    avatarName: state.avatarSelection?.avatar?.name ?? state.avatar?.name ?? null,
+    productName: state.avatarSelection?.product?.name ?? state.product?.name ?? null
   });
 
   return {
@@ -2290,6 +2398,11 @@ export async function POST(request: Request) {
         model,
         latestUserTurnText,
         currentIntent: sessionState.intent,
+        avatarHasCover: Boolean(
+          sessionState.avatarDraft?.coverImageUrl ||
+          sessionState.generatedImageUrl ||
+          sessionState.avatarExecution?.coverImageUrl
+        ),
         clonePhase: sessionState.cloneExecution?.phase,
         hasCloneProject: Boolean(
           sessionState.cloneExecution?.projectId ||
@@ -3432,11 +3545,16 @@ export async function POST(request: Request) {
             } else {
               formData.set('talking_head_mode', 'true');
             }
+            const internalTimestamp = String(Date.now());
 
             const response = await fetch(`${origin}/api/avatar-ads/create`, {
               method: 'POST',
               headers: {
-                'x-project-agent-internal': '1'
+                Cookie: request.headers.get('cookie') || '',
+                'x-project-agent-internal': '1',
+                'x-project-agent-user-id': userId,
+                'x-project-agent-timestamp': internalTimestamp,
+                'x-project-agent-signature': signInternalUserRequest(userId, internalTimestamp),
               },
               body: formData
             });
@@ -3484,7 +3602,11 @@ export async function POST(request: Request) {
             if (!sessionState.projectId) {
               return { success: false, message: 'Generate the first cover before regenerating it.' };
             }
-            const nextImagePrompt = imagePrompt?.trim() || sessionState.avatarDraft?.imagePrompt || sessionState.imagePrompt;
+            const nextImagePrompt = ensureAvatarImagePromptMentions({
+              imagePrompt: imagePrompt?.trim() || sessionState.avatarDraft?.imagePrompt || sessionState.imagePrompt,
+              avatarName: sessionState.avatarSelection?.avatar?.name ?? sessionState.avatar?.name ?? null,
+              productName: sessionState.avatarSelection?.product?.name ?? sessionState.product?.name ?? null
+            });
             if (!nextImagePrompt) {
               return { success: false, message: 'Image prompt is missing.' };
             }
@@ -3619,13 +3741,16 @@ export async function POST(request: Request) {
 
             const project = payload.project as Record<string, unknown>;
             const scenes = Array.isArray(payload.scenes) ? payload.scenes as Array<Record<string, unknown>> : [];
-            const nextDraft = buildProjectAgentAvatarDraft(project as never, scenes as never);
+            const nextDraft = buildProjectAgentAvatarDraft(project as never, scenes as never, {
+              avatarName: sessionState.avatarSelection?.avatar?.name ?? sessionState.avatar?.name ?? null,
+              productName: sessionState.avatarSelection?.product?.name ?? sessionState.product?.name ?? null
+            });
             const nextExecution = buildProjectAgentAvatarExecution(project as never, scenes as never);
 
             await persistSession({
               projectId,
               generatedPrompts: (project.generated_prompts as Record<string, unknown> | null) ?? null,
-              imagePrompt: typeof project.image_prompt === 'string' ? project.image_prompt : null,
+              imagePrompt: nextDraft?.imagePrompt ?? (typeof project.image_prompt === 'string' ? project.image_prompt : null),
               generatedImageUrl: typeof project.generated_image_url === 'string' ? project.generated_image_url : null,
               avatarDraft: nextDraft,
               avatarExecution: nextExecution,
@@ -4114,11 +4239,16 @@ export async function POST(request: Request) {
             if (!sessionState.projectId) {
               return { success: false, message: 'Project is missing.' };
             }
+            const nextImagePrompt = ensureAvatarImagePromptMentions({
+              imagePrompt,
+              avatarName: sessionState.avatarSelection?.avatar?.name ?? sessionState.avatar?.name ?? null,
+              productName: sessionState.avatarSelection?.product?.name ?? sessionState.product?.name ?? null
+            });
 
             const response = await fetch(`${origin}/api/avatar-ads/${sessionState.projectId}/regenerate-image`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ imagePrompt })
+              body: JSON.stringify({ imagePrompt: nextImagePrompt })
             });
 
             const payload = await response.json();
@@ -4128,7 +4258,7 @@ export async function POST(request: Request) {
             }
 
             await persistSession({
-              imagePrompt,
+              imagePrompt: nextImagePrompt,
               step: 'regenerating_image'
             });
 
@@ -4852,13 +4982,16 @@ export async function POST(request: Request) {
               return { success: false, message: payload?.error || 'Failed to fetch status.' };
             }
 
-            const nextDraft = buildProjectAgentAvatarDraft(payload.project as never, payload.scenes as never);
+            const nextDraft = buildProjectAgentAvatarDraft(payload.project as never, payload.scenes as never, {
+              avatarName: sessionState.avatarSelection?.avatar?.name ?? sessionState.avatar?.name ?? null,
+              productName: sessionState.avatarSelection?.product?.name ?? sessionState.product?.name ?? null
+            });
             const nextExecution = buildProjectAgentAvatarExecution(payload.project as never, payload.scenes as never);
 
             await persistSession({
               step: payload.project.status === 'awaiting_review' ? 'awaiting_review' : sessionState.step,
               generatedPrompts: payload.project.generated_prompts ?? null,
-              imagePrompt: payload.project.image_prompt ?? null,
+              imagePrompt: nextDraft?.imagePrompt ?? payload.project.image_prompt ?? null,
               generatedImageUrl: payload.project.generated_image_url ?? null,
               avatarDraft: nextDraft,
               avatarExecution: nextExecution,
