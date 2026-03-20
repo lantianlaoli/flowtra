@@ -263,10 +263,10 @@ export default function PromptMentionTextarea({
   }, [activeIndex, mentionOpen]);
 
   return (
-    <div ref={rootRef} className="prompt-mention-root relative min-w-0">
+    <div ref={rootRef} className="prompt-mention-root relative flex h-full min-w-0 min-h-0 flex-col">
       <div
         className={clsx(
-          'relative overflow-hidden rounded-lg border bg-white transition-colors',
+          'relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-white transition-colors',
           hasError ? 'border-red-500 focus-within:border-red-500' : 'border-gray-200 focus-within:border-black',
           readOnly || disabled ? 'bg-gray-50' : ''
         )}
@@ -369,7 +369,7 @@ export default function PromptMentionTextarea({
             resize: resizable === 'vertical' ? 'vertical' : 'none'
           }}
           className={clsx(
-            'block w-full border-0 bg-transparent px-3 py-2 text-sm leading-6 focus:outline-none focus:ring-0',
+            'block h-full min-h-0 w-full flex-1 border-0 bg-transparent px-3 py-2 text-sm leading-6 focus:outline-none focus:ring-0',
             preventHorizontalScroll ? 'overflow-x-hidden overflow-y-auto' : 'overflow-auto',
             resizable === 'vertical' ? 'resize-y' : 'resize-none',
             !isFocused && value ? 'text-transparent caret-transparent selection:bg-transparent selection:text-transparent' : 'text-[#1f1f1e]',

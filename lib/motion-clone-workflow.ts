@@ -83,15 +83,15 @@ export const buildMotionClonePreviewPrompt = (options?: { hasAvatar: boolean; ha
   const hasAvatar = options?.hasAvatar ?? true;
   const hasProduct = options?.hasProduct ?? true;
   const replacementLine = hasAvatar && hasProduct
-    ? 'Replace the person with the provided avatar reference and replace the product with the provided product reference.'
+    ? 'Use image 1 as the base frame. Replace the on-screen person with image 2 and replace every visible product or bottle with image 3.'
     : hasAvatar
-      ? 'Replace the person with the provided avatar reference.'
-      : 'Replace the product with the provided product reference.';
+      ? 'Use image 1 as the base frame. Replace the on-screen person with image 2.'
+      : 'Use image 1 as the base frame. Replace every visible product or bottle with image 2.';
   return [
-    'Motion Clone preview: keep the exact composition, lighting, and background from the reference cover image.',
+    'Motion Clone preview: keep the exact composition, lighting, and background from image 1.',
     replacementLine,
-    'Do not change camera angle, framing, or color grading.',
-    'Match the original pose, clothing silhouette, and environment while swapping only the specified targets.'
+    'Keep the same pose, hand placement, camera angle, framing, and color grading.',
+    'Do not keep the original person or original product. Do not change anything else.'
   ].join(' ');
 };
 
@@ -99,14 +99,14 @@ export const buildMotionCloneVideoPrompt = (options?: { hasAvatar: boolean; hasP
   const hasAvatar = options?.hasAvatar ?? true;
   const hasProduct = options?.hasProduct ?? true;
   const guidance = hasAvatar && hasProduct
-    ? 'Use the swapped preview image as the appearance guide for the person and product.'
+    ? 'Use the swapped preview image as the appearance guide for the person and the product.'
     : hasAvatar
       ? 'Use the swapped preview image as the appearance guide for the person.'
       : 'Use the swapped preview image as the appearance guide for the product.';
   return [
-    'Motion Clone: preserve the original motion, rhythm, and camera movement from the reference video.',
+    'Motion Clone video:',
     guidance,
-    'Do not alter the background, lighting, or scene composition.'
+    'Do not alter the background, lighting, framing, or scene composition.'
   ].join(' ');
 };
 

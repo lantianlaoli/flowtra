@@ -27,13 +27,13 @@ export default function CreditsDisplay({
   const hasSubscription = subscriptionCredits > 0;
 
   return (
-    <div className="sidebar-credits-shell flex min-w-0 items-center gap-2 rounded-[24px] border px-2.5 py-2 backdrop-blur-xl">
+    <div className="sidebar-credits-shell inline-flex w-fit max-w-full items-center gap-2 rounded-[24px] border px-2.5 py-2 backdrop-blur-xl">
       <div className="sidebar-credits-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#111111] text-white">
         <Coins className="h-4 w-4" strokeWidth={2.2} />
       </div>
 
-      <div className="min-w-0 flex-1">
-        <div className="sidebar-credits-value truncate text-[17px] font-semibold tracking-[-0.02em] text-[#111111] tabular-nums">
+      <div className="shrink-0">
+        <div className="sidebar-credits-value whitespace-nowrap text-[17px] font-semibold tracking-[-0.02em] text-[#111111] tabular-nums">
           {credits.toLocaleString()}
         </div>
       </div>

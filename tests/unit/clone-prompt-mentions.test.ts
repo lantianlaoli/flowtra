@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 
 import { injectMentionsInline } from '@/lib/project-agent/clone-prompt-mentions';
 
-const avatarToken = '@character(Default Male)';
-const productToken = '@product(book)';
+const avatarToken = '@(Default Male)';
+const productToken = '@(book)';
 
 test('injects avatar/product mentions inline for role noun + product noun', () => {
   const prompt = 'A smiling man relaxes on a patterned floor mat in a sunlit living room, holding a book.';
@@ -16,10 +16,10 @@ test('injects avatar/product mentions inline for role noun + product noun', () =
     productName: 'book'
   });
 
-  assert.match(result, /A smiling @character\(Default Male\)/i);
-  assert.match(result, /holding a @product\(book\)/i);
-  assert.doesNotMatch(result, /featuring @character\(/i);
-  assert.doesNotMatch(result, /interacting with @product\(/i);
+  assert.match(result, /A smiling @\(Default Male\)/i);
+  assert.match(result, /holding a @\(book\)/i);
+  assert.doesNotMatch(result, /featuring @/i);
+  assert.doesNotMatch(result, /interacting with @/i);
 });
 
 test('replaces pronoun when no role noun exists', () => {
@@ -32,9 +32,9 @@ test('replaces pronoun when no role noun exists', () => {
     productName: 'book'
   });
 
-  assert.match(result, /@character\(Default Male\)'s stomach/i);
-  assert.match(result, /read a @product\(book\)/i);
-  assert.doesNotMatch(result, /featuring @character\(/i);
+  assert.match(result, /@\(Default Male\)'s stomach/i);
+  assert.match(result, /read a @\(book\)/i);
+  assert.doesNotMatch(result, /featuring @/i);
 });
 
 test('repairs broken placeholder like "a ," without suffix boilerplate', () => {
@@ -47,12 +47,12 @@ test('repairs broken placeholder like "a ," without suffix boilerplate', () => {
     productName: 'book'
   });
 
-  assert.match(result, /read a @product\(book\)/i);
-  assert.doesNotMatch(result, /interacting with @product\(/i);
+  assert.match(result, /read a @\(book\)/i);
+  assert.doesNotMatch(result, /interacting with @/i);
 });
 
 test('is idempotent when prompt already contains both tokens', () => {
-  const prompt = '@character(Default Male) sits in frame and gently holds @product(book) near the camera.';
+  const prompt = '@(Default Male) sits in frame and gently holds @(book) near the camera.';
   const result = injectMentionsInline({
     imagePrompt: prompt,
     avatarToken,
@@ -61,12 +61,12 @@ test('is idempotent when prompt already contains both tokens', () => {
     productName: 'book'
   });
 
-  const avatarCount = (result.match(/@character\(Default Male\)/g) || []).length;
-  const productCount = (result.match(/@product\(book\)/g) || []).length;
+  const avatarCount = (result.match(/@\(Default Male\)/g) || []).length;
+  const productCount = (result.match(/@\(book\)/g) || []).length;
 
   assert.equal(avatarCount, 1);
   assert.equal(productCount, 1);
-  assert.doesNotMatch(result, /featuring @character\(/i);
+  assert.doesNotMatch(result, /featuring @/i);
 });
 
 test('falls back to inline anchor when no obvious noun exists', () => {
@@ -79,9 +79,9 @@ test('falls back to inline anchor when no obvious noun exists', () => {
     productName: 'book'
   });
 
-  assert.match(result, /^@character\(Default Male\) is in frame,/i);
-  assert.match(result, /holding @product\(book\)/i);
-  assert.doesNotMatch(result, /featuring @character\(/i);
+  assert.match(result, /^@\(Default Male\) is in frame,/i);
+  assert.match(result, /holding @\(book\)/i);
+  assert.doesNotMatch(result, /featuring @/i);
   assert.match(result, /\.$/);
 });
 
@@ -93,7 +93,7 @@ test('keeps hands-only prompt product-only when no avatar token is provided', ()
     productName: 'book'
   });
 
-  assert.match(result, /hands holding the @product\(book\)/i);
-  assert.doesNotMatch(result, /@character\(/i);
+  assert.match(result, /hands holding the @\(book\)/i);
+  assert.doesNotMatch(result, /@\(Default Male\)/i);
   assert.doesNotMatch(result, /Default Founder/i);
 });

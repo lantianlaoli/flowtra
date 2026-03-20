@@ -1,6 +1,7 @@
 type ProjectAgentPromptChipState = {
   intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_clone';
   step?: string;
+  avatarStage?: string;
   projectId?: string;
   showCloneableVideos?: boolean;
   showCloneReplacementSelectors?: boolean;
@@ -17,10 +18,24 @@ type ProjectAgentPromptChipState = {
     phase?: 'idle' | 'generating_frames' | 'reviewing_frames' | 'generating_videos' | 'awaiting_merge' | 'merging' | 'completed' | 'failed';
     mergedVideoUrl?: string | null;
   } | null;
+  motionClone?: {
+    stage?: 'reference_selection' | 'replacement_selection' | 'workspace';
+    phase?: 'idle' | 'generating_preview' | 'preview_ready' | 'generating_video' | 'completed' | 'failed';
+    hasSelectedAvatar?: boolean;
+    hasSelectedProduct?: boolean;
+  } | null;
 };
 
 export type ProjectAgentPromptChipStage =
   | 'starter'
+  | 'avatar_setup'
+  | 'avatar_workspace'
+  | 'avatar_review'
+  | 'avatar_generating'
+  | 'motion_reference_selection'
+  | 'motion_replacement_selection'
+  | 'motion_preview'
+  | 'motion_video'
   | 'clone_reference_selection'
   | 'clone_replacement_selection'
   | 'draft_review'
@@ -34,6 +49,48 @@ const CHIP_POOLS: Record<ProjectAgentPromptChipStage, string[]> = {
     'I want to clone a viral video',
     'I want to make an avatar ad',
     'I want to use motion clone'
+  ],
+  avatar_setup: [
+    'Continue with current selection',
+    'Continue without a product',
+    'Use this avatar',
+    'Choose a different avatar'
+  ],
+  avatar_workspace: [
+    'Generate the cover',
+    'Rewrite the image prompt',
+    'Rewrite the script',
+    'Continue with this draft'
+  ],
+  avatar_review: [
+    'Generate the video',
+    'Regenerate the cover',
+    'Adjust the dialogue',
+    'Show me the cover'
+  ],
+  avatar_generating: [
+    'Show me the latest progress',
+    'Is the cover ready?',
+    'Is the video ready?',
+    'What happens next?'
+  ],
+  motion_reference_selection: [
+    'Help me choose a reference video',
+    'Show me more eligible videos',
+    'What makes a good reference video?'
+  ],
+  motion_replacement_selection: [],
+  motion_preview: [
+    'Generate the preview image',
+    'Rewrite the image prompt',
+    'Rewrite the video prompt',
+    'Show me the latest progress'
+  ],
+  motion_video: [
+    'Generate the final video',
+    'Regenerate the preview image',
+    'Rewrite the video prompt',
+    'Show me the latest progress'
   ],
   clone_reference_selection: [
     'Show me reference videos',
@@ -99,7 +156,8 @@ export const getProjectAgentPromptChipStage = (
   const draftStatus = state.cloneReplacementDraft?.status ?? 'idle';
   const hasDraftScenes = (state.cloneReplacementDraft?.scenes?.length ?? 0) > 0;
   const hasCloneExecution = Boolean(state.cloneExecution?.projectId);
-  const hasActiveAvatarProject = state.intent === 'avatar_ads' && Boolean(state.projectId);
+  const motionPhase = state.intent === 'motion_clone' ? state.motionClone?.phase : undefined;
+  const motionStage = state.intent === 'motion_clone' ? state.motionClone?.stage : undefined;
   const isCloneFlowActive = Boolean(
     state.intent === 'competitor_ugc_replication' ||
     isCloneReferenceSelectionVisible ||
@@ -112,6 +170,42 @@ export const getProjectAgentPromptChipStage = (
 
   if (hasMergedVideo || clonePhase === 'merging' || clonePhase === 'completed') {
     return 'completed';
+  }
+
+  if (state.intent === 'avatar_ads') {
+    if (state.avatarStage === 'avatar_reviewing_cover' || state.step === 'awaiting_review') {
+      return 'avatar_review';
+    }
+    if (state.avatarStage === 'avatar_workspace') {
+      return 'avatar_workspace';
+    }
+    if (
+      state.avatarStage === 'avatar_generating_cover' ||
+      state.avatarStage === 'avatar_generating_video' ||
+      (state.projectId &&
+      state.step &&
+      state.step !== 'collecting' &&
+      state.step !== 'awaiting_review')
+    ) {
+      return 'avatar_generating';
+    }
+    return 'avatar_setup';
+  }
+
+  if (state.intent === 'motion_clone') {
+    if (motionStage === 'reference_selection') {
+      return 'motion_reference_selection';
+    }
+    if (motionStage === 'replacement_selection') {
+      return 'motion_replacement_selection';
+    }
+    if (motionPhase === 'generating_preview' || motionPhase === 'preview_ready') {
+      return 'motion_preview';
+    }
+    if (motionPhase === 'generating_video' || motionPhase === 'completed') {
+      return 'motion_video';
+    }
+    return 'motion_preview';
   }
 
   if (clonePhase === 'generating_videos' || clonePhase === 'awaiting_merge') {
@@ -146,22 +240,86 @@ export const getProjectAgentPromptChipStage = (
   if (isCloneReferenceSelectionVisible || isCloneFlowActive) {
     return 'clone_reference_selection';
   }
-
-  if (hasActiveAvatarProject) {
-    return null;
-  }
-
   return 'starter';
 };
 
 export const getProjectAgentPromptChipPool = (
-  stage: ProjectAgentPromptChipStage | null
-) => (stage ? CHIP_POOLS[stage] : []);
+  stage: ProjectAgentPromptChipStage | null,
+  state?: ProjectAgentPromptChipState
+) => {
+  if (!stage) return [];
+
+  if (stage === 'motion_replacement_selection') {
+    const hasSelectedAvatar = Boolean(state?.motionClone?.hasSelectedAvatar);
+    const hasSelectedProduct = Boolean(state?.motionClone?.hasSelectedProduct);
+
+    if (!hasSelectedAvatar) {
+      return hasSelectedProduct
+        ? [
+            'Use this avatar',
+            'Continue with current selections',
+            'Clear the product',
+            'Choose a different avatar'
+          ]
+        : [
+            'Use this avatar',
+            'Continue with avatar only',
+            'Use this product',
+            'Choose a different avatar'
+          ];
+    }
+
+    if (hasSelectedProduct) {
+      return [
+        'Continue with current selections',
+        'Clear the product',
+        'Choose a different avatar',
+        'Use this product'
+      ];
+    }
+
+    return [
+      'Continue with avatar only',
+      'Use this product',
+      'Choose a different avatar',
+      'Continue with current selections'
+    ];
+  }
+
+  return CHIP_POOLS[stage];
+};
+
+const PLACEHOLDER_BY_STAGE: Partial<Record<ProjectAgentPromptChipStage, string>> = {
+  starter: 'Ask Flowgen what to make viral next...',
+  avatar_setup: 'Choose the avatar or product context for this ad...',
+  avatar_workspace: 'Ask Flowgen to rewrite the prompts or generate the cover...',
+  avatar_review: 'Ask Flowgen to generate the video or revise the cover...',
+  avatar_generating: 'Ask Flowgen for the latest avatar ad progress...',
+  motion_reference_selection: 'Ask Flowgen to help choose a reference video...',
+  motion_replacement_selection: 'Ask Flowgen to confirm the replacement selections...',
+  motion_preview: 'Ask Flowgen to refine the prompts or generate the preview...',
+  motion_video: 'Ask Flowgen to generate the final video or show progress...',
+  clone_reference_selection: 'Ask Flowgen to choose a reference video...',
+  clone_replacement_selection: 'Ask Flowgen to confirm the replacement assets...',
+  draft_review: 'Ask Flowgen to refine the draft or start frame generation...',
+  frame_generation: 'Ask Flowgen for frame generation progress...',
+  frame_review: 'Ask Flowgen to start video generation or revise a frame...',
+  video_generation: 'Ask Flowgen for video generation progress...',
+  completed: 'Ask Flowgen what to make viral next...'
+};
+
+export const getProjectAgentInputPlaceholder = (
+  state: ProjectAgentPromptChipState
+) => {
+  const stage = getProjectAgentPromptChipStage(state);
+  return PLACEHOLDER_BY_STAGE[stage || 'starter'] || 'Ask Flowgen what to make viral next...';
+};
 
 export const getProjectAgentPromptChipStageKey = (state: ProjectAgentPromptChipState) => {
   const stage = getProjectAgentPromptChipStage(state);
   if (!stage) return 'hidden';
 
+  const avatarStage = state.avatarStage || 'none';
   const referenceId = state.cloneReferenceVideo?.id || 'none';
   const projectId = state.cloneExecution?.projectId || state.projectId || 'none';
   const draftStatus = state.cloneReplacementDraft?.status || 'idle';
@@ -171,9 +329,12 @@ export const getProjectAgentPromptChipStageKey = (state: ProjectAgentPromptChipS
   const cloneableVideos = state.showCloneableVideos ? 'clone-videos-visible' : 'clone-videos-hidden';
   const replacementSelectors = state.showCloneReplacementSelectors ? 'clone-selectors-visible' : 'clone-selectors-hidden';
   const sceneWorkspace = state.showCloneSceneWorkspaceStep ? 'clone-workspace-visible' : 'clone-workspace-hidden';
+  const motionStage = state.motionClone?.stage || 'unset';
+  const motionPhase = state.motionClone?.phase || 'idle';
 
   return [
     stage,
+    avatarStage,
     referenceId,
     projectId,
     draftStatus,
@@ -182,7 +343,9 @@ export const getProjectAgentPromptChipStageKey = (state: ProjectAgentPromptChipS
     merged,
     cloneableVideos,
     replacementSelectors,
-    sceneWorkspace
+    sceneWorkspace,
+    motionStage,
+    motionPhase
   ].join(':');
 };
 
@@ -190,7 +353,7 @@ export const getProjectAgentPromptChips = (
   state: ProjectAgentPromptChipState
 ) => {
   const stage = getProjectAgentPromptChipStage(state);
-  const pool = getProjectAgentPromptChipPool(stage);
+  const pool = getProjectAgentPromptChipPool(stage, state);
   const stageKey = getProjectAgentPromptChipStageKey(state);
 
   if (!stage || pool.length === 0) {

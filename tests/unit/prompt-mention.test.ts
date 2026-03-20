@@ -11,7 +11,7 @@ test('returns active mention query while typing @query', () => {
 });
 
 test('does not activate mention after complete token', () => {
-  const text = 'A close shot of @product(book)';
+  const text = 'A close shot of @(book)';
   const result = getActiveMentionQuery(text, text.length);
 
   assert.equal(result, null);

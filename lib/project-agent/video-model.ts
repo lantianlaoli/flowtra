@@ -30,10 +30,7 @@ export function getEffectiveProjectAgentVideoModel(
   intent: ProjectAgentIntent | undefined,
   preferredModel: unknown
 ): VideoModel {
-  if (intent === 'avatar_ads') {
-    return 'veo3_fast';
-  }
-  if (intent === 'competitor_ugc_replication') {
+  if (intent === 'avatar_ads' || intent === 'competitor_ugc_replication') {
     return 'kling_3';
   }
   return normalizeProjectAgentVideoModel(preferredModel, 'kling_3', intent);
@@ -43,8 +40,5 @@ export function isProjectAgentModelDisabledForIntent(
   model: VideoModel,
   intent: ProjectAgentIntent | undefined
 ): boolean {
-  if (intent === 'avatar_ads') {
-    return model !== 'veo3_fast';
-  }
   return model !== 'kling_3';
 }

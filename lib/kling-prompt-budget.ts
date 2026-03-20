@@ -402,10 +402,10 @@ const replaceMentionsForEstimate = (text: string, tokenMap: Record<string, strin
     if (!parsed) return match;
     const keyName = parsed.key || normalizeMentionLabel(String(parsed.label || ''));
     if (!keyName) {
-      return parsed.syntax === 'typed' ? String(parsed.label || '').trim() : match;
+      return parsed.syntax !== 'plain' ? String(parsed.label || '').trim() : match;
     }
     const key = `${parsed.type}:${keyName}`;
-    return tokenMap[key] ? `@${tokenMap[key]}` : (parsed.syntax === 'typed' ? `@${keyName}` : match);
+    return tokenMap[key] ? `@${tokenMap[key]}` : (parsed.syntax !== 'plain' ? `@${keyName}` : match);
   })
 );
 

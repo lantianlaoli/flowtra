@@ -54,7 +54,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       scene.scene_number > 0 && scene.status === 'completed'  // All scenes are videos now (scene_type removed)
     ).length || 0;
 
-    // Avatar Ads only supports veo3_fast
     const response = {
       success: true,
       project: {
@@ -63,7 +62,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         current_step: project.current_step,
         progress_percentage: project.progress_percentage,
         video_duration_seconds: project.video_duration_seconds,
-        video_model: 'veo3_fast', // Avatar Ads only supports veo3_fast
+        video_model: project.video_model || 'veo3_fast',
         credits_cost: project.credits_cost,
         person_image_urls: project.person_image_urls,
         product_image_urls: project.product_image_urls,
@@ -85,6 +84,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         kie_video_task_ids: project.kie_video_task_ids,
         fal_merge_task_id: project.fal_merge_task_id
       },
+      scenes: (scenes || []).map((scene) => ({
+        id: scene.id,
+        scene_number: scene.scene_number,
+        status: scene.status,
+        scene_prompt: scene.scene_prompt,
+        video_url: scene.video_url,
+        error_message: scene.error_message
+      })),
       stepMessages: {
         generating_prompts: '🎭 Scripting the perfect character narrative for your product…',
         generating_image: '✨ Bringing your avatar to life – creating the perfect shot…',

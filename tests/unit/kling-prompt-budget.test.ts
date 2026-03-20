@@ -95,9 +95,9 @@ test('merged overflow action still produces a valid capped prompt', () => {
 test('mention tags survive compression and remain appended', () => {
   const sections = buildKlingPromptSections({
     shot: {
-      subject: '@character(Anna) holding @product(Glow Serum)',
-      action: '@character(Anna) demonstrates @product(Glow Serum) in a long descriptive walkthrough that forces compression.',
-      dialogue: '@product(Glow Serum) gives me that glass-skin finish in seconds.'
+      subject: '@(Anna) holding @(Glow Serum)',
+      action: '@(Anna) demonstrates @(Glow Serum) in a long descriptive walkthrough that forces compression.',
+      dialogue: '@(Glow Serum) gives me that glass-skin finish in seconds.'
     }
   });
 
@@ -105,8 +105,9 @@ test('mention tags survive compression and remain appended', () => {
     'character:anna': 'element_anna_a',
     'product:glow serum': 'element_glow_serum_b'
   };
-  const replaceMention = (text: string) => text.replace(/@(?<type>character|product)\((?<name>[^)]*)\)/g, (_match, type: string, name: string) => {
-    const key = `${type}:${String(name || '').trim().toLowerCase()}`;
+  const replaceMention = (text: string) => text.replace(/@\((?<name>[^)]*)\)/g, (_match, name: string) => {
+    const normalized = String(name || '').trim().toLowerCase();
+    const key = normalized === 'anna' ? 'character:anna' : `product:${normalized}`;
     return tokenMap[key] ? `@${tokenMap[key]}` : name;
   });
   const tags = ['@element_anna_a', '@element_glow_serum_b'];
@@ -151,7 +152,7 @@ test('throws typed validation error when tags alone exceed Kling limit', () => {
 test('truncation never leaves a partial @product token behind', () => {
   const sections = buildKlingPromptSections({
     shot: {
-      action: '@product(massager-2) on lower leg with an intentionally long trailing explanation that forces compression before the field can finish naturally and would previously leave a broken mention token behind if cut mid-way.',
+      action: '@(massager-2) on lower leg with an intentionally long trailing explanation that forces compression before the field can finish naturally and would previously leave a broken mention token behind if cut mid-way.',
       subject: 'Close-up product demo'
     }
   });
@@ -159,8 +160,8 @@ test('truncation never leaves a partial @product token behind', () => {
   const tokenMap: Record<string, string> = {
     'product:massager-2': 'element_massager_2'
   };
-  const replaceMention = (text: string) => text.replace(/@(?<type>character|product)\((?<name>[^)]*)\)/g, (_match, type: string, name: string) => {
-    const key = `${type}:${String(name || '').trim().toLowerCase()}`;
+  const replaceMention = (text: string) => text.replace(/@\((?<name>[^)]*)\)/g, (_match, name: string) => {
+    const key = `product:${String(name || '').trim().toLowerCase()}`;
     return tokenMap[key] ? `@${tokenMap[key]}` : name;
   });
 
@@ -172,14 +173,14 @@ test('truncation never leaves a partial @product token behind', () => {
     softTarget: 80
   });
 
-  assert.doesNotMatch(result.finalPrompt, /@product\(/);
+  assert.doesNotMatch(result.finalPrompt, /@\(/);
   assert.match(result.finalPrompt, /@element_massager_2/);
 });
 
 test('client-side Kling usage estimator stays within the same ceiling', () => {
   const result = estimateKlingPromptUsage({
     shot: {
-      subject: '@character(Anna) with @product(Glow Serum)',
+      subject: '@(Anna) with @(Glow Serum)',
       action: 'Walks through the use case in a deliberately long way so the estimator exercises compression behavior for the UI warning state.',
       dialogue: 'This serum keeps the finish bright, glossy, hydrated, and smooth through a full day on camera.'
     }

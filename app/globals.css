@@ -3411,13 +3411,48 @@ body {
   background: #efefed;
 }
 
+.project-agent-chip-cloud {
+  position: relative;
+  padding: 0.125rem 0.125rem 0;
+}
+
 .project-agent-chat-header,
 .project-agent-chat-footer {
-  border-color: #e6e6e4;
+  border-color: transparent;
+}
+
+.project-agent-chat-header {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.76) 0%, rgba(255, 255, 255, 0.42) 100%);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.58);
+}
+
+.project-agent-chat-footer {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.78) 22%, rgba(255, 255, 255, 0.94) 100%);
+}
+
+.project-agent-history-popover > div:first-child {
+  border-bottom: 0 !important;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.68);
 }
 
 .project-agent-chat-bubble--assistant {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.project-agent-chip {
+  position: relative;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 10px 24px rgba(15, 23, 42, 0.06),
+    0 2px 5px rgba(15, 23, 42, 0.05);
+}
+
+.project-agent-chip:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    0 14px 28px rgba(15, 23, 42, 0.08),
+    0 3px 8px rgba(15, 23, 42, 0.06);
 }
 
 .project-agent-inline-code {
@@ -3567,7 +3602,20 @@ body {
 
 .dashboard-theme .project-agent-chat-header,
 .dashboard-theme .project-agent-chat-footer {
-  border-color: rgba(51, 65, 85, 0.78) !important;
+  border-color: transparent !important;
+}
+
+.dashboard-theme .project-agent-chat-header {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.56) 0%, rgba(15, 23, 42, 0.16) 100%);
+  box-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.08);
+}
+
+.dashboard-theme .project-agent-chat-footer {
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.08) 0%, rgba(15, 23, 42, 0.38) 24%, rgba(15, 23, 42, 0.62) 100%);
+}
+
+.dashboard-theme .project-agent-history-popover > div:first-child {
+  box-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.08);
 }
 
 .dashboard-theme .project-agent-chat-bubble--user,

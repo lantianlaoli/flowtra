@@ -1,21 +1,22 @@
 'use client';
 
-import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { AnimatePresence, motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useRouter } from 'next/navigation';
 import { DefaultChatTransport } from 'ai';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { Kling } from '@lobehub/icons';
-import { AlertTriangle, ArrowUpRight, Check, ChevronDown, Clapperboard, History, Loader2, Lock, MessageCircle, Package, Plus, RefreshCw, Search, Sparkles, User } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, ChevronDown, Clapperboard, Coins, History, Image as ImageIcon, Loader2, Lock, MessageCircle, Package, Plus, RefreshCw, Search, Sparkles, User, Video as VideoIcon } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import VideoAssetCard from '@/components/VideoAssetCard';
 import VideoAssetDetailsModal from '@/components/VideoAssetDetailsModal';
+import MotionCloneEditorFormColumn from '@/components/motion-clone/MotionCloneEditorFormColumn';
+import MotionCloneEditorSplitPane from '@/components/motion-clone/MotionCloneEditorSplitPane';
+import AvatarWorkspaceEditor from '@/components/project-agent/AvatarWorkspaceEditor';
 import { type CloneDraftScene, type ClonePromptDraft } from '@/components/project-agent/ClonePromptDraftStep';
 import CloneMergedVideoReviewStep from '@/components/project-agent/CloneMergedVideoReviewStep';
 import {
@@ -30,8 +31,13 @@ import {
   requestNotificationPermissionIfNeeded,
   sendBrowserNotification
 } from '@/lib/browser-notifications';
+import type { UserAvatar, UserProduct } from '@/lib/supabase';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
-import { getVideoModelDisplayName, type VideoModel } from '@/lib/constants';
+import {
+  getMotionCloneGenerationCost,
+  normalizeMotionCloneQuality,
+  type VideoModel
+} from '@/lib/constants';
 import {
   getPrimaryCloneSelection,
   hasExplicitCloneAvatarSelectionState,
@@ -39,28 +45,63 @@ import {
   normalizeCloneSelections
 } from '@/lib/project-agent/clone-selection';
 import {
-  getProjectAgentVideoModels,
   normalizeProjectAgentVideoModel,
 } from '@/lib/project-agent/video-model';
-import { getProjectAgentPromptChips } from '@/lib/project-agent/prompt-chips';
+import {
+  getProjectAgentInputPlaceholder,
+  getProjectAgentPromptChips
+} from '@/lib/project-agent/prompt-chips';
 import { serializeProjectAgentCloneShot } from '@/lib/project-agent/clone-prompt-schema';
 import {
   resolveProjectAgentCloneMergedVideoUrl,
   shouldShowProjectAgentCloneMergedReview,
 } from '@/lib/project-agent/clone-execution';
+import {
+  buildMotionClonePromptDrafts,
+  inferMotionCloneStage,
+  inferMotionCloneReferenceContext,
+} from '@/lib/project-agent/motion-clone-execution';
+import type {
+  ProjectAgentMotionCloneStage,
+  ProjectAgentMotionCloneExecution,
+  ProjectAgentMotionCloneReferenceVideo,
+  ProjectAgentMotionCloneSelection
+} from '@/lib/project-agent/motion-clone-execution';
 import { isStartVideoGenerationCommand } from '@/lib/project-agent/clone-workflow-control';
 import {
   isCloneFlowEffectivelyFinished,
   isNextCloneIntentMessage
 } from '@/lib/project-agent/next-clone-intent';
 import { buildWorkspaceScenes } from '@/lib/project-agent/workspace-scenes';
-import { analysisToLegacyFlatShots } from '@/lib/video-analysis-schema';
+import {
+  type AvatarProjectLike,
+  type AvatarSceneLike,
+  buildProjectAgentAvatarDraft,
+  buildProjectAgentAvatarExecution,
+  inferProjectAgentAvatarStage,
+  normalizeProjectAgentAvatarStage,
+  type ProjectAgentAvatarDraft,
+  type ProjectAgentAvatarExecution,
+  type ProjectAgentAvatarStage
+} from '@/lib/project-agent/avatar-agent';
+import { buildAvatarGeneratedPrompts } from '@/lib/project-agent/avatar-script-planning';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { trackEvent } from '@/lib/analytics/client';
+import { buildTypedMentionToken, MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
 
 interface SessionState {
   intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_clone';
   step?: string;
+  avatarStage?: ProjectAgentAvatarStage;
+  avatarSelection?: {
+    avatar?: { id: string; name: string; photoUrl: string } | null;
+    product?: { id: string; name: string; photoUrl?: string | null } | null;
+    durationSeconds?: number;
+    aspectRatio?: '16:9' | '9:16';
+    language?: string;
+  } | null;
+  avatarDraft?: ProjectAgentAvatarDraft | null;
+  avatarExecution?: ProjectAgentAvatarExecution | null;
   cloneReferenceVideo?: {
     id: string;
     sourceType?: 'creator' | 'competitor_ad';
@@ -85,33 +126,20 @@ interface SessionState {
     mergedVideoUrl?: string | null;
     segments?: CloneExecutionSegment[];
   } | null;
+  motionClone?: ProjectAgentMotionCloneExecution | null;
   avatar?: { id: string; name: string; photoUrl: string } | null;
   product?: { id: string; name: string } | null;
+  customDialogue?: string;
   language?: string;
   videoDurationSeconds?: number;
   videoAspectRatio?: '16:9' | '9:16';
   videoModel?: VideoModel;
   projectId?: string;
   generatedPrompts?: Record<string, unknown> | null;
+  pendingUpdatedPrompts?: Record<string, unknown> | null;
   imagePrompt?: string | null;
   generatedImageUrl?: string | null;
 }
-
-const hasCloneModelLockState = (state: SessionState | null | undefined) => (
-  state?.intent === 'competitor_ugc_replication' ||
-  Boolean(state?.cloneReferenceVideo?.id) ||
-  Boolean(state?.cloneExecution?.projectId) ||
-  (state?.cloneReplacementDraft?.status != null && state.cloneReplacementDraft.status !== 'idle')
-);
-
-const resolveProjectAgentModelIntent = (
-  state: SessionState | null | undefined,
-  forceCloneContext = false
-): SessionState['intent'] => (
-  forceCloneContext || hasCloneModelLockState(state)
-    ? 'competitor_ugc_replication'
-    : state?.intent
-);
 
 type HistoryItem = {
   sessionId: string;
@@ -136,6 +164,17 @@ type CloneableVideoAsset = {
   source_type?: 'creator' | 'competitor_ad';
 };
 
+type MotionReferenceVideoAsset = ProjectAgentMotionCloneReferenceVideo & {
+  platform?: string;
+  stats?: Record<string, unknown> | null;
+  source_id?: string | null;
+  source_name?: string | null;
+  source_type?: 'creator' | 'competitor_ad';
+  analysisStatus?: string | null;
+  analysisResult?: Record<string, unknown> | null;
+  analysisError?: string | null;
+};
+
 type CloneAvatarOption = {
   id: string;
   name: string;
@@ -150,6 +189,97 @@ type CloneProductOption = {
 
 type CloneAvatarSelection = NonNullable<ClonePromptDraft['selectedAvatar']>;
 type CloneProductSelection = NonNullable<ClonePromptDraft['selectedProduct']>;
+
+const LEGACY_MOTION_CLONE_PROMPT_REGEX = /appears in place of|match the original creator-video structure|preserve the same shot logic and beats|preserve the exact motion,\s*pacing,\s*rhythm,\s*and camera movement from the reference video/i;
+
+const inferMotionCloneSelectionNamesFromPrompts = (...prompts: Array<string | null | undefined>) => {
+  const labels: string[] = [];
+
+  prompts.forEach((prompt) => {
+    if (!prompt) return;
+    for (const match of prompt.matchAll(MENTION_TOKEN_REGEX)) {
+      const label = parseMentionToken(match[0])?.label?.trim();
+      if (!label || labels.includes(label)) continue;
+      labels.push(label);
+    }
+  });
+
+  return {
+    avatarName: labels[0] || '',
+    productName: labels[1] || ''
+  };
+};
+
+const buildNextMotionCloneState = (
+  current: ProjectAgentMotionCloneExecution | null | undefined,
+  patch: Partial<ProjectAgentMotionCloneExecution>
+): ProjectAgentMotionCloneExecution => {
+  const next = {
+    ...(current ?? {
+      stage: 'reference_selection' as const,
+      phase: 'idle' as const
+    }),
+    ...patch
+  };
+
+  const stage = inferMotionCloneStage({
+    explicitStage: patch.stage ?? next.stage ?? null,
+    referenceVideo: patch.referenceVideo ?? next.referenceVideo ?? null,
+    selectedAvatar: patch.selectedAvatar ?? next.selectedAvatar ?? null,
+    phase: patch.phase ?? next.phase ?? null,
+    previewImageUrl: patch.previewImageUrl ?? next.previewImageUrl ?? null,
+    outputVideoUrl: patch.outputVideoUrl ?? next.outputVideoUrl ?? null,
+  });
+
+  const expectedAvatarToken = next.selectedAvatar?.name
+    ? buildTypedMentionToken({ type: 'character', label: next.selectedAvatar.name })
+    : '';
+  const expectedProductToken = next.selectedProduct?.name
+    ? buildTypedMentionToken({ type: 'product', label: next.selectedProduct.name })
+    : '';
+  const existingPhotoPrompt = next.photoPrompt || '';
+  const existingVideoPrompt = next.videoPrompt || '';
+  const promptsUseLegacyMotionCloneTemplate = (
+    LEGACY_MOTION_CLONE_PROMPT_REGEX.test(existingPhotoPrompt) ||
+    LEGACY_MOTION_CLONE_PROMPT_REGEX.test(existingVideoPrompt)
+  );
+  const promptsNeedMentionRefresh = (
+    (expectedAvatarToken && (!existingPhotoPrompt.includes(expectedAvatarToken) || !existingVideoPrompt.includes(expectedAvatarToken))) ||
+    (expectedProductToken && (!existingPhotoPrompt.includes(expectedProductToken) || !existingVideoPrompt.includes(expectedProductToken)))
+  );
+
+  const shouldRefreshPrompts = (
+    Boolean(next.selectedAvatar?.name) &&
+    (
+      patch.selectedAvatar !== undefined ||
+      patch.selectedProduct !== undefined ||
+      !Boolean(next.promptsInitialized) ||
+      !next.photoPrompt ||
+      !next.videoPrompt ||
+      promptsUseLegacyMotionCloneTemplate ||
+      promptsNeedMentionRefresh
+    )
+  );
+
+  if (shouldRefreshPrompts) {
+    const drafts = buildMotionClonePromptDrafts({
+      avatarName: next.selectedAvatar?.name,
+      productName: next.selectedProduct?.name,
+      referenceVideo: next.referenceVideo ?? null,
+    });
+    next.photoPrompt = drafts.photoPrompt;
+    next.videoPrompt = drafts.videoPrompt;
+    next.promptsInitialized = true;
+  } else if (patch.selectedAvatar !== undefined && !next.selectedAvatar?.name) {
+    next.photoPrompt = null;
+    next.videoPrompt = null;
+    next.promptsInitialized = false;
+  }
+
+  next.stage = stage;
+
+  return next;
+};
 
 const SESSION_STORAGE_KEY = 'flowtra_project_agent_session_id';
 const HISTORY_STORAGE_KEY = 'flowtra_project_agent_history_ids';
@@ -168,6 +298,16 @@ const createSessionId = () => {
     return globalThis.crypto.randomUUID();
   }
   return `agent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+};
+
+const readCurrentSessionId = () => {
+  if (typeof window === 'undefined') return null;
+  return window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+};
+
+const writeCurrentSessionId = (sessionId: string) => {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
 };
 
 const extractMessageText = (message: { parts?: Array<{ type?: string; text?: string }>; content?: string }) => {
@@ -201,6 +341,14 @@ export const hasVisibleAssistantReplyAfterLatestUserTurn = (messages: UIMessage[
 
   return messages
     .slice(lastUserIndex + 1)
+    .some((message) => message.role === 'assistant' && renderUIMessageText(message).trim().length > 0);
+};
+
+const hasAssistantReplyAfterBaseline = (messages: UIMessage[], baselineCount: number) => {
+  // `0` is a valid baseline for the first turn in a fresh session.
+  if (baselineCount < 0) return false;
+  return messages
+    .slice(baselineCount)
     .some((message) => message.role === 'assistant' && renderUIMessageText(message).trim().length > 0);
 };
 
@@ -369,95 +517,6 @@ const normalizeStoredMessage = (message: unknown, index: number): UIMessage => {
   };
 };
 
-const inferReferenceStructure = (analysis: Record<string, unknown> | null | undefined) => {
-  const compact = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
-  const sanitize = (value: string) => value.replace(/\s+/g, ' ').trim();
-  const pickFirst = (source: Record<string, unknown>, keys: string[]) => {
-    for (const key of keys) {
-      const candidate = compact(source[key]);
-      if (candidate) return candidate;
-    }
-    return '';
-  };
-
-  if (!analysis || typeof analysis !== 'object') {
-    return {
-      summary: 'Reference video selected, but detailed structure analysis is unavailable.',
-      keyShots: [] as string[],
-      detectedCharacter: 'no clear character detected',
-      detectedProduct: 'no clear product detected'
-    };
-  }
-
-  const normalizedShots = analysisToLegacyFlatShots(analysis).map((shot, index) => {
-    const shotRecord = shot as unknown as Record<string, unknown>;
-    const subject = pickFirst(shotRecord, ['subject', 'main_subject', 'character', 'person', 'actor']);
-    const action = pickFirst(shotRecord, ['action', 'movement', 'shot_action']);
-    const context = pickFirst(shotRecord, ['context_environment', 'environment', 'background', 'setting']);
-    const description = pickFirst(shotRecord, ['shot_description', 'description', 'summary', 'first_frame_description']);
-    const start = pickFirst(shotRecord, ['start_time', 'start', 'time_start']);
-    const end = pickFirst(shotRecord, ['end_time', 'end', 'time_end']);
-
-    const core = sanitize(description || [subject, action, context].filter(Boolean).join(', '));
-    const timeRange = (start || end) ? `${start || '??'}-${end || '??'}` : '';
-
-    return {
-      shotIndex: index + 1,
-      core,
-      subject,
-      action,
-      context,
-      timeRange
-    };
-  });
-
-  const keyShots = normalizedShots
-    .map((_, index) => normalizedShots[index])
-    .filter((shot) => Boolean(shot.core))
-    .slice(0, 4)
-    .map((shot) => {
-      const timeSuffix = shot.timeRange ? ` (${shot.timeRange})` : '';
-      return `Shot ${shot.shotIndex}${timeSuffix}: ${shot.core}`;
-    })
-    .filter(Boolean);
-
-  const allText = JSON.stringify(analysis).toLowerCase().replace(/\s+/g, ' ');
-  const findByKeywords = (keywords: string[]) => keywords.find((keyword) => allText.includes(keyword)) || null;
-  const detectedCharacter =
-    findByKeywords(['baby']) ||
-    findByKeywords(['mother']) ||
-    findByKeywords(['woman']) ||
-    findByKeywords(['female']) ||
-    findByKeywords(['man']) ||
-    findByKeywords(['male']) ||
-    findByKeywords(['person']) ||
-    findByKeywords(['child']) ||
-    'no clear character detected';
-
-  const detectedProduct =
-    findByKeywords(['phone stand']) ||
-    findByKeywords(['tripod']) ||
-    findByKeywords(['stroller']) ||
-    findByKeywords(['toy']) ||
-    findByKeywords(['bottle']) ||
-    findByKeywords(['device']) ||
-    findByKeywords(['book']) ||
-    (allText.includes('product') ? 'product (unspecified)' : null) ||
-    'no clear product detected';
-
-  const parsedDuration = (analysis as { video_duration_seconds?: unknown }).video_duration_seconds;
-  const durationLabel = typeof parsedDuration === 'number' && Number.isFinite(parsedDuration)
-    ? `${parsedDuration}s`
-    : 'unknown duration';
-
-  const summary =
-    keyShots.length > 0
-      ? `Parsed ${normalizedShots.length || keyShots.length} shots (${durationLabel}). Main on-screen subject appears to be ${detectedCharacter}; product/object signal: ${detectedProduct}.`
-      : `Reference selected (${durationLabel}), but shot-level details are limited. Detected subject: ${detectedCharacter}; product/object signal: ${detectedProduct}.`;
-
-  return { summary, keyShots, detectedCharacter, detectedProduct };
-};
-
 const normalizeVideoModel = (
   raw: unknown,
   intent?: SessionState['intent']
@@ -465,110 +524,13 @@ const normalizeVideoModel = (
   return normalizeProjectAgentVideoModel(raw, 'kling_3', intent);
 };
 
-const PROJECT_AGENT_MODEL_META: {
-  description: string;
-  icon: ComponentType<{ className?: string }>;
-} = {
-  description: 'Kling std mode',
-  icon: Kling
-};
-
-function ProjectAgentModelSelector({
-  selectedModel,
-  intent,
-  onModelChange
-}: {
-  selectedModel: VideoModel;
-  intent?: SessionState['intent'];
-  onModelChange: (model: VideoModel) => void;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const modelOptions = useMemo(() => getProjectAgentVideoModels(intent), [intent]);
-
-  useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    window.addEventListener('mousedown', handlePointerDown);
-    return () => window.removeEventListener('mousedown', handlePointerDown);
-  }, []);
-
-  const selectedMeta = PROJECT_AGENT_MODEL_META;
-
-  return (
-    <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setIsOpen((open) => !open)}
-        className="project-agent-model-button inline-flex h-12 items-center gap-2 rounded-[22px] border border-[#d9d9d7] bg-white px-3.5 text-sm font-medium text-[#1f1f1e] shadow-[0_1px_0_rgba(15,15,15,0.03)] transition-all duration-200 ease-out hover:-translate-y-[1px] hover:border-[#c9c9c5] hover:bg-[#fdfdfc] hover:shadow-[0_10px_24px_rgba(15,15,15,0.08)] active:translate-y-0 active:scale-[0.985] active:shadow-[0_4px_12px_rgba(15,15,15,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f1f1e]/10"
-        aria-haspopup="listbox"
-        aria-expanded={isOpen}
-      >
-        <span className="project-agent-model-button-icon inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#e6e6e4] bg-[#fcfcfb]">
-          <selectedMeta.icon className="h-[18px] w-[18px] text-[#1f1f1e]" />
-        </span>
-        <span className="flex flex-col items-start leading-none">
-          <span>{getVideoModelDisplayName(selectedModel)}</span>
-        </span>
-        <ChevronDown className={`ml-1 h-3.5 w-3.5 text-[#6f6f6d] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      <AnimatePresence>
-        {isOpen ? (
-          <motion.div
-            initial={{ opacity: 0, y: 6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.98 }}
-            transition={{ duration: 0.16 }}
-            className="project-agent-model-popover absolute bottom-full left-0 z-20 mb-2 w-[300px] rounded-[24px] border border-[#e6e6e4] bg-white p-2 shadow-[0_24px_60px_rgba(15,15,15,0.12)]"
-            role="listbox"
-            aria-label="Video model"
-          >
-            {modelOptions.map((modelOption) => {
-              const isSelected = modelOption === selectedModel;
-
-              return (
-                <button
-                  key={modelOption}
-                  type="button"
-                  onClick={() => {
-                    onModelChange(modelOption);
-                    setIsOpen(false);
-                  }}
-                  className={`project-agent-model-option flex w-full items-center justify-between rounded-[20px] border px-3 py-3 text-left transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f1f1e]/8 ${
-                    isSelected
-                      ? 'project-agent-model-option--selected border-[#d9d9d7] bg-[#fcfcfb] text-[#1f1f1e]'
-                      : 'project-agent-model-option--idle border-transparent text-[#1f1f1e] hover:-translate-y-[1px] hover:border-[#e7e7e4] hover:bg-[#fcfcfb] hover:shadow-[0_8px_18px_rgba(15,15,15,0.06)] active:translate-y-0 active:scale-[0.99]'
-                  }`}
-                >
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span className="project-agent-model-option-icon inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#e6e6e4] bg-white">
-                      <PROJECT_AGENT_MODEL_META.icon className="h-[18px] w-[18px] text-current" />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium">{getVideoModelDisplayName(modelOption)}</span>
-                    </span>
-                  </span>
-                  <span className="ml-3 inline-flex h-5 w-5 items-center justify-center">
-                    {isSelected ? (
-                      <span className="project-agent-model-option-check inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#0f0f0f] bg-[#0f0f0f] text-white shadow-[0_6px_14px_rgba(15,15,15,0.12)]">
-                        <Check className="h-3.5 w-3.5" />
-                      </span>
-                    ) : null}
-                  </span>
-                </button>
-              );
-            })}
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-    </div>
-  );
-}
+const syncAvatarSelectionFromSession = (state: SessionState | null | undefined): NonNullable<SessionState['avatarSelection']> => ({
+  avatar: state?.avatarSelection?.avatar ?? state?.avatar ?? null,
+  product: state?.avatarSelection?.product ?? (state?.product ? { ...state.product } : null),
+  durationSeconds: state?.avatarSelection?.durationSeconds ?? state?.videoDurationSeconds ?? 16,
+  aspectRatio: state?.avatarSelection?.aspectRatio ?? state?.videoAspectRatio ?? '9:16',
+  language: state?.avatarSelection?.language ?? state?.language ?? 'en'
+});
 
 const workspacePromptToDraftScene = (scene: WorkspaceScene): CloneDraftScene => ({
   sceneIndex: scene.sceneIndex,
@@ -842,14 +804,14 @@ const mergeCloneExecutionWithLocal = (
 };
 
 export default function ProjectAgentPage() {
-  const router = useRouter();
   const { user, isLoaded } = useUser();
   const { credits, creditsData } = useCredits();
   const supabase = useSupabaseBrowserClient();
+  const [selectedVideoModel, setSelectedVideoModel] = useState<VideoModel>('kling_3');
 
   const [sessionId, setSessionId] = useState('');
+  const [isSessionReady, setIsSessionReady] = useState(false);
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
-  const [selectedVideoModel, setSelectedVideoModel] = useState<VideoModel>('kling_3');
   const [statusNote, setStatusNote] = useState('');
   const [draft, setDraft] = useState('');
   const [pendingUserText, setPendingUserText] = useState<string | null>(null);
@@ -880,6 +842,12 @@ export default function ProjectAgentPage() {
   const [awaitingCloneDraftReply, setAwaitingCloneDraftReply] = useState(false);
   const [cloneDraftReplyBaseline, setCloneDraftReplyBaseline] = useState(0);
   const [retryableUserMessageId, setRetryableUserMessageId] = useState<string | null>(null);
+  const [motionCloneVideos, setMotionCloneVideos] = useState<MotionReferenceVideoAsset[]>([]);
+  const [motionCloneAvatars, setMotionCloneAvatars] = useState<UserAvatar[]>([]);
+  const [motionCloneProducts, setMotionCloneProducts] = useState<UserProduct[]>([]);
+  const [isMotionCloneAssetsLoading, setIsMotionCloneAssetsLoading] = useState(false);
+  const [motionPhotoPrompt, setMotionPhotoPrompt] = useState('');
+  const [motionVideoPrompt, setMotionVideoPrompt] = useState('');
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const historyPopoverRef = useRef<HTMLDivElement | null>(null);
@@ -889,23 +857,12 @@ export default function ProjectAgentPage() {
   const lastLocalCloneDraftEditAtRef = useRef(0);
   const pendingCloneSelectionPersistRef = useRef<Promise<void> | null>(null);
   const latestCloneDraftRef = useRef<ClonePromptDraft | null>(null);
+  const motionClonePromptPersistTimerRef = useRef<number | null>(null);
   const latestSessionStateRef = useRef<SessionState | null>(null);
   const pendingCloneDraftPersistRef = useRef<Promise<void> | null>(null);
-  const lastLocalVideoModelEditAtRef = useRef(0);
-  const pendingVideoModelPersistRef = useRef<Promise<void> | null>(null);
-  const latestSelectedVideoModelRef = useRef<VideoModel>('kling_3');
-  const prevAvatarStepRef = useRef<string | null>(null);
+  const prevAvatarPhaseRef = useRef<ProjectAgentAvatarExecution['phase'] | null>(null);
   const prevClonePhaseRef = useRef<SessionState['cloneExecution'] extends { phase: infer P } ? P : string | null>(null);
   const notificationPermissionRequestedRef = useRef(false);
-  const isCloneModelLockedContext = Boolean(
-    showCloneableVideos ||
-    showCloneReplacementSelectors ||
-    awaitingCloneEntryReply ||
-    awaitingCloneStructureReply ||
-    awaitingCloneDraftReply ||
-    hasCloneModelLockState(sessionState)
-  );
-  const modelSelectorIntent = resolveProjectAgentModelIntent(sessionState, isCloneModelLockedContext);
 
   const ensureHistoryTracked = useCallback((id: string, options?: { prependIfNew?: boolean }) => {
     const ids = readHistoryIds();
@@ -970,13 +927,12 @@ export default function ProjectAgentPage() {
 
   useEffect(() => {
     if (sessionId) return;
-    const stored = typeof window !== 'undefined' ? window.localStorage.getItem(SESSION_STORAGE_KEY) : null;
+    const stored = readCurrentSessionId();
     const nextId = stored || createSessionId();
 
+    setIsSessionReady(false);
     setSessionId(nextId);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(SESSION_STORAGE_KEY, nextId);
-    }
+    writeCurrentSessionId(nextId);
     ensureHistoryTracked(nextId, { prependIfNew: true });
   }, [sessionId, ensureHistoryTracked]);
 
@@ -989,6 +945,36 @@ export default function ProjectAgentPage() {
     });
   }, [sessionId]);
 
+  const ensureSessionExists = useCallback(async (targetSessionId: string) => {
+    if (!targetSessionId) return;
+    try {
+      const response = await fetch('/api/project-agent/session', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: targetSessionId })
+      });
+      if (!response.ok) {
+        console.error(
+          '[Project Agent] Failed to pre-create session:',
+          response.status,
+          response.statusText,
+          await response.clone().text()
+        );
+      }
+    } catch (error) {
+      console.error('[Project Agent] Failed to pre-create session:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    setIsSessionReady(false);
+    void (async () => {
+      await ensureSessionExists(sessionId);
+      setIsSessionReady(true);
+    })();
+  }, [ensureSessionExists, sessionId]);
+
   const {
     messages,
     setMessages,
@@ -1000,15 +986,28 @@ export default function ProjectAgentPage() {
     id: sessionId || undefined,
     transport: new DefaultChatTransport({
       api: '/api/project-agent/chat',
+      fetch: async (input, init) => {
+        try {
+          const response = await fetch(input, init);
+          if (!response.ok) {
+            console.error(
+              '[Project Agent] Chat request failed:',
+              response.status,
+              response.statusText,
+              await response.clone().text()
+            );
+          }
+          return response;
+        } catch (error) {
+          console.error('[Project Agent] Chat request network error:', error);
+          throw error;
+        }
+      },
       prepareSendMessagesRequest: ({ id, messages }) => {
         const latestSessionState = latestSessionStateRef.current ?? sessionState;
         const draftSelection = latestCloneDraftRef.current ?? latestSessionState?.cloneReplacementDraft;
         const statePatch: Record<string, unknown> = {};
-        statePatch.videoModel = normalizeProjectAgentVideoModel(
-          selectedVideoModel,
-          'kling_3',
-          modelSelectorIntent
-        );
+        statePatch.videoModel = 'kling_3';
         const hasExplicitAvatarSelection = hasExplicitCloneAvatarSelectionState(draftSelection);
         const hasExplicitProductSelection = hasExplicitCloneProductSelectionState(draftSelection);
 
@@ -1212,46 +1211,6 @@ export default function ProjectAgentPage() {
     }
   }, [requestBrowserNotificationPermissionOnce]);
 
-  const persistVideoModel = useCallback(async (model: VideoModel) => {
-    if (!sessionId) return;
-    const normalizedModel = normalizeProjectAgentVideoModel(
-      model,
-      'kling_3',
-      modelSelectorIntent
-    );
-    const persistTask = (async () => {
-      try {
-        const response = await fetch('/api/project-agent/session', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sessionId,
-            statePatch: {
-              videoModel: normalizedModel
-            }
-          })
-        });
-        if (!response.ok) {
-          const payload = await response.json().catch(() => ({}));
-          throw new Error(payload?.error || 'Failed to save video model.');
-        }
-      } catch (modelPersistError) {
-        console.error('Failed to persist video model:', modelPersistError);
-        setStatusNote('Failed to save the selected video model. Please try again.');
-      }
-    })();
-
-    pendingVideoModelPersistRef.current = persistTask;
-    try {
-      await persistTask;
-    } finally {
-      if (pendingVideoModelPersistRef.current === persistTask) {
-        pendingVideoModelPersistRef.current = null;
-      }
-    }
-  }, [modelSelectorIntent, sessionId]);
-
-
   const fetchSession = useCallback(async () => {
     if (!sessionId) return;
     try {
@@ -1259,7 +1218,6 @@ export default function ProjectAgentPage() {
       if (!response.ok) {
         if (response.status === 404) {
           setSessionState(null);
-          setSelectedVideoModel('kling_3');
         }
         return;
       }
@@ -1267,30 +1225,28 @@ export default function ProjectAgentPage() {
       const payload = await response.json();
       if (!payload?.session) return;
       const incomingState = payload.session.state || null;
-      const incomingModelIntent = resolveProjectAgentModelIntent(incomingState);
-      const incomingVideoModel = normalizeProjectAgentVideoModel(
-        incomingState?.videoModel,
-        'kling_3',
-        incomingModelIntent
-      );
-      const hasVeryRecentLocalVideoModelEdit = Date.now() - lastLocalVideoModelEditAtRef.current < 5000;
-      const hasPendingVideoModelPersist = Boolean(pendingVideoModelPersistRef.current);
-      const shouldPreserveLocalVideoModel = (
-        latestSelectedVideoModelRef.current !== incomingVideoModel &&
-        (hasVeryRecentLocalVideoModelEdit || hasPendingVideoModelPersist)
-      );
-
-      if (!shouldPreserveLocalVideoModel) {
-        setSelectedVideoModel(incomingVideoModel);
-      }
 
       setSessionState((prev) => {
         if (!incomingState) return null;
         if (!prev) {
-          return {
+          const nextState = {
             ...incomingState,
-            videoModel: incomingVideoModel
+            videoModel: 'kling_3' as const
           };
+          if (nextState.motionClone) {
+            nextState.motionClone = buildNextMotionCloneState(nextState.motionClone, {});
+          }
+          nextState.avatarSelection = syncAvatarSelectionFromSession(nextState);
+          nextState.avatarStage = inferProjectAgentAvatarStage({
+            explicitStage: nextState.avatarStage,
+            hasAvatar: Boolean(nextState.avatarSelection.avatar?.id),
+            hasDraft: Boolean(nextState.avatarDraft?.scenes?.length),
+            hasCover: Boolean(nextState.avatarDraft?.coverImageUrl || nextState.generatedImageUrl),
+            projectStatus: nextState.step,
+            currentStep: nextState.step,
+            hasExecution: Boolean(nextState.avatarExecution?.projectId || nextState.projectId)
+          });
+          return nextState;
         }
 
         const localDraft = prev.cloneReplacementDraft;
@@ -1321,14 +1277,29 @@ export default function ProjectAgentPage() {
         const nextState: SessionState = shouldPreserveLocalCloneExecution
           ? {
               ...incomingState,
-              videoModel: incomingVideoModel,
+              videoModel: 'kling_3',
               cloneExecution: prev.cloneExecution
             }
           : {
               ...incomingState,
-              videoModel: incomingVideoModel,
+              videoModel: 'kling_3',
               cloneExecution: mergeCloneExecutionWithLocal(prev.cloneExecution, incomingState.cloneExecution) ?? incomingState.cloneExecution
             };
+
+        if (nextState.motionClone) {
+          nextState.motionClone = buildNextMotionCloneState(nextState.motionClone, {});
+        }
+
+        nextState.avatarSelection = syncAvatarSelectionFromSession(nextState);
+        nextState.avatarStage = inferProjectAgentAvatarStage({
+          explicitStage: nextState.avatarStage,
+          hasAvatar: Boolean(nextState.avatarSelection.avatar?.id),
+          hasDraft: Boolean(nextState.avatarDraft?.scenes?.length),
+          hasCover: Boolean(nextState.avatarDraft?.coverImageUrl || nextState.generatedImageUrl),
+          projectStatus: nextState.step,
+          currentStep: nextState.step,
+          hasExecution: Boolean(nextState.avatarExecution?.projectId || nextState.projectId)
+        });
 
         if (!shouldPreserveLocalCloneDraft) {
           if (shouldPreserveLocalCloneSelections && nextState.cloneReplacementDraft) {
@@ -1364,10 +1335,10 @@ export default function ProjectAgentPage() {
   }, [sessionId, setMessages]);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || !isSessionReady) return;
     void fetchSession();
     void refreshHistory();
-  }, [sessionId, fetchSession, refreshHistory]);
+  }, [sessionId, isSessionReady, fetchSession, refreshHistory]);
 
   useEffect(() => {
     if (!error) return;
@@ -1385,82 +1356,37 @@ export default function ProjectAgentPage() {
   }, [status, error]);
 
   useEffect(() => {
-    prevAvatarStepRef.current = null;
+    prevAvatarPhaseRef.current = null;
     prevClonePhaseRef.current = null;
     notificationPermissionRequestedRef.current = false;
   }, [sessionId]);
 
-  const handleVideoModelChange = useCallback((model: VideoModel) => {
-    const normalizedModel = normalizeProjectAgentVideoModel(
-      model,
-      'kling_3',
-      modelSelectorIntent
-    );
-    setStatusNote('');
-    lastLocalVideoModelEditAtRef.current = Date.now();
-    setSelectedVideoModel(normalizedModel);
-    setSessionState((prev) => (
-      prev
-        ? {
-            ...prev,
-            videoModel: normalizedModel
-          }
-        : prev
-    ));
-    void persistVideoModel(normalizedModel);
-  }, [modelSelectorIntent, persistVideoModel]);
-
   useEffect(() => {
-    latestSelectedVideoModelRef.current = selectedVideoModel;
-  }, [selectedVideoModel]);
+    const nextPhase = sessionState?.avatarExecution?.phase ?? null;
+    if (!nextPhase) return;
 
-  useEffect(() => {
-    const normalizedModel = normalizeProjectAgentVideoModel(
-      selectedVideoModel,
-      'kling_3',
-      modelSelectorIntent
-    );
-    if (normalizedModel === selectedVideoModel) return;
+    const previousPhase = prevAvatarPhaseRef.current;
+    if (previousPhase === nextPhase) return;
 
-    lastLocalVideoModelEditAtRef.current = Date.now();
-    setSelectedVideoModel(normalizedModel);
-    setSessionState((prev) => (
-      prev
-        ? {
-            ...prev,
-            videoModel: normalizedModel
-          }
-        : prev
-    ));
-    void persistVideoModel(normalizedModel);
-  }, [modelSelectorIntent, persistVideoModel, selectedVideoModel]);
-
-  useEffect(() => {
-    const nextStep = sessionState?.step ?? null;
-    if (!nextStep) return;
-
-    const previousStep = prevAvatarStepRef.current;
-    if (previousStep === nextStep) return;
-
-    if (nextStep === 'generating_image') {
+    if (nextPhase === 'generating_cover') {
       sendBrowserNotification({
         title: 'Image generation started',
         body: 'Flowgen: Avatar Ads',
         tag: 'agent-avatar-image-start'
       });
-    } else if (nextStep === 'generating_videos') {
+    } else if (nextPhase === 'generating_videos') {
       sendBrowserNotification({
         title: 'Video generation started',
         body: 'Flowgen: Avatar Ads',
         tag: 'agent-avatar-video-start'
       });
-    } else if (nextStep === 'completed') {
+    } else if (nextPhase === 'completed') {
       sendBrowserNotification({
         title: 'Your video is ready',
         body: 'Flowgen: Avatar Ads',
         tag: 'agent-avatar-completed'
       });
-    } else if (nextStep === 'failed') {
+    } else if (nextPhase === 'failed') {
       sendBrowserNotification({
         title: 'Generation failed',
         body: 'Flowgen: Avatar Ads',
@@ -1468,8 +1394,8 @@ export default function ProjectAgentPage() {
       });
     }
 
-    prevAvatarStepRef.current = nextStep;
-  }, [sessionState?.step]);
+    prevAvatarPhaseRef.current = nextPhase;
+  }, [sessionState?.avatarExecution?.phase]);
 
   useEffect(() => {
     const nextPhase = sessionState?.cloneExecution?.phase ?? null;
@@ -1538,57 +1464,278 @@ export default function ProjectAgentPage() {
   }, [fetchSession, isStreaming, sessionId, sessionState?.cloneReferenceVideo?.id, sessionState?.intent]);
 
   useEffect(() => {
-    if (!sessionState?.projectId) return;
+    if (sessionState?.intent !== 'avatar_ads') return;
+    const projectId = sessionState?.projectId;
+    if (!projectId) return;
+
+    const abortController = new AbortController();
+
+    type AvatarStatusPayload = {
+      project: AvatarProjectLike;
+      scenes: AvatarSceneLike[];
+    };
+
+    const fetchAvatarProjectStatus = async (
+      attempt = 1,
+      maxAttempts = 3
+    ): Promise<AvatarStatusPayload | null> => {
+      try {
+        const response = await fetch(`/api/avatar-ads/${projectId}/status`, {
+          cache: 'no-store',
+          signal: abortController.signal
+        });
+
+        if (!response.ok) {
+          if (response.status === 404 && attempt < maxAttempts) {
+            await new Promise((resolve) => window.setTimeout(resolve, 500 * attempt));
+            return fetchAvatarProjectStatus(attempt + 1, maxAttempts);
+          }
+          return null;
+        }
+
+        const payload = await response.json() as AvatarStatusPayload;
+        if (!payload?.project?.id) {
+          return null;
+        }
+        return payload;
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') {
+          return null;
+        }
+        console.error('Failed to fetch avatar project status:', error);
+        return null;
+      }
+    };
+
+    const syncAvatarProjectStatus = async () => {
+      try {
+        const payload = await fetchAvatarProjectStatus();
+        if (!payload?.project) return;
+
+        const latestState = latestSessionStateRef.current;
+        if (latestState?.intent !== 'avatar_ads') return;
+
+        const nextSelection = syncAvatarSelectionFromSession(latestState);
+        const nextDraft = buildProjectAgentAvatarDraft(payload.project, payload.scenes, {
+          avatarName: nextSelection.avatar?.name ?? null,
+          productName: nextSelection.product?.name ?? null
+        });
+        const nextExecution = buildProjectAgentAvatarExecution(payload.project, payload.scenes);
+        const nextStage = inferProjectAgentAvatarStage({
+          explicitStage: latestState?.avatarStage,
+          hasAvatar: Boolean(nextSelection.avatar?.id),
+          hasDraft: Boolean(nextDraft?.scenes.length),
+          hasCover: Boolean(nextDraft?.coverImageUrl || payload.project.generated_image_url),
+          projectStatus: payload.project.status,
+          currentStep: payload.project.current_step,
+          hasExecution: Boolean(nextExecution?.projectId)
+        });
+        const nextStep = payload.project.status ?? latestState?.step;
+        const nextImagePrompt = nextDraft?.imagePrompt ?? payload.project.image_prompt ?? latestState?.imagePrompt ?? null;
+        const nextGeneratedImageUrl = payload.project.generated_image_url ?? latestState?.generatedImageUrl ?? null;
+
+        const hasStatusChange = (
+          latestState?.step !== nextStep ||
+          latestState?.generatedPrompts !== (payload.project.generated_prompts ?? null) ||
+          latestState?.imagePrompt !== nextImagePrompt ||
+          latestState?.generatedImageUrl !== nextGeneratedImageUrl ||
+          latestState?.avatarStage !== nextStage ||
+          latestState?.avatarDraft?.coverImageUrl !== (nextDraft?.coverImageUrl ?? null) ||
+          latestState?.avatarExecution?.phase !== (nextExecution?.phase ?? null) ||
+          latestState?.avatarExecution?.finalVideoUrl !== (nextExecution?.finalVideoUrl ?? null) ||
+          latestState?.avatarExecution?.coverImageUrl !== (nextExecution?.coverImageUrl ?? null) ||
+          latestState?.avatarExecution?.error !== (nextExecution?.error ?? null)
+        );
+
+        if (!hasStatusChange) return;
+
+        setSessionState((prev) => {
+          if (!prev) return prev;
+          const nextState = {
+            ...prev,
+            step: nextStep,
+            generatedPrompts: payload.project.generated_prompts ?? prev.generatedPrompts ?? null,
+            imagePrompt: nextImagePrompt,
+            generatedImageUrl: nextGeneratedImageUrl,
+            avatarDraft: nextDraft,
+            avatarExecution: nextExecution,
+            avatarStage: nextStage
+          };
+          latestSessionStateRef.current = nextState;
+          return nextState;
+        });
+
+        await fetch('/api/project-agent/session', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            statePatch: {
+              step: nextStep,
+              generatedPrompts: payload.project.generated_prompts ?? null,
+              imagePrompt: nextImagePrompt,
+              generatedImageUrl: nextGeneratedImageUrl,
+              avatarDraft: nextDraft,
+              avatarExecution: nextExecution,
+              avatarStage: nextStage
+            },
+            projectId
+          })
+        });
+      } catch (syncError) {
+        console.error('Failed to sync avatar project status:', syncError);
+      }
+    };
 
     const channel: RealtimeChannel = supabase
-      .channel(`project-agent-${sessionState.projectId}`)
+      .channel(`project-agent-avatar-${projectId}`)
       .on(
         'postgres_changes',
         {
           event: 'UPDATE',
           schema: 'public',
           table: 'avatar_ads_projects',
-          filter: `id=eq.${sessionState.projectId}`
+          filter: `id=eq.${projectId}`
         },
-        async () => {
-          try {
-            const response = await fetch(`/api/avatar-ads/${sessionState.projectId}/status`, { cache: 'no-store' });
-            const payload = await response.json();
-            if (!response.ok || !payload?.project) return;
-
-            setSessionState((prev) => ({
-              ...prev,
-              step: payload.project.status,
-              generatedPrompts: payload.project.generated_prompts ?? prev?.generatedPrompts ?? null,
-              imagePrompt: payload.project.image_prompt ?? prev?.imagePrompt ?? null,
-              generatedImageUrl: payload.project.generated_image_url ?? prev?.generatedImageUrl ?? null
-            }));
-
-            await fetch('/api/project-agent/session', {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                sessionId,
-                statePatch: {
-                  step: payload.project.status,
-                  generatedPrompts: payload.project.generated_prompts ?? null,
-                  imagePrompt: payload.project.image_prompt ?? null,
-                  generatedImageUrl: payload.project.generated_image_url ?? null
-                },
-                projectId: sessionState.projectId
-              })
-            });
-          } catch (syncError) {
-            console.error('Failed to sync project status:', syncError);
-          }
-        }
+        () => { void syncAvatarProjectStatus(); }
       )
       .subscribe();
 
+    void syncAvatarProjectStatus();
+
+    const shouldPollAvatarStatus = (
+      sessionState?.avatarExecution?.phase === 'generating_cover' ||
+      sessionState?.avatarExecution?.phase === 'generating_videos' ||
+      sessionState?.avatarStage === 'avatar_generating_cover' ||
+      sessionState?.avatarStage === 'avatar_generating_video'
+    );
+    const pollTimer = shouldPollAvatarStatus
+      ? window.setInterval(() => {
+          void syncAvatarProjectStatus();
+        }, 4000)
+      : null;
+
     return () => {
+      abortController.abort();
+      if (pollTimer) {
+        window.clearInterval(pollTimer);
+      }
       supabase.removeChannel(channel);
     };
-  }, [sessionId, sessionState?.projectId]);
+  }, [sessionId, sessionState?.intent, sessionState?.projectId, sessionState?.avatarExecution?.phase, sessionState?.avatarStage, supabase]);
+
+  useEffect(() => {
+    if (sessionState?.intent !== 'motion_clone') return;
+    const projectId = sessionState?.motionClone?.projectId;
+    if (!projectId) return;
+
+    const syncMotionCloneProjectStatus = async () => {
+      try {
+        const response = await fetch(`/api/motion-clone/${projectId}/status`, { cache: 'no-store' });
+        const payload = await response.json();
+        if (!response.ok || !payload?.project) return;
+
+        const latestState = latestSessionStateRef.current;
+        const currentMotionClone = latestState?.motionClone;
+        const nextMotionClone = buildNextMotionCloneState(currentMotionClone, {
+          projectId,
+          phase: payload.project.status === 'completed'
+            ? 'completed'
+            : payload.project.status === 'generating_video'
+              ? 'generating_video'
+              : payload.project.status === 'preview_ready'
+                ? 'preview_ready'
+                : payload.project.status === 'generating_preview'
+                  ? 'generating_preview'
+                  : payload.project.status === 'failed'
+                    ? 'failed'
+                    : 'idle',
+          status: payload.project.status ?? null,
+          previewImageUrl: payload.project.preview_image_url ?? null,
+          outputVideoUrl: payload.project.output_video_url ?? null,
+          photoPrompt: payload.project.photo_prompt ?? currentMotionClone?.photoPrompt ?? null,
+          videoPrompt: payload.project.video_prompt ?? currentMotionClone?.videoPrompt ?? null,
+          videoQuality: normalizeMotionCloneQuality(payload.project.mode),
+          durationSeconds: payload.project.reference_duration_seconds ?? null,
+          creditsCost: payload.project.credits_cost ?? null,
+          error: payload.project.error_message ?? null
+        });
+
+        const mergedMotionClone = buildNextMotionCloneState(nextMotionClone, {
+          referenceVideo: currentMotionClone?.referenceVideo ?? nextMotionClone.referenceVideo ?? null,
+          selectedAvatar: currentMotionClone?.selectedAvatar ?? nextMotionClone.selectedAvatar ?? null,
+          selectedProduct: currentMotionClone?.selectedProduct ?? nextMotionClone.selectedProduct ?? null
+        });
+
+        const hasStatusChange = (
+          currentMotionClone?.phase !== mergedMotionClone.phase ||
+          currentMotionClone?.status !== mergedMotionClone.status ||
+          currentMotionClone?.previewImageUrl !== mergedMotionClone.previewImageUrl ||
+          currentMotionClone?.outputVideoUrl !== mergedMotionClone.outputVideoUrl ||
+          currentMotionClone?.error !== mergedMotionClone.error
+        );
+
+        if (!hasStatusChange) return;
+
+        setSessionState((prev) => {
+          if (!prev) return prev;
+          const nextState = {
+            ...prev,
+            motionClone: mergedMotionClone
+          };
+          latestSessionStateRef.current = nextState;
+          return nextState;
+        });
+
+        await fetch('/api/project-agent/session', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            projectId,
+            statePatch: {
+              motionClone: mergedMotionClone
+            }
+          })
+        });
+      } catch (motionSyncError) {
+        console.error('Failed to sync motion clone project status:', motionSyncError);
+      }
+    };
+
+    const channel: RealtimeChannel = supabase
+      .channel(`project-agent-motion-clone-${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'motion_clone_projects',
+          filter: `id=eq.${projectId}`
+        },
+        () => { void syncMotionCloneProjectStatus(); }
+      )
+      .subscribe();
+
+    void syncMotionCloneProjectStatus();
+
+    const shouldPollMotionCloneStatus = (
+      sessionState.motionClone?.phase === 'generating_preview' ||
+      sessionState.motionClone?.phase === 'generating_video'
+    );
+    const pollTimer = shouldPollMotionCloneStatus
+      ? window.setInterval(() => {
+          void syncMotionCloneProjectStatus();
+        }, 4000)
+      : null;
+
+    return () => {
+      if (pollTimer) {
+        window.clearInterval(pollTimer);
+      }
+      supabase.removeChannel(channel);
+    };
+  }, [sessionId, sessionState?.intent, sessionState?.motionClone?.phase, sessionState?.motionClone?.projectId, supabase]);
 
   const handleSubmit = useCallback(async (event?: React.FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
@@ -1753,7 +1900,9 @@ export default function ProjectAgentPage() {
     if (!sessionId || sendLocked) return;
 
     const referenceName = video.source_name || video.description || `Video ${video.id.slice(0, 8)}`;
-    const structure = inferReferenceStructure(video.analysis_result);
+    const referenceSelectionMessage = `I selected "${referenceName}" as the reference video for clone.`;
+    const pendingBaseline = messages.length;
+    const structure = inferMotionCloneReferenceContext(video.analysis_result);
     const referencePatch = {
       intent: 'competitor_ugc_replication' as const,
       step: 'collecting',
@@ -1783,11 +1932,12 @@ export default function ProjectAgentPage() {
       cloneExecution: null
     };
 
+    setPendingUserText(referenceSelectionMessage);
+    setPendingBaselineCount(pendingBaseline);
     setSessionState((prev) => ({
       ...(prev ?? {}),
       ...referencePatch
     }));
-    setSelectedVideoModel('kling_3');
     setShowCloneableVideos(false);
     setAwaitingCloneEntryReply(false);
     setCloneEntryReplyBaseline(0);
@@ -1816,14 +1966,11 @@ export default function ProjectAgentPage() {
     } catch (patchError) {
       console.error('Failed to persist selected clone reference:', patchError);
       setStatusNote('Failed to save selected reference video. Please retry.');
+      setPendingUserText(null);
+      setPendingBaselineCount(0);
       return;
     }
-
-    const referenceSelectionMessage = `I selected "${referenceName}" as the reference video for clone.`;
     try {
-      setPendingUserText(referenceSelectionMessage);
-      setPendingBaselineCount(messages.length);
-
       clearError();
       setStatusNote('');
       ensureHistoryTracked(sessionId);
@@ -1863,9 +2010,9 @@ export default function ProjectAgentPage() {
 
   const startNewChat = useCallback(() => {
     const nextId = createSessionId();
+    setIsSessionReady(false);
     setSessionId(nextId);
     setSessionState(null);
-    setSelectedVideoModel('kling_3');
     setDraft('');
     setPendingUserText(null);
     setStatusNote('');
@@ -1884,17 +2031,18 @@ export default function ProjectAgentPage() {
     setIsGeneratingCloneProject(false);
     setIsHistoryPopoverOpen(false);
 
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(SESSION_STORAGE_KEY, nextId);
-    }
+    writeCurrentSessionId(nextId);
     ensureHistoryTracked(nextId, { prependIfNew: true });
+    void ensureSessionExists(nextId).finally(() => {
+      setIsSessionReady(true);
+    });
     void refreshHistory();
-  }, [ensureHistoryTracked, refreshHistory, setMessages]);
+  }, [ensureHistoryTracked, ensureSessionExists, refreshHistory, setMessages]);
 
   const selectHistory = useCallback((targetSessionId: string) => {
+    setIsSessionReady(false);
     setSessionId(targetSessionId);
     setSessionState(null);
-    setSelectedVideoModel('kling_3');
     setPendingUserText(null);
     setStatusNote('');
     setMessages([]);
@@ -1910,9 +2058,7 @@ export default function ProjectAgentPage() {
     setIsGeneratingCloneProject(false);
     setIsHistoryPopoverOpen(false);
 
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(SESSION_STORAGE_KEY, targetSessionId);
-    }
+    writeCurrentSessionId(targetSessionId);
     ensureHistoryTracked(targetSessionId);
   }, [ensureHistoryTracked, setMessages]);
 
@@ -2036,22 +2182,116 @@ export default function ProjectAgentPage() {
     }
   }, []);
 
+  const loadMotionCloneAssets = useCallback(async () => {
+    setIsMotionCloneAssetsLoading(true);
+    try {
+      const [assetsResponse, avatarsResponse] = await Promise.all([
+        fetch('/api/assets', { cache: 'no-store' }),
+        fetch('/api/user-avatars', { cache: 'no-store' })
+      ]);
+
+      if (assetsResponse.ok) {
+        const payload = await assetsResponse.json();
+        const videos = Array.isArray(payload?.videos) ? payload.videos : [];
+        const products = Array.isArray(payload?.products) ? payload.products : [];
+        const normalizedVideos = videos
+          .filter((video: Record<string, unknown>) => (
+            typeof video.id === 'string' && video.source_type !== 'competitor_ad'
+          ))
+          .map((video: Record<string, unknown>) => ({
+            ...(inferMotionCloneReferenceContext(
+              (video.analysis_result && typeof video.analysis_result === 'object')
+                ? (video.analysis_result as Record<string, unknown>)
+                : null
+            )),
+            id: video.id as string,
+            description: typeof video.description === 'string' ? video.description : null,
+            videoUrl: typeof video.video_url === 'string' ? video.video_url : null,
+            videoCdnUrl: typeof video.video_cdn_url === 'string' ? video.video_cdn_url : null,
+            coverUrl: typeof video.cover_url === 'string' ? video.cover_url : null,
+            durationSeconds: typeof video.duration_seconds === 'number' ? video.duration_seconds : null,
+            analysisLanguage: typeof video.analysis_language === 'string' ? video.analysis_language : null,
+            analysisStatus: typeof video.analysis_status === 'string' ? video.analysis_status : null,
+            analysisResult: (video.analysis_result && typeof video.analysis_result === 'object')
+              ? (video.analysis_result as Record<string, unknown>)
+              : null,
+            analysisError: typeof video.analysis_error === 'string' ? video.analysis_error : null,
+            platform: typeof video.platform === 'string' ? video.platform : undefined,
+            source_id: typeof video.source_id === 'string' ? video.source_id : null,
+            source_name: typeof video.source_name === 'string' ? video.source_name : null,
+            source_type: video.source_type === 'competitor_ad' ? 'competitor_ad' : 'creator',
+            stats: (video.stats && typeof video.stats === 'object')
+              ? (video.stats as Record<string, unknown>)
+              : null
+          })) as MotionReferenceVideoAsset[];
+        setMotionCloneVideos(normalizedVideos);
+        setMotionCloneProducts(products as UserProduct[]);
+      }
+
+      if (avatarsResponse.ok) {
+        const payload = await avatarsResponse.json();
+        setMotionCloneAvatars((Array.isArray(payload?.avatars) ? payload.avatars : []) as UserAvatar[]);
+      }
+    } catch (motionAssetError) {
+      console.error('Failed to load motion clone assets:', motionAssetError);
+    } finally {
+      setIsMotionCloneAssetsLoading(false);
+    }
+  }, []);
+
   const handleQuickStart = useCallback(async (action: 'clone' | 'motion_clone' | 'avatar_ads') => {
-    if (action === 'motion_clone') {
-      router.push('/dashboard/motion-clone');
-      return;
-    }
-
-    if (action === 'avatar_ads') {
-      router.push('/dashboard/avatar-ads');
-      return;
-    }
-
     if (!sessionId || sendLocked) return;
 
     clearError();
     setStatusNote('');
     ensureHistoryTracked(sessionId);
+
+    if (action === 'motion_clone') {
+      setSessionState((prev) => ({
+        ...(prev ?? {}),
+        intent: 'motion_clone',
+        motionClone: buildNextMotionCloneState(prev?.motionClone, {
+          stage: 'reference_selection',
+          phase: 'idle',
+          selectedAvatar: null,
+          selectedProduct: null,
+          photoPrompt: null,
+          videoPrompt: null,
+          promptsInitialized: false
+        })
+      }));
+      void loadMotionCloneAssets();
+      const quickMessage = 'I want to use motion clone. Help me choose a reference video and replacement avatar or product.';
+      setPendingUserText(quickMessage);
+      setPendingBaselineCount(messages.length);
+      const sent = await sendMessageSafely(quickMessage);
+      if (!sent) {
+        setPendingUserText(null);
+        setPendingBaselineCount(0);
+      }
+      return;
+    }
+
+    if (action === 'avatar_ads') {
+      setSessionState((prev) => ({
+        ...(prev ?? {}),
+        intent: 'avatar_ads',
+        avatarStage: 'avatar_asset_selection',
+        avatarSelection: syncAvatarSelectionFromSession(prev),
+        avatarDraft: prev?.intent === 'avatar_ads' ? prev?.avatarDraft ?? null : null,
+        avatarExecution: prev?.intent === 'avatar_ads' ? prev?.avatarExecution ?? null : null,
+        projectId: prev?.intent === 'avatar_ads' ? prev?.projectId : undefined
+      }));
+      const quickMessage = 'I want to create an avatar ad. Help me choose the avatar first, then the optional product, script, and settings.';
+      setPendingUserText(quickMessage);
+      setPendingBaselineCount(messages.length);
+      const sent = await sendMessageSafely(quickMessage);
+      if (!sent) {
+        setPendingUserText(null);
+        setPendingBaselineCount(0);
+      }
+      return;
+    }
 
     // Enter clone flow with a strict gate: keep left surface in "Working on it..."
     // until we receive a visible assistant reply for this turn.
@@ -2082,8 +2322,8 @@ export default function ProjectAgentPage() {
     clearError,
     ensureHistoryTracked,
     loadCloneableVideos,
+    loadMotionCloneAssets,
     messages,
-    router,
     sendLocked,
     sendMessageSafely,
     sessionId
@@ -2287,6 +2527,115 @@ export default function ProjectAgentPage() {
       selectedProducts: nextSelectedProducts
     });
   }, [cloneProductOptions, persistCloneSelection, sessionState?.cloneReplacementDraft, setStatusNote]);
+
+  const handleAvatarAssetSelectionMessage = useCallback(async (text: string) => {
+    if (!sessionId || sendLocked) return;
+    clearError();
+    setStatusNote('');
+    maybeRequestNotificationPermissionOnUserAction(text);
+    const sent = await sendMessageSafely(text);
+    if (!sent) {
+      setStatusNote('Failed to send the avatar selection. Please try again.');
+    }
+  }, [clearError, maybeRequestNotificationPermissionOnUserAction, sendLocked, sendMessageSafely, sessionId]);
+
+  const persistAvatarSelectionPatch = useCallback(async (statePatch: Record<string, unknown>) => {
+    if (!sessionId) return;
+    await fetch('/api/project-agent/session', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId,
+        statePatch
+      })
+    });
+  }, [sessionId]);
+
+  const handleAvatarSelectionToggle = useCallback(async (avatarId: string) => {
+    const avatar = cloneAvatarOptions.find((item) => item.id === avatarId);
+    if (!avatar) return;
+
+    const baseState = latestSessionStateRef.current ?? sessionState;
+    if (!baseState) return;
+
+    const currentSelection = syncAvatarSelectionFromSession(baseState);
+    const isSame = currentSelection.avatar?.id === avatarId;
+    const nextAvatar = isSame
+      ? null
+      : {
+          id: avatar.id,
+          name: avatar.name,
+          photoUrl: avatar.photoUrl || ''
+        };
+    const nextSelection = {
+      ...currentSelection,
+      avatar: nextAvatar
+    };
+    const nextState = {
+      ...baseState,
+      avatar: nextAvatar,
+      product: nextSelection.product
+        ? {
+            id: nextSelection.product.id,
+            name: nextSelection.product.name
+          }
+        : null,
+      avatarSelection: nextSelection,
+      avatarStage: 'avatar_asset_selection' as const
+    };
+
+    latestSessionStateRef.current = nextState;
+    setSessionState(nextState);
+
+    await persistAvatarSelectionPatch({
+      avatar: nextState.avatar,
+      product: nextState.product ?? null,
+      avatarSelection: nextSelection,
+      avatarStage: 'avatar_asset_selection'
+    });
+  }, [cloneAvatarOptions, persistAvatarSelectionPatch, sessionState]);
+
+  const handleAvatarProductSelectionToggle = useCallback(async (productId: string) => {
+    const product = cloneProductOptions.find((item) => item.id === productId);
+    if (!product) return;
+
+    const baseState = latestSessionStateRef.current ?? sessionState;
+    if (!baseState) return;
+
+    const currentSelection = syncAvatarSelectionFromSession(baseState);
+    const isSame = currentSelection.product?.id === productId;
+    const nextProduct = isSame
+      ? null
+      : {
+          id: product.id,
+          name: product.name,
+          photoUrl: product.photoUrl || null
+        };
+    const nextSelection = {
+      ...currentSelection,
+      product: nextProduct
+    };
+    const nextState = {
+      ...baseState,
+      avatar: nextSelection.avatar ?? null,
+      product: nextProduct ? {
+        id: nextProduct.id,
+        name: nextProduct.name
+      } : null,
+      avatarSelection: nextSelection,
+      avatarStage: 'avatar_asset_selection' as const
+    };
+
+    latestSessionStateRef.current = nextState;
+    setSessionState(nextState);
+
+    await persistAvatarSelectionPatch({
+      avatar: nextState.avatar ?? null,
+      product: nextState.product ?? null,
+      avatarSelection: nextSelection,
+      avatarStage: 'avatar_asset_selection'
+    });
+  }, [cloneProductOptions, persistAvatarSelectionPatch, sessionState]);
 
   const latestUserText = useMemo(() => {
     const lastUser = [...displayMessages].reverse().find((message) => message.role === 'user');
@@ -2527,6 +2876,7 @@ export default function ProjectAgentPage() {
   const computedPromptChipSuggestions = useMemo(() => getProjectAgentPromptChips({
     intent: sessionState?.intent,
     step: sessionState?.step,
+    avatarStage: sessionState?.avatarStage,
     projectId: sessionState?.projectId,
     showCloneableVideos,
     showCloneReplacementSelectors: showCloneReplacementSelectors && !showCloneSceneWorkspaceStep,
@@ -2546,6 +2896,52 @@ export default function ProjectAgentPage() {
           phase: sessionState.cloneExecution.phase,
           mergedVideoUrl: sessionState.cloneExecution.mergedVideoUrl
         }
+      : null,
+    motionClone: sessionState?.motionClone
+      ? {
+          stage: sessionState.motionClone.stage,
+          hasSelectedAvatar: Boolean(sessionState.motionClone.selectedAvatar?.id),
+          hasSelectedProduct: Boolean(sessionState.motionClone.selectedProduct?.id),
+          phase: sessionState.motionClone.phase
+        }
+      : null
+  }), [
+    sessionState,
+    showCloneSceneWorkspaceStep,
+    showCloneReplacementSelectors,
+    showCloneableVideos
+  ]);
+  const chatInputPlaceholder = useMemo(() => getProjectAgentInputPlaceholder({
+    intent: sessionState?.intent,
+    step: sessionState?.step,
+    avatarStage: sessionState?.avatarStage,
+    projectId: sessionState?.projectId,
+    showCloneableVideos,
+    showCloneReplacementSelectors: showCloneReplacementSelectors && !showCloneSceneWorkspaceStep,
+    showCloneSceneWorkspaceStep,
+    cloneReferenceVideo: sessionState?.cloneReferenceVideo
+      ? { id: sessionState.cloneReferenceVideo.id }
+      : null,
+    cloneReplacementDraft: sessionState?.cloneReplacementDraft
+      ? {
+          status: sessionState.cloneReplacementDraft.status,
+          scenes: sessionState.cloneReplacementDraft.scenes
+        }
+      : null,
+    cloneExecution: sessionState?.cloneExecution
+      ? {
+          projectId: sessionState.cloneExecution.projectId,
+          phase: sessionState.cloneExecution.phase,
+          mergedVideoUrl: sessionState.cloneExecution.mergedVideoUrl
+        }
+      : null,
+    motionClone: sessionState?.motionClone
+      ? {
+          stage: sessionState.motionClone.stage,
+          hasSelectedAvatar: Boolean(sessionState.motionClone.selectedAvatar?.id),
+          hasSelectedProduct: Boolean(sessionState.motionClone.selectedProduct?.id),
+          phase: sessionState.motionClone.phase
+        }
       : null
   }), [
     sessionState,
@@ -2556,7 +2952,12 @@ export default function ProjectAgentPage() {
   const [visiblePromptChipSuggestions, setVisiblePromptChipSuggestions] = useState(computedPromptChipSuggestions);
 
   useEffect(() => {
+    const isAvatarSelectionStage = (
+      sessionState?.intent === 'avatar_ads' &&
+      sessionState?.avatarStage === 'avatar_asset_selection'
+    );
     const needsMentionOptions =
+      isAvatarSelectionStage ||
       showCloneReplacementSelectors ||
       showCloneSceneWorkspaceStep;
     if (!needsMentionOptions) return;
@@ -2564,6 +2965,8 @@ export default function ProjectAgentPage() {
       void loadCloneReplacementOptions();
     }
   }, [
+    sessionState?.intent,
+    sessionState?.avatarStage,
     showCloneReplacementSelectors,
     showCloneSceneWorkspaceStep,
     cloneAvatarOptions.length,
@@ -2640,6 +3043,11 @@ export default function ProjectAgentPage() {
     ));
   }, [displayMessages, pendingUserText]);
 
+  const hasAssistantReplyForPendingTurn = useMemo(() => {
+    if (!pendingUserText || pendingBaselineCount < 0) return false;
+    return hasAssistantReplyAfterBaseline(displayMessages, pendingBaselineCount);
+  }, [displayMessages, pendingBaselineCount, pendingUserText]);
+
   const hasUnansweredUserTurn = useMemo(() => {
     let lastUserIndex = -1;
     let lastAssistantIndex = -1;
@@ -2703,11 +3111,11 @@ export default function ProjectAgentPage() {
 
   useEffect(() => {
     if (!pendingUserText) return;
-    if (hasPendingInMessages) {
+    if (hasPendingInMessages && hasAssistantReplyForPendingTurn) {
       setPendingUserText(null);
       setPendingBaselineCount(0);
     }
-  }, [hasPendingInMessages, pendingUserText]);
+  }, [displayMessages, hasAssistantReplyForPendingTurn, hasPendingInMessages, pendingUserText]);
 
   useEffect(() => {
     if (!retryableUserMessageId) return;
@@ -2893,6 +3301,113 @@ export default function ProjectAgentPage() {
   }, [sessionState?.cloneReplacementDraft]);
 
   useEffect(() => {
+    if (sessionState?.intent !== 'motion_clone') return;
+    setMotionPhotoPrompt(sessionState.motionClone?.photoPrompt || '');
+    setMotionVideoPrompt(sessionState.motionClone?.videoPrompt || '');
+  }, [sessionState?.intent, sessionState?.motionClone?.photoPrompt, sessionState?.motionClone?.videoPrompt]);
+
+  useEffect(() => {
+    if (sessionState?.intent !== 'motion_clone') return;
+
+    const currentPhotoPrompt = sessionState.motionClone?.photoPrompt || motionPhotoPrompt;
+    const currentVideoPrompt = sessionState.motionClone?.videoPrompt || motionVideoPrompt;
+    const needsLegacyRewrite = (
+      LEGACY_MOTION_CLONE_PROMPT_REGEX.test(currentPhotoPrompt) ||
+      LEGACY_MOTION_CLONE_PROMPT_REGEX.test(currentVideoPrompt)
+    );
+
+    if (!needsLegacyRewrite) return;
+
+    const inferredSelections = inferMotionCloneSelectionNamesFromPrompts(currentPhotoPrompt, currentVideoPrompt);
+    const avatarName = sessionState.motionClone?.selectedAvatar?.name || inferredSelections.avatarName;
+    const productName = sessionState.motionClone?.selectedProduct?.name || inferredSelections.productName;
+
+    if (!avatarName) return;
+
+    const drafts = buildMotionClonePromptDrafts({
+      avatarName,
+      productName,
+      referenceVideo: sessionState.motionClone?.referenceVideo ?? null,
+    });
+
+    if (currentPhotoPrompt === drafts.photoPrompt && currentVideoPrompt === drafts.videoPrompt) {
+      return;
+    }
+
+    setMotionPhotoPrompt(drafts.photoPrompt);
+    setMotionVideoPrompt(drafts.videoPrompt);
+    setSessionState((prev) => (
+      prev
+        ? {
+            ...prev,
+            motionClone: buildNextMotionCloneState(prev.motionClone, {
+              photoPrompt: drafts.photoPrompt,
+              videoPrompt: drafts.videoPrompt,
+              promptsInitialized: true
+            })
+          }
+        : prev
+    ));
+  }, [
+    motionPhotoPrompt,
+    motionVideoPrompt,
+    sessionState?.intent,
+    sessionState?.motionClone?.photoPrompt,
+    sessionState?.motionClone?.referenceVideo,
+    sessionState?.motionClone?.selectedAvatar?.name,
+    sessionState?.motionClone?.selectedProduct?.name,
+    sessionState?.motionClone?.videoPrompt
+  ]);
+
+  useEffect(() => {
+    if (sessionState?.intent !== 'motion_clone') return;
+    if (isMotionCloneAssetsLoading) return;
+    if (motionCloneVideos.length > 0 || motionCloneAvatars.length > 0 || motionCloneProducts.length > 0) return;
+    void loadMotionCloneAssets();
+  }, [
+    isMotionCloneAssetsLoading,
+    loadMotionCloneAssets,
+    motionCloneAvatars.length,
+    motionCloneProducts.length,
+    motionCloneVideos.length,
+    sessionState?.intent
+  ]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    if (sessionState?.intent !== 'motion_clone') return;
+    if (!sessionState.motionClone) return;
+
+    if (motionClonePromptPersistTimerRef.current) {
+      clearTimeout(motionClonePromptPersistTimerRef.current);
+    }
+
+    motionClonePromptPersistTimerRef.current = window.setTimeout(() => {
+      void fetch('/api/project-agent/session', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          statePatch: {
+            motionClone: {
+              ...sessionState.motionClone,
+              photoPrompt: motionPhotoPrompt,
+              videoPrompt: motionVideoPrompt
+            }
+          }
+        })
+      });
+    }, 250);
+
+    return () => {
+      if (motionClonePromptPersistTimerRef.current) {
+        clearTimeout(motionClonePromptPersistTimerRef.current);
+        motionClonePromptPersistTimerRef.current = null;
+      }
+    };
+  }, [motionPhotoPrompt, motionVideoPrompt, sessionId, sessionState?.intent, sessionState?.motionClone]);
+
+  useEffect(() => {
     const projectId = sessionState?.cloneExecution?.projectId;
     const phase = sessionState?.cloneExecution?.phase;
     if (!projectId) return;
@@ -3011,7 +3526,115 @@ export default function ProjectAgentPage() {
     return 'draft_ready' as const;
   }, [sessionState?.cloneExecution?.phase, sessionState?.cloneExecution?.projectId]);
 
-  const hasCloneSurfaceContent = showCloneableVideos || showCloneReplacementSelectors || showCloneSceneWorkspaceStep;
+  const selectedMotionReferenceId = sessionState?.motionClone?.referenceVideo?.id || '';
+  const selectedMotionVideo = useMemo(
+    () => motionCloneVideos.find((video) => video.id === selectedMotionReferenceId) || null,
+    [motionCloneVideos, selectedMotionReferenceId]
+  );
+  const selectedMotionAvatarId = sessionState?.motionClone?.selectedAvatar?.id || '';
+  const selectedMotionProductId = sessionState?.motionClone?.selectedProduct?.id || '';
+  const motionReferenceVideo = selectedMotionVideo || sessionState?.motionClone?.referenceVideo || null;
+  const motionCloneDisplayDuration = motionReferenceVideo?.durationSeconds ?? sessionState?.motionClone?.durationSeconds ?? null;
+  const motionCloneEstimatedCredits = getMotionCloneGenerationCost(
+    motionCloneDisplayDuration,
+    normalizeMotionCloneQuality(sessionState?.motionClone?.videoQuality)
+  ) || 0;
+  const motionCloneStage: ProjectAgentMotionCloneStage = sessionState?.motionClone?.stage || 'reference_selection';
+  const motionCloneHasRequiredAvatar = Boolean(selectedMotionAvatarId);
+  const motionClonePhase = sessionState?.motionClone?.phase || 'idle';
+  const canGenerateMotionPreview = Boolean(
+    selectedMotionReferenceId &&
+    motionReferenceVideo?.coverUrl &&
+    motionPhotoPrompt.trim().length > 0 &&
+    motionCloneHasRequiredAvatar &&
+    motionClonePhase !== 'generating_preview' &&
+    motionClonePhase !== 'generating_video'
+  );
+  const canGenerateMotionVideo = Boolean(
+    selectedMotionReferenceId &&
+    motionReferenceVideo?.coverUrl &&
+    motionPhotoPrompt.trim().length > 0 &&
+    motionVideoPrompt.trim().length > 0 &&
+    motionCloneHasRequiredAvatar &&
+    motionClonePhase !== 'generating_preview' &&
+    motionClonePhase !== 'generating_video'
+  );
+  const avatarSelection = useMemo(
+    () => syncAvatarSelectionFromSession(sessionState),
+    [sessionState]
+  );
+  const avatarStage = useMemo(
+    () => inferProjectAgentAvatarStage({
+      explicitStage: sessionState?.avatarStage,
+      hasAvatar: Boolean(avatarSelection.avatar?.id),
+      hasDraft: Boolean(sessionState?.avatarDraft?.scenes?.length),
+      hasCover: Boolean(sessionState?.avatarDraft?.coverImageUrl || sessionState?.generatedImageUrl),
+      projectStatus: sessionState?.step,
+      currentStep: sessionState?.step,
+      hasExecution: Boolean(sessionState?.avatarExecution?.projectId || sessionState?.projectId)
+    }),
+    [avatarSelection.avatar?.id, sessionState?.avatarDraft?.coverImageUrl, sessionState?.avatarDraft?.scenes?.length, sessionState?.avatarExecution?.projectId, sessionState?.avatarStage, sessionState?.generatedImageUrl, sessionState?.projectId, sessionState?.step]
+  );
+  const avatarCharacterMentions = useMemo(() => (
+    avatarSelection.avatar ? [{
+      id: avatarSelection.avatar.id,
+      label: avatarSelection.avatar.name,
+      imageUrl: avatarSelection.avatar.photoUrl
+    }] : []
+  ), [avatarSelection.avatar]);
+  const avatarProductMentions = useMemo(() => (
+    avatarSelection.product ? [{
+      id: avatarSelection.product.id,
+      label: avatarSelection.product.name,
+      imageUrl: avatarSelection.product.photoUrl || null
+    }] : []
+  ), [avatarSelection.product]);
+  const showAvatarAssetSelectionStep = sessionState?.intent === 'avatar_ads' && avatarStage === 'avatar_asset_selection';
+  const showAvatarScriptCollectionStep = sessionState?.intent === 'avatar_ads' && avatarStage === 'avatar_script_collection';
+  const showAvatarWorkspace = sessionState?.intent === 'avatar_ads' && (
+    avatarStage === 'avatar_workspace' ||
+    avatarStage === 'avatar_generating_cover' ||
+    avatarStage === 'avatar_reviewing_cover' ||
+    avatarStage === 'avatar_generating_video' ||
+    avatarStage === 'avatar_completed'
+  );
+  const avatarWorkspaceCoverUrl = (
+    sessionState?.avatarDraft?.coverImageUrl ||
+    sessionState?.generatedImageUrl ||
+    sessionState?.avatarExecution?.coverImageUrl ||
+    null
+  );
+  const avatarWorkspaceFinalVideoUrl = sessionState?.avatarExecution?.finalVideoUrl || null;
+  const avatarIsGeneratingCover = Boolean(
+    sessionState?.avatarExecution?.phase === 'generating_cover' ||
+    sessionState?.avatarStage === 'avatar_generating_cover' ||
+    sessionState?.step === 'generating_image' ||
+    sessionState?.step === 'regenerating_image'
+  );
+  const avatarIsGeneratingVideo = Boolean(
+    sessionState?.avatarExecution?.phase === 'generating_videos' ||
+    sessionState?.avatarStage === 'avatar_generating_video' ||
+    sessionState?.step === 'generating_videos'
+  );
+  const showMotionCloneReferenceStep = sessionState?.intent === 'motion_clone' && motionCloneStage === 'reference_selection';
+  const showMotionCloneReplacementStep = sessionState?.intent === 'motion_clone' && motionCloneStage === 'replacement_selection';
+  const showMotionCloneWorkspace = sessionState?.intent === 'motion_clone' && motionCloneStage === 'workspace';
+  const hasAvatarSurfaceContent = Boolean(
+    showAvatarAssetSelectionStep ||
+    showAvatarScriptCollectionStep ||
+    showAvatarWorkspace
+  );
+  const hasMotionCloneSurfaceContent = Boolean(
+    showMotionCloneReferenceStep ||
+    showMotionCloneReplacementStep ||
+    showMotionCloneWorkspace
+  );
+
+  const hasCloneSurfaceContent = sessionState?.intent === 'competitor_ugc_replication' && (
+    showCloneableVideos ||
+    showCloneReplacementSelectors ||
+    showCloneSceneWorkspaceStep
+  );
   const isCloneDraftGenerating = sessionState?.cloneReplacementDraft?.status === 'generating';
   const waitingForCloneStructureGate = Boolean(
     sessionState?.intent === 'competitor_ugc_replication' &&
@@ -3038,15 +3661,44 @@ export default function ProjectAgentPage() {
     waitingForCloneStructureGate ||
     sessionState?.intent === 'competitor_ugc_replication'
   );
-  const shouldHoldLeftSurfaceForAssistantReply = isCloneFlowContext && hasUnansweredUserTurn && awaitingAssistantTurn;
-  const showLeftSurfaceContent = hasCloneSurfaceContent && !shouldHoldLeftSurfaceForAssistantReply;
-  const isWorkflowSurfacePending = !hasCloneSurfaceContent && isCloneFlowContext && (
-    isStreaming ||
-    awaitingCloneEntryReply ||
-    awaitingCloneStructureReply ||
-    awaitingCloneDraftReply ||
-    waitingForCloneStructureGate ||
+  const isAgentWorkflowContext = (
+    isCloneFlowContext ||
+    sessionState?.intent === 'motion_clone' ||
+    sessionState?.intent === 'avatar_ads'
+  );
+  const waitingForVisibleAssistantWorkflowReply = (
+    isAgentWorkflowContext &&
+    (
+      Boolean(pendingUserText) ||
+      hasPendingInMessages ||
+      hasPendingInMessages && !hasAssistantReplyForPendingTurn ||
+      (
+        (hasUnansweredUserTurn || awaitingAssistantTurn) &&
+        !hasVisibleAssistantReplyAfterLatestUserTurn(displayMessages)
+      )
+    )
+  );
+  const shouldHoldLeftSurfaceForAssistantReply = (
+    waitingForVisibleAssistantWorkflowReply &&
+    !hasAvatarSurfaceContent &&
+    !hasMotionCloneSurfaceContent
+  );
+  const hasAnyWorkflowSurfaceContent = (
+    hasCloneSurfaceContent ||
+    hasAvatarSurfaceContent ||
+    hasMotionCloneSurfaceContent
+  );
+  const showLeftSurfaceContent = hasAnyWorkflowSurfaceContent && !shouldHoldLeftSurfaceForAssistantReply;
+  const isWorkflowSurfacePending = !hasAnyWorkflowSurfaceContent && (
+    shouldHoldLeftSurfaceForAssistantReply ||
+    awaitingAssistantTurn ||
+    isCloneFlowContext ||
     isCloneDraftGenerating
+  );
+  const shouldFlushLeftSurfaceBottomPadding = (
+    showMotionCloneWorkspace ||
+    showCloneSceneWorkspaceStep ||
+    showAvatarWorkspace
   );
 
   useEffect(() => {
@@ -3081,12 +3733,301 @@ export default function ProjectAgentPage() {
     };
   }, [isHistoryPopoverOpen]);
 
+  const persistMotionCloneSessionPatch = useCallback(async (statePatch: Record<string, unknown>, projectId?: string | null) => {
+    if (!sessionId) return;
+    await fetch('/api/project-agent/session', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId,
+        statePatch,
+        projectId: projectId ?? undefined
+      })
+    });
+  }, [sessionId]);
+
+  const handleMotionReferenceSelection = useCallback(async (id: string) => {
+    if (!sessionId || sendLocked) return;
+
+    const selectedReference = motionCloneVideos.find((video) => video.id === id);
+    if (!selectedReference?.coverUrl) {
+      setStatusNote('This reference video needs a first frame before Motion Clone can use it.');
+      return;
+    }
+
+    const referenceContext = inferMotionCloneReferenceContext(selectedReference.analysisResult);
+    const enrichedReference: ProjectAgentMotionCloneReferenceVideo = {
+      ...selectedReference,
+      analysisSummary: selectedReference.analysisSummary ?? referenceContext.summary,
+      keyShots: selectedReference.keyShots ?? referenceContext.keyShots,
+      detectedCharacter: selectedReference.detectedCharacter ?? referenceContext.detectedCharacter,
+      detectedProduct: selectedReference.detectedProduct ?? referenceContext.detectedProduct,
+    };
+
+    const referenceName =
+      selectedReference.source_name ||
+      selectedReference.description ||
+      `Video ${selectedReference.id.slice(0, 8)}`;
+    const referenceSelectionMessage = `I selected "${referenceName}" as the reference video for motion clone.`;
+    const pendingBaseline = messages.length;
+
+    setStatusNote('');
+    setPendingUserText(referenceSelectionMessage);
+    setPendingBaselineCount(pendingBaseline);
+    const nextMotionClone = buildNextMotionCloneState(sessionState?.motionClone, {
+      stage: 'replacement_selection',
+      phase: 'idle',
+      referenceVideo: enrichedReference,
+      selectedAvatar: null,
+      selectedProduct: null,
+      photoPrompt: null,
+      videoPrompt: null,
+      previewImageUrl: null,
+      outputVideoUrl: null,
+      projectId: null,
+      promptsInitialized: false,
+      error: null
+    });
+    setSessionState((prev) => (
+      prev
+        ? { ...prev, intent: 'motion_clone', motionClone: nextMotionClone }
+        : { intent: 'motion_clone', motionClone: nextMotionClone }
+    ));
+    try {
+      await persistMotionCloneSessionPatch({
+        intent: 'motion_clone',
+        motionClone: nextMotionClone
+      });
+    } catch (patchError) {
+      console.error('Failed to persist selected motion clone reference:', patchError);
+      setStatusNote('Failed to save selected reference video. Please retry.');
+      setPendingUserText(null);
+      setPendingBaselineCount(0);
+      return;
+    }
+    try {
+      clearError();
+      setStatusNote('');
+      ensureHistoryTracked(sessionId);
+      const sent = await sendMessageSafely(referenceSelectionMessage);
+      if (!sent) {
+        setPendingUserText(null);
+        setPendingBaselineCount(0);
+      }
+    } catch (chatSendError) {
+      console.error('Failed to send motion clone reference selection message to chat stream:', chatSendError);
+      setPendingUserText(null);
+      setPendingBaselineCount(0);
+    }
+  }, [
+    clearError,
+    ensureHistoryTracked,
+    messages,
+    motionCloneVideos,
+    persistMotionCloneSessionPatch,
+    sendLocked,
+    sendMessageSafely,
+    sessionId,
+    sessionState?.motionClone
+  ]);
+
+  const handleSelectVideoFromDetails = useCallback(async (video: CloneableVideoAsset) => {
+    if (sessionState?.intent === 'motion_clone') {
+      await handleMotionReferenceSelection(video.id);
+      return;
+    }
+
+    await handleSelectCloneReference(video);
+  }, [handleMotionReferenceSelection, handleSelectCloneReference, sessionState?.intent]);
+
+  const videoDetailsCloneActionLabel = sessionState?.intent === 'motion_clone'
+    ? 'Use for Motion Clone'
+    : 'Select This Video';
+
+  const handleMotionSelectionToggle = useCallback(async (kind: 'avatar' | 'product', id: string) => {
+    if (!sessionId || sendLocked) return;
+
+    if (kind === 'avatar') {
+      const avatar = motionCloneAvatars.find((item) => item.id === id);
+      if (!avatar) return;
+      const isSame = sessionState?.motionClone?.selectedAvatar?.id === id;
+      const nextSelectedAvatar: ProjectAgentMotionCloneSelection | null = isSame
+        ? null
+        : {
+            id: avatar.id,
+            name: avatar.avatar_name || 'Avatar',
+            photoUrl: avatar.photo_url
+          };
+      const nextMotionClone = buildNextMotionCloneState(sessionState?.motionClone, {
+        selectedAvatar: nextSelectedAvatar,
+        error: null
+      });
+      setSessionState((prev) => prev ? {
+        ...prev,
+        avatar: nextSelectedAvatar ? {
+          id: nextSelectedAvatar.id,
+          name: nextSelectedAvatar.name,
+          photoUrl: nextSelectedAvatar.photoUrl || ''
+        } : null,
+        motionClone: nextMotionClone
+      } : prev);
+      await persistMotionCloneSessionPatch({
+        avatar: nextSelectedAvatar ? {
+          id: nextSelectedAvatar.id,
+          name: nextSelectedAvatar.name,
+          photoUrl: nextSelectedAvatar.photoUrl || ''
+        } : null,
+        motionClone: nextMotionClone
+      });
+      return;
+    }
+
+    const product = motionCloneProducts.find((item) => item.id === id);
+    if (!product) return;
+    const photos = product.user_product_photos || [];
+    const primaryPhoto = photos.find((photo) => photo.is_primary) || photos[0];
+    const isSame = sessionState?.motionClone?.selectedProduct?.id === id;
+    const nextSelectedProduct: ProjectAgentMotionCloneSelection | null = isSame
+      ? null
+      : {
+          id: product.id,
+          name: product.product_name,
+          photoUrl: primaryPhoto?.photo_url || null
+        };
+    const nextMotionClone = buildNextMotionCloneState(sessionState?.motionClone, {
+      selectedProduct: nextSelectedProduct,
+      error: null
+    });
+    setSessionState((prev) => prev ? {
+      ...prev,
+      product: nextSelectedProduct ? {
+        id: nextSelectedProduct.id,
+        name: nextSelectedProduct.name
+      } : null,
+      motionClone: nextMotionClone
+    } : prev);
+    await persistMotionCloneSessionPatch({
+      product: nextSelectedProduct ? {
+        id: nextSelectedProduct.id,
+        name: nextSelectedProduct.name
+      } : null,
+      motionClone: nextMotionClone
+    });
+  }, [
+    motionCloneAvatars,
+    motionCloneProducts,
+    persistMotionCloneSessionPatch,
+    sendLocked,
+    sessionId,
+    sessionState?.motionClone
+  ]);
+
+  const ensureMotionCloneProject = useCallback(async () => {
+    const existingProjectId = sessionState?.motionClone?.projectId;
+    if (existingProjectId) return existingProjectId;
+
+    const response = await fetch('/api/motion-clone/create', { method: 'POST' });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload?.project?.id) {
+      throw new Error(payload?.error || 'Failed to create motion clone project.');
+    }
+
+    const nextMotionClone = buildNextMotionCloneState(sessionState?.motionClone, {
+      projectId: payload.project.id,
+      phase: 'idle',
+      status: payload.project.status ?? 'pending'
+    });
+    setSessionState((prev) => prev ? {
+      ...prev,
+      intent: 'motion_clone',
+      projectId: payload.project.id,
+      motionClone: nextMotionClone
+    } : prev);
+    await persistMotionCloneSessionPatch({
+      intent: 'motion_clone',
+      motionClone: nextMotionClone
+    }, payload.project.id);
+
+    return payload.project.id as string;
+  }, [persistMotionCloneSessionPatch, sessionState?.motionClone]);
+
+  const handleStartMotionClone = useCallback(async (action: 'image' | 'video') => {
+    try {
+      setStatusNote('');
+      const projectId = await ensureMotionCloneProject();
+      const response = await fetch(`/api/motion-clone/${projectId}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reference_video_id: selectedMotionReferenceId,
+          avatar_id: selectedMotionAvatarId || undefined,
+          product_id: selectedMotionProductId || undefined,
+          photo_prompt: motionPhotoPrompt,
+          video_prompt: motionVideoPrompt,
+          mode: normalizeMotionCloneQuality(sessionState?.motionClone?.videoQuality),
+          action
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.project) {
+        throw new Error(payload?.error || `Failed to start Motion Clone ${action}.`);
+      }
+
+      const nextMotionClone = buildNextMotionCloneState(sessionState?.motionClone, {
+        projectId,
+        phase: payload.project.status === 'generating_video'
+          ? 'generating_video'
+          : payload.project.status === 'generating_preview'
+            ? 'generating_preview'
+            : payload.project.status === 'preview_ready'
+              ? 'preview_ready'
+              : payload.project.status === 'completed'
+                ? 'completed'
+                : payload.project.status === 'failed'
+                  ? 'failed'
+                  : 'idle',
+        status: payload.project.status ?? null,
+        previewImageUrl: payload.project.preview_image_url ?? null,
+        outputVideoUrl: payload.project.output_video_url ?? null,
+        photoPrompt: payload.project.photo_prompt ?? motionPhotoPrompt,
+        videoPrompt: payload.project.video_prompt ?? motionVideoPrompt,
+        videoQuality: normalizeMotionCloneQuality(payload.project.mode),
+        durationSeconds: payload.project.reference_duration_seconds ?? motionCloneDisplayDuration ?? null,
+        creditsCost: payload.project.credits_cost ?? motionCloneEstimatedCredits,
+        error: payload.project.error_message ?? null,
+        referenceVideo: motionReferenceVideo,
+        selectedAvatar: sessionState?.motionClone?.selectedAvatar ?? null,
+        selectedProduct: sessionState?.motionClone?.selectedProduct ?? null
+      });
+      setSessionState((prev) => prev ? {
+        ...prev,
+        projectId,
+        motionClone: nextMotionClone
+      } : prev);
+      await persistMotionCloneSessionPatch({ motionClone: nextMotionClone }, projectId);
+    } catch (motionStartError) {
+      setStatusNote(motionStartError instanceof Error ? motionStartError.message : 'Failed to start Motion Clone.');
+    }
+  }, [
+    ensureMotionCloneProject,
+    motionCloneDisplayDuration,
+    motionCloneEstimatedCredits,
+    motionPhotoPrompt,
+    motionReferenceVideo,
+    motionVideoPrompt,
+    persistMotionCloneSessionPatch,
+    selectedMotionAvatarId,
+    selectedMotionProductId,
+    selectedMotionReferenceId,
+    sessionState?.motionClone
+  ]);
+
   if (!isLoaded) {
     return <FlowtraLoading />;
   }
 
   return (
-    <div className="project-agent-page h-[100dvh] overflow-hidden bg-[#f7f7f5]">
+    <div className="project-agent-page h-[100dvh] overflow-hidden bg-white">
       <Sidebar
         credits={credits}
         creditsData={creditsData}
@@ -3094,14 +4035,501 @@ export default function ProjectAgentPage() {
         userImageUrl={user?.imageUrl}
       />
 
-      <DashboardContentTransition className="dashboard-content-offset h-[100dvh] overflow-hidden min-h-0">
-        <div className="h-full box-border min-h-0 p-4 md:p-6 lg:p-8">
-          <div className="grid h-full min-h-0 grid-cols-1 xl:grid-cols-[minmax(0,7fr)_minmax(320px,3fr)] gap-4">
-            <section className="project-agent-surface relative h-full min-h-0 overflow-hidden rounded-xl border border-[#e6e6e4] bg-[#fbfbfa]">
-              <div className={showLeftSurfaceContent ? 'h-full overflow-y-auto px-4 py-4 md:px-6 md:py-5' : 'h-full grid place-items-center px-6'}>
+      <DashboardContentTransition className="dashboard-content-offset h-[100dvh] overflow-hidden min-h-0 bg-white">
+        <div className="h-full box-border min-h-0 p-3 md:py-3 md:pr-3 md:pl-0">
+          <div className="grid h-full min-h-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
+            <section className="project-agent-surface relative h-full min-h-0 overflow-hidden rounded-xl border border-[#e6e6e4] bg-white">
+              <div
+                className={
+                  showLeftSurfaceContent
+                    ? [
+                        'flex h-full min-h-0 flex-col overflow-y-auto px-4 md:px-6',
+                        shouldFlushLeftSurfaceBottomPadding ? 'pt-4 pb-0 md:pt-5 md:pb-0' : 'py-4 md:py-5',
+                      ].join(' ')
+                    : 'h-full grid place-items-center px-6'
+                }
+              >
                 {showLeftSurfaceContent ? (
-                  <div className="w-full min-h-full space-y-4">
-                    {showCloneableVideos && (
+                  <div className="flex w-full min-h-full flex-1 flex-col gap-4">
+                    {showAvatarAssetSelectionStep ? (
+                      <div className="rounded-xl border border-[#e6e6e4] bg-white p-5 space-y-6">
+                        <div>
+                          <p className="text-2xl font-semibold tracking-[-0.02em] text-[#1f1f1e]">Choose your avatar</p>
+                          <p className="mt-1 text-sm text-[#787876]">Add a product only if the ad needs one.</p>
+                        </div>
+
+                        {isCloneOptionsLoading ? (
+                          <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
+                            Loading avatar and product options...
+                          </div>
+                        ) : (
+                          <>
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-3">
+                                <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#1f1f1e]">
+                                  <User className="h-3.5 w-3.5" />
+                                  <span>Avatar</span>
+                                </p>
+                              </div>
+                              {cloneAvatarOptions.length === 0 ? (
+                                <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-5 text-center text-xs text-[#787876]">
+                                  No avatars are available yet.
+                                </div>
+                              ) : (
+                                <div className="relative z-10 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
+                                  {cloneAvatarOptions.map((avatar) => {
+                                    const isSelected = avatarSelection.avatar?.id === avatar.id;
+                                    return (
+                                      <button
+                                        key={avatar.id}
+                                        type="button"
+                                        onClick={() => void handleAvatarSelectionToggle(avatar.id)}
+                                        aria-label={`Select avatar ${avatar.name}`}
+                                        className={`project-agent-selection-card relative z-10 pointer-events-auto rounded-xl p-1.5 text-left transition-colors ${isSelected ? 'project-agent-selection-card--selected border-2 border-[#0f0f0f] bg-white shadow-[0_1px_0_rgba(15,15,15,0.04)]' : 'project-agent-selection-card--idle border border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                      >
+                                        <div className="project-agent-selection-media mb-1 aspect-square w-full overflow-hidden rounded-[10px] bg-[#efefed]">
+                                          {avatar.photoUrl ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={avatar.photoUrl} alt={avatar.name} className="h-full w-full object-cover" />
+                                          ) : null}
+                                        </div>
+                                        <span
+                                          className={`project-agent-selection-chip inline-flex max-w-full rounded-md px-2 py-1 text-[11px] font-medium ${isSelected ? 'project-agent-selection-chip--selected bg-[#0f0f0f] text-white' : 'project-agent-selection-chip--idle bg-[#f3f3f2] text-[#1f1f1e]'}`}
+                                        >
+                                          <span className="truncate">{avatar.name}</span>
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2.5">
+                                <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#1f1f1e]">
+                                  <Package className="h-3.5 w-3.5" />
+                                  <span>Product</span>
+                                </p>
+                                <span className="text-[11px] font-medium uppercase tracking-wide text-[#8d8d8a]">Optional</span>
+                              </div>
+                              {cloneProductOptions.length === 0 ? (
+                                <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-5 text-center text-xs text-[#787876]">
+                                  No products are available in Assets yet.
+                                </div>
+                              ) : (
+                                <div className="relative z-10 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
+                                  {cloneProductOptions.map((product) => {
+                                    const isSelected = avatarSelection.product?.id === product.id;
+                                    return (
+                                      <button
+                                        key={product.id}
+                                        type="button"
+                                        onClick={() => void handleAvatarProductSelectionToggle(product.id)}
+                                        aria-label={`Select product ${product.name}`}
+                                        className={`project-agent-selection-card relative z-10 pointer-events-auto rounded-xl p-1.5 text-left transition-colors ${isSelected ? 'project-agent-selection-card--selected border-2 border-[#0f0f0f] bg-white shadow-[0_1px_0_rgba(15,15,15,0.04)]' : 'project-agent-selection-card--idle border border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                      >
+                                        <div className="project-agent-selection-media mb-1 aspect-square w-full overflow-hidden rounded-[10px] bg-[#efefed]">
+                                          {product.photoUrl ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={product.photoUrl} alt={product.name} className="h-full w-full object-cover" />
+                                          ) : null}
+                                        </div>
+                                        <span
+                                          className={`project-agent-selection-chip inline-flex max-w-full rounded-md px-2 py-1 text-[11px] font-medium ${isSelected ? 'project-agent-selection-chip--selected bg-[#0f0f0f] text-white' : 'project-agent-selection-chip--idle bg-[#f3f3f2] text-[#1f1f1e]'}`}
+                                        >
+                                          <span className="truncate">{product.name}</span>
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ) : null}
+
+                    {showAvatarScriptCollectionStep ? (
+                      <div className="space-y-4">
+                        <div className="rounded-xl border border-[#e6e6e4] bg-white p-4">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Avatar Ads</p>
+                          <p className="mt-1 text-sm font-medium text-[#1f1f1e]">Step 2: Collect the spoken script in chat</p>
+                          <p className="mt-1 text-xs text-[#787876]">
+                            The avatar is selected. Next the agent should ask what the avatar should say. If you want Flowgen to decide, answer in chat with the product benefits or say that it should draft the script for you.
+                          </p>
+                          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                            <div className="rounded-lg border border-[#ececea] bg-[#fafaf9] p-3">
+                              <p className="text-[11px] uppercase tracking-wide text-[#8d8d8a]">Avatar</p>
+                              <p className="mt-1 text-sm font-medium text-[#1f1f1e]">{avatarSelection.avatar?.name || 'Not selected'}</p>
+                            </div>
+                            <div className="rounded-lg border border-[#ececea] bg-[#fafaf9] p-3">
+                              <p className="text-[11px] uppercase tracking-wide text-[#8d8d8a]">Product</p>
+                              <p className="mt-1 text-sm font-medium text-[#1f1f1e]">{avatarSelection.product?.name || 'Talking-head mode'}</p>
+                            </div>
+                            <div className="rounded-lg border border-[#ececea] bg-[#fafaf9] p-3">
+                              <p className="text-[11px] uppercase tracking-wide text-[#8d8d8a]">Settings</p>
+                              <p className="mt-1 text-sm font-medium text-[#1f1f1e]">
+                                {avatarSelection.durationSeconds || 16}s · {avatarSelection.aspectRatio || '9:16'}
+                              </p>
+                            </div>
+                            <div className="rounded-lg border border-[#ececea] bg-[#fafaf9] p-3">
+                              <p className="text-[11px] uppercase tracking-wide text-[#8d8d8a]">Stage</p>
+                              <p className="mt-1 text-sm font-medium text-[#1f1f1e]">{normalizeProjectAgentAvatarStage(avatarStage).replace(/_/g, ' ')}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 xl:grid-cols-[minmax(300px,0.9fr)_minmax(0,1.1fr)]">
+                          <div className="rounded-xl border border-[#e6e6e4] bg-white p-4">
+                            <p className="text-sm font-medium text-[#1f1f1e]">What happens next</p>
+                            <p className="mt-1 text-xs text-[#787876]">
+                              Once the script is provided or drafted, this area becomes the inline workspace with cover and video previews on the left.
+                            </p>
+                            <div className="mt-4 overflow-hidden rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5]">
+                              <div className="aspect-[9/16] flex items-center justify-center px-5 text-center text-sm text-[#787876]">
+                                Waiting for the script step to finish before opening the workspace.
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-[#e6e6e4] bg-white p-4">
+                            <p className="text-sm font-medium text-[#1f1f1e]">Suggested chat replies</p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {[
+                                'Write a 16-second script for this avatar.',
+                                'I want a friendly UGC-style pitch.',
+                                'Use this product and draft the script for me.'
+                              ].map((message) => (
+                                <button
+                                  key={message}
+                                  type="button"
+                                  onClick={() => void handleAvatarAssetSelectionMessage(message)}
+                                  className="inline-flex items-center rounded-full border border-[#d9d9d7] bg-[#f7f7f5] px-3 py-1.5 text-xs font-medium text-[#4c4c49] transition hover:border-[#bfbfbb] hover:bg-white"
+                                >
+                                  {message}
+                                </button>
+                              ))}
+                            </div>
+                            {sessionState?.avatarDraft?.scriptSource ? (
+                              <div className="mt-4 rounded-lg border border-[#ececea] bg-[#fafaf9] p-3 text-sm text-[#4f4f4d]">
+                                {sessionState.avatarDraft.scriptSource}
+                              </div>
+                            ) : (
+                              <div className="mt-4 rounded-lg border border-dashed border-[#dfdfdc] bg-[#f7f7f5] p-3 text-sm text-[#787876]">
+                                No script draft yet. The assistant should stay in conversation mode here instead of opening the editor early.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {showAvatarWorkspace ? (
+                      <div className="flex h-full min-h-0 flex-col">
+                        <div className="flex h-full min-h-0 flex-col rounded-xl border border-[#e6e6e4] bg-white p-4">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Step 3 Workspace</p>
+                          <p className="mt-1 text-sm font-medium text-[#1f1f1e]">Avatar workspace</p>
+
+                          <div className="mt-4 grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)]">
+                            <div className="grid h-full min-h-0 grid-cols-2 gap-2.5">
+                              <div className="flex min-w-0 min-h-0 flex-col">
+                                <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-[#666666]">
+                                  <ImageIcon className="h-3.5 w-3.5" />
+                                  Generated Cover
+                                </div>
+                                <div className="relative flex-1 overflow-hidden rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] min-h-[420px]">
+                                  {avatarIsGeneratingCover ? (
+                                    <div className="relative flex h-full w-full overflow-hidden bg-[#f3f3f3]">
+                                      <div className="avatar-workspace-wave absolute inset-0 opacity-90" />
+                                      <div className="relative z-10 flex h-full w-full flex-col items-center justify-center text-center text-sm text-[#666666]">
+                                        <Loader2 className="h-6 w-6 animate-spin text-gray-600" />
+                                        <span className="mt-2 font-medium text-[#444444]">
+                                          Generating image...
+                                        </span>
+                                        <span className="mt-1 text-xs text-[#777777]">
+                                          Usually takes around 10-20 seconds.
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ) : avatarWorkspaceCoverUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={avatarWorkspaceCoverUrl}
+                                      alt="Generated avatar cover"
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-sm text-[#666666]">
+                                      <ImageIcon className="h-6 w-6 text-[#8d8d8a]" />
+                                      <span>Cover generation has not started.</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex min-w-0 min-h-0 flex-col">
+                                <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-[#666666]">
+                                  <VideoIcon className="h-3.5 w-3.5" />
+                                  Final Video
+                                </div>
+                                <div className="relative flex-1 overflow-hidden rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] min-h-[420px]">
+                                  {avatarIsGeneratingVideo ? (
+                                    <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-gray-100 via-gray-200 to-gray-100 text-sm text-[#666666]">
+                                      <Loader2 className="h-6 w-6 animate-spin text-gray-600" />
+                                      <span className="mt-2">Rendering video...</span>
+                                    </div>
+                                  ) : avatarWorkspaceFinalVideoUrl ? (
+                                    <video
+                                      src={avatarWorkspaceFinalVideoUrl}
+                                      controls
+                                      playsInline
+                                      className="h-full w-full rounded-lg bg-black object-contain"
+                                    />
+                                  ) : (
+                                    <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-sm text-[#666666]">
+                                      <VideoIcon className="h-6 w-6 text-[#8d8d8a]" />
+                                      <span>Video generation has not started.</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="h-full min-h-0">
+                              <AvatarWorkspaceEditor
+                                draft={sessionState?.avatarDraft}
+                                characterMentions={avatarCharacterMentions}
+                                productMentions={avatarProductMentions}
+                                onDraftChange={(nextDraft) => {
+                                const nextPromptState = buildAvatarGeneratedPrompts({
+                                  imagePrompt: nextDraft.imagePrompt,
+                                  scriptSource: nextDraft.scriptSource,
+                                  existingScenes: nextDraft.scenes,
+                                  language: sessionState?.avatarSelection?.language ?? sessionState?.language ?? 'en',
+                                  avatarName: avatarSelection.avatar?.name ?? null,
+                                  productName: avatarSelection.product?.name ?? null
+                                });
+                                  setSessionState((prev) => prev ? {
+                                    ...prev,
+                                    videoDurationSeconds: nextPromptState.totalDurationSeconds,
+                                    avatarSelection: prev.avatarSelection ? {
+                                      ...prev.avatarSelection,
+                                      durationSeconds: nextPromptState.totalDurationSeconds
+                                    } : prev.avatarSelection,
+                                  avatarDraft: {
+                                    ...nextDraft,
+                                    imagePrompt: nextPromptState.generatedPrompts.image_prompt as string,
+                                    scenes: nextPromptState.scenes
+                                  },
+                                  generatedPrompts: nextPromptState.generatedPrompts,
+                                    imagePrompt: nextPromptState.generatedPrompts.image_prompt as string,
+                                    pendingUpdatedPrompts: nextPromptState.generatedPrompts
+                                  } : prev);
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {showMotionCloneReferenceStep ? (
+                      <div className="space-y-4">
+                        <div className="rounded-xl border border-[#e6e6e4] bg-white p-4">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Motion Clone</p>
+                          <p className="mt-1 text-sm font-medium text-[#1f1f1e]">Step 1: Choose a reference video</p>
+                          <p className="mt-1 text-xs text-[#787876]">
+                            Pick one eligible creator video first. After that, you will choose the replacement person and optional product.
+                          </p>
+                          <div className="mt-4">
+                            {isMotionCloneAssetsLoading && motionCloneVideos.length === 0 ? (
+                              <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
+                                Loading your video assets...
+                              </div>
+                            ) : motionCloneVideos.length === 0 ? (
+                              <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
+                                No eligible videos found in Assets yet.
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+                                {motionCloneVideos.map((video) => (
+                                  <div
+                                    key={video.id}
+                                    onClick={() => void handleMotionReferenceSelection(video.id)}
+                                    className={`rounded-2xl transition ${
+                                      selectedMotionReferenceId === video.id
+                                        ? 'ring-2 ring-[#111111] ring-offset-2 ring-offset-[#fbfbfa]'
+                                        : ''
+                                    }`}
+                                  >
+                                    <VideoAssetCard
+                                      video={{
+                                        id: video.id,
+                                        source_id: video.source_id ?? video.id,
+                                        source_name: video.source_name ?? null,
+                                        source_type: video.source_type ?? 'creator',
+                                        video_url: video.videoUrl || '',
+                                        video_cdn_url: video.videoCdnUrl || null,
+                                        cover_url: video.coverUrl || null,
+                                        description: video.description || null,
+                                        duration_seconds: video.durationSeconds || null,
+                                        platform: video.platform || 'tiktok',
+                                        analysis_status: video.analysisStatus || null,
+                                        analysis_result: video.analysisResult || null,
+                                        analysis_error: video.analysisError || null,
+                                        analysis_language: video.analysisLanguage || null,
+                                      }}
+                                      compact
+                                      onViewDetails={() => {
+                                        setSelectedVideo({
+                                          id: video.id,
+                                          source_id: video.source_id ?? video.id,
+                                          source_name: video.source_name ?? null,
+                                          source_type: video.source_type ?? 'creator',
+                                          video_url: video.videoUrl || '',
+                                          video_cdn_url: video.videoCdnUrl || null,
+                                          cover_url: video.coverUrl || null,
+                                          description: video.description || null,
+                                          duration_seconds: video.durationSeconds || null,
+                                          platform: video.platform || 'tiktok',
+                                          analysis_status: video.analysisStatus || null,
+                                          analysis_result: video.analysisResult || null,
+                                          analysis_error: video.analysisError || null,
+                                          analysis_language: video.analysisLanguage || null,
+                                        });
+                                        setShowVideoDetails(true);
+                                      }}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {showMotionCloneReplacementStep ? (
+                      <div className="space-y-4">
+                        <div className="rounded-xl border border-[#e6e6e4] bg-white p-4 space-y-4">
+                          <div>
+                            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Motion Clone</p>
+                            <p className="mt-1 text-sm font-medium text-[#1f1f1e]">Step 2: Choose the replacement person</p>
+                            <p className="mt-1 text-xs text-[#787876]">A person is required before agent confirmation. Product is optional.</p>
+                          </div>
+                          {isMotionCloneAssetsLoading ? (
+                            <div className="rounded-xl border border-dashed border-[#dfdfdc] bg-[#f7f7f5] px-4 py-6 text-center text-xs text-[#787876]">
+                              Loading motion clone assets...
+                            </div>
+                          ) : (
+                            <>
+                              <div className="space-y-2">
+                                <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#1f1f1e]">
+                                  <User className="h-3.5 w-3.5" />
+                                  <span>Avatar</span>
+                                </p>
+                                <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
+                                  {motionCloneAvatars.map((avatar) => (
+                                    <button
+                                      key={avatar.id}
+                                      type="button"
+                                      onClick={() => void handleMotionSelectionToggle('avatar', avatar.id)}
+                                      className={`rounded-xl border p-1.5 text-left ${selectedMotionAvatarId === avatar.id ? 'border-[#111111] bg-white' : 'border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                    >
+                                      <div className="mb-1 aspect-square overflow-hidden rounded-[10px] bg-[#efefed]">
+                                        {avatar.photo_url ? (
+                                          // eslint-disable-next-line @next/next/no-img-element
+                                          <img src={avatar.photo_url} alt={avatar.avatar_name} className="h-full w-full object-cover" />
+                                        ) : null}
+                                      </div>
+                                      <span className="inline-flex max-w-full rounded-md bg-[#f3f3f2] px-2 py-1 text-[11px] font-medium text-[#1f1f1e]">
+                                        <span className="truncate">{avatar.avatar_name}</span>
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#1f1f1e]">
+                                  <Package className="h-3.5 w-3.5" />
+                                  <span>Product</span>
+                                </p>
+                                <p className="text-xs text-[#787876]">Optional. Add a product only if you want to swap it too.</p>
+                                <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
+                                  {motionCloneProducts.map((product) => {
+                                    const primaryPhoto = product.user_product_photos?.find((photo) => photo.is_primary) || product.user_product_photos?.[0];
+                                    return (
+                                      <button
+                                        key={product.id}
+                                        type="button"
+                                        onClick={() => void handleMotionSelectionToggle('product', product.id)}
+                                        className={`rounded-xl border p-1.5 text-left ${selectedMotionProductId === product.id ? 'border-[#111111] bg-white' : 'border-[#e6e6e4] bg-white hover:bg-[#f9f9f8]'}`}
+                                      >
+                                        <div className="mb-1 aspect-square overflow-hidden rounded-[10px] bg-[#efefed]">
+                                          {primaryPhoto?.photo_url ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={primaryPhoto.photo_url} alt={product.product_name} className="h-full w-full object-cover" />
+                                          ) : null}
+                                        </div>
+                                        <span className="inline-flex max-w-full rounded-md bg-[#f3f3f2] px-2 py-1 text-[11px] font-medium text-[#1f1f1e]">
+                                          <span className="truncate">{product.product_name}</span>
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {showMotionCloneWorkspace ? (
+                      <div className="flex min-h-full flex-col gap-4">
+                        <div className="rounded-xl border border-[#e6e6e4] bg-white p-4">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Motion Clone</p>
+                          <p className="mt-1 text-sm font-medium text-[#1f1f1e]">Step 3: Review auto-generated prompts</p>
+                          <p className="mt-1 text-xs text-[#787876]">
+                            Prompts were generated automatically from your selected reference, avatar, and product. Use chat to confirm when Flowgen should generate or regenerate.
+                          </p>
+                        </div>
+                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#e6e6e4] bg-white p-2">
+                          <MotionCloneEditorSplitPane
+                            firstFrameUrl={sessionState?.motionClone?.previewImageUrl || motionReferenceVideo?.coverUrl || null}
+                            originalVideoUrl={motionReferenceVideo?.videoCdnUrl || motionReferenceVideo?.videoUrl || null}
+                            generatedVideoUrl={sessionState?.motionClone?.outputVideoUrl || null}
+                            videoAspectRatio="9:16"
+                            isGeneratingImage={motionClonePhase === 'generating_preview'}
+                            isGeneratingVideo={motionClonePhase === 'generating_video'}
+                            form={(
+                              <MotionCloneEditorFormColumn
+                                photoPrompt={motionPhotoPrompt}
+                                onPhotoPromptChange={setMotionPhotoPrompt}
+                                videoPrompt={motionVideoPrompt}
+                                onVideoPromptChange={setMotionVideoPrompt}
+                                avatars={motionCloneAvatars}
+                                products={motionCloneProducts}
+                                onGenerateImage={() => void handleStartMotionClone('image')}
+                                onGenerateVideo={() => void handleStartMotionClone('video')}
+                                canGenerateImage={canGenerateMotionPreview}
+                                canGenerateVideo={canGenerateMotionVideo}
+                                isGeneratingImage={motionClonePhase === 'generating_preview'}
+                                isGeneratingVideo={motionClonePhase === 'generating_video'}
+                                videoCreditsCost={sessionState?.motionClone?.creditsCost || motionCloneEstimatedCredits}
+                                creditsIcon={<Coins className="h-3.5 w-3.5" />}
+                                hideActions
+                              />
+                            )}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {sessionState?.intent === 'competitor_ugc_replication' && showCloneableVideos && (
                     <div className="project-agent-card w-full rounded-xl border border-[#e6e6e4] bg-white p-4">
                       <div className="mb-3">
                         <div>
@@ -3136,7 +4564,7 @@ export default function ProjectAgentPage() {
                     </div>
                     )}
 
-                    {showCloneReplacementSelectors && !showCloneSceneWorkspaceStep && (
+                    {sessionState?.intent === 'competitor_ugc_replication' && showCloneReplacementSelectors && !showCloneSceneWorkspaceStep && (
                     <div className="project-agent-card relative isolate w-full rounded-xl border border-[#e6e6e4] bg-white p-4 space-y-4">
                       <div>
                         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8d8d8a]">Step 2</p>
@@ -3233,7 +4661,7 @@ export default function ProjectAgentPage() {
                     </div>
                     )}
 
-                    {showCloneSceneWorkspaceStep && !showCloneMergedResultStep ? (
+                    {sessionState?.intent === 'competitor_ugc_replication' && showCloneSceneWorkspaceStep && !showCloneMergedResultStep ? (
                       <div className="space-y-3">
                       <CloneSceneWorkspaceStep
                         phase={workspacePhase}
@@ -3249,7 +4677,7 @@ export default function ProjectAgentPage() {
                       </div>
                     ) : null}
 
-                    {showCloneMergedResultStep && sessionState?.cloneExecution ? (
+                    {sessionState?.intent === 'competitor_ugc_replication' && showCloneMergedResultStep && sessionState?.cloneExecution ? (
                       <CloneMergedVideoReviewStep
                         execution={sessionState.cloneExecution}
                         characterMentions={characterMentions}
@@ -3288,36 +4716,6 @@ export default function ProjectAgentPage() {
                             />
                           </div>
                         </div>
-
-                        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                          {[
-                            {
-                              text: 'Clone Viral Video',
-                              icon: Clapperboard,
-                              action: 'clone' as const
-                            },
-                            {
-                              text: 'Motion Clone (Replace Model)',
-                              icon: RefreshCw,
-                              action: 'motion_clone' as const
-                            },
-                            {
-                              text: 'Avatar Ads (Spokesperson Video)',
-                              icon: User,
-                              action: 'avatar_ads' as const
-                            }
-                          ].map((hint) => (
-                            <button
-                              key={hint.text}
-                              type="button"
-                              onClick={() => handleQuickStart(hint.action)}
-                              className="project-agent-chip inline-flex items-center gap-1.5 rounded-full border border-[#e4e4e2] bg-white px-3 py-1.5 text-xs text-[#5f5f5d] hover:bg-[#f3f3f2]"
-                            >
-                              <hint.icon className="h-3.5 w-3.5 text-[#7a7a77]" />
-                              <span>{hint.text}</span>
-                            </button>
-                          ))}
-                        </div>
                       </>
                     ) : null}
                   </div>
@@ -3325,8 +4723,8 @@ export default function ProjectAgentPage() {
               </div>
             </section>
 
-            <section className="project-agent-chat-surface flowgen-chat-font flex h-full min-h-0 flex-col rounded-xl border border-[#e6e6e4] bg-[#fbfbfa]">
-              <div className="project-agent-chat-header relative flex items-center justify-between border-b border-[#e6e6e4] px-4 py-3">
+            <section className="project-agent-chat-surface flowgen-chat-font flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[#e6e6e4] bg-white">
+              <div className="project-agent-chat-header relative flex items-center justify-between px-4 py-3">
                 <div className="flex min-w-0 items-center gap-2 text-[#1f1f1e]">
                   <MessageCircle className="w-4 h-4" />
                   <span className="truncate whitespace-nowrap text-sm font-semibold">{activeChatTitle}</span>
@@ -3343,7 +4741,7 @@ export default function ProjectAgentPage() {
                     </button>
                     {isHistoryPopoverOpen ? (
                       <div className="project-agent-history-popover absolute right-0 top-11 z-50 w-[320px] max-w-[calc(100vw-2rem)] rounded-xl border border-[#e6e6e4] bg-white shadow-[0_12px_36px_rgba(0,0,0,0.14)]">
-                        <div className="px-3 py-3 border-b border-[#efefed]">
+                        <div className="px-3 py-3">
                           <p className="text-xs font-semibold text-[#1f1f1e]">History</p>
                           <div className="mt-2 relative">
                             <Search className="w-3.5 h-3.5 text-[#9b9b98] absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -3488,29 +4886,22 @@ export default function ProjectAgentPage() {
                 </AnimatePresence>
               </div>
 
-                <div className="project-agent-chat-footer border-t border-[#e6e6e4] px-4 py-4">
+                <div className="project-agent-chat-footer px-4 py-4">
                 {!awaitingAssistantTurn && visiblePromptChipSuggestions.chips.length > 0 ? (
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <div className="project-agent-chip-cloud mb-3 flex flex-wrap items-center gap-2">
                     {visiblePromptChipSuggestions.chips.map((chip) => (
                       <button
                         key={`${visiblePromptChipSuggestions.stageKey}:${chip}`}
                         type="button"
                         onClick={() => handlePromptChipClick(chip)}
                         disabled={!isReady || awaitingAssistantTurn}
-                        className="project-agent-chip inline-flex items-center rounded-full border border-[#d9d9d7] bg-[#f7f7f5] px-3 py-1.5 text-xs font-medium text-[#4c4c49] transition hover:border-[#bfbfbb] hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
+                        className="project-agent-chip inline-flex items-center rounded-full border border-[#d7d7d3] bg-[rgba(255,255,255,0.88)] px-3.5 py-2 text-xs font-medium text-[#3f3f3b] backdrop-blur-sm transition hover:border-[#b9b9b4] hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
                       >
                         {chip}
                       </button>
                     ))}
                   </div>
                 ) : null}
-                <div className="flex items-start justify-between gap-3">
-                  <ProjectAgentModelSelector
-                    selectedModel={selectedVideoModel}
-                    intent={modelSelectorIntent}
-                    onModelChange={handleVideoModelChange}
-                  />
-                </div>
                 <form
                   onSubmit={handleSubmit}
                   className="project-agent-chat-input mt-3 flex items-center gap-2 rounded-[26px] border border-[#d9d9d7] bg-white p-2 shadow-[0_18px_40px_rgba(15,15,15,0.06)]"
@@ -3519,7 +4910,7 @@ export default function ProjectAgentPage() {
                     ref={inputRef}
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
-                    placeholder="Ask Flowgen what to make viral next..."
+                    placeholder={chatInputPlaceholder}
                     className="project-agent-chat-input-field flex-1 min-h-12 rounded-[18px] bg-transparent px-4 text-sm text-[#1f1f1e] placeholder:text-[#9b9b98] focus:outline-none disabled:opacity-50"
                     disabled={!isReady || awaitingAssistantTurn}
                   />
@@ -3551,9 +4942,34 @@ export default function ProjectAgentPage() {
         onClose={() => setShowVideoDetails(false)}
         video={selectedVideo}
         size="compact"
-        cloneActionLabel="Select This Video"
-        onUseForClone={(video) => handleSelectCloneReference(video as CloneableVideoAsset)}
+        cloneActionLabel={videoDetailsCloneActionLabel}
+        requireFirstFrameForClone
+        onUseForClone={(video) => handleSelectVideoFromDetails(video as CloneableVideoAsset)}
       />
+      <style jsx>{`
+        .avatar-workspace-wave {
+          background:
+            linear-gradient(
+              115deg,
+              rgba(255, 255, 255, 0) 20%,
+              rgba(255, 255, 255, 0.75) 36%,
+              rgba(255, 255, 255, 0.12) 52%,
+              rgba(255, 255, 255, 0) 68%
+            ),
+            linear-gradient(180deg, #efefef 0%, #e7e7e7 52%, #f4f4f4 100%);
+          background-size: 220% 100%, 100% 100%;
+          animation: avatarWorkspaceWaveSweep 1.7s linear infinite;
+        }
+
+        @keyframes avatarWorkspaceWaveSweep {
+          0% {
+            background-position: 140% 0, 0 0;
+          }
+          100% {
+            background-position: -40% 0, 0 0;
+          }
+        }
+      `}</style>
     </div>
   );
 }

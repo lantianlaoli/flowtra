@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
 import { uploadImageToStorage } from '@/lib/supabase';
-import { CREDIT_COSTS } from '@/lib/constants';
+import {
+  getGenerationCost,
+  KLING_MAX_PROJECT_DURATION_SECONDS,
+  KLING_MIN_TASK_DURATION_SECONDS
+} from '@/lib/constants';
 import { validateKieCredits } from '@/lib/kie-credits-check';
 import { deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { AVATAR_ADS_DURATION_OPTIONS } from '@/lib/avatar-ads-dialogue';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
+import { verifyInternalUserRequest } from '@/lib/security/internal-request';
 
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const AVATAR_ADS_PERSISTED_IMAGE_MODEL = 'nano_banana_pro' as const;
@@ -16,7 +20,18 @@ const AVATAR_ADS_PERSISTED_IMAGE_MODEL = 'nano_banana_pro' as const;
 export async function POST(request: NextRequest) {
   try {
     console.log('Character ads create API called');
-    const { userId: clerkUserId } = await auth();
+    const internalUserId = request.headers.get('x-project-agent-user-id');
+    const internalTimestamp = request.headers.get('x-project-agent-timestamp');
+    const internalSignature = request.headers.get('x-project-agent-signature');
+    const hasValidInternalSignature = verifyInternalUserRequest({
+      userId: internalUserId,
+      timestamp: internalTimestamp,
+      signature: internalSignature,
+    });
+
+    const { userId: clerkUserId } = hasValidInternalSignature
+      ? { userId: internalUserId }
+      : await auth();
 
     if (!clerkUserId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -28,6 +43,7 @@ export async function POST(request: NextRequest) {
       return kieValidation;
     }
     const formData = await request.formData();
+    const isInternalAgentRequest = request.headers.get('x-project-agent-internal') === '1';
     console.log('FormData entries:', Array.from(formData.entries()).map(([key, value]) => [key, value instanceof File ? `File: ${value.name}` : value]));
 
     // Extract form data
@@ -45,6 +61,16 @@ export async function POST(request: NextRequest) {
     const clientProjectId = typeof clientProjectIdRaw === 'string' ? clientProjectIdRaw.trim() : null;
     const talkingHeadModeFlag = formData.get('talking_head_mode');
     let talkingHeadMode = typeof talkingHeadModeFlag === 'string' && talkingHeadModeFlag.toLowerCase() === 'true';
+    const prebuiltPromptsRaw = formData.get('prebuilt_prompts');
+    const prebuiltImagePromptRaw = formData.get('prebuilt_image_prompt');
+    const startAtStepRaw = formData.get('start_at_step');
+    const startAtStep = typeof startAtStepRaw === 'string' ? startAtStepRaw.trim() : '';
+    const prebuiltPrompts = typeof prebuiltPromptsRaw === 'string' && prebuiltPromptsRaw.trim()
+      ? JSON.parse(prebuiltPromptsRaw) as Record<string, unknown>
+      : null;
+    const prebuiltImagePrompt = typeof prebuiltImagePromptRaw === 'string' && prebuiltImagePromptRaw.trim()
+      ? prebuiltImagePromptRaw.trim()
+      : null;
 
     console.log('Extracted form data:', {
       userId,
@@ -89,16 +115,27 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const isAgentKlingDuration = (
+      isInternalAgentRequest &&
+      videoModel === 'kling_3' &&
+      Number.isFinite(videoDurationSeconds) &&
+      videoDurationSeconds >= KLING_MIN_TASK_DURATION_SECONDS &&
+      videoDurationSeconds <= KLING_MAX_PROJECT_DURATION_SECONDS
+    );
+
     // Validate video duration
-    if (!AVATAR_ADS_DURATION_OPTIONS.includes(videoDurationSeconds as typeof AVATAR_ADS_DURATION_OPTIONS[number])) {
+    if (
+      !isAgentKlingDuration &&
+      !AVATAR_ADS_DURATION_OPTIONS.includes(videoDurationSeconds as typeof AVATAR_ADS_DURATION_OPTIONS[number])
+    ) {
       return NextResponse.json(
-        { error: 'Invalid video duration. Select between 8s and 80s in 8-second increments.' },
+        { error: 'Invalid video duration.' },
         { status: 400 }
       );
     }
 
     // Validate models
-    const validVideoModels = ['veo3_fast'];
+    const validVideoModels = isInternalAgentRequest ? ['veo3_fast', 'kling_3'] : ['veo3_fast'];
 
     if (!validVideoModels.includes(videoModel)) {
       return NextResponse.json(
@@ -152,7 +189,7 @@ export async function POST(request: NextRequest) {
       } else {
         // Schema verified via Supabase MCP (2026-03-01) and migration 20260301_restructure_storage_and_remove_brands:
         // user_products is product-first and no longer depends on brand tables.
-        const supabase = await createServerUserSupabaseClient();
+        const supabase = getSupabaseAdmin();
         const { data: product, error: productError } = await supabase
           .from('user_products')
           .select(`
@@ -235,17 +272,15 @@ export async function POST(request: NextRequest) {
       productImageUrls.push(uploadResult.publicUrl);
     }
 
-    const resolvedVideoModel = 'veo3_fast' as const;
-
-    const sceneUnitSeconds = 8;
-    const videoScenes = videoDurationSeconds / sceneUnitSeconds;
-    const videoCreditsPerScene = CREDIT_COSTS[resolvedVideoModel];
-    const totalCredits = videoScenes * videoCreditsPerScene;
+    const resolvedVideoModel: 'kling_3' | 'veo3_fast' = videoModel === 'kling_3' && isInternalAgentRequest
+      ? 'kling_3'
+      : 'veo3_fast';
+    const totalCredits = getGenerationCost(resolvedVideoModel, String(videoDurationSeconds));
 
     const generationCreditsUsed = 0;
 
     // Create project in database
-    const supabase = await createServerUserSupabaseClient();
+    const supabase = getSupabaseAdmin();
     // Schema verified via Supabase MCP (2026-03-17):
     // avatar_ads_projects.image_model exists and constraint long_video_projects_image_model_check
     // only allows: nano_banana, seedream, nano_banana_pro.
@@ -265,9 +300,15 @@ export async function POST(request: NextRequest) {
       credits_cost: totalCredits,
       generation_credits_used: generationCreditsUsed,
       status: 'pending',
-      current_step: 'generating_prompts', // Start directly at prompt generation (skip analyze_images)
+      current_step: startAtStep === 'generate_image' && prebuiltPrompts ? 'generating_image' : 'generating_prompts',
       progress_percentage: 10,
     };
+    if (prebuiltPrompts) {
+      projectInsert.generated_prompts = prebuiltPrompts;
+    }
+    if (prebuiltImagePrompt) {
+      projectInsert.image_prompt = prebuiltImagePrompt;
+    }
     if (clientProjectId) {
       projectInsert.id = clientProjectId;
     }
@@ -323,7 +364,7 @@ export async function POST(request: NextRequest) {
       const { processAvatarAdsProject } = await import('@/lib/avatar-ads-workflow');
 
       // Start with generate_prompts and continue with subsequent steps
-      let currentStep = 'generate_prompts';
+      let currentStep = startAtStep === 'generate_image' && prebuiltPrompts ? 'generate_image' : 'generate_prompts';
       let result = await processAvatarAdsProject(project, currentStep);
       console.log(`✅ ${currentStep} completed for project ${project.id}`);
 

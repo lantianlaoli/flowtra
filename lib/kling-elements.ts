@@ -52,7 +52,7 @@ export function replacePromptMentionsWithKlingElements(
 
     const keyName = parsed.key || normalizeMentionLabel(String(parsed.label || ""));
     if (!keyName) {
-      return parsed.syntax === "typed" ? String(parsed.label || "").trim() : match;
+      return parsed.syntax !== "plain" ? String(parsed.label || "").trim() : match;
     }
 
     const key = `${parsed.type}:${keyName}`;
@@ -61,7 +61,7 @@ export function replacePromptMentionsWithKlingElements(
       return `@${mapped}`;
     }
 
-    return parsed.syntax === "typed" ? `@${keyName}` : match;
+    return parsed.syntax !== "plain" ? `@${keyName}` : match;
   });
 }
 

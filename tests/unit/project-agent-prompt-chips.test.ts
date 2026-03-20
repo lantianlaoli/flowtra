@@ -152,10 +152,48 @@ test('chip selection stays stable for the same stage key and changes when stage 
   assert.notEqual(first.stageKey, completed.stageKey);
 });
 
-test('active avatar workflow hides clone prompt chips', () => {
-  const hidden = getProjectAgentPromptChips({
+test('active avatar workflow shows avatar-stage prompt chips', () => {
+  const visible = getProjectAgentPromptChips({
     intent: 'avatar_ads',
     projectId: 'avatar-project-1'
   });
-  assert.deepEqual(hidden.chips, []);
+  assert.ok(visible.chips.length >= 1);
+  assert.equal(visible.stage, 'avatar_setup');
+});
+
+test('motion clone workflow exposes motion-stage chips', () => {
+  const setup = getProjectAgentPromptChips({
+    intent: 'motion_clone',
+    motionClone: {
+      stage: 'reference_selection'
+    }
+  });
+  assert.equal(setup.stage, 'motion_reference_selection');
+
+  const replacement = getProjectAgentPromptChips({
+    intent: 'motion_clone',
+    motionClone: {
+      stage: 'replacement_selection',
+      phase: 'idle'
+    }
+  });
+  assert.equal(replacement.stage, 'motion_replacement_selection');
+
+  const preview = getProjectAgentPromptChips({
+    intent: 'motion_clone',
+    motionClone: {
+      stage: 'workspace',
+      phase: 'preview_ready'
+    }
+  });
+  assert.equal(preview.stage, 'motion_preview');
+
+  const generatingVideo = getProjectAgentPromptChips({
+    intent: 'motion_clone',
+    motionClone: {
+      stage: 'workspace',
+      phase: 'generating_video'
+    }
+  });
+  assert.equal(generatingVideo.stage, 'motion_video');
 });
