@@ -21,6 +21,8 @@ type ProjectAgentPromptChipState = {
   motionClone?: {
     stage?: 'reference_selection' | 'replacement_selection' | 'workspace';
     phase?: 'idle' | 'generating_preview' | 'preview_ready' | 'generating_video' | 'completed' | 'failed';
+    hasSelectedAvatar?: boolean;
+    hasSelectedProduct?: boolean;
   } | null;
 };
 
@@ -70,12 +72,7 @@ const CHIP_POOLS: Record<ProjectAgentPromptChipStage, string[]> = {
     'Show me more eligible videos',
     'What makes a good reference video?'
   ],
-  motion_replacement_selection: [
-    'Use this avatar',
-    'Use this product',
-    'Continue with avatar only',
-    'Clear the product'
-  ],
+  motion_replacement_selection: [],
   motion_preview: [
     'Generate the preview image',
     'Rewrite the image prompt',
@@ -237,8 +234,50 @@ export const getProjectAgentPromptChipStage = (
 };
 
 export const getProjectAgentPromptChipPool = (
-  stage: ProjectAgentPromptChipStage | null
-) => (stage ? CHIP_POOLS[stage] : []);
+  stage: ProjectAgentPromptChipStage | null,
+  state?: ProjectAgentPromptChipState
+) => {
+  if (!stage) return [];
+
+  if (stage === 'motion_replacement_selection') {
+    const hasSelectedAvatar = Boolean(state?.motionClone?.hasSelectedAvatar);
+    const hasSelectedProduct = Boolean(state?.motionClone?.hasSelectedProduct);
+
+    if (!hasSelectedAvatar) {
+      return hasSelectedProduct
+        ? [
+            'Use this avatar',
+            'Continue with current selections',
+            'Clear the product',
+            'Choose a different avatar'
+          ]
+        : [
+            'Use this avatar',
+            'Continue with avatar only',
+            'Use this product',
+            'Choose a different avatar'
+          ];
+    }
+
+    if (hasSelectedProduct) {
+      return [
+        'Continue with current selections',
+        'Clear the product',
+        'Choose a different avatar',
+        'Use this product'
+      ];
+    }
+
+    return [
+      'Continue with avatar only',
+      'Use this product',
+      'Choose a different avatar',
+      'Continue with current selections'
+    ];
+  }
+
+  return CHIP_POOLS[stage];
+};
 
 export const getProjectAgentPromptChipStageKey = (state: ProjectAgentPromptChipState) => {
   const stage = getProjectAgentPromptChipStage(state);
@@ -278,7 +317,7 @@ export const getProjectAgentPromptChips = (
   state: ProjectAgentPromptChipState
 ) => {
   const stage = getProjectAgentPromptChipStage(state);
-  const pool = getProjectAgentPromptChipPool(stage);
+  const pool = getProjectAgentPromptChipPool(stage, state);
   const stageKey = getProjectAgentPromptChipStageKey(state);
 
   if (!stage || pool.length === 0) {

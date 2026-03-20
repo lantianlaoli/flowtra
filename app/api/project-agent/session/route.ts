@@ -3,17 +3,74 @@ import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { runSupabaseQueryWithRetry } from '@/lib/supabase-retry';
 import { normalizeProjectAgentVideoModel, type ProjectAgentIntent } from '@/lib/project-agent/video-model';
+import { buildMotionClonePromptDrafts } from '@/lib/project-agent/motion-clone-execution';
+import { MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+const LEGACY_MOTION_CLONE_PROMPT_REGEX = /appears in place of|match the original creator-video structure|preserve the same shot logic and beats|preserve the exact motion,\s*pacing,\s*rhythm,\s*and camera movement from the reference video/i;
+
+const inferMotionCloneSelectionNamesFromPrompts = (...prompts: Array<string | null | undefined>) => {
+  const labels: string[] = [];
+
+  prompts.forEach((prompt) => {
+    if (!prompt) return;
+    for (const match of prompt.matchAll(MENTION_TOKEN_REGEX)) {
+      const label = parseMentionToken(match[0])?.label?.trim();
+      if (!label || labels.includes(label)) continue;
+      labels.push(label);
+    }
+  });
+
+  return {
+    avatarName: labels[0] || '',
+    productName: labels[1] || ''
+  };
+};
 
 const normalizeSessionPatchState = (state: Record<string, unknown>) => {
   const intent = typeof state.intent === 'string'
     ? state.intent as ProjectAgentIntent
     : undefined;
 
+  const motionClone = state.motionClone && typeof state.motionClone === 'object'
+    ? { ...(state.motionClone as Record<string, unknown>) }
+    : null;
+
+  if (motionClone) {
+    const photoPrompt = typeof motionClone.photoPrompt === 'string' ? motionClone.photoPrompt : '';
+    const videoPrompt = typeof motionClone.videoPrompt === 'string' ? motionClone.videoPrompt : '';
+    const inferredSelections = inferMotionCloneSelectionNamesFromPrompts(photoPrompt, videoPrompt);
+    const selectedAvatar = motionClone.selectedAvatar && typeof motionClone.selectedAvatar === 'object'
+      ? motionClone.selectedAvatar as Record<string, unknown>
+      : null;
+    const selectedProduct = motionClone.selectedProduct && typeof motionClone.selectedProduct === 'object'
+      ? motionClone.selectedProduct as Record<string, unknown>
+      : null;
+    const avatarName = (typeof selectedAvatar?.name === 'string' ? selectedAvatar.name : inferredSelections.avatarName).trim();
+    const productName = (typeof selectedProduct?.name === 'string' ? selectedProduct.name : inferredSelections.productName).trim();
+    const needsLegacyRewrite = (
+      LEGACY_MOTION_CLONE_PROMPT_REGEX.test(photoPrompt) ||
+      LEGACY_MOTION_CLONE_PROMPT_REGEX.test(videoPrompt)
+    );
+
+    if (avatarName && (needsLegacyRewrite || !photoPrompt || !videoPrompt)) {
+      const drafts = buildMotionClonePromptDrafts({
+        avatarName,
+        productName,
+        referenceVideo: (motionClone.referenceVideo ?? null) as NonNullable<Parameters<typeof buildMotionClonePromptDrafts>[0]>['referenceVideo'],
+      });
+
+      motionClone.photoPrompt = drafts.photoPrompt;
+      motionClone.videoPrompt = drafts.videoPrompt;
+      motionClone.promptsInitialized = true;
+    }
+  }
+
   return {
     ...state,
+    motionClone,
     videoModel: normalizeProjectAgentVideoModel(state.videoModel, 'kling_3', intent)
   };
 };
@@ -57,7 +114,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ session });
+    return NextResponse.json({
+      session: {
+        ...session,
+        state: session.state && typeof session.state === 'object'
+          ? normalizeSessionPatchState(session.state as Record<string, unknown>)
+          : session.state
+      }
+    });
   } catch (error) {
     console.error('[Project Agent] Session GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

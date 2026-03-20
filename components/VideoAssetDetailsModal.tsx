@@ -13,6 +13,7 @@ import {
   Tag,
   Trash2,
   Upload,
+  AlertTriangle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/contexts/ToastContext";
@@ -128,12 +129,23 @@ export default function VideoAssetDetailsModal({
   const cloneActionBlockedByFirstFrame = cloneActionNeedsFirstFrame && !hasFirstFrame;
   const cloneActionDisabled = !hasAnalysis || cloneActionBlockedByFirstFrame || isCreatingClone;
   const cloneActionText = cloneActionBlockedByFirstFrame
-    ? "Upload first frame in Assets to continue"
+    ? "First frame required"
     : cloneActionLabel;
+  const cloneActionClassName = cloneActionBlockedByFirstFrame
+    ? "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-all duration-200 disabled:cursor-not-allowed"
+    : "assets-video-details-action flex w-full items-center justify-center gap-2 rounded-lg border border-[#0f0f0f] bg-[#0f0f0f] px-3 py-2.5 text-sm text-white transition-all duration-200 group/btn hover:bg-[#1d1d1d] disabled:cursor-not-allowed disabled:border-[#cfcfca] disabled:bg-[#e9e9e6] disabled:text-[#6f6f6a]";
+  const cloneActionStyle = cloneActionBlockedByFirstFrame
+    ? {
+        border: "1px solid #fecaca",
+        background: "#fef2f2",
+        color: "#b91c1c",
+        boxShadow: "none",
+      }
+    : undefined;
   const shouldShowFirstFramePanel = currentVideo?.source_type === "creator";
-  const previewCardClassName = isCompact
-    ? "aspect-[9/16] w-full max-w-[320px]"
-    : "aspect-[9/16] w-full max-w-[320px] xl:max-w-[300px] 2xl:max-w-[320px]";
+  const previewWidth = isCompact ? 252 : 324;
+  const previewHeight = Math.round((previewWidth * 16) / 9);
+  const previewCardClassName = "flex-none overflow-hidden rounded-xl";
 
   const displayName = useMemo(() => {
     if (!currentVideo) return "TikTok Video";
@@ -301,8 +313,8 @@ export default function VideoAssetDetailsModal({
           <motion.div
             className={`assets-modal-panel assets-video-details-panel relative mx-auto flex w-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${
               isCompact
-                ? "h-[76vh] max-h-[820px] max-w-[980px]"
-                : "h-[86vh] max-w-5xl"
+                ? "max-h-[76vh] max-w-[980px]"
+                : "max-h-[86vh] max-w-5xl"
             }`}
             initial={{ opacity: 0, scale: 0.96, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -326,10 +338,13 @@ export default function VideoAssetDetailsModal({
               </button>
             </div>
 
-            <div className={`assets-modal-body grid min-h-0 flex-1 grid-cols-1 items-stretch gap-6 overflow-hidden p-6 ${isCompact ? "lg:grid-cols-[320px_minmax(420px,520px)] lg:justify-center" : "lg:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)]"}`}>
-              <div className={`grid min-h-0 h-full min-w-0 content-start items-start gap-4 overflow-hidden ${shouldShowFirstFramePanel ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1 justify-items-center"}`}>
+            <div className={`assets-modal-body grid min-h-0 grid-cols-1 items-start gap-6 overflow-y-auto p-6 ${isCompact ? "lg:grid-cols-[max-content_minmax(0,1fr)]" : "lg:grid-cols-[max-content_minmax(0,1fr)]"} lg:items-end`}>
+              <div className={`min-h-0 min-w-0 overflow-hidden ${shouldShowFirstFramePanel ? "flex items-end gap-4" : "flex items-end justify-center"}`}>
                 {shouldShowFirstFramePanel ? (
-                  <label className={`assets-video-details-preview flex min-w-0 overflow-hidden justify-self-center rounded-xl border-2 border-dashed border-gray-300 bg-white transition-colors hover:border-gray-500 cursor-pointer ${previewCardClassName}`}>
+                  <label
+                    className={`assets-video-details-preview flex min-w-0 min-h-0 border-2 border-dashed border-gray-300 bg-white transition-colors hover:border-gray-500 cursor-pointer ${previewCardClassName}`}
+                    style={{ width: `${previewWidth}px`, height: `${previewHeight}px` }}
+                  >
                     <div className="flex h-full w-full items-center justify-center overflow-hidden px-5 text-center">
                       {currentVideo.cover_url ? (
                         <img
@@ -348,7 +363,7 @@ export default function VideoAssetDetailsModal({
                           ) : (
                             <>
                               <p className="text-sm font-medium text-gray-800">First Frame</p>
-                              <p className="text-xs text-gray-500">Upload in Assets to unlock Motion Clone selection.</p>
+                              <p className="text-xs text-gray-500">Click to upload</p>
                             </>
                           )}
                           {firstFrameUploadError ? (
@@ -372,12 +387,16 @@ export default function VideoAssetDetailsModal({
                     </div>
                   </label>
                 ) : null}
-                <div className="min-h-0 flex items-start justify-center">
-                  <div className={`assets-video-details-preview bg-black/95 rounded-xl overflow-hidden ${previewCardClassName}`}>
+                <div className="min-h-0 flex items-stretch justify-center">
+                  <div
+                    className={`assets-video-details-preview bg-black/95 ${previewCardClassName}`}
+                    style={{ width: `${previewWidth}px`, height: `${previewHeight}px` }}
+                  >
                     {currentVideo.video_cdn_url ? (
                       <VideoPlayer
+                        key={`${currentVideo.id}:${currentVideo.video_cdn_url ?? "no-video"}`}
                         src={currentVideo.video_cdn_url}
-                        className="w-full h-full object-cover"
+                        className="h-full w-full object-contain"
                         showControls
                       />
                     ) : (
@@ -393,13 +412,16 @@ export default function VideoAssetDetailsModal({
                 </div>
               </div>
 
-              <div className="assets-video-details-panel min-h-0 h-full flex flex-col gap-6">
+              <div
+                className="assets-video-details-panel min-h-0 flex flex-col gap-4 self-end"
+                style={{ height: `${previewHeight}px` }}
+              >
                 <div className="space-y-2">
                   <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">
                     Overview
                   </p>
                   <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
-                    <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5">
+                    <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1">
                       <Clock className="h-4 w-4 shrink-0 text-gray-400" />
                       <span className="font-medium text-gray-800">
                         {displayDurationSeconds
@@ -407,15 +429,15 @@ export default function VideoAssetDetailsModal({
                           : "—"}
                       </span>
                     </div>
-                    <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5">
+                    <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1">
                       <Languages className="h-4 w-4 shrink-0 text-gray-400" />
                       <span className="font-medium text-gray-800">{detectedLanguage || "—"}</span>
                     </div>
-                    <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5">
+                    <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1">
                       <Film className="h-4 w-4 shrink-0 text-gray-400" />
                       <span className="font-medium text-gray-800">{getAnalysisShotCount(currentVideo.analysis_result || null) || "—"}</span>
                     </div>
-                    <div className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5">
+                    <div className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1">
                       <Tag className="h-4 w-4 shrink-0 text-gray-400" />
                       <span className="truncate font-medium text-gray-800">
                         {overviewName}
@@ -424,7 +446,7 @@ export default function VideoAssetDetailsModal({
                   </div>
                 </div>
 
-                <div className="flex min-h-0 flex-1 flex-col gap-3">
+                <div className="flex min-h-0 flex-1 flex-col gap-2">
                   <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">
                     Structure Analysis
                   </p>
@@ -478,25 +500,20 @@ export default function VideoAssetDetailsModal({
                   <button
                     onClick={handleUseForClone}
                     disabled={cloneActionDisabled}
-                    className="assets-video-details-action flex w-full items-center justify-center gap-2 rounded-lg border border-[#0f0f0f] bg-[#0f0f0f] px-3 py-2.5 text-sm text-white transition-all duration-200 group/btn hover:bg-[#1d1d1d] disabled:cursor-not-allowed disabled:border-[#cfcfca] disabled:bg-[#e9e9e6] disabled:text-[#6f6f6a]"
+                    className={cloneActionClassName}
+                    style={cloneActionStyle}
                   >
                     <span className="font-medium flex items-center gap-2">
                       {isCreatingClone ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : cloneActionBlockedByFirstFrame ? (
-                        <Upload className="w-4 h-4" />
+                        <AlertTriangle className="w-4 h-4 text-red-600" />
                       ) : (
                         <Sparkles className="w-4 h-4 text-white/80 group-hover/btn:text-white transition-colors" />
                       )}
                       {cloneActionText}
                     </span>
                   </button>
-                  {cloneActionBlockedByFirstFrame ? (
-                    <p className="text-xs leading-5 text-[#6f6f6a]">
-                      This creator video already has analysis results, but Motion Clone still needs a first frame image.
-                      Upload it in Assets first, then come back and select this video.
-                    </p>
-                  ) : null}
                   {!isAgentSelectionMode && onDeleteVideo ? (
                     <>
                       <button

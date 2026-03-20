@@ -5,11 +5,11 @@ import { compilePromptForExecution, replaceMentionsForPlainText } from '@/lib/co
 
 test('kling mode preserves @mentions for mapping path', () => {
   const source = {
-    first_frame_description: '@character(Default Male) holds @product(book) in frame.',
+    first_frame_description: '@(Default Male) holds @(book) in frame.',
     shots: [
       {
-        subject: '@character(Default Male)',
-        action: 'reading @product(book)'
+        subject: '@(Default Male)',
+        action: 'reading @(book)'
       }
     ]
   };
@@ -17,19 +17,19 @@ test('kling mode preserves @mentions for mapping path', () => {
   const result = compilePromptForExecution(source, 'kling_3');
   assert.equal(result.compileMode, 'kling_elements');
   assert.equal(result.mentionCount, 4);
-  assert.equal(result.compiledValue.shots[0].subject, '@character(Default Male)');
+  assert.equal(result.compiledValue.shots[0].subject, '@(Default Male)');
 });
 
 test('veo/seedance mode compiles mentions to plain text recursively', () => {
   const source = {
-    first_frame_description: '@character(Default Male) holds @product(book) in frame.',
-    subject: 'A @character(Default Male) looking at camera.',
-    action: 'holding @product(book).',
+    first_frame_description: '@(Default Male) holds @(book) in frame.',
+    subject: 'A @(Default Male) looking at camera.',
+    action: 'holding @(book).',
     shots: [
       {
-        subject: '@character(Default Male)',
-        action: 'reading @product(book)',
-        dialogue: 'Talk about @product(book)',
+        subject: '@(Default Male)',
+        action: 'reading @(book)',
+        dialogue: 'Talk about @(book)',
         audio: 'music'
       }
     ]
@@ -55,6 +55,6 @@ test('plain text prompt stays unchanged in non-kling compile', () => {
 });
 
 test('unknown mention gracefully degrades to display name text', () => {
-  const converted = replaceMentionsForPlainText('A close shot of @character(Unknown Hero) using @product(New Item).');
+  const converted = replaceMentionsForPlainText('A close shot of @(Unknown Hero) using @(New Item).');
   assert.equal(converted, 'A close shot of Unknown Hero using New Item.');
 });

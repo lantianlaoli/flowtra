@@ -1,3 +1,6 @@
+import { analysisToLegacyFlatShots } from '@/lib/video-analysis-schema';
+import { buildTypedMentionToken } from '@/lib/prompt-mention-tokens';
+
 export type ProjectAgentMotionCloneSelection = {
   id: string;
   name: string;
@@ -12,6 +15,11 @@ export type ProjectAgentMotionCloneReferenceVideo = {
   coverUrl?: string | null;
   durationSeconds?: number | null;
   analysisLanguage?: string | null;
+  analysisResult?: Record<string, unknown> | null;
+  analysisSummary?: string | null;
+  keyShots?: string[] | null;
+  detectedCharacter?: string | null;
+  detectedProduct?: string | null;
 };
 
 export type ProjectAgentMotionClonePhase =
@@ -86,11 +94,18 @@ export const inferMotionCloneStage = (options?: {
   referenceVideo?: ProjectAgentMotionCloneReferenceVideo | null;
   selectedAvatar?: ProjectAgentMotionCloneSelection | null;
   explicitStage?: ProjectAgentMotionCloneStage | null;
+  phase?: ProjectAgentMotionClonePhase | null;
+  previewImageUrl?: string | null;
+  outputVideoUrl?: string | null;
 }): ProjectAgentMotionCloneStage => {
-  if (options?.explicitStage === 'workspace' && options?.selectedAvatar?.id) {
-    return 'workspace';
-  }
-  if (options?.selectedAvatar?.id) {
+  const hasWorkspaceArtifacts = (
+    options?.explicitStage === 'workspace' ||
+    (options?.phase != null && options.phase !== 'idle') ||
+    Boolean(options?.previewImageUrl) ||
+    Boolean(options?.outputVideoUrl)
+  );
+
+  if (hasWorkspaceArtifacts && options?.selectedAvatar?.id) {
     return 'workspace';
   }
   if (options?.referenceVideo?.id) {
@@ -99,28 +114,118 @@ export const inferMotionCloneStage = (options?: {
   return 'reference_selection';
 };
 
+export const inferMotionCloneReferenceContext = (
+  analysis: Record<string, unknown> | null | undefined
+) => {
+  const compact = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+  const sanitize = (value: string) => value.replace(/\s+/g, ' ').trim();
+  const pickFirst = (source: Record<string, unknown>, keys: string[]) => {
+    for (const key of keys) {
+      const candidate = compact(source[key]);
+      if (candidate) return candidate;
+    }
+    return '';
+  };
+
+  if (!analysis || typeof analysis !== 'object') {
+    return {
+      summary: 'Reference video selected, but detailed structure analysis is unavailable.',
+      keyShots: [] as string[],
+      detectedCharacter: 'no clear character detected',
+      detectedProduct: 'no clear product detected'
+    };
+  }
+
+  const normalizedShots = analysisToLegacyFlatShots(analysis).map((shot, index) => {
+    const shotRecord = shot as unknown as Record<string, unknown>;
+    const subject = pickFirst(shotRecord, ['subject', 'main_subject', 'character', 'person', 'actor']);
+    const action = pickFirst(shotRecord, ['action', 'movement', 'shot_action']);
+    const context = pickFirst(shotRecord, ['context_environment', 'environment', 'background', 'setting']);
+    const description = pickFirst(shotRecord, ['shot_description', 'description', 'summary', 'first_frame_description']);
+    const start = pickFirst(shotRecord, ['start_time', 'start', 'time_start']);
+    const end = pickFirst(shotRecord, ['end_time', 'end', 'time_end']);
+
+    const core = sanitize(description || [subject, action, context].filter(Boolean).join(', '));
+    const timeRange = (start || end) ? `${start || '??'}-${end || '??'}` : '';
+
+    return {
+      shotIndex: index + 1,
+      core,
+      timeRange
+    };
+  });
+
+  const keyShots = normalizedShots
+    .filter((shot) => Boolean(shot.core))
+    .slice(0, 4)
+    .map((shot) => {
+      const timeSuffix = shot.timeRange ? ` (${shot.timeRange})` : '';
+      return `Shot ${shot.shotIndex}${timeSuffix}: ${shot.core}`;
+    });
+
+  const allText = JSON.stringify(analysis).toLowerCase().replace(/\s+/g, ' ');
+  const findByKeywords = (keywords: string[]) => keywords.find((keyword) => allText.includes(keyword)) || null;
+  const detectedCharacter =
+    findByKeywords(['baby']) ||
+    findByKeywords(['mother']) ||
+    findByKeywords(['woman']) ||
+    findByKeywords(['female']) ||
+    findByKeywords(['man']) ||
+    findByKeywords(['male']) ||
+    findByKeywords(['person']) ||
+    findByKeywords(['child']) ||
+    'no clear character detected';
+
+  const detectedProduct =
+    findByKeywords(['phone stand']) ||
+    findByKeywords(['tripod']) ||
+    findByKeywords(['stroller']) ||
+    findByKeywords(['toy']) ||
+    findByKeywords(['bottle']) ||
+    findByKeywords(['device']) ||
+    findByKeywords(['book']) ||
+    (allText.includes('product') ? 'product (unspecified)' : null) ||
+    'no clear product detected';
+
+  const parsedDuration = (analysis as { video_duration_seconds?: unknown }).video_duration_seconds;
+  const durationLabel = typeof parsedDuration === 'number' && Number.isFinite(parsedDuration)
+    ? `${parsedDuration}s`
+    : 'unknown duration';
+
+  const summary =
+    keyShots.length > 0
+      ? `Parsed ${normalizedShots.length || keyShots.length} shots (${durationLabel}). Main on-screen subject appears to be ${detectedCharacter}; product/object signal: ${detectedProduct}.`
+      : `Reference selected (${durationLabel}), but shot-level details are limited. Detected subject: ${detectedCharacter}; product/object signal: ${detectedProduct}.`;
+
+  return { summary, keyShots, detectedCharacter, detectedProduct };
+};
+
 export const buildMotionClonePromptDrafts = (options?: {
   avatarName?: string | null;
   productName?: string | null;
+  referenceVideo?: ProjectAgentMotionCloneReferenceVideo | null;
 }) => {
   const avatarName = options?.avatarName?.trim() || '';
   const productName = options?.productName?.trim() || '';
+  const avatarToken = avatarName ? buildTypedMentionToken({ type: 'character', label: avatarName }) : '';
+  const productToken = productName ? buildTypedMentionToken({ type: 'product', label: productName }) : '';
+  const imageSwapInstructions = [
+    'Use image 1 as the base frame.',
+    avatarToken ? `Replace the on-screen person with ${avatarToken} from image 2.` : '',
+    productToken ? `Replace every visible product or bottle with ${productToken} from image 3.` : '',
+    'Keep the same pose, hand placement, framing, lighting, background, and camera perspective.',
+    'Do not keep the original person or original product.'
+  ].filter(Boolean).join(' ');
 
-  const imagePrompt = avatarName && productName
-    ? `Replace the subject in the reference video with ${avatarName} and swap in ${productName}. Keep the same framing, lighting, background, and overall look.`
-    : avatarName
-      ? `Replace the subject in the reference video with ${avatarName}. Keep the same framing, lighting, background, and overall look.`
-      : productName
-        ? `Replace the product in the reference video with ${productName}. Keep the same framing, lighting, background, and overall look.`
-        : 'Replace the subject in the reference video while keeping the same framing, lighting, background, and overall look.';
+  const videoSwapInstructions = [
+    'Use the swapped preview image as the appearance guide.',
+    avatarToken ? `The on-screen person should be ${avatarToken}.` : '',
+    productToken ? `Every visible product or bottle should be ${productToken}.` : '',
+    'Do not change the background, lighting, framing, or scene composition.'
+  ].filter(Boolean).join(' ');
 
-  const videoPrompt = avatarName && productName
-    ? 'Keep all elements the same as the reference video. Only swap the person and product.'
-    : avatarName
-      ? 'Keep all elements the same as the reference video. Only swap the person.'
-      : productName
-        ? 'Keep all elements the same as the reference video. Only swap the product.'
-        : 'Keep all elements the same as the reference video.';
+  const imagePrompt = imageSwapInstructions;
+  const videoPrompt = videoSwapInstructions;
 
   return {
     photoPrompt: imagePrompt,

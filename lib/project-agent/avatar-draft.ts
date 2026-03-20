@@ -1,5 +1,9 @@
 import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
+import {
+  buildAvatarGeneratedPrompts,
+  normalizeAvatarPromptDuration
+} from '@/lib/project-agent/avatar-script-planning';
 
 type AvatarSelection = {
   id: string;
@@ -22,6 +26,7 @@ export type ProjectAgentAvatarDraftResult = {
   scriptSource: string;
   imagePrompt: string;
   scenes: AvatarPromptScene[];
+  totalDurationSeconds: number;
 };
 
 const fallbackScenePrompt = (dialog: string) => ({
@@ -60,7 +65,6 @@ export async function draftProjectAgentAvatarPrompts(input: {
   language?: string | null;
   aspectRatio: '16:9' | '9:16';
 }): Promise<ProjectAgentAvatarDraftResult> {
-  const sceneCount = Math.max(1, Math.ceil(input.durationSeconds / 8));
   const languageCode = (input.language || 'en') as LanguageCode;
   const languageName = getLanguagePromptName(languageCode) || 'English';
   const promptContext = input.userIntentText?.trim() || '';
@@ -70,7 +74,7 @@ export async function draftProjectAgentAvatarPrompts(input: {
       type: 'text',
       text: [
         `Avatar name: ${input.avatar.name}`,
-        `Duration: ${input.durationSeconds}s split into ${sceneCount} scenes of 8s.`,
+        `Preferred total runtime: about ${input.durationSeconds}s.`,
         `Language: ${languageName}.`,
         `Aspect ratio: ${input.aspectRatio}.`,
         input.product
@@ -108,11 +112,12 @@ export async function draftProjectAgentAvatarPrompts(input: {
           'You are writing an avatar ad draft for Flowtra.',
           `Write in ${languageName}.`,
           'Return strict JSON with keys: script_source, image_prompt, scenes.',
-          `scenes must contain exactly ${sceneCount} items.`,
-          'Each scene item must contain scene_index and prompt.',
-          'prompt must be an object with keys: subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_color_lighting, audio, dialog.',
+          'Each scene item must contain scene_index, duration_seconds, and prompt.',
+          'prompt must be an object with keys: subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_color_lighting, audio, dialog, duration_seconds.',
           'Keep the visual direction grounded in the uploaded avatar and product photos.',
           'dialog must feel spoken, concise, and conversion-oriented.',
+          'For Kling 3.0, split the spoken script into natural segments between 3 and 15 seconds each.',
+          'Choose as many segments as needed so the spoken pacing feels natural.',
           'image_prompt must describe a single strong cover frame matching the script and visuals.'
         ].join(' ')
       },
@@ -132,27 +137,30 @@ export async function draftProjectAgentAvatarPrompts(input: {
   const parsed = parseJsonObject(text);
 
   const scenesRaw = Array.isArray(parsed?.scenes) ? parsed.scenes as Array<Record<string, unknown>> : [];
-  const scenes = Array.from({ length: sceneCount }, (_, index) => {
-    const source = scenesRaw[index] || {};
-    const prompt = (source.prompt && typeof source.prompt === 'object')
+  const parsedScenes = scenesRaw.map((source, index) => {
+    const promptRecord: Record<string, unknown> = (source.prompt && typeof source.prompt === 'object')
       ? source.prompt as Record<string, unknown>
-      : fallbackScenePrompt('');
-    const dialog = typeof prompt.dialog === 'string'
-      ? prompt.dialog.trim()
+      : { ...fallbackScenePrompt('') };
+    const dialog = typeof promptRecord.dialog === 'string'
+      ? promptRecord.dialog.trim()
       : '';
+    const promptDurationSeconds = promptRecord.duration_seconds;
 
     return {
       sceneIndex: index + 1,
       prompt: {
         ...fallbackScenePrompt(dialog),
-        ...prompt
+        ...promptRecord,
+        duration_seconds: normalizeAvatarPromptDuration(
+          source.duration_seconds ?? promptDurationSeconds
+        )
       }
     };
   });
 
   const scriptSource = typeof parsed?.script_source === 'string' && parsed.script_source.trim()
     ? parsed.script_source.trim()
-    : scenes
+    : parsedScenes
         .map((scene) => typeof scene.prompt.dialog === 'string' ? scene.prompt.dialog.trim() : '')
         .filter(Boolean)
         .join(' ');
@@ -161,9 +169,17 @@ export async function draftProjectAgentAvatarPrompts(input: {
     ? parsed.image_prompt.trim()
     : `Confident avatar spokesperson cover for ${input.product?.name || 'a talking-head ad'}, ${input.aspectRatio}, clean creator composition, scroll-stopping expression.`;
 
+  const normalizedDraft = buildAvatarGeneratedPrompts({
+    imagePrompt,
+    scriptSource,
+    existingScenes: parsedScenes,
+    language: input.language
+  });
+
   return {
     scriptSource,
     imagePrompt,
-    scenes
+    scenes: normalizedDraft.scenes,
+    totalDurationSeconds: normalizedDraft.totalDurationSeconds
   };
 }

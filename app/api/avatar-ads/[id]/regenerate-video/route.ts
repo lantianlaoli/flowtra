@@ -13,6 +13,9 @@ export async function POST(
     const updatedPrompts = body?.updatedPrompts && typeof body.updatedPrompts === 'object'
       ? body.updatedPrompts as Record<string, unknown>
       : undefined;
+    const totalDurationSeconds = typeof body?.totalDurationSeconds === 'number' && body.totalDurationSeconds > 0
+      ? Math.round(body.totalDurationSeconds)
+      : null;
 
     if (!projectId) {
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
@@ -34,16 +37,13 @@ export async function POST(
       return NextResponse.json({ error: 'Generated prompts are missing.' }, { status: 400 });
     }
 
+    const nextScenes = Array.isArray(nextPrompts?.scenes)
+      ? nextPrompts.scenes as Array<{ prompt?: Record<string, unknown> | null }>
+      : [];
+
     const { error: resetScenesError } = await supabase
       .from('avatar_ads_scenes')
-      .update({
-        status: 'pending',
-        video_url: null,
-        kie_video_task_id: null,
-        error_message: null,
-        error_code: null,
-        webhook_received_at: null
-      })
+      .delete()
       .eq('project_id', projectId);
 
     if (resetScenesError) {
@@ -51,10 +51,27 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to reset scene videos' }, { status: 500 });
     }
 
+    if (nextScenes.length > 0) {
+      const { error: insertScenesError } = await supabase
+        .from('avatar_ads_scenes')
+        .insert(nextScenes.map((scene, index) => ({
+          project_id: projectId,
+          scene_number: index + 1,
+          scene_prompt: scene.prompt ?? {},
+          status: 'pending'
+        })));
+
+      if (insertScenesError) {
+        console.error('Failed to recreate avatar scene videos:', insertScenesError);
+        return NextResponse.json({ error: 'Failed to prepare scene videos' }, { status: 500 });
+      }
+    }
+
     const { data: updatedProject, error: updateError } = await supabase
       .from('avatar_ads_projects')
       .update({
         generated_prompts: nextPrompts,
+        video_duration_seconds: totalDurationSeconds ?? project.video_duration_seconds,
         kie_video_task_ids: null,
         generated_video_urls: null,
         merged_video_url: null,

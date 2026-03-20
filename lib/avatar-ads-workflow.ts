@@ -16,6 +16,7 @@ import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/cred
 import { generateDialogueLengthGuidance, validateSceneDurations } from '@/lib/dialogue-duration-estimator';
 import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 import { MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
+import { normalizeAvatarPromptDuration } from '@/lib/project-agent/avatar-script-planning';
 // Events table removed: no tracking imports
 
 const UNIT_SECONDS = 8;
@@ -92,6 +93,23 @@ const buildAvatarAdsTalkingHeadVisualLines = (hasProductContext: boolean) => {
     'Composition: character centered in frame with clean separation from the background.',
     'Lighting: natural, flattering UGC lighting with realistic contrast.',
   ];
+};
+
+const getAvatarPromptScenes = (generatedPrompts: Record<string, unknown> | null | undefined) => (
+  Array.isArray(generatedPrompts?.scenes)
+    ? generatedPrompts.scenes as Array<{ prompt?: Record<string, unknown> | null }>
+    : []
+);
+
+const getAvatarSceneDurationSeconds = (
+  prompt: Record<string, unknown> | null | undefined,
+  model: 'veo3_fast' | 'kling_3'
+) => {
+  if (model !== 'kling_3') {
+    return UNIT_SECONDS;
+  }
+
+  return normalizeAvatarPromptDuration(prompt?.duration_seconds);
 };
 
 export const buildAvatarAdsVideoExecutionPrompt = (
@@ -1050,11 +1068,10 @@ export async function processAvatarAdsProject(
         );
 
         // Create scene records (video scenes only, starting from 1)
-        const videoScenes = project.video_duration_seconds / UNIT_SECONDS;
         const sceneRecords = [];
 
         // Only create video scenes (no scene 0 anymore)
-        const scenes = prompts.scenes as Array<{ scene?: number; prompt: unknown }>;
+        const scenes = getAvatarPromptScenes(prompts as Record<string, unknown>);
         for (let i = 0; i < scenes.length; i++) {
           sceneRecords.push({
             project_id: project.id,
@@ -1194,9 +1211,14 @@ export async function processAvatarAdsProject(
 
       case 'generate_videos': {
         // ===== VERSION 2.0: GENERATION-TIME BILLING =====
-        const videoScenes = project.video_duration_seconds / UNIT_SECONDS;
+        const promptScenes = getAvatarPromptScenes(project.generated_prompts);
+        const videoScenes = promptScenes.length;
         const resolvedVideoModel = resolveAvatarAdsVideoModel(project);
         const generationCost = getGenerationCost(resolvedVideoModel, String(project.video_duration_seconds));
+
+        if (videoScenes === 0) {
+          throw new Error('No video scenes found in generated prompts.');
+        }
 
         // Check if user has enough credits
         const creditCheck = await checkCredits(project.user_id, generationCost);
@@ -1268,9 +1290,7 @@ export async function processAvatarAdsProject(
 
         // Start video generation for each scene
         for (let i = 1; i <= videoScenes; i++) {
-          // ✅ Fix: Array index is 0-based, loop counter is 1-based
-          const scenes = project.generated_prompts?.scenes as Array<{prompt: unknown}>;
-          const videoPrompt = scenes?.[i - 1]?.prompt;
+          const videoPrompt = promptScenes[i - 1]?.prompt as Record<string, unknown> | undefined;
 
           // ✅ STRICT VALIDATION: Ensure videoPrompt exists and is not empty object
           if (!videoPrompt || typeof videoPrompt !== 'object') {
@@ -1298,7 +1318,7 @@ export async function processAvatarAdsProject(
             {
               hasProductContext: Boolean(project.product_context?.product_name || project.product_image_urls?.length),
               model: resolvedVideoModel,
-              durationSeconds: UNIT_SECONDS
+              durationSeconds: getAvatarSceneDurationSeconds(videoPrompt, resolvedVideoModel)
             }
           );
 
@@ -1344,6 +1364,7 @@ export async function processAvatarAdsProject(
         if (!project.kie_video_task_ids || project.kie_video_task_ids.length === 0) {
           throw new Error('Video task IDs not found');
         }
+        const promptScenes = getAvatarPromptScenes(project.generated_prompts);
 
         const videoUrls: string[] = [];
         let allCompleted = true;
@@ -1384,8 +1405,7 @@ export async function processAvatarAdsProject(
 
             if (isContentPolicy) {
               // Retrieve prompt for this scene
-              const scenes = project.generated_prompts?.scenes as Array<{prompt: unknown}>;
-              const videoPrompt = scenes?.[i]?.prompt;
+              const videoPrompt = promptScenes[i]?.prompt as Record<string, unknown> | undefined;
 
               if (videoPrompt) {
                 // Regenerate video task using updated generation logic (handles both structured and legacy)
@@ -1396,7 +1416,7 @@ export async function processAvatarAdsProject(
                   project.language,
                   {
                     model: resolveAvatarAdsVideoModel(project),
-                    durationSeconds: UNIT_SECONDS
+                    durationSeconds: getAvatarSceneDurationSeconds(videoPrompt, resolveAvatarAdsVideoModel(project))
                   }
                 );
 
@@ -1449,7 +1469,7 @@ export async function processAvatarAdsProject(
           }
 
           // Check if we need to merge videos (single-scene vs multi-scene)
-          const videoScenes = project.video_duration_seconds / UNIT_SECONDS;
+          const videoScenes = promptScenes.length;
           if (videoScenes === 1) {
             // For 8-second videos, use the single generated video directly
             const { data: updatedProject, error } = await supabase
@@ -1577,16 +1597,24 @@ export async function processAvatarAdsProject(
         // Fetch scenes to count permanently failed ones (retry_count >= 3)
         const { data: scenes } = await supabase
           .from('avatar_ads_scenes')
-          .select('status, retry_count')
+          .select('scene_number, status, retry_count')
           .eq('project_id', project.id);
 
         const permanentlyFailedScenes = scenes?.filter(
           s => s.status === 'failed' && (s.retry_count || 0) >= 3
         ) || [];
+        const promptScenes = getAvatarPromptScenes(project.generated_prompts);
 
         if (permanentlyFailedScenes.length > 0) {
-          const costPerScene = getSegmentVideoGenerationCost(resolveAvatarAdsVideoModel(project), UNIT_SECONDS);
-          const refundAmount = permanentlyFailedScenes.length * costPerScene;
+          const refundAmount = permanentlyFailedScenes.reduce((sum, scene) => (
+            sum + getSegmentVideoGenerationCost(
+              resolveAvatarAdsVideoModel(project),
+              getAvatarSceneDurationSeconds(
+                promptScenes[(scene.scene_number || 1) - 1]?.prompt,
+                resolveAvatarAdsVideoModel(project)
+              )
+            )
+          ), 0);
 
           const { refundCredits } = await import('@/lib/credits');
           const refundResult = await refundCredits(
@@ -1605,7 +1633,6 @@ export async function processAvatarAdsProject(
           // Or scenes are still retrying
           // If error occurred before scenes were created or during generation, refund full cost
           if (!scenes || scenes.length === 0 || step === 'generate_videos') {
-            const videoScenes = project.video_duration_seconds / UNIT_SECONDS;
             const generationCost = getGenerationCost(resolveAvatarAdsVideoModel(project), String(project.video_duration_seconds));
 
             if (generationCost > 0) {

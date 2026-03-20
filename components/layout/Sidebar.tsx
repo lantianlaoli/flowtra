@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { motion, LayoutGroup } from 'framer-motion';
@@ -64,6 +64,7 @@ const sidebarNavButtonActive =
 export default function Sidebar({ credits, creditsData }: SidebarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const desktopSidebarRef = useRef<HTMLDivElement | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window === 'undefined') return true;
     const stored = window.localStorage.getItem('flowtra-dashboard-dark');
@@ -134,9 +135,38 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
     document.body.classList.remove('flowtra-sidebar-collapsed');
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const root = document.documentElement;
+    const element = desktopSidebarRef.current;
+    if (!element) return;
+
+    const updateSidebarWidth = () => {
+      const width = Math.ceil(element.getBoundingClientRect().width);
+      if (width > 0) {
+        root.style.setProperty('--dashboard-sidebar-width', `${width}px`);
+      }
+    };
+
+    updateSidebarWidth();
+
+    const observer = new ResizeObserver(() => {
+      updateSidebarWidth();
+    });
+
+    observer.observe(element);
+    window.addEventListener('resize', updateSidebarWidth);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateSidebarWidth);
+    };
+  }, []);
+
   const renderPrimaryNavigation = (onNavigate?: () => void) => (
     <LayoutGroup id="floating-sidebar-nav">
-      <nav className="flex flex-col gap-0.5">
+      <nav className="inline-flex w-fit max-w-full flex-col gap-0.5">
         {primaryNavigation.map((item) => {
           const isActive = pathname === item.href;
 
@@ -163,7 +193,7 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
               <item.icon className={cn('sidebar-nav-icon h-4.5 w-4.5 shrink-0 pointer-events-none', isActive ? 'text-white' : 'text-[#6A6A6A]')} />
 
               <div className="inline-flex min-w-0 items-center gap-2 pointer-events-none">
-                <span className={cn('sidebar-nav-label truncate', isActive ? 'text-white' : 'text-[#4F4F4F]')}>
+                <span className={cn('sidebar-nav-label whitespace-nowrap', isActive ? 'text-white' : 'text-[#4F4F4F]')}>
                   {item.name}
                 </span>
               </div>
@@ -175,7 +205,7 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
   );
 
   const SidebarPanels = ({ onNavigate }: { onNavigate?: () => void }) => (
-    <div className="sidebar-shell flex h-full min-h-0 flex-col bg-transparent text-[#111111]">
+    <div className="sidebar-shell inline-flex h-full min-h-0 w-fit max-w-full flex-col items-start bg-transparent text-[#111111]">
       <div className="shrink-0 px-3 py-4">
         {displayCredits !== undefined ? (
           <CreditsDisplay
@@ -188,7 +218,7 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
-        <div className="sidebar-nav-panel rounded-[26px] border border-[#E7E7E4] bg-white/90 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-xl">
+        <div className="sidebar-nav-panel inline-flex w-fit max-w-full flex-col rounded-[26px] border border-[#E7E7E4] bg-white/90 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-xl">
           {renderPrimaryNavigation(onNavigate)}
         </div>
       </div>
@@ -208,7 +238,10 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
 
   return (
     <>
-      <div className="fixed left-0 top-0 z-20 hidden h-screen w-56 md:block">
+      <div
+        ref={desktopSidebarRef}
+        className="fixed left-0 top-0 z-20 hidden h-screen w-fit max-w-[calc(100vw-2rem)] md:block"
+      >
         <SidebarPanels />
       </div>
 

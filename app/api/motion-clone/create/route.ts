@@ -4,13 +4,25 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { MOTION_CLONE_MODE } from '@/lib/motion-clone-workflow';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
+import { verifyInternalUserRequest } from '@/lib/security/internal-request';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const internalUserId = request.headers.get('x-project-agent-user-id');
+    const internalTimestamp = request.headers.get('x-project-agent-timestamp');
+    const internalSignature = request.headers.get('x-project-agent-signature');
+    const hasValidInternalSignature = verifyInternalUserRequest({
+      userId: internalUserId,
+      timestamp: internalTimestamp,
+      signature: internalSignature,
+    });
+
+    const { userId } = hasValidInternalSignature
+      ? { userId: internalUserId }
+      : await auth();
 
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

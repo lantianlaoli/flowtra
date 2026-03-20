@@ -11,7 +11,7 @@ export async function PATCH(
   try {
     const supabase = getSupabaseAdmin();
     const body = await request.json();
-    const { updatedPrompts } = body;
+    const { updatedPrompts, totalDurationSeconds } = body;
 
     if (!projectId) {
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
@@ -32,11 +32,45 @@ export async function PATCH(
       return NextResponse.json({ error: `Project is not in 'awaiting_review' state. Current status: ${project.status}` }, { status: 400 });
     }
 
+    const nextPrompts = updatedPrompts || project.generated_prompts;
+    const nextScenes = Array.isArray(nextPrompts?.scenes)
+      ? nextPrompts.scenes as Array<{ prompt?: Record<string, unknown> | null }>
+      : [];
+
+    const { error: deleteScenesError } = await supabase
+      .from('avatar_ads_scenes')
+      .delete()
+      .eq('project_id', projectId);
+
+    if (deleteScenesError) {
+      console.error('Failed to clear avatar scenes before confirm:', deleteScenesError);
+      return NextResponse.json({ error: 'Failed to prepare video scenes' }, { status: 500 });
+    }
+
+    if (nextScenes.length > 0) {
+      const { error: insertScenesError } = await supabase
+        .from('avatar_ads_scenes')
+        .insert(nextScenes.map((scene, index) => ({
+          project_id: projectId,
+          scene_number: index + 1,
+          scene_prompt: scene.prompt ?? {},
+          status: 'pending'
+        })));
+
+      if (insertScenesError) {
+        console.error('Failed to recreate avatar scenes before confirm:', insertScenesError);
+        return NextResponse.json({ error: 'Failed to prepare video scenes' }, { status: 500 });
+      }
+    }
+
     // Update the generated prompts and transition to video generation
     const { data: updatedProject, error: updateError } = await supabase
       .from('avatar_ads_projects')
       .update({
-        generated_prompts: updatedPrompts || project.generated_prompts, // Allow updating prompts
+        generated_prompts: nextPrompts,
+        video_duration_seconds: typeof totalDurationSeconds === 'number' && totalDurationSeconds > 0
+          ? Math.round(totalDurationSeconds)
+          : project.video_duration_seconds,
         status: 'generating_videos',
         current_step: 'generating_videos',
         progress_percentage: 60,

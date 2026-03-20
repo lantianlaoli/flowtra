@@ -17,6 +17,7 @@ import { getSegmentDurationForModel, type PersistedVideoQuality, type VideoModel
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { getAvatarPhotoUrls, SYSTEM_AVATARS } from '@/lib/default-avatars';
 import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
+import { normalizeMentionLabel, parseMentionToken, MENTION_TOKEN_REGEX } from '@/lib/prompt-mention-tokens';
 import {
   getEffectiveSegmentDurationSeconds,
   getSegmentPromptVideoGenerationCost
@@ -30,26 +31,23 @@ type PatchPayload = {
 };
 
 const PRODUCT_REFERENCE_LIMIT = 10;
-const MENTION_REGEX = /@(?<type>character|product)\((?<name>[^)]*)\)/g;
 
 function collectMentionNames(texts: Array<string | undefined | null>) {
-  const characterNames = new Set<string>();
-  const productNames = new Set<string>();
+  const mentionNames = new Set<string>();
 
   texts.forEach((text) => {
     if (!text) return;
-    for (const match of text.matchAll(MENTION_REGEX)) {
-      const type = match.groups?.type;
-      const name = (match.groups?.name || '').trim().toLowerCase();
-      if (!name) continue;
-      if (type === 'character') characterNames.add(name);
-      if (type === 'product') productNames.add(name);
+    for (const match of text.matchAll(MENTION_TOKEN_REGEX)) {
+      const parsed = parseMentionToken(match[0]);
+      const name = parsed?.key || normalizeMentionLabel(parsed?.label || '');
+      if (name) {
+        mentionNames.add(name);
+      }
     }
   });
 
   return {
-    characterNames: Array.from(characterNames),
-    productNames: Array.from(productNames)
+    mentionNames: Array.from(mentionNames)
   };
 }
 
@@ -180,9 +178,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             ])
           : [])
       ];
-      const { productNames, characterNames } = collectMentionNames(mentionSources);
+      const { mentionNames } = collectMentionNames(mentionSources);
 
-      if (requestedProductIds.length === 0 && productNames.length > 0) {
+      if (requestedProductIds.length === 0 && mentionNames.length > 0) {
         const { data: productsByUser } = await supabase
           .from('user_products')
           .select('id,product_name')
@@ -190,15 +188,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
         if (productsByUser?.length) {
           const matchedProductIds = productsByUser
-            .filter(product => productNames.includes((product.product_name || '').trim().toLowerCase()))
+            .filter(product => mentionNames.includes(normalizeMentionLabel(product.product_name || '')))
             .map(product => product.id);
           requestedProductIds = Array.from(new Set(matchedProductIds)).slice(0, PRODUCT_REFERENCE_LIMIT);
         }
       }
 
-      if (requestedCharacterIds.length === 0 && characterNames.length > 0) {
+      if (requestedCharacterIds.length === 0 && mentionNames.length > 0) {
         const matchedSystemCharacterIds = SYSTEM_AVATARS
-          .filter(avatar => characterNames.includes((avatar.avatar_name || '').trim().toLowerCase()))
+          .filter(avatar => mentionNames.includes(normalizeMentionLabel(avatar.avatar_name || '')))
           .map(avatar => avatar.id);
 
         const { data: avatarsByUser } = await supabase
@@ -208,7 +206,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
         if (avatarsByUser?.length) {
           const matchedCharacterIds = avatarsByUser
-            .filter(avatar => characterNames.includes((avatar.avatar_name || '').trim().toLowerCase()))
+            .filter(avatar => mentionNames.includes(normalizeMentionLabel(avatar.avatar_name || '')))
             .map(avatar => avatar.id);
           requestedCharacterIds = Array.from(new Set([
             ...matchedSystemCharacterIds,
@@ -220,8 +218,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
 
       console.log('[SEGMENT API] Mention fallback resolved IDs:', {
-        productNames,
-        characterNames,
+        mentionNames,
         requestedProductIds,
         requestedCharacterIds
       });

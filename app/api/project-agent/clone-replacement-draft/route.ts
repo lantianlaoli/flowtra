@@ -27,7 +27,7 @@ import {
 import { normalizeProjectAgentKlingShots } from '@/lib/project-agent/kling-shot-normalization';
 import { KLING_MAX_MULTI_SHOT_ITEMS } from '@/lib/kling-shot-limits';
 import { injectMentionsInline, stripMentionTokens } from '@/lib/project-agent/clone-prompt-mentions';
-import { buildMentionToken } from '@/lib/prompt-mention-tokens';
+import { buildTypedMentionToken } from '@/lib/prompt-mention-tokens';
 
 type ShotPrompt = ProjectAgentCloneShot;
 
@@ -279,8 +279,8 @@ const generateReplacementDraft = async (input: {
 }) => {
   const modelName = process.env.OPENROUTER_MODEL || 'google/gemini-3-pro-preview';
 
-  const avatarToken = input.avatarName ? buildMentionToken({ type: 'character', label: input.avatarName }) : null;
-  const productToken = input.productName ? buildMentionToken({ type: 'product', label: input.productName }) : null;
+  const avatarToken = input.avatarName ? buildTypedMentionToken({ type: 'character', label: input.avatarName }) : null;
+  const productToken = input.productName ? buildTypedMentionToken({ type: 'product', label: input.productName }) : null;
   const mentionContext = {
     avatarToken,
     productToken,
@@ -382,6 +382,14 @@ const generateReplacementDraft = async (input: {
             productToken
               ? `Product replacement must explicitly use token in imagePrompt and shot fields: ${productToken}.`
               : 'Do not use any product mention token.',
+            'Never describe replacements as plain-language instructions like "replace the man with Default Male" or "swap the bottle to diet-1".',
+            'Describe the final image and final shot content directly.',
+            avatarToken
+              ? `When the selected avatar appears, use the exact typed token ${avatarToken}, not the bare asset name without @.`
+              : 'Do not invent any avatar placeholder.',
+            productToken
+              ? `When the selected product appears, use the exact typed token ${productToken}, not the bare asset name without @.`
+              : 'Do not invent any product placeholder.',
             'For each scene output imagePrompt and videoPrompt.shots.',
             'imagePrompt must stay scene-specific (subject + environment + action) and must not repeat the same boilerplate sentence across scenes.',
             'Do not use trailing templates like ", featuring @avatar interacting with @product".',
@@ -519,8 +527,8 @@ const applySceneAssignmentsToGeneratedScenes = (input: {
     if (!assignment) return scene;
     const avatarName = assignment.avatarId ? (input.avatarById.get(assignment.avatarId)?.name || null) : null;
     const productName = input.productById.get(assignment.productId)?.name || null;
-    const avatarToken = avatarName ? buildMentionToken({ type: 'character', label: avatarName }) : null;
-    const productToken = productName ? buildMentionToken({ type: 'product', label: productName }) : null;
+    const avatarToken = avatarName ? buildTypedMentionToken({ type: 'character', label: avatarName }) : null;
+    const productToken = productName ? buildTypedMentionToken({ type: 'product', label: productName }) : null;
 
     const mentionContext = {
       avatarToken,

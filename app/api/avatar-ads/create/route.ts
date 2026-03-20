@@ -3,7 +3,11 @@ import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
 import { uploadImageToStorage } from '@/lib/supabase';
-import { getGenerationCost } from '@/lib/constants';
+import {
+  getGenerationCost,
+  KLING_MAX_PROJECT_DURATION_SECONDS,
+  KLING_MIN_TASK_DURATION_SECONDS
+} from '@/lib/constants';
 import { validateKieCredits } from '@/lib/kie-credits-check';
 import { deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { AVATAR_ADS_DURATION_OPTIONS } from '@/lib/avatar-ads-dialogue';
@@ -100,10 +104,21 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const isAgentKlingDuration = (
+      isInternalAgentRequest &&
+      videoModel === 'kling_3' &&
+      Number.isFinite(videoDurationSeconds) &&
+      videoDurationSeconds >= KLING_MIN_TASK_DURATION_SECONDS &&
+      videoDurationSeconds <= KLING_MAX_PROJECT_DURATION_SECONDS
+    );
+
     // Validate video duration
-    if (!AVATAR_ADS_DURATION_OPTIONS.includes(videoDurationSeconds as typeof AVATAR_ADS_DURATION_OPTIONS[number])) {
+    if (
+      !isAgentKlingDuration &&
+      !AVATAR_ADS_DURATION_OPTIONS.includes(videoDurationSeconds as typeof AVATAR_ADS_DURATION_OPTIONS[number])
+    ) {
       return NextResponse.json(
-        { error: 'Invalid video duration. Select between 8s and 80s in 8-second increments.' },
+        { error: 'Invalid video duration.' },
         { status: 400 }
       );
     }
@@ -249,9 +264,6 @@ export async function POST(request: NextRequest) {
     const resolvedVideoModel: 'kling_3' | 'veo3_fast' = videoModel === 'kling_3' && isInternalAgentRequest
       ? 'kling_3'
       : 'veo3_fast';
-
-    const sceneUnitSeconds = 8;
-    const videoScenes = videoDurationSeconds / sceneUnitSeconds;
     const totalCredits = getGenerationCost(resolvedVideoModel, String(videoDurationSeconds));
 
     const generationCreditsUsed = 0;

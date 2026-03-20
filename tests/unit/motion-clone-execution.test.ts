@@ -41,7 +41,7 @@ test('builds motion clone execution snapshot from project payload', () => {
   });
 
   assert.equal(execution.projectId, 'project-1');
-  assert.equal(execution.stage, 'workspace');
+  assert.equal(execution.stage, 'replacement_selection');
   assert.equal(execution.phase, 'preview_ready');
   assert.equal(execution.photoPrompt, 'Replace the subject');
   assert.equal(execution.videoPrompt, 'Keep the same motion');
@@ -62,19 +62,31 @@ test('infers motion clone stage from current selections', () => {
   assert.equal(inferMotionCloneStage({
     referenceVideo: { id: 'video-1' },
     selectedAvatar: { id: 'avatar-1', name: 'Ava' }
+  }), 'replacement_selection');
+  assert.equal(inferMotionCloneStage({
+    referenceVideo: { id: 'video-1' },
+    selectedAvatar: { id: 'avatar-1', name: 'Ava' },
+    phase: 'preview_ready'
   }), 'workspace');
 });
 
 test('builds prompt drafts from avatar and optional product selections', () => {
   const avatarOnly = buildMotionClonePromptDrafts({ avatarName: 'Ava' });
-  assert.match(avatarOnly.photoPrompt, /Ava/);
-  assert.match(avatarOnly.videoPrompt, /Only swap the person/);
+  assert.match(avatarOnly.photoPrompt, /@\(Ava\)/);
+  assert.match(avatarOnly.videoPrompt, /@\(Ava\)/);
+  assert.match(avatarOnly.photoPrompt, /Use image 1 as the base frame\./);
+  assert.doesNotMatch(avatarOnly.photoPrompt, /Parsed \d+ shots/i);
 
   const withProduct = buildMotionClonePromptDrafts({
     avatarName: 'Ava',
     productName: 'Bottle'
   });
-  assert.match(withProduct.photoPrompt, /Ava/);
-  assert.match(withProduct.photoPrompt, /Bottle/);
-  assert.match(withProduct.videoPrompt, /Only swap the person and product/);
+  assert.match(withProduct.photoPrompt, /@\(Ava\)/);
+  assert.match(withProduct.photoPrompt, /@\(Bottle\)/);
+  assert.match(withProduct.videoPrompt, /@\(Ava\)/);
+  assert.match(withProduct.videoPrompt, /@\(Bottle\)/);
+  assert.match(withProduct.photoPrompt, /Replace every visible product or bottle with @\(Bottle\) from image 3\./);
+  assert.match(withProduct.videoPrompt, /Every visible product or bottle should be @\(Bottle\)\./);
+  assert.doesNotMatch(withProduct.photoPrompt, /Match the original creator-video structure/i);
+  assert.doesNotMatch(withProduct.videoPrompt, /motion, pacing, rhythm, and camera movement/i);
 });

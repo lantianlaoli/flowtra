@@ -66,6 +66,7 @@ import { resolveProjectAgentCloneMergedVideoUrl } from '@/lib/project-agent/clon
 import {
   buildMotionClonePromptDrafts,
   inferMotionCloneStage,
+  inferMotionCloneReferenceContext,
   mapMotionClonePhaseFromStatus,
   toMotionCloneExecutionFromProject,
   type ProjectAgentMotionCloneExecution,
@@ -82,7 +83,9 @@ import {
   type ProjectAgentAvatarStage
 } from '@/lib/project-agent/avatar-agent';
 import { draftProjectAgentAvatarPrompts } from '@/lib/project-agent/avatar-draft';
+import { buildAvatarGeneratedPrompts } from '@/lib/project-agent/avatar-script-planning';
 import { signInternalUserRequest } from '@/lib/security/internal-request';
+import { buildTypedMentionToken } from '@/lib/prompt-mention-tokens';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -599,7 +602,36 @@ const isCloneSelectionConfirmed = (state: SessionState, latestUserText: string) 
   );
 };
 
-type ForcedToolChoice = { type: 'tool'; toolName: 'startCloneVideoGeneration' | 'mergeCloneVideos' | 'regenerateCloneVideos' | 'confirmCloneSelections' | 'generateCloneReplacementDraft' } | undefined;
+type ForcedToolChoice = {
+  type: 'tool';
+  toolName:
+    | 'startCloneVideoGeneration'
+    | 'mergeCloneVideos'
+    | 'regenerateCloneVideos'
+    | 'confirmCloneSelections'
+    | 'generateCloneReplacementDraft'
+    | 'startMotionClonePreviewGeneration'
+    | 'startMotionCloneVideoGeneration'
+    | 'syncMotionCloneStatus';
+} | undefined;
+
+const isMotionClonePreviewGenerationCommand = (text: string) => {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    /\b(generate|start|create|make|regenerate|retry)\b[\s\w-]{0,24}\b(preview|image|first frame)\b/.test(normalized) ||
+    /\b(preview image|generate image|regenerate image|generate the preview image|regenerate the preview image)\b/.test(normalized)
+  );
+};
+
+const isMotionCloneStatusCommand = (text: string) => {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    /\b(show|check|get|ping|refresh|sync)\b[\s\w-]{0,24}\b(progress|status)\b/.test(normalized) ||
+    /\b(latest progress|latest status|show me the latest progress|show me the status|what'?s the status|how'?s it going)\b/.test(normalized)
+  );
+};
 
 const tryParseJsonObject = (raw: string): Record<string, unknown> | null => {
   const trimmed = raw.trim();
@@ -624,6 +656,7 @@ const tryParseJsonObject = (raw: string): Record<string, unknown> | null => {
 const classifyToolIntent = async (input: {
   model: ReturnType<typeof openrouter.chat>;
   latestUserTurnText: string;
+  currentIntent?: SessionState['intent'];
   clonePhase?: SessionState['cloneExecution'] extends { phase: infer P } ? P : string;
   hasCloneProject: boolean;
   hasSelectedReplacements: boolean;
@@ -632,6 +665,18 @@ const classifyToolIntent = async (input: {
 }): Promise<ForcedToolChoice> => {
   const userText = input.latestUserTurnText.trim();
   if (!userText) return undefined;
+
+  if (input.currentIntent === 'motion_clone') {
+    if (isMotionCloneStatusCommand(userText)) {
+      return { type: 'tool', toolName: 'syncMotionCloneStatus' };
+    }
+    if (isMotionClonePreviewGenerationCommand(userText)) {
+      return { type: 'tool', toolName: 'startMotionClonePreviewGeneration' };
+    }
+    if (isStartVideoGenerationCommand(userText)) {
+      return { type: 'tool', toolName: 'startMotionCloneVideoGeneration' };
+    }
+  }
 
   if (
     (isSelectionContinueIntent(userText) || isCloneDraftPreviewIntent(userText)) &&
@@ -782,7 +827,6 @@ Current configured required inputs for avatar_ads:
 - Character (avatar)
 - Optional product
 - A spoken script or enough guidance for Flowgen to author one
-- Video duration (8-80s, multiple of 8)
 - Aspect ratio (16:9 or 9:16)
 - Language (default en)
 
@@ -812,7 +856,8 @@ Workflow rules:
   - Step 2: ask what the avatar should say.
   - Step 3: if user says "you decide" or only gives product selling points, use draftAvatarAdsPrompts.
   - Step 4: if there is no product and no explicit script, ask one short follow-up about the topic or angle before drafting.
-  - Step 5: once the draft workspace is ready, use chat commands only for start/restart actions.
+  - Step 5: once the draft workspace is ready, the right side only edits image prompt and script; Flowgen auto-splits the script into Kling 3.0 clips between 3 and 15 seconds each.
+  - Step 6: use chat commands only for start/restart actions.
 - For avatar_ads, do not start cover generation until avatar is selected and a draft exists.
 - For avatar_ads, prefer these tools:
   - setCustomDialogue
@@ -827,7 +872,7 @@ Workflow rules:
 - For motion_clone, execute in chat with the existing motion clone APIs:
   - Step 1: choose one eligible reference video.
   - Step 2: choose the replacement avatar first, then optionally choose a product.
-  - Step 3: once the avatar is selected, move into the workspace automatically and let the user review or edit image and video prompts there.
+  - Step 3: once the current reference and replacement selections are confirmed in chat, create the project and move into the workspace using those existing selections.
   - Step 4: start preview generation first when needed, or start video generation directly if a preview is already ready.
   - Step 5: use syncMotionCloneStatus whenever you need the latest state.
 - For motion_clone, prefer these tools:
@@ -841,6 +886,10 @@ Workflow rules:
   - syncMotionCloneStatus
 - For motion_clone, never say the user must leave the agent to continue.
 - For motion_clone, image generation is free and video generation is paid. If a video-generation tool returns insufficient credits, state that generation did not start and include required/current credits.
+- For motion_clone, selection priority rule (strict): if current state already contains a selected reference video and selected avatar/product from the left panel, treat those selections as authoritative user intent.
+- For motion_clone, continue rule (strict): if the current state already has the selected reference video plus a selected avatar, and the user says continue / set it up / create the project / use these selections, do not ask for names again. Create the motion clone project from the existing state and move into the workspace.
+- For motion_clone, never invent avatar option names. If you need to mention available avatars, either call listAvatars first or tell the user to choose from the avatars shown on the left.
+- For motion_clone, immediately after a reference video is selected, do not enumerate avatar names in prose. Just confirm the selected reference and direct the user to choose the replacement avatar from the left panel; product remains optional.
 - If the user picks competitor_ugc_replication, run the executable clone flow end-to-end in chat:
   - Step 1: choose reference video.
   - Step 2: collect replacement selections. Avatar and product are both optional individually, but at least one replacement is required before confirmation or draft generation.
@@ -953,6 +1002,23 @@ const syncAvatarSelectionFromState = (state: SessionState | null | undefined): S
   language: state?.avatarSelection?.language ?? state?.language ?? 'en'
 });
 
+const deriveAvatarPromptState = (state: SessionState, draft: ProjectAgentAvatarDraft) => {
+  const promptState = buildAvatarGeneratedPrompts({
+    imagePrompt: draft.imagePrompt,
+    scriptSource: draft.scriptSource,
+    existingScenes: draft.scenes,
+    language: state.avatarSelection?.language ?? state.language ?? 'en'
+  });
+
+  return {
+    promptState,
+    nextDraft: {
+      ...draft,
+      scenes: promptState.scenes
+    }
+  };
+};
+
 const mergeState = (state: SessionState, patch: Partial<SessionState>) => {
   const nextState = {
     ...state,
@@ -1053,23 +1119,55 @@ const buildMotionCloneExecutionUpdate = (
   const stage = inferMotionCloneStage({
     explicitStage: patch.stage ?? next.stage ?? null,
     referenceVideo: patch.referenceVideo ?? next.referenceVideo ?? null,
-    selectedAvatar: patch.selectedAvatar ?? next.selectedAvatar ?? null
+    selectedAvatar: patch.selectedAvatar ?? next.selectedAvatar ?? null,
+    phase: patch.phase ?? next.phase ?? null,
+    previewImageUrl: patch.previewImageUrl ?? next.previewImageUrl ?? null,
+    outputVideoUrl: patch.outputVideoUrl ?? next.outputVideoUrl ?? null,
   });
 
-  const shouldInitializePrompts = (
-    stage === 'workspace' &&
-    !Boolean(next.promptsInitialized) &&
-    Boolean(next.selectedAvatar?.name)
+  const expectedAvatarToken = next.selectedAvatar?.name
+    ? buildTypedMentionToken({ type: 'character', label: next.selectedAvatar.name })
+    : '';
+  const expectedProductToken = next.selectedProduct?.name
+    ? buildTypedMentionToken({ type: 'product', label: next.selectedProduct.name })
+    : '';
+  const existingPhotoPrompt = next.photoPrompt || '';
+  const existingVideoPrompt = next.videoPrompt || '';
+  const promptsUseLegacyMotionCloneTemplate = (
+    /appears in place of|match the original creator-video structure|preserve the same shot logic and beats|preserve the exact motion,\s*pacing,\s*rhythm,\s*and camera movement from the reference video/i.test(existingPhotoPrompt) ||
+    /appears in place of|match the original creator-video structure|preserve the same shot logic and beats|preserve the exact motion,\s*pacing,\s*rhythm,\s*and camera movement from the reference video/i.test(existingVideoPrompt)
+  );
+  const promptsNeedMentionRefresh = (
+    (expectedAvatarToken && (!existingPhotoPrompt.includes(expectedAvatarToken) || !existingVideoPrompt.includes(expectedAvatarToken))) ||
+    (expectedProductToken && (!existingPhotoPrompt.includes(expectedProductToken) || !existingVideoPrompt.includes(expectedProductToken)))
   );
 
-  if (shouldInitializePrompts) {
+  const shouldRefreshPrompts = (
+    Boolean(next.selectedAvatar?.name) &&
+    (
+      patch.selectedAvatar !== undefined ||
+      patch.selectedProduct !== undefined ||
+      !Boolean(next.promptsInitialized) ||
+      !next.photoPrompt ||
+      !next.videoPrompt ||
+      promptsUseLegacyMotionCloneTemplate ||
+      promptsNeedMentionRefresh
+    )
+  );
+
+  if (shouldRefreshPrompts) {
     const drafts = buildMotionClonePromptDrafts({
       avatarName: next.selectedAvatar?.name,
-      productName: next.selectedProduct?.name
+      productName: next.selectedProduct?.name,
+      referenceVideo: next.referenceVideo ?? null,
     });
     next.photoPrompt = drafts.photoPrompt;
     next.videoPrompt = drafts.videoPrompt;
     next.promptsInitialized = true;
+  } else if (patch.selectedAvatar !== undefined && !next.selectedAvatar?.name) {
+    next.photoPrompt = null;
+    next.videoPrompt = null;
+    next.promptsInitialized = false;
   }
 
   next.stage = stage;
@@ -1478,6 +1576,353 @@ export async function POST(request: Request) {
       }
     };
 
+    const maybeAdvanceAvatarSelectionContinue = async () => {
+      if (sessionState.intent !== 'avatar_ads') return null;
+      if (!isSelectionContinueIntent(latestUserTurnText)) return null;
+      if (sessionState.avatarDraft?.scenes?.length || sessionState.generatedPrompts) return null;
+
+      const selectedAvatar = sessionState.avatarSelection?.avatar ?? sessionState.avatar;
+      if (!selectedAvatar?.photoUrl) {
+        return sendDirectAssistantReply('Select an avatar first, then continue.');
+      }
+
+      let productSelection: { id: string; name: string; photoUrls: string[] } | null = null;
+      const selectedProduct = sessionState.avatarSelection?.product ?? sessionState.product;
+      if (selectedProduct?.id) {
+        const { data: productRows, error: productError } = await supabase
+          .from('user_products')
+          .select('id, product_name, user_product_photos(photo_url,is_primary)')
+          .eq('user_id', userId)
+          .eq('id', selectedProduct.id)
+          .limit(1);
+
+        if (productError) {
+          return sendDirectAssistantReply('I have the avatar, but I could not load the selected product. Please retry the product selection.');
+        }
+
+        const productRow = (productRows ?? [])[0] as
+          | { id: string; product_name: string; user_product_photos?: Array<{ photo_url?: string; is_primary?: boolean }> }
+          | undefined;
+        if (productRow) {
+          const photoUrls = (productRow.user_product_photos || [])
+            .map((photo) => photo.photo_url || '')
+            .filter((photoUrl) => photoUrl.trim().length > 0);
+          productSelection = {
+            id: productRow.id,
+            name: productRow.product_name,
+            photoUrls
+          };
+        }
+      }
+
+      const draft = await draftProjectAgentAvatarPrompts({
+        avatar: selectedAvatar,
+        product: productSelection,
+        userIntentText: sessionState.customDialogue || '',
+        durationSeconds: sessionState.avatarSelection?.durationSeconds ?? sessionState.videoDurationSeconds ?? 16,
+        language: sessionState.avatarSelection?.language ?? sessionState.language ?? 'en',
+        aspectRatio: sessionState.avatarSelection?.aspectRatio ?? sessionState.videoAspectRatio ?? '9:16'
+      });
+
+      const generatedPrompts = {
+        image_prompt: draft.imagePrompt,
+        scenes: draft.scenes.map((scene) => ({
+          prompt: scene.prompt
+        }))
+      };
+
+      await persistSession({
+        customDialogue: draft.scriptSource,
+        videoDurationSeconds: draft.totalDurationSeconds,
+        generatedPrompts,
+        imagePrompt: draft.imagePrompt,
+        avatarDraft: {
+          status: 'ready',
+          scriptMode: sessionState.customDialogue?.trim() ? 'user_script' : 'agent_authored',
+          scriptSource: draft.scriptSource,
+          imagePrompt: draft.imagePrompt,
+          scenes: draft.scenes,
+          coverImageUrl: sessionState.avatarDraft?.coverImageUrl ?? null,
+          error: null
+        },
+        avatarSelection: {
+          ...syncAvatarSelectionFromState(sessionState),
+          durationSeconds: draft.totalDurationSeconds
+        },
+        avatarStage: 'avatar_workspace'
+      });
+
+      const productLine = productSelection
+        ? `I linked ${productSelection.name} as the product context.`
+        : 'I kept this in talking-head mode with no product attached.';
+
+      return sendDirectAssistantReply(
+        `Perfect. I locked in ${selectedAvatar.name}. ${productLine} I also drafted the script and cover prompt, so the workspace is ready for review.`
+      );
+    };
+
+    const maybeAcknowledgeMotionCloneReferenceSelection = async () => {
+      if (sessionState.intent !== 'motion_clone') return null;
+
+      const trimmedUserTurn = latestUserTurnText.trim();
+      const matchedSelection = trimmedUserTurn.match(/^I selected "(.+)" as the reference video for motion clone\.?$/i);
+      if (!matchedSelection) return null;
+
+      const referenceVideo = sessionState.motionClone?.referenceVideo;
+      const referenceLabel = referenceVideo?.description
+        || matchedSelection[1]
+        || 'the selected video';
+
+      return sendDirectAssistantReply(
+        `Done. "${referenceLabel}" is now set as your motion reference. Next, choose the replacement avatar from the options shown on the left. If you also want to swap the product, choose that too.`
+      );
+    };
+
+    const maybeAdvanceMotionCloneSelectionContinue = async () => {
+      if (sessionState.intent !== 'motion_clone') return null;
+
+      const trimmedUserTurn = latestUserTurnText.trim();
+      const isReferenceSelectionEcho = /^I selected ".+" as the reference video for motion clone\.?$/i.test(trimmedUserTurn);
+      if (isReferenceSelectionEcho) return null;
+
+      const referenceVideo = sessionState.motionClone?.referenceVideo;
+      const selectedAvatar = sessionState.motionClone?.selectedAvatar;
+      const selectedProduct = sessionState.motionClone?.selectedProduct ?? null;
+      const alreadyHasProject = Boolean(sessionState.motionClone?.projectId);
+      const wantsToContinue = (
+        isSelectionContinueIntent(trimmedUserTurn) ||
+        /\b(create|start|open|prepare|set up)\b.*\b(project|workspace|motion clone)\b/i.test(trimmedUserTurn) ||
+        /\b(use|continue with)\b.*\b(selection|selections|current|these)\b/i.test(trimmedUserTurn)
+      );
+
+      if (!wantsToContinue) return null;
+      if (!referenceVideo?.id) {
+        return sendDirectAssistantReply('Select a reference video first, then continue.');
+      }
+      if (!selectedAvatar?.id) {
+        return sendDirectAssistantReply('Select an avatar first, then continue.');
+      }
+      if (alreadyHasProject) {
+        const nextMotionClone = buildMotionCloneExecutionUpdate(sessionState.motionClone, {
+          stage: 'workspace'
+        });
+        await persistSession({
+          intent: 'motion_clone',
+          motionClone: nextMotionClone
+        });
+
+        const productLine = selectedProduct
+          ? `I also kept ${selectedProduct.name} as the product swap.`
+          : 'I kept the product unchanged.';
+        return sendDirectAssistantReply(
+          `Perfect. I locked in the selected reference video with ${selectedAvatar.name}. ${productLine} The workspace is ready with prompts generated from your current selections.`
+        );
+      }
+
+      const internalTimestamp = String(Date.now());
+      const response = await fetch(`${origin}/api/motion-clone/create`, {
+        method: 'POST',
+        headers: {
+          Cookie: request.headers.get('cookie') || '',
+          'x-project-agent-user-id': userId,
+          'x-project-agent-timestamp': internalTimestamp,
+          'x-project-agent-signature': signInternalUserRequest(userId, internalTimestamp),
+        }
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.project?.id) {
+        return sendDirectAssistantReply(payload?.error || 'Failed to create the motion clone project.');
+      }
+
+      const motionClone = buildMotionCloneExecutionUpdate(sessionState.motionClone, {
+        projectId: payload.project.id as string,
+        phase: mapMotionClonePhaseFromStatus(payload.project.status),
+        status: payload.project.status as string | null,
+        stage: 'workspace'
+      });
+      await persistSession({
+        intent: 'motion_clone',
+        projectId: payload.project.id as string,
+        motionClone
+      });
+
+      const productLine = selectedProduct
+        ? `I also linked ${selectedProduct.name} as the product swap.`
+        : 'I kept the product unchanged.';
+      return sendDirectAssistantReply(
+        `Perfect. I locked in the selected reference video with ${selectedAvatar.name}. ${productLine} The workspace is ready with prompts generated from your current selections.`
+      );
+    };
+
+    const maybeHandleMotionCloneExplicitCommand = async () => {
+      if (sessionState.intent !== 'motion_clone') return null;
+
+      const userTurn = latestUserTurnText.trim();
+      if (!userTurn) return null;
+
+      const projectId = sessionState.motionClone?.projectId || await resolveMotionCloneProjectId();
+      const referenceVideoId = sessionState.motionClone?.referenceVideo?.id;
+      const selectedAvatar = sessionState.motionClone?.selectedAvatar;
+      const selectedProduct = sessionState.motionClone?.selectedProduct ?? null;
+      const internalTimestamp = String(Date.now());
+      const internalHeaders = {
+        'Content-Type': 'application/json',
+        Cookie: request.headers.get('cookie') || '',
+        'x-project-agent-user-id': userId,
+        'x-project-agent-timestamp': internalTimestamp,
+        'x-project-agent-signature': signInternalUserRequest(userId, internalTimestamp),
+      };
+
+      if (isMotionCloneStatusCommand(userTurn)) {
+        if (!projectId) {
+          return sendDirectAssistantReply('The motion clone project is not created yet. Generate the preview image first.');
+        }
+
+        const response = await fetch(`${origin}/api/motion-clone/${projectId}/status`, {
+          cache: 'no-store',
+          headers: internalHeaders
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.project) {
+          return sendDirectAssistantReply(payload?.error || 'Failed to load the latest motion clone status.');
+        }
+
+        const execution = toMotionCloneExecutionFromProject(payload.project, {
+          referenceVideo: sessionState.motionClone?.referenceVideo || null,
+          selectedAvatar: selectedAvatar || null,
+          selectedProduct: selectedProduct || null
+        });
+        await persistSession({
+          intent: 'motion_clone',
+          projectId,
+          motionClone: execution
+        });
+
+        if (execution.phase === 'preview_ready') {
+          return sendDirectAssistantReply('The preview image is ready on the left. You can start video generation now.');
+        }
+        if (execution.phase === 'generating_video') {
+          return sendDirectAssistantReply('Video generation is running now. The generated video panel on the left will update when it is ready. When the full video is done, you can go to My Ads to view and download it.');
+        }
+        if (execution.phase === 'completed') {
+          return sendDirectAssistantReply('The motion clone video is ready. You can review it on the left and open My Ads if you want the full result page.');
+        }
+        if (execution.phase === 'generating_preview') {
+          return sendDirectAssistantReply('The preview image is still generating. I will show it on the left as soon as it is ready.');
+        }
+        if (execution.phase === 'failed') {
+          return sendDirectAssistantReply(execution.error || 'Motion clone generation failed. You can retry from the current workspace.');
+        }
+
+        return sendDirectAssistantReply('The motion clone project is ready in the workspace.');
+      }
+
+      if (isMotionClonePreviewGenerationCommand(userTurn)) {
+        if (!projectId) {
+          return sendDirectAssistantReply('Create the motion clone project first.');
+        }
+        if (!referenceVideoId) {
+          return sendDirectAssistantReply('Select a reference video first.');
+        }
+        if (!selectedAvatar) {
+          return sendDirectAssistantReply('Select an avatar first.');
+        }
+
+        const response = await fetch(`${origin}/api/motion-clone/${projectId}/start`, {
+          method: 'POST',
+          headers: internalHeaders,
+          body: JSON.stringify({
+            reference_video_id: referenceVideoId,
+            avatar_id: selectedAvatar.id,
+            product_id: selectedProduct?.id || undefined,
+            photo_prompt: sessionState.motionClone?.photoPrompt || undefined,
+            video_prompt: sessionState.motionClone?.videoPrompt || undefined,
+            mode: normalizeMotionCloneQuality(sessionState.motionClone?.videoQuality),
+            action: 'image'
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.project) {
+          return sendDirectAssistantReply(payload?.error || 'Failed to start preview generation.');
+        }
+
+        const execution = toMotionCloneExecutionFromProject(payload.project, {
+          referenceVideo: sessionState.motionClone?.referenceVideo || null,
+          selectedAvatar: selectedAvatar || null,
+          selectedProduct: selectedProduct || null
+        });
+        await persistSession({
+          intent: 'motion_clone',
+          projectId,
+          motionClone: execution
+        });
+
+        return sendDirectAssistantReply('Preview image generation has started. I will show the new first frame on the left as soon as it is ready.');
+      }
+
+      if (isStartVideoGenerationCommand(userTurn)) {
+        if (!projectId) {
+          return sendDirectAssistantReply('Create the motion clone project first.');
+        }
+        if (!referenceVideoId) {
+          return sendDirectAssistantReply('Select a reference video first.');
+        }
+        if (!selectedAvatar) {
+          return sendDirectAssistantReply('Select an avatar first.');
+        }
+
+        const estimatedCredits = getMotionCloneGenerationCost(
+          sessionState.motionClone?.referenceVideo?.durationSeconds,
+          normalizeMotionCloneQuality(sessionState.motionClone?.videoQuality)
+        );
+        const response = await fetch(`${origin}/api/motion-clone/${projectId}/start`, {
+          method: 'POST',
+          headers: internalHeaders,
+          body: JSON.stringify({
+            reference_video_id: referenceVideoId,
+            avatar_id: selectedAvatar.id,
+            product_id: selectedProduct?.id || undefined,
+            photo_prompt: sessionState.motionClone?.photoPrompt || undefined,
+            video_prompt: sessionState.motionClone?.videoPrompt || undefined,
+            mode: normalizeMotionCloneQuality(sessionState.motionClone?.videoQuality),
+            action: 'video'
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (response.status === 402) {
+          const requiredCredits = payload?.required ?? estimatedCredits ?? null;
+          const remainingCredits = payload?.remaining ?? null;
+          return sendDirectAssistantReply(
+            remainingCredits == null
+              ? `Video generation did not start. It needs ${requiredCredits} credits.`
+              : `Video generation did not start. It needs ${requiredCredits} credits, and you currently have ${remainingCredits}.`
+          );
+        }
+        if (!response.ok || !payload?.project) {
+          return sendDirectAssistantReply(payload?.error || 'Failed to start motion clone video generation.');
+        }
+
+        const execution = toMotionCloneExecutionFromProject(payload.project, {
+          referenceVideo: sessionState.motionClone?.referenceVideo || null,
+          selectedAvatar: selectedAvatar || null,
+          selectedProduct: selectedProduct || null
+        });
+        await persistSession({
+          intent: 'motion_clone',
+          projectId,
+          motionClone: execution
+        });
+
+        if (execution.phase === 'generating_preview') {
+          return sendDirectAssistantReply('I started by generating the preview image first. Once it is ready, the workspace will be ready for video generation.');
+        }
+
+        return sendDirectAssistantReply('Video generation has started. The generated video panel on the left is now rendering. When the full video is ready, you can go to My Ads to view and download it.');
+      }
+
+      return null;
+    };
+
     const cloneDraftPrerequisiteGate = () => {
       if (sessionState.intent !== 'competitor_ugc_replication' || !sessionState.cloneReferenceVideo?.id) {
         return { ok: false as const, message: 'Reference video is not selected yet.' };
@@ -1547,10 +1992,10 @@ export async function POST(request: Request) {
     const fetchMotionCloneReferenceVideos = async (): Promise<ProjectAgentMotionCloneReferenceVideo[]> => {
       // Schema verified via Supabase MCP (2026-03-18):
       // creator_source_videos columns used here:
-      // id, user_id, video_url, video_cdn_url, cover_url, description, duration_seconds, analysis_language, created_at
+      // id, user_id, video_url, video_cdn_url, cover_url, description, duration_seconds, analysis_language, analysis_result, created_at
       const { data, error } = await supabase
         .from('creator_source_videos')
-        .select('id, video_url, video_cdn_url, cover_url, description, duration_seconds, analysis_language')
+        .select('id, video_url, video_cdn_url, cover_url, description, duration_seconds, analysis_language, analysis_result')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
@@ -1560,15 +2005,27 @@ export async function POST(request: Request) {
 
       return (data ?? [])
         .filter((video) => typeof video.id === 'string')
-        .map((video) => ({
-          id: video.id,
-          description: typeof video.description === 'string' ? video.description : null,
-          videoUrl: typeof video.video_url === 'string' ? video.video_url : null,
-          videoCdnUrl: typeof video.video_cdn_url === 'string' ? video.video_cdn_url : null,
-          coverUrl: typeof video.cover_url === 'string' ? video.cover_url : null,
-          durationSeconds: typeof video.duration_seconds === 'number' ? video.duration_seconds : null,
-          analysisLanguage: typeof video.analysis_language === 'string' ? video.analysis_language : null
-        }));
+        .map((video) => {
+          const analysisResult = (video.analysis_result && typeof video.analysis_result === 'object')
+            ? video.analysis_result as Record<string, unknown>
+            : null;
+          const referenceContext = inferMotionCloneReferenceContext(analysisResult);
+
+          return {
+            id: video.id,
+            description: typeof video.description === 'string' ? video.description : null,
+            videoUrl: typeof video.video_url === 'string' ? video.video_url : null,
+            videoCdnUrl: typeof video.video_cdn_url === 'string' ? video.video_cdn_url : null,
+            coverUrl: typeof video.cover_url === 'string' ? video.cover_url : null,
+            durationSeconds: typeof video.duration_seconds === 'number' ? video.duration_seconds : null,
+            analysisLanguage: typeof video.analysis_language === 'string' ? video.analysis_language : null,
+            analysisResult,
+            analysisSummary: referenceContext.summary,
+            keyShots: referenceContext.keyShots,
+            detectedCharacter: referenceContext.detectedCharacter,
+            detectedProduct: referenceContext.detectedProduct,
+          };
+        });
     };
 
     const findMotionCloneReferenceVideo = async (input: {
@@ -1832,6 +2289,7 @@ export async function POST(request: Request) {
       forcedToolChoice = await classifyToolIntent({
         model,
         latestUserTurnText,
+        currentIntent: sessionState.intent,
         clonePhase: sessionState.cloneExecution?.phase,
         hasCloneProject: Boolean(
           sessionState.cloneExecution?.projectId ||
@@ -1863,6 +2321,26 @@ export async function POST(request: Request) {
     const cloneSelectionNeededReply = await buildCloneSelectionNeededReply({ requireProgressTurn: true });
     if (cloneSelectionNeededReply) {
       return sendDirectAssistantReply(cloneSelectionNeededReply);
+    }
+
+    const avatarSelectionContinueReply = await maybeAdvanceAvatarSelectionContinue();
+    if (avatarSelectionContinueReply) {
+      return avatarSelectionContinueReply;
+    }
+
+    const motionCloneReferenceSelectionReply = await maybeAcknowledgeMotionCloneReferenceSelection();
+    if (motionCloneReferenceSelectionReply) {
+      return motionCloneReferenceSelectionReply;
+    }
+
+    const motionCloneSelectionContinueReply = await maybeAdvanceMotionCloneSelectionContinue();
+    if (motionCloneSelectionContinueReply) {
+      return motionCloneSelectionContinueReply;
+    }
+
+    const motionCloneExplicitCommandReply = await maybeHandleMotionCloneExplicitCommand();
+    if (motionCloneExplicitCommandReply) {
+      return motionCloneExplicitCommandReply;
     }
 
     const result = await streamText({
@@ -1977,9 +2455,9 @@ export async function POST(request: Request) {
               return {
                 success: true,
                 avatar: match,
-                message: nextMotionClone.stage === 'workspace'
-                  ? 'Avatar selected for motion clone. The workspace is ready.'
-                  : 'Avatar selected for motion clone.'
+                message: nextMotionClone.selectedProduct?.id
+                  ? 'Avatar selected for motion clone. Prompts were refreshed based on the current avatar and product selections.'
+                  : 'Avatar selected for motion clone. Prompts were refreshed for the current selection.'
               };
             }
 
@@ -2783,22 +3261,39 @@ export async function POST(request: Request) {
           }),
           execute: async ({ customDialogue }) => {
             const trimmedDialogue = customDialogue.trim();
+            const nextBaseDraft = sessionState.intent === 'avatar_ads'
+              ? {
+                  ...(sessionState.avatarDraft ?? {
+                    status: 'ready' as const,
+                    scenes: [],
+                    imagePrompt: null,
+                    scriptMode: 'user_script' as const,
+                    scriptSource: '',
+                    coverImageUrl: null,
+                    error: null
+                  }),
+                  status: sessionState.avatarDraft?.status === 'failed' ? 'failed' as const : 'ready' as const,
+                  scriptMode: 'user_script' as const,
+                  scriptSource: trimmedDialogue
+                }
+              : sessionState.avatarDraft;
+            const derivedAvatarState = sessionState.intent === 'avatar_ads' && nextBaseDraft
+              ? deriveAvatarPromptState(sessionState, nextBaseDraft)
+              : null;
             await persistSession({
               customDialogue: trimmedDialogue,
+              videoDurationSeconds: derivedAvatarState?.promptState.totalDurationSeconds ?? sessionState.videoDurationSeconds,
               avatarDraft: sessionState.intent === 'avatar_ads'
-                ? {
-                    ...(sessionState.avatarDraft ?? {
-                      status: 'ready',
-                      scenes: [],
-                      imagePrompt: null,
-                      scriptMode: 'user_script',
-                      scriptSource: ''
-                    }),
-                    status: sessionState.avatarDraft?.status === 'failed' ? 'failed' : 'ready',
-                    scriptMode: 'user_script',
-                    scriptSource: trimmedDialogue
-                  }
+                ? derivedAvatarState?.nextDraft ?? nextBaseDraft
                 : sessionState.avatarDraft,
+              generatedPrompts: derivedAvatarState?.promptState.generatedPrompts ?? sessionState.generatedPrompts,
+              pendingUpdatedPrompts: derivedAvatarState?.promptState.generatedPrompts ?? sessionState.pendingUpdatedPrompts,
+              avatarSelection: sessionState.intent === 'avatar_ads'
+                ? {
+                    ...syncAvatarSelectionFromState(sessionState),
+                    durationSeconds: derivedAvatarState?.promptState.totalDurationSeconds ?? syncAvatarSelectionFromState(sessionState)?.durationSeconds
+                  }
+                : sessionState.avatarSelection,
               avatarStage: sessionState.intent === 'avatar_ads'
                 ? 'avatar_workspace'
                 : sessionState.avatarStage
@@ -2808,7 +3303,7 @@ export async function POST(request: Request) {
           }
         }),
         draftAvatarAdsPrompts: tool({
-          description: 'Draft avatar ad script, cover prompt, and scene prompts from user guidance or multimodal product context.',
+          description: 'Draft avatar ad script and cover prompt from user guidance or multimodal product context, then auto-split the script into hidden Kling scenes.',
           inputSchema: jsonSchema({
             type: 'object',
             properties: {
@@ -2872,7 +3367,9 @@ export async function POST(request: Request) {
 
             await persistSession({
               customDialogue: draft.scriptSource,
+              videoDurationSeconds: draft.totalDurationSeconds,
               generatedPrompts,
+              pendingUpdatedPrompts: generatedPrompts,
               imagePrompt: draft.imagePrompt,
               avatarDraft: {
                 status: 'ready',
@@ -2882,6 +3379,10 @@ export async function POST(request: Request) {
                 scenes: draft.scenes,
                 coverImageUrl: sessionState.avatarDraft?.coverImageUrl ?? null,
                 error: null
+              },
+              avatarSelection: {
+                ...syncAvatarSelectionFromState(sessionState),
+                durationSeconds: draft.totalDurationSeconds
               },
               avatarStage: 'avatar_workspace'
             });
@@ -2908,20 +3409,18 @@ export async function POST(request: Request) {
             if (!draft?.scenes?.length || !draft.imagePrompt) {
               return { success: false, message: 'Draft the script and prompts before generating the cover.' };
             }
+            const { promptState, nextDraft } = deriveAvatarPromptState(sessionState, draft);
 
             const formData = new FormData();
             formData.set('user_id', userId);
-            formData.set('video_duration_seconds', String(sessionState.avatarSelection?.durationSeconds ?? sessionState.videoDurationSeconds ?? 16));
+            formData.set('video_duration_seconds', String(promptState.totalDurationSeconds));
             formData.set('image_size', (sessionState.avatarSelection?.aspectRatio ?? sessionState.videoAspectRatio) === '9:16' ? 'portrait_16_9' : 'landscape_16_9');
             formData.set('video_model', 'kling_3');
             formData.set('video_aspect_ratio', sessionState.avatarSelection?.aspectRatio ?? sessionState.videoAspectRatio ?? '9:16');
             formData.set('selected_person_photo_url', avatar.photoUrl);
             formData.set('language', sessionState.avatarSelection?.language ?? sessionState.language ?? 'en');
             formData.set('custom_dialogue', draft.scriptSource || sessionState.customDialogue || '');
-            formData.set('prebuilt_prompts', JSON.stringify({
-              image_prompt: draft.imagePrompt,
-              scenes: draft.scenes.map((scene) => ({ prompt: scene.prompt }))
-            }));
+            formData.set('prebuilt_prompts', JSON.stringify(promptState.generatedPrompts));
             formData.set('prebuilt_image_prompt', draft.imagePrompt);
             formData.set('start_at_step', 'generate_image');
             if (sessionState.projectId) {
@@ -2949,6 +3448,14 @@ export async function POST(request: Request) {
             const nextProjectId = payload.id as string;
             await persistSession({
               projectId: nextProjectId,
+              videoDurationSeconds: promptState.totalDurationSeconds,
+              generatedPrompts: promptState.generatedPrompts,
+              pendingUpdatedPrompts: promptState.generatedPrompts,
+              avatarDraft: nextDraft,
+              avatarSelection: {
+                ...syncAvatarSelectionFromState(sessionState),
+                durationSeconds: promptState.totalDurationSeconds
+              },
               avatarStage: 'avatar_generating_cover',
               avatarExecution: {
                 projectId: nextProjectId,
@@ -3011,19 +3518,21 @@ export async function POST(request: Request) {
             if (!sessionState.projectId) {
               return { success: false, message: 'Generate the cover first before starting the video.' };
             }
-            const updatedPrompts = sessionState.pendingUpdatedPrompts ?? sessionState.generatedPrompts ?? (
-              sessionState.avatarDraft
-                ? {
-                    image_prompt: sessionState.avatarDraft.imagePrompt,
-                    scenes: sessionState.avatarDraft.scenes.map((scene) => ({ prompt: scene.prompt }))
-                  }
-                : undefined
-            );
+            const promptState = sessionState.avatarDraft
+              ? deriveAvatarPromptState(sessionState, sessionState.avatarDraft).promptState
+              : null;
+            const updatedPrompts = promptState?.generatedPrompts
+              ?? sessionState.pendingUpdatedPrompts
+              ?? sessionState.generatedPrompts
+              ?? undefined;
 
             const response = await fetch(`${origin}/api/avatar-ads/${sessionState.projectId}/confirm`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ updatedPrompts })
+              body: JSON.stringify({
+                updatedPrompts,
+                totalDurationSeconds: promptState?.totalDurationSeconds ?? sessionState.videoDurationSeconds ?? 16
+              })
             });
             const payload = await response.json().catch(() => ({}));
             if (!response.ok) {
@@ -3031,6 +3540,15 @@ export async function POST(request: Request) {
             }
 
             await persistSession({
+              videoDurationSeconds: promptState?.totalDurationSeconds ?? sessionState.videoDurationSeconds,
+              pendingUpdatedPrompts: updatedPrompts,
+              generatedPrompts: updatedPrompts,
+              avatarSelection: promptState
+                ? {
+                    ...syncAvatarSelectionFromState(sessionState),
+                    durationSeconds: promptState.totalDurationSeconds
+                  }
+                : sessionState.avatarSelection,
               avatarStage: 'avatar_generating_video'
             });
 
@@ -3045,19 +3563,21 @@ export async function POST(request: Request) {
               return { success: false, message: 'Avatar project is missing.' };
             }
 
-            const updatedPrompts = sessionState.pendingUpdatedPrompts ?? sessionState.generatedPrompts ?? (
-              sessionState.avatarDraft
-                ? {
-                    image_prompt: sessionState.avatarDraft.imagePrompt,
-                    scenes: sessionState.avatarDraft.scenes.map((scene) => ({ prompt: scene.prompt }))
-                  }
-                : undefined
-            );
+            const promptState = sessionState.avatarDraft
+              ? deriveAvatarPromptState(sessionState, sessionState.avatarDraft).promptState
+              : null;
+            const updatedPrompts = promptState?.generatedPrompts
+              ?? sessionState.pendingUpdatedPrompts
+              ?? sessionState.generatedPrompts
+              ?? undefined;
 
             const response = await fetch(`${origin}/api/avatar-ads/${sessionState.projectId}/regenerate-video`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ updatedPrompts })
+              body: JSON.stringify({
+                updatedPrompts,
+                totalDurationSeconds: promptState?.totalDurationSeconds ?? sessionState.videoDurationSeconds ?? 16
+              })
             });
             const payload = await response.json().catch(() => ({}));
             if (!response.ok) {
@@ -3065,6 +3585,15 @@ export async function POST(request: Request) {
             }
 
             await persistSession({
+              videoDurationSeconds: promptState?.totalDurationSeconds ?? sessionState.videoDurationSeconds,
+              pendingUpdatedPrompts: updatedPrompts,
+              generatedPrompts: updatedPrompts,
+              avatarSelection: promptState
+                ? {
+                    ...syncAvatarSelectionFromState(sessionState),
+                    durationSeconds: promptState.totalDurationSeconds
+                  }
+                : sessionState.avatarSelection,
               avatarStage: 'avatar_generating_video'
             });
 
@@ -3253,11 +3782,9 @@ export async function POST(request: Request) {
               success: true,
               selectedAvatar,
               selectedProduct,
-              message: nextMotionClone.stage === 'workspace'
-                ? 'Motion clone selections updated. The workspace is ready.'
-                : selectedAvatar || selectedProduct
-                  ? 'Motion clone selections updated.'
-                  : 'Motion clone selections cleared.'
+              message: selectedAvatar || selectedProduct
+                ? 'Motion clone selections updated. Prompts were refreshed based on the current avatar and product selections.'
+                : 'Motion clone selections cleared.'
             };
           }
         }),
@@ -3294,11 +3821,25 @@ export async function POST(request: Request) {
               return { success: false, message: 'Select an avatar before creating the motion clone project.' };
             }
             if (sessionState.motionClone?.projectId) {
+              const motionClone = buildMotionCloneExecutionUpdate(sessionState.motionClone, {
+                stage: 'workspace'
+              });
+              await persistSession({
+                intent: 'motion_clone',
+                motionClone
+              });
               return { success: true, projectId: sessionState.motionClone.projectId };
             }
 
+            const internalTimestamp = String(Date.now());
             const response = await fetch(`${origin}/api/motion-clone/create`, {
-              method: 'POST'
+              method: 'POST',
+              headers: {
+                Cookie: request.headers.get('cookie') || '',
+                'x-project-agent-user-id': userId,
+                'x-project-agent-timestamp': internalTimestamp,
+                'x-project-agent-signature': signInternalUserRequest(userId, internalTimestamp),
+              }
             });
             const payload = await response.json().catch(() => ({}));
             if (!response.ok || !payload?.project?.id) {
@@ -3308,7 +3849,8 @@ export async function POST(request: Request) {
             const motionClone = buildMotionCloneExecutionUpdate(sessionState.motionClone, {
               projectId: payload.project.id as string,
               phase: mapMotionClonePhaseFromStatus(payload.project.status),
-              status: payload.project.status as string | null
+              status: payload.project.status as string | null,
+              stage: 'workspace'
             });
             await persistSession({
               intent: 'motion_clone',
@@ -3336,9 +3878,16 @@ export async function POST(request: Request) {
               return { success: false, message: 'Select an avatar before generation.' };
             }
 
+            const internalTimestamp = String(Date.now());
             const response = await fetch(`${origin}/api/motion-clone/${projectId}/start`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                Cookie: request.headers.get('cookie') || '',
+                'x-project-agent-user-id': userId,
+                'x-project-agent-timestamp': internalTimestamp,
+                'x-project-agent-signature': signInternalUserRequest(userId, internalTimestamp),
+              },
               body: JSON.stringify({
                 reference_video_id: referenceVideoId,
                 avatar_id: selectedAvatar?.id || undefined,
@@ -3390,9 +3939,16 @@ export async function POST(request: Request) {
               sessionState.motionClone?.referenceVideo?.durationSeconds,
               normalizeMotionCloneQuality(sessionState.motionClone?.videoQuality)
             );
+            const internalTimestamp = String(Date.now());
             const response = await fetch(`${origin}/api/motion-clone/${projectId}/start`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                Cookie: request.headers.get('cookie') || '',
+                'x-project-agent-user-id': userId,
+                'x-project-agent-timestamp': internalTimestamp,
+                'x-project-agent-signature': signInternalUserRequest(userId, internalTimestamp),
+              },
               body: JSON.stringify({
                 reference_video_id: referenceVideoId,
                 avatar_id: selectedAvatar?.id || undefined,
