@@ -3357,18 +3357,29 @@ body {
 }
 
 .project-agent-page {
-  background:
-    linear-gradient(180deg, #f7f7f5 0%, #f2f2ef 100%);
+  background: var(--background);
 }
 
-.project-agent-surface,
-.project-agent-chat-surface {
+.project-agent-panel-shell,
+.project-agent-chat-surface,
+.project-agent-surface {
   background:
-    linear-gradient(180deg, rgba(251, 251, 250, 0.98) 0%, rgba(245, 245, 242, 0.98) 100%);
-  border-color: #e6e6e4;
+    linear-gradient(180deg, rgba(248, 242, 230, 0.82) 0%, rgba(241, 232, 217, 0.78) 100%);
+  border-color: rgba(146, 121, 84, 0.16);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 18px 42px rgba(15, 23, 42, 0.06);
+    inset 0 1px 0 rgba(255, 252, 244, 0.72),
+    0 18px 42px rgba(88, 65, 34, 0.08);
+  border: 1px solid rgba(146, 121, 84, 0.16);
+  backdrop-filter: blur(18px);
+}
+
+.project-agent-canvas-shell {
+  background:
+    radial-gradient(circle at top left, rgba(255, 251, 240, 0.44), transparent 32%),
+    linear-gradient(180deg, rgba(247, 241, 229, 0.72) 0%, rgba(238, 229, 214, 0.68) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 251, 240, 0.54),
+    inset 0 -1px 0 rgba(162, 136, 95, 0.08);
 }
 
 .project-agent-card,
@@ -3422,12 +3433,12 @@ body {
 }
 
 .project-agent-chat-header {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.76) 0%, rgba(255, 255, 255, 0.42) 100%);
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.58);
+  background: linear-gradient(180deg, rgba(250, 244, 233, 0.62) 0%, rgba(248, 240, 226, 0.3) 100%);
+  box-shadow: inset 0 -1px 0 rgba(255, 249, 240, 0.36);
 }
 
 .project-agent-chat-footer {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.78) 22%, rgba(255, 255, 255, 0.94) 100%);
+  background: linear-gradient(180deg, rgba(249, 242, 229, 0.08) 0%, rgba(246, 237, 221, 0.56) 24%, rgba(243, 233, 216, 0.9) 100%);
 }
 
 .project-agent-history-popover > div:first-child {

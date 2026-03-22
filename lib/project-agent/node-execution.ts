@@ -1,0 +1,366 @@
+import type {
+  ProjectAgentCanvasAssetRef,
+  ProjectAgentCanvasMilestone,
+  ProjectAgentCanvasMilestoneState,
+  ProjectAgentFeatureNodeConfig,
+  ProjectAgentFeatureNodeType,
+} from '@/lib/project-agent/canvas-state';
+
+export type ProjectAgentConnectedFeatureInputs = {
+  avatar?: ProjectAgentCanvasAssetRef | null;
+  product?: ProjectAgentCanvasAssetRef | null;
+  video?: ProjectAgentCanvasAssetRef | null;
+};
+
+export type ProjectAgentCanvasExecutionAction =
+  | 'none'
+  | 'confirm_avatar'
+  | 'start_clone_video'
+  | 'merge_clone_video';
+
+export type ProjectAgentCanvasExecutionStatus = {
+  executionState: 'ready' | 'running' | 'completed' | 'failed';
+  phase: string;
+  progress: number;
+  outputUrl?: string | null;
+  previewUrl?: string | null;
+  error?: string | null;
+  statusLabel: string;
+  projectId: string;
+  table: 'avatar_ads_projects' | 'competitor_ugc_replication_projects' | 'motion_clone_projects';
+  nextAction: ProjectAgentCanvasExecutionAction;
+  milestones: ProjectAgentCanvasMilestone[];
+  currentMilestoneKey: string;
+  raw?: Record<string, unknown> | null;
+};
+
+const toProgress = (value: unknown, fallback: number) => (
+  typeof value === 'number' && Number.isFinite(value) ? value : fallback
+);
+
+const getMilestoneLabels = (nodeType: ProjectAgentFeatureNodeType) => {
+  switch (nodeType) {
+    case 'video_clone':
+      return [
+        ['preparing_prompt', 'Preparing prompt'],
+        ['generating_frames', 'Generating frames'],
+        ['generating_video', 'Generating video'],
+        ['merging', 'Merging video'],
+        ['completed', 'Completed'],
+      ] as const;
+    case 'avatar_ads':
+      return [
+        ['preparing_prompt', 'Preparing prompt'],
+        ['generating_cover', 'Generating cover'],
+        ['generating_video', 'Generating video'],
+        ['completed', 'Completed'],
+      ] as const;
+    case 'motion_clone':
+      return [
+        ['preparing_prompt', 'Preparing prompt'],
+        ['generating_preview', 'Generating preview'],
+        ['generating_video', 'Generating video'],
+        ['completed', 'Completed'],
+      ] as const;
+    default:
+      return [['preparing_prompt', 'Preparing prompt'], ['completed', 'Completed']] as const;
+  }
+};
+
+const buildMilestones = (
+  nodeType: ProjectAgentFeatureNodeType,
+  currentMilestoneKey: string,
+  executionState: 'ready' | 'running' | 'completed' | 'failed',
+): ProjectAgentCanvasMilestone[] => {
+  const labels = getMilestoneLabels(nodeType);
+  const currentIndex = Math.max(0, labels.findIndex(([key]) => key === currentMilestoneKey));
+
+  return labels.map(([key, label], index) => {
+    let state: ProjectAgentCanvasMilestoneState = 'pending';
+    if (executionState === 'completed') {
+      state = 'completed';
+    } else if (executionState === 'failed') {
+      state = index < currentIndex ? 'completed' : index === currentIndex ? 'failed' : 'pending';
+    } else if (executionState === 'running') {
+      state = index < currentIndex ? 'completed' : index === currentIndex ? 'active' : 'pending';
+    } else if (executionState === 'ready') {
+      state = index === 0 ? 'active' : 'pending';
+    }
+
+    return { key, label, state };
+  });
+};
+
+const getCurrentMilestoneForAvatar = (status: string) => {
+  if (status === 'completed') return 'completed';
+  if (status === 'failed') return 'generating_video';
+  if (status === 'generating_videos') return 'generating_video';
+  if (status === 'generating_image' || status === 'regenerating_image' || status === 'awaiting_review') {
+    return 'generating_cover';
+  }
+  return 'preparing_prompt';
+};
+
+const getCurrentMilestoneForClone = (status: string, step: string, awaitingMerge: boolean, needsVideoStart: boolean) => {
+  if (status === 'completed') return 'completed';
+  if (awaitingMerge || step === 'merging' || status === 'merging') return 'merging';
+  if (
+    step === 'generating_video' ||
+    status === 'generating_video' ||
+    status === 'video_generating' ||
+    needsVideoStart
+  ) {
+    return 'generating_video';
+  }
+  if (
+    step === 'generating_segment_frames' ||
+    step === 'reviewing_segment_frames' ||
+    step === 'ready_for_video' ||
+    status === 'segment_frames_ready' ||
+    status === 'ready_for_video'
+  ) {
+    return 'generating_frames';
+  }
+  return 'preparing_prompt';
+};
+
+const getCurrentMilestoneForMotionClone = (status: string) => {
+  if (status === 'completed') return 'completed';
+  if (status === 'failed') return 'generating_video';
+  if (status === 'generating_video') return 'generating_video';
+  if (status === 'generating_preview' || status === 'preview_ready') return 'generating_preview';
+  return 'preparing_prompt';
+};
+
+export const createQueuedExecutionStatus = (
+  nodeType: ProjectAgentFeatureNodeType,
+): Pick<ProjectAgentCanvasExecutionStatus, 'phase' | 'progress' | 'statusLabel' | 'milestones' | 'currentMilestoneKey'> => ({
+  phase: 'queued',
+  progress: 5,
+  statusLabel: 'Preparing prompt',
+  currentMilestoneKey: 'preparing_prompt',
+  milestones: buildMilestones(nodeType, 'preparing_prompt', 'running'),
+});
+
+export const getExecutionTableForNodeType = (
+  nodeType: ProjectAgentFeatureNodeType
+) => {
+  switch (nodeType) {
+    case 'avatar_ads':
+      return 'avatar_ads_projects';
+    case 'video_clone':
+      return 'competitor_ugc_replication_projects';
+    case 'motion_clone':
+      return 'motion_clone_projects';
+    default:
+      return 'avatar_ads_projects';
+  }
+};
+
+export const buildAvatarAdsStartPayload = (input: {
+  avatar: ProjectAgentCanvasAssetRef;
+  product: ProjectAgentCanvasAssetRef;
+  config?: ProjectAgentFeatureNodeConfig | null;
+}) => ({
+  selectedPersonPhotoUrl: input.avatar.imageUrl || '',
+  selectedProductId: input.product.id,
+  videoDurationSeconds: Number(input.config?.videoDuration || '16'),
+  videoAspectRatio: input.config?.aspectRatio || '9:16',
+  language: input.config?.language || 'en',
+  videoModel: 'kling_3' as const,
+});
+
+export const buildVideoCloneStartPayload = (input: {
+  avatar: ProjectAgentCanvasAssetRef;
+  product: ProjectAgentCanvasAssetRef;
+  video: ProjectAgentCanvasAssetRef;
+  config?: ProjectAgentFeatureNodeConfig | null;
+}) => ({
+  creatorSourceVideoId: input.video.sourceType === 'competitor_ad' ? undefined : input.video.id,
+  competitorAdId: input.video.sourceType === 'competitor_ad' ? input.video.id : undefined,
+  selectedAvatarIds: [input.avatar.id],
+  selectedProductIds: [input.product.id],
+  videoModel: 'kling_3' as const,
+  videoAspectRatio: input.config?.aspectRatio || '9:16',
+  videoDuration: input.config?.videoDuration || '8',
+  videoQuality: input.config?.videoQuality || '720p',
+  language: input.config?.language || input.video.analysisLanguage || 'en',
+  shouldGenerateVideo: true,
+  photoOnly: false,
+  requestSource: 'project_agent_clone' as const,
+});
+
+export const buildMotionCloneStartPayload = (input: {
+  avatar: ProjectAgentCanvasAssetRef;
+  product: ProjectAgentCanvasAssetRef;
+  video: ProjectAgentCanvasAssetRef;
+  config?: ProjectAgentFeatureNodeConfig | null;
+}) => ({
+  referenceVideoId: input.video.id,
+  avatarId: input.avatar.id,
+  productId: input.product.id,
+  action: 'video' as const,
+  mode: input.config?.videoQuality || '720p',
+});
+
+export const normalizeAvatarExecutionStatus = (
+  payload: Record<string, unknown>
+): ProjectAgentCanvasExecutionStatus => {
+  const project = (payload.project && typeof payload.project === 'object')
+    ? payload.project as Record<string, unknown>
+    : {};
+  const status = typeof project.status === 'string' ? project.status : 'pending';
+  const projectId = typeof project.id === 'string' ? project.id : '';
+  const mergedVideoUrl = typeof project.merged_video_url === 'string' ? project.merged_video_url : null;
+  const generatedImageUrl = typeof project.generated_image_url === 'string' ? project.generated_image_url : null;
+  const progress = toProgress(project.progress_percentage, status === 'completed' ? 100 : 15);
+  const failed = status === 'failed';
+  const completed = status === 'completed';
+  const awaitingReview = status === 'awaiting_review';
+  const executionState = completed ? 'completed' : failed ? 'failed' : 'running';
+  const currentMilestoneKey = getCurrentMilestoneForAvatar(status);
+
+  return {
+    executionState,
+    phase: status,
+    progress,
+    outputUrl: mergedVideoUrl,
+    previewUrl: generatedImageUrl,
+    error: typeof project.error_message === 'string' ? project.error_message : null,
+    statusLabel: completed
+      ? 'Completed'
+      : failed
+        ? 'Failed'
+        : awaitingReview
+          ? 'Auto confirming cover'
+          : 'Running avatar workflow',
+    projectId,
+    table: 'avatar_ads_projects',
+    nextAction: awaitingReview ? 'confirm_avatar' : 'none',
+    milestones: buildMilestones('avatar_ads', currentMilestoneKey, executionState),
+    currentMilestoneKey,
+    raw: payload,
+  };
+};
+
+export const normalizeCloneExecutionStatus = (
+  payload: Record<string, unknown>
+): ProjectAgentCanvasExecutionStatus => {
+  const data = (payload.data && typeof payload.data === 'object')
+    ? payload.data as Record<string, unknown>
+    : {};
+  const status = typeof payload.status === 'string'
+    ? payload.status
+    : typeof payload.workflowStatus === 'string'
+      ? payload.workflowStatus
+      : 'processing';
+  const projectId = typeof data.projectId === 'string'
+    ? data.projectId
+    : typeof payload.projectId === 'string'
+      ? payload.projectId
+      : '';
+  const mergedVideo = typeof data.videoUrl === 'string' ? data.videoUrl : null;
+  const coverImage = typeof data.coverImageUrl === 'string' ? data.coverImageUrl : null;
+  const progress = toProgress(payload.progress_percentage, toProgress(payload.progress, status === 'completed' ? 100 : 20));
+  const awaitingMerge = Boolean(data.awaitingMerge) || status === 'awaiting_merge';
+  const step = typeof payload.current_step === 'string' ? payload.current_step : '';
+  const needsVideoStart = (
+    step === 'ready_for_video' ||
+    step === 'reviewing_segment_frames' ||
+    status === 'segment_frames_ready' ||
+    status === 'ready_for_video'
+  );
+  const failed = status === 'failed';
+  const completed = status === 'completed';
+  const executionState = completed ? 'completed' : failed ? 'failed' : 'running';
+  const currentMilestoneKey = getCurrentMilestoneForClone(status, step, awaitingMerge, needsVideoStart);
+
+  return {
+    executionState,
+    phase: step || status,
+    progress,
+    outputUrl: mergedVideo,
+    previewUrl: coverImage,
+    error: typeof data.errorMessage === 'string' ? data.errorMessage : null,
+    statusLabel: completed
+      ? 'Completed'
+      : failed
+        ? 'Failed'
+        : awaitingMerge
+          ? 'Auto merging segments'
+          : needsVideoStart
+            ? 'Auto starting video generation'
+            : 'Running clone workflow',
+    projectId,
+    table: 'competitor_ugc_replication_projects',
+    nextAction: awaitingMerge
+      ? 'merge_clone_video'
+      : needsVideoStart
+        ? 'start_clone_video'
+        : 'none',
+    milestones: buildMilestones('video_clone', currentMilestoneKey, executionState),
+    currentMilestoneKey,
+    raw: payload,
+  };
+};
+
+export const normalizeMotionCloneExecutionStatus = (
+  payload: Record<string, unknown>
+): ProjectAgentCanvasExecutionStatus => {
+  const project = (payload.project && typeof payload.project === 'object')
+    ? payload.project as Record<string, unknown>
+    : {};
+  const status = typeof project.status === 'string' ? project.status : 'pending';
+  const projectId = typeof project.id === 'string' ? project.id : '';
+  const outputUrl = typeof project.output_video_url === 'string'
+    ? project.output_video_url
+    : null;
+  const previewUrl = typeof project.preview_image_url === 'string'
+    ? project.preview_image_url
+    : null;
+  const progress = toProgress(project.progress_percentage, status === 'completed' ? 100 : 20);
+  const failed = status === 'failed';
+  const completed = status === 'completed';
+  const executionState = completed ? 'completed' : failed ? 'failed' : 'running';
+  const currentMilestoneKey = getCurrentMilestoneForMotionClone(status);
+
+  return {
+    executionState,
+    phase: status,
+    progress,
+    outputUrl,
+    previewUrl,
+    error: typeof project.error_message === 'string' ? project.error_message : null,
+    statusLabel: completed ? 'Completed' : failed ? 'Failed' : 'Running motion clone',
+    projectId,
+    table: 'motion_clone_projects',
+    nextAction: 'none',
+    milestones: buildMilestones('motion_clone', currentMilestoneKey, executionState),
+    currentMilestoneKey,
+    raw: payload,
+  };
+};
+
+export const normalizeExecutionStatus = (
+  nodeType: ProjectAgentFeatureNodeType,
+  payload: Record<string, unknown>
+) => {
+  switch (nodeType) {
+    case 'avatar_ads':
+      return normalizeAvatarExecutionStatus(payload);
+    case 'video_clone':
+      return normalizeCloneExecutionStatus(payload);
+    case 'motion_clone':
+      return normalizeMotionCloneExecutionStatus(payload);
+    default:
+      return normalizeAvatarExecutionStatus(payload);
+  }
+};
+
+export const getFeatureInputsFromConnectedAssets = (
+  connectedAssets: ProjectAgentConnectedFeatureInputs
+) => ({
+  avatar: connectedAssets.avatar || null,
+  product: connectedAssets.product || null,
+  video: connectedAssets.video || null,
+});

@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { runSupabaseQueryWithRetry } from '@/lib/supabase-retry';
 import { normalizeProjectAgentVideoModel, type ProjectAgentIntent } from '@/lib/project-agent/video-model';
 import { buildMotionClonePromptDrafts } from '@/lib/project-agent/motion-clone-execution';
+import { normalizeCanvasState } from '@/lib/project-agent/canvas-state';
 import { MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
 
 export const dynamic = 'force-dynamic';
@@ -70,6 +71,7 @@ const normalizeSessionPatchState = (state: Record<string, unknown>) => {
 
   return {
     ...state,
+    canvas: normalizeCanvasState(state.canvas),
     motionClone,
     videoModel: normalizeProjectAgentVideoModel(state.videoModel, 'kling_3', intent)
   };
