@@ -13,6 +13,7 @@ import CanvasBoard from '@/components/project-agent/canvas/CanvasBoard';
 import InsertToolbar from '@/components/project-agent/canvas/InsertToolbar';
 import NodeDetailsDialog from '@/components/project-agent/canvas/NodeDetailsDialog';
 import { useCredits } from '@/contexts/CreditsContext';
+import { toProjectAgentVideoAssets } from '@/lib/project-agent/canvas-assets';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import {
   DEFAULT_PROJECT_AGENT_CANVAS_STATE,
@@ -22,6 +23,7 @@ import {
   createProjectAgentCanvasEdgeId,
   createProjectAgentFeatureNode,
   getConnectedAssetNodeMap,
+  getCanvasConnectionError,
   getProjectAgentCanvasNodeById,
   isProjectAgentAssetNode,
   isProjectAgentFeatureNode,
@@ -52,6 +54,13 @@ type HistoryItem = {
   sessionId: string;
   title: string;
   updatedAt: string;
+};
+
+type SnappedConnectionTarget = {
+  targetNodeId: string;
+  handle: ProjectAgentAssetNodeType;
+  point: { x: number; y: number };
+  errorMessage: string | null;
 };
 
 const SESSION_STORAGE_KEY = 'flowtra_project_agent_session_id';
@@ -150,24 +159,9 @@ const toProductAssets = (payload: Record<string, unknown>) => {
     }) as ProjectAgentCanvasAssetRef[];
 };
 
-const toVideoAssets = (payload: Record<string, unknown>) => {
-  const videos = Array.isArray(payload.videos) ? payload.videos : [];
-  return videos
-    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
-    .map((item) => ({
-      id: String(item.id),
-      name: typeof item.source_name === 'string'
-        ? item.source_name
-        : typeof item.description === 'string'
-          ? item.description
-          : 'Video',
-      imageUrl: typeof item.cover_url === 'string' ? item.cover_url : null,
-      sourceType: item.source_type === 'competitor_ad' ? 'competitor_ad' : 'creator',
-      videoUrl: typeof item.video_url === 'string' ? item.video_url : null,
-      videoCdnUrl: typeof item.video_cdn_url === 'string' ? item.video_cdn_url : null,
-      analysisLanguage: typeof item.analysis_language === 'string' ? item.analysis_language : null,
-    })) as ProjectAgentCanvasAssetRef[];
-};
+const toVideoAssets = (payload: Record<string, unknown>) => (
+  toProjectAgentVideoAssets(payload.videos) as ProjectAgentCanvasAssetRef[]
+);
 
 const getDefaultNodePlacement = (canvas: ProjectAgentCanvasState) => ({
   x: 240 - canvas.viewport.x / canvas.viewport.zoom,
@@ -205,11 +199,7 @@ export default function ProjectAgentPage() {
   const [spacePressed, setSpacePressed] = useState(false);
   const [panOrigin, setPanOrigin] = useState({ x: 0, y: 0, viewportX: 0, viewportY: 0 });
   const [pendingConnectionPoint, setPendingConnectionPoint] = useState<{ x: number; y: number } | null>(null);
-  const [snappedConnectionTarget, setSnappedConnectionTarget] = useState<{
-    targetNodeId: string;
-    handle: ProjectAgentAssetNodeType;
-    point: { x: number; y: number };
-  } | null>(null);
+  const [snappedConnectionTarget, setSnappedConnectionTarget] = useState<SnappedConnectionTarget | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
   const [pendingConnectionSourceId, setPendingConnectionSourceId] = useState<string | null>(null);
@@ -603,11 +593,7 @@ export default function ProjectAgentPage() {
   const getSnappedConnectionTarget = useCallback((
     sourceNodeId: string,
     point: { x: number; y: number },
-  ): {
-    targetNodeId: string;
-    handle: ProjectAgentAssetNodeType;
-    point: { x: number; y: number };
-  } | null => {
+  ): SnappedConnectionTarget | null => {
     const sourceNode = getProjectAgentCanvasNodeById(canvas, sourceNodeId);
     if (!sourceNode || !isProjectAgentAssetNode(sourceNode.type)) return null;
     const assetType: ProjectAgentAssetNodeType = sourceNode.type;
@@ -622,6 +608,7 @@ export default function ProjectAgentPage() {
       handle: ProjectAgentAssetNodeType;
       point: { x: number; y: number };
       distance: number;
+      errorMessage: string | null;
     } | null>((closest, node) => {
       const targetPoint = {
         x: node.x,
@@ -630,11 +617,18 @@ export default function ProjectAgentPage() {
       const distance = Math.hypot(point.x - targetPoint.x, point.y - targetPoint.y);
       if (distance > 34) return closest;
       if (!closest || distance < closest.distance) {
+        const edge = {
+          id: createProjectAgentCanvasEdgeId(sourceNode.id, node.id, assetType),
+          sourceNodeId,
+          targetNodeId: node.id,
+          targetHandle: assetType,
+        };
         return {
           targetNodeId: node.id,
           handle: assetType,
           point: targetPoint,
           distance,
+          errorMessage: getCanvasConnectionError(canvas, edge),
         };
       }
       return closest;
@@ -645,6 +639,7 @@ export default function ProjectAgentPage() {
       targetNodeId: bestTarget.targetNodeId,
       handle: bestTarget.handle,
       point: bestTarget.point,
+      errorMessage: bestTarget.errorMessage,
     };
   }, [canvas]);
 
@@ -862,16 +857,20 @@ export default function ProjectAgentPage() {
       if (pendingConnectionSourceId) {
         if (!connectionCommittedRef.current && snappedConnectionTarget) {
           connectionCommittedRef.current = true;
-          updateCanvas((current) => connectCanvasNodes(current, {
-            id: createProjectAgentCanvasEdgeId(
-              pendingConnectionSourceId,
-              snappedConnectionTarget.targetNodeId,
-              snappedConnectionTarget.handle,
-            ),
-            sourceNodeId: pendingConnectionSourceId,
-            targetNodeId: snappedConnectionTarget.targetNodeId,
-            targetHandle: snappedConnectionTarget.handle,
-          }));
+          if (snappedConnectionTarget.errorMessage) {
+            setStatusNote(snappedConnectionTarget.errorMessage);
+          } else {
+            updateCanvas((current) => connectCanvasNodes(current, {
+              id: createProjectAgentCanvasEdgeId(
+                pendingConnectionSourceId,
+                snappedConnectionTarget.targetNodeId,
+                snappedConnectionTarget.handle,
+              ),
+              sourceNodeId: pendingConnectionSourceId,
+              targetNodeId: snappedConnectionTarget.targetNodeId,
+              targetHandle: snappedConnectionTarget.handle,
+            }));
+          }
         }
         if (!connectionCommittedRef.current) {
           setPendingConnectionSourceId(null);
@@ -927,17 +926,28 @@ export default function ProjectAgentPage() {
 
   const handleConnectToHandle = useCallback((targetNodeId: string, handle: ProjectAgentAssetNodeType) => {
     if (!pendingConnectionSourceId) return;
-    connectionCommittedRef.current = true;
-    updateCanvas((current) => connectCanvasNodes(current, {
+    const edge = {
       id: createProjectAgentCanvasEdgeId(pendingConnectionSourceId, targetNodeId, handle),
       sourceNodeId: pendingConnectionSourceId,
       targetNodeId,
       targetHandle: handle,
-    }));
+    };
+    const errorMessage = getCanvasConnectionError(canvas, edge);
+    if (errorMessage) {
+      connectionCommittedRef.current = true;
+      setStatusNote(errorMessage);
+      setPendingConnectionSourceId(null);
+      setPendingConnectionPoint(null);
+      setSnappedConnectionTarget(null);
+      return;
+    }
+    connectionCommittedRef.current = true;
+    updateCanvas((current) => connectCanvasNodes(current, edge));
+    setStatusNote('');
     setPendingConnectionSourceId(null);
     setPendingConnectionPoint(null);
     setSnappedConnectionTarget(null);
-  }, [pendingConnectionSourceId, updateCanvas]);
+  }, [canvas, pendingConnectionSourceId, updateCanvas]);
 
   const handleRemoveEdge = useCallback((edgeId: string) => {
     updateCanvas((current) => removeCanvasEdge(current, edgeId));

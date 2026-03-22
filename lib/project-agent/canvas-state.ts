@@ -86,6 +86,38 @@ export type ProjectAgentCanvasEdge = {
   targetHandle: ProjectAgentAssetNodeType;
 };
 
+export const getCanvasConnectionError = (
+  state: ProjectAgentCanvasState,
+  edge: ProjectAgentCanvasEdge
+) => {
+  const sourceNode = getProjectAgentCanvasNodeById(state, edge.sourceNodeId);
+  const targetNode = getProjectAgentCanvasNodeById(state, edge.targetNodeId);
+
+  if (
+    !sourceNode ||
+    !targetNode ||
+    !isProjectAgentAssetNode(sourceNode.type) ||
+    !isProjectAgentFeatureNode(targetNode.type) ||
+    sourceNode.type !== edge.targetHandle
+  ) {
+    return 'This connection is not supported.';
+  }
+
+  if (!PROJECT_AGENT_FEATURE_INPUTS[targetNode.type].includes(edge.targetHandle)) {
+    return `This ${sourceNode.type} cannot connect to ${getProjectAgentFeatureDisplayName(targetNode.type)}.`;
+  }
+
+  if (
+    targetNode.type === 'motion_clone' &&
+    edge.targetHandle === 'video' &&
+    !sourceNode.asset?.imageUrl
+  ) {
+    return 'This video needs a cover image before it can connect to Motion Clone.';
+  }
+
+  return null;
+};
+
 export type ProjectAgentCanvasState = {
   nodes: ProjectAgentCanvasNode[];
   edges: ProjectAgentCanvasEdge[];
@@ -281,20 +313,7 @@ export const connectCanvasNodes = (
   state: ProjectAgentCanvasState,
   edge: ProjectAgentCanvasEdge
 ): ProjectAgentCanvasState => {
-  const sourceNode = getProjectAgentCanvasNodeById(state, edge.sourceNodeId);
-  const targetNode = getProjectAgentCanvasNodeById(state, edge.targetNodeId);
-
-  if (
-    !sourceNode ||
-    !targetNode ||
-    !isProjectAgentAssetNode(sourceNode.type) ||
-    !isProjectAgentFeatureNode(targetNode.type) ||
-    sourceNode.type !== edge.targetHandle
-  ) {
-    return state;
-  }
-
-  if (!PROJECT_AGENT_FEATURE_INPUTS[targetNode.type].includes(edge.targetHandle)) {
+  if (getCanvasConnectionError(state, edge)) {
     return state;
   }
 

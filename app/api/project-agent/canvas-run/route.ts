@@ -188,7 +188,7 @@ const startVideoClone = async (origin: string, userId: string, body: CanvasRunRe
   return fetchCloneStatus(origin, projectId, internalHeaders);
 };
 
-const startMotionClone = async (origin: string, userId: string, body: CanvasRunRequestBody) => {
+export const startMotionClone = async (origin: string, userId: string, body: CanvasRunRequestBody) => {
   const avatar = ensureAsset(body.connectedAssets?.avatar, 'Avatar');
   const product = ensureAsset(body.connectedAssets?.product, 'Product');
   const video = ensureAsset(body.connectedAssets?.video, 'Video');

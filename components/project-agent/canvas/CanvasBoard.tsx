@@ -36,6 +36,7 @@ type CanvasBoardProps = {
     targetNodeId: string;
     handle: ProjectAgentAssetNodeType;
     point: { x: number; y: number };
+    errorMessage: string | null;
   } | null;
   pendingConnectionSourceId: string | null;
   selectedEdgeId: string | null;
