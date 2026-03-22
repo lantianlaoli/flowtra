@@ -4,8 +4,8 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { createMotionClonePreviewTask, createMotionCloneVideoTask, buildMotionClonePreviewPrompt, buildMotionCloneVideoPrompt } from '@/lib/motion-clone-workflow';
 import { checkCredits, deductCredits, recordCreditTransaction, refundCredits } from '@/lib/credits';
 import { fetchTikTokVideoUrl } from '@/lib/fetch-tiktok-video';
+import { fetchSocialVideoInfo } from '@/lib/fetch-social-video';
 import { downloadVideoBuffer, uploadCreatorVideoCoverToStorage } from '@/lib/creator-videos-storage';
-import { fetchTikTokCoverByUrl } from '@/lib/tiktok-creator-source';
 import { getMotionCloneGenerationCost, normalizeMotionCloneQuality } from '@/lib/constants';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 import {
@@ -201,7 +201,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     let coverUrl = coverUrlOverride || project.reference_cover_url || referenceVideo.cover_url;
     if (!coverUrl && referenceVideo.video_url) {
       try {
-        const fallbackCover = await fetchTikTokCoverByUrl(referenceVideo.video_url as string);
+        const info = await fetchSocialVideoInfo(referenceVideo.video_url as string);
+        const fallbackCover = info.thumbnailUrl;
         if (fallbackCover) {
           const coverFile = await downloadVideoBuffer(fallbackCover);
           const coverUpload = await uploadCreatorVideoCoverToStorage({

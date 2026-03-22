@@ -250,6 +250,15 @@ const validateStrictShotSchema = (analysis: Record<string, unknown> | CanonicalA
 const parseCreatorVideoAnalysisResponse = (data: unknown) => {
   const apiResponse = data as { choices?: Array<{ message?: { content?: unknown } }> };
   const rawContent = apiResponse.choices?.[0]?.message?.content;
+
+  // If the SDK already parsed content into an object (structured output / response_format), use it directly.
+  if (rawContent !== null && typeof rawContent === 'object' && !Array.isArray(rawContent)) {
+    return {
+      ok: true as const,
+      parsed: rawContent as Record<string, unknown>
+    };
+  }
+
   const normalizedContent = extractStructuredContent(rawContent);
 
   if (!normalizedContent) {
