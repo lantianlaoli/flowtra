@@ -3,13 +3,26 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
 import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { hydrateSerializedSegmentPrompt, type SerializedSegmentPlanSegment } from '@/lib/competitor-ugc-replication-workflow';
 import { hydrateSegmentPlan, type SerializedSegmentPlan } from '@/lib/competitor-ugc-replication-workflow';
 import { getSegmentDurationForModel, type VideoModel } from '@/lib/constants';
+import { verifyInternalUserRequest } from '@/lib/security/internal-request';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { userId } = await auth();
+    const internalUserId = request.headers.get('x-project-agent-user-id');
+    const internalTimestamp = request.headers.get('x-project-agent-timestamp');
+    const internalSignature = request.headers.get('x-project-agent-signature');
+    const hasValidInternalSignature = verifyInternalUserRequest({
+      userId: internalUserId,
+      timestamp: internalTimestamp,
+      signature: internalSignature,
+    });
+
+    const { userId } = hasValidInternalSignature
+      ? { userId: internalUserId }
+      : await auth();
     const { id } = await params;
 
     if (!userId) {
@@ -20,7 +33,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
     }
 
-    const supabase = await createServerUserSupabaseClient();
+    const supabase = hasValidInternalSignature
+      ? getSupabaseAdmin()
+      : await createServerUserSupabaseClient();
     const query = supabase
       .from('competitor_ugc_replication_projects')
       .select('*')

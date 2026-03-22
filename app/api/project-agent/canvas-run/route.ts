@@ -37,7 +37,7 @@ const buildInternalHeaders = (userId: string) => {
 
 const getOrigin = (request: NextRequest) => {
   const url = new URL(request.url);
-  return process.env.NEXT_PUBLIC_SITE_URL || url.origin;
+  return url.origin;
 };
 
 const fetchJson = async (input: string, init?: RequestInit) => {
@@ -70,23 +70,26 @@ const ensureAsset = (
   return value;
 };
 
-const fetchAvatarStatus = async (origin: string, projectId: string) => {
+const fetchAvatarStatus = async (origin: string, projectId: string, headers?: HeadersInit) => {
   const payload = await fetchJson(`${origin}/api/avatar-ads/${projectId}/status`, {
     cache: 'no-store',
+    headers,
   });
   return normalizeExecutionStatus('avatar_ads', payload);
 };
 
-const fetchCloneStatus = async (origin: string, projectId: string) => {
+const fetchCloneStatus = async (origin: string, projectId: string, headers?: HeadersInit) => {
   const payload = await fetchJson(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
     cache: 'no-store',
+    headers,
   });
   return normalizeExecutionStatus('video_clone', payload);
 };
 
-const fetchMotionStatus = async (origin: string, projectId: string) => {
+const fetchMotionStatus = async (origin: string, projectId: string, headers?: HeadersInit) => {
   const payload = await fetchJson(`${origin}/api/motion-clone/${projectId}/status`, {
     cache: 'no-store',
+    headers,
   });
   return normalizeExecutionStatus('motion_clone', payload);
 };
@@ -100,9 +103,10 @@ const startAvatarAds = async (origin: string, userId: string, body: CanvasRunReq
     config: body.config,
   });
 
+  const internalHeaders = buildInternalHeaders(userId);
   const createPayload = await fetchJson(`${origin}/api/avatar-ads/create`, {
     method: 'POST',
-    headers: buildInternalHeaders(userId),
+    headers: internalHeaders,
     body: toFormData({
       user_id: userId,
       selected_person_photo_url: payload.selectedPersonPhotoUrl,
@@ -119,10 +123,11 @@ const startAvatarAds = async (origin: string, userId: string, body: CanvasRunReq
     throw new Error('Avatar Ads project was created without an id.');
   }
 
-  let status = await fetchAvatarStatus(origin, projectId);
+  let status = await fetchAvatarStatus(origin, projectId, internalHeaders);
   if (status.nextAction === 'confirm_avatar') {
     const statusPayload = await fetchJson(`${origin}/api/avatar-ads/${projectId}/status`, {
       cache: 'no-store',
+      headers: internalHeaders,
     });
     const project = statusPayload.project as Record<string, unknown> | undefined;
     const totalDuration = typeof project?.video_duration_seconds === 'number'
@@ -131,13 +136,16 @@ const startAvatarAds = async (origin: string, userId: string, body: CanvasRunReq
 
     await fetchJson(`${origin}/api/avatar-ads/${projectId}/confirm`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...internalHeaders,
+      },
       body: JSON.stringify({
         updatedPrompts: project?.generated_prompts || null,
         totalDurationSeconds: totalDuration,
       }),
     });
-    status = await fetchAvatarStatus(origin, projectId);
+    status = await fetchAvatarStatus(origin, projectId, internalHeaders);
   }
 
   return status;
@@ -154,11 +162,12 @@ const startVideoClone = async (origin: string, userId: string, body: CanvasRunRe
     config: body.config,
   });
 
+  const internalHeaders = buildInternalHeaders(userId);
   const createPayload = await fetchJson(`${origin}/api/competitor-ugc-replication/create`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...buildInternalHeaders(userId),
+      ...internalHeaders,
     },
     body: JSON.stringify({
       ...payload,
@@ -176,7 +185,7 @@ const startVideoClone = async (origin: string, userId: string, body: CanvasRunRe
     throw new Error('Video Clone project was created without an id.');
   }
 
-  return fetchCloneStatus(origin, projectId);
+  return fetchCloneStatus(origin, projectId, internalHeaders);
 };
 
 const startMotionClone = async (origin: string, userId: string, body: CanvasRunRequestBody) => {
@@ -187,9 +196,10 @@ const startMotionClone = async (origin: string, userId: string, body: CanvasRunR
     throw new Error('Motion Clone requires a creator video, not a competitor ad.');
   }
 
+  const internalHeaders = buildInternalHeaders(userId);
   const createPayload = await fetchJson(`${origin}/api/motion-clone/create`, {
     method: 'POST',
-    headers: buildInternalHeaders(userId),
+    headers: internalHeaders,
   });
   const project = createPayload.project as Record<string, unknown> | undefined;
   const projectId = typeof project?.id === 'string' ? project.id : null;
@@ -208,7 +218,7 @@ const startMotionClone = async (origin: string, userId: string, body: CanvasRunR
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...buildInternalHeaders(userId),
+      ...internalHeaders,
     },
     body: JSON.stringify({
       reference_video_id: payload.referenceVideoId,
@@ -219,22 +229,22 @@ const startMotionClone = async (origin: string, userId: string, body: CanvasRunR
     }),
   });
 
-  return fetchMotionStatus(origin, projectId);
+  return fetchMotionStatus(origin, projectId, internalHeaders);
 };
 
 const advanceVideoClone = async (origin: string, userId: string, projectId: string) => {
-  let status = await fetchCloneStatus(origin, projectId);
+  const internalHeaders = buildInternalHeaders(userId);
+  let status = await fetchCloneStatus(origin, projectId, internalHeaders);
   if (status.nextAction === 'start_clone_video') {
     await fetchJson(`${origin}/api/competitor-ugc-replication/${projectId}/start-video`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-project-agent-internal': '1',
-        'x-project-agent-user-id': userId,
+        ...internalHeaders,
       },
       body: JSON.stringify({}),
     });
-    status = await fetchCloneStatus(origin, projectId);
+    status = await fetchCloneStatus(origin, projectId, internalHeaders);
   }
 
   if (status.nextAction === 'merge_clone_video') {
@@ -242,20 +252,21 @@ const advanceVideoClone = async (origin: string, userId: string, projectId: stri
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-project-agent-internal': '1',
-        'x-project-agent-user-id': userId,
+        ...internalHeaders,
       },
       body: JSON.stringify({}),
     });
-    status = await fetchCloneStatus(origin, projectId);
+    status = await fetchCloneStatus(origin, projectId, internalHeaders);
   }
 
   return status;
 };
 
-const advanceAvatarAds = async (origin: string, projectId: string) => {
+const advanceAvatarAds = async (origin: string, userId: string, projectId: string) => {
+  const internalHeaders = buildInternalHeaders(userId);
   const payload = await fetchJson(`${origin}/api/avatar-ads/${projectId}/status`, {
     cache: 'no-store',
+    headers: internalHeaders,
   });
   const project = payload.project as Record<string, unknown> | undefined;
   const status = normalizeExecutionStatus('avatar_ads', payload);
@@ -263,13 +274,16 @@ const advanceAvatarAds = async (origin: string, projectId: string) => {
   if (status.nextAction === 'confirm_avatar') {
     await fetchJson(`${origin}/api/avatar-ads/${projectId}/confirm`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...internalHeaders,
+      },
       body: JSON.stringify({
         updatedPrompts: project?.generated_prompts || null,
         totalDurationSeconds: project?.video_duration_seconds || 16,
       }),
     });
-    return fetchAvatarStatus(origin, projectId);
+    return fetchAvatarStatus(origin, projectId, internalHeaders);
   }
 
   return status;
@@ -296,10 +310,10 @@ export async function POST(request: NextRequest) {
       }
 
       const advancedStatus = nodeType === 'avatar_ads'
-        ? await advanceAvatarAds(origin, body.projectId)
+        ? await advanceAvatarAds(origin, userId, body.projectId)
         : nodeType === 'video_clone'
           ? await advanceVideoClone(origin, userId, body.projectId)
-          : await fetchMotionStatus(origin, body.projectId);
+          : await fetchMotionStatus(origin, body.projectId, buildInternalHeaders(userId));
 
       return NextResponse.json({ success: true, execution: advancedStatus });
     }
