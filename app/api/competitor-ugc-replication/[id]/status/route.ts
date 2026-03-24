@@ -123,6 +123,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const response = {
       success: true,
+      projectId: record.id,
       workflowStatus: record.status,
       currentStep: record.current_step,
       progress: record.progress_percentage || 0,
@@ -132,6 +133,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       language: record.language || null,
       video_prompts: record.video_prompts || null,
       data: {
+        projectId: record.id,
         creativePrompts: record.video_prompts || null,
         coverImageUrl: segmentStatus?.segments?.[0]?.firstFrameUrl || null,
         videoUrl: record.video_url || null,
