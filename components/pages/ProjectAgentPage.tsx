@@ -1343,7 +1343,7 @@ export default function ProjectAgentPage() {
               </div>
             </section>
 
-            <section className="project-agent-panel-shell project-agent-chat-surface flowgen-chat-font flex h-full min-h-0 flex-col overflow-hidden rounded-[30px]">
+            <section className="project-agent-panel-shell project-agent-chat-surface flowgen-chat-font relative flex h-full min-h-0 flex-col overflow-hidden rounded-[30px]">
               <div className="project-agent-chat-header relative flex items-center justify-between px-4 py-3">
                 <div className="flex min-w-0 items-center gap-2 text-[#1f1f1e]">
                   <MessageCircle className="h-4 w-4" />
@@ -1498,6 +1498,13 @@ export default function ProjectAgentPage() {
                     )}
                   </button>
                 </form>
+              </div>
+
+              <div className="absolute inset-0 z-40 flex items-center justify-center bg-white/72 backdrop-blur-[3px]">
+                <div className="rounded-[24px] border border-[#d9d9d7] bg-white px-6 py-5 text-center shadow-[0_18px_40px_rgba(15,15,15,0.08)]">
+                  <p className="text-sm font-semibold text-[#1f1f1e]">Chat panel under construction</p>
+                  <p className="mt-1 text-xs text-[#787876]">This section is temporarily unavailable.</p>
+                </div>
               </div>
             </section>
           </div>
