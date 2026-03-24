@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Link, Upload, Users, Loader2, ArrowLeft, Info, Sparkles, Shuffle, RotateCcw, Type, Languages } from 'lucide-react';
-import { SiTiktok } from 'react-icons/si';
+import { X, Link, Upload, Loader2, ArrowLeft, Info, Sparkles, Shuffle, RotateCcw, Type, Languages } from 'lucide-react';
+import { SiTiktok, SiInstagram, SiYoutube, SiFacebook } from 'react-icons/si';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -818,7 +818,7 @@ export default function VideoImportModal({
           />
 
           <motion.div
-            className={`assets-modal-panel assets-video-import-panel relative mx-auto flex w-full max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${isProcessingStep ? 'h-[88vh] max-h-[878px] xl:max-w-[1560px]' : 'max-h-[90vh] xl:max-w-[1180px]'}`}
+            className={`assets-modal-panel assets-video-import-panel relative mx-auto flex w-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${isProcessingStep ? 'max-h-[86vh] max-w-5xl' : 'max-h-[90vh] max-w-[calc(100vw-2rem)] xl:max-w-[1180px]'}`}
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -826,12 +826,13 @@ export default function VideoImportModal({
           >
             <div className="assets-modal-header flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div className="flex items-center gap-3">
-                <div className="assets-modal-icon w-9 h-9 bg-black rounded-lg flex items-center justify-center">
-                  <SiTiktok className="w-4 h-4 text-white" />
+                <div className="assets-modal-icon w-9 h-9 bg-black rounded-lg flex items-center justify-center gap-0.5">
+                  <SiTiktok className="w-3 h-3 text-white" />
+                  <SiInstagram className="w-3 h-3 text-white" />
                 </div>
                 <div>
                   <h3 className="assets-modal-title text-lg font-semibold text-gray-900">Import Videos</h3>
-                  <p className="assets-modal-subtitle text-sm text-gray-600">TikTok only. Videos are stored in your library.</p>
+                  <p className="assets-modal-subtitle text-sm text-gray-600">TikTok, Instagram, YouTube & Facebook. Videos are stored in your library.</p>
                 </div>
               </div>
               <button
@@ -845,7 +846,7 @@ export default function VideoImportModal({
 
             {step === 'choose' && (
               <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
-                <div className="assets-video-import-options grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="assets-video-import-options grid grid-cols-1 md:grid-cols-2 gap-4">
                   <button
                     onClick={() => setStep('link')}
                     className="assets-video-import-option group border border-gray-200 rounded-xl p-5 text-left hover:border-black hover:shadow-sm transition-colors"
@@ -854,7 +855,7 @@ export default function VideoImportModal({
                       <Link className="w-4 h-4" />
                     </div>
                     <h4 className="assets-video-import-option-title text-sm font-semibold text-gray-900 mb-1">Paste Link</h4>
-                    <p className="assets-video-import-option-copy text-xs text-gray-500">Copy a TikTok video URL and import it instantly.</p>
+                    <p className="assets-video-import-option-copy text-xs text-gray-500">Paste a TikTok, Instagram, YouTube, or Facebook video URL.</p>
                   </button>
                   <button
                     onClick={() => setStep('upload')}
@@ -864,17 +865,7 @@ export default function VideoImportModal({
                       <Upload className="w-4 h-4" />
                     </div>
                     <h4 className="assets-video-import-option-title text-sm font-semibold text-gray-900 mb-1">Upload File</h4>
-                    <p className="assets-video-import-option-copy text-xs text-gray-500">Upload a downloaded TikTok MP4 from your device.</p>
-                  </button>
-                  <button
-                    onClick={() => setStep('creator')}
-                    className="assets-video-import-option group border border-gray-200 rounded-xl p-5 text-left hover:border-black hover:shadow-sm transition-colors"
-                  >
-                    <div className="assets-video-import-option-icon w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4 group-hover:bg-black group-hover:text-white transition-colors">
-                      <Users className="w-4 h-4" />
-                    </div>
-                    <h4 className="assets-video-import-option-title text-sm font-semibold text-gray-900 mb-1">Creator Name</h4>
-                    <p className="assets-video-import-option-copy text-xs text-gray-500">Fetch the latest videos and import selected ones.</p>
+                    <p className="assets-video-import-option-copy text-xs text-gray-500">Upload a downloaded MP4 or MOV file from your device.</p>
                   </button>
                 </div>
               </div>
@@ -894,29 +885,29 @@ export default function VideoImportModal({
                   <div className="assets-video-import-help rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
                     <div className="assets-video-import-help-title flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
                       <Info className="w-4 h-4" />
-                      {step === 'link' ? 'How to get the TikTok link' : 'How to prepare the file'}
+                      {step === 'link' ? 'How to get the video link' : 'How to prepare the file'}
                     </div>
                     <ol className="assets-video-import-help-list space-y-2 text-sm text-gray-600">
                       {step === 'link' ? (
                         <>
                           <li className="flex items-start gap-2">
                             <span className="assets-video-import-help-index font-semibold text-gray-900">1.</span>
-                            Open the TikTok video you want to import.
+                            Open the video on TikTok, Instagram, YouTube, or Facebook.
                           </li>
                           <li className="flex items-start gap-2">
                             <span className="assets-video-import-help-index font-semibold text-gray-900">2.</span>
-                            Tap the Share button on the right panel.
+                            Tap the Share button and choose Copy Link.
                           </li>
                           <li className="flex items-start gap-2">
                             <span className="assets-video-import-help-index font-semibold text-gray-900">3.</span>
-                            Choose Copy Link and paste it here.
+                            Paste the link here and click Import & Analyze.
                           </li>
                         </>
                       ) : (
                         <>
                           <li className="flex items-start gap-2">
                             <span className="assets-video-import-help-index font-semibold text-gray-900">1.</span>
-                            Download the TikTok video to your device.
+                            Download the video to your device.
                           </li>
                           <li className="flex items-start gap-2">
                             <span className="assets-video-import-help-index font-semibold text-gray-900">2.</span>
@@ -934,7 +925,7 @@ export default function VideoImportModal({
                   <div className="assets-video-import-form space-y-4">
                     {step === 'link' ? (
                       <>
-                        <label className="assets-modal-label block text-sm font-medium text-gray-700">TikTok Video Link</label>
+                        <label className="assets-modal-label block text-sm font-medium text-gray-700">Video Link</label>
                         <div className="flex flex-col gap-3">
                           <div className="relative">
                             <Link className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -942,7 +933,7 @@ export default function VideoImportModal({
                               type="text"
                               value={linkUrl}
                               onChange={(event) => setLinkUrl(event.target.value)}
-                              placeholder="https://www.tiktok.com/@creator/video/123"
+                              placeholder="https://www.tiktok.com/... or instagram.com/... or youtube.com/..."
                               className="assets-modal-input w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
                             />
                           </div>
@@ -1060,7 +1051,7 @@ export default function VideoImportModal({
                             />
                           ) : (
                             <div className="flex items-center justify-center h-full text-gray-300">
-                              <Users className="w-5 h-5" />
+                              <Upload className="w-5 h-5" />
                             </div>
                           )}
                           {selectedVideoIds.has(video.platform_video_id) && (
@@ -1080,10 +1071,10 @@ export default function VideoImportModal({
             )}
 
             {step === 'processing' && (
-              <div className="assets-modal-body grid min-h-0 flex-1 grid-cols-1 items-stretch gap-5 overflow-y-auto overflow-x-hidden px-5 py-5 xl:grid-cols-[auto_minmax(0,1fr)]">
-                <div className={`grid min-h-0 h-full min-w-0 items-start gap-4 overflow-hidden ${requiresFirstFrameForMotionClone ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1 justify-items-center'}`}>
+              <div className="assets-modal-body grid min-h-0 flex-1 grid-cols-1 items-end gap-6 overflow-y-auto p-6 lg:grid-cols-[max-content_minmax(0,1fr)]">
+                <div className={`min-h-0 min-w-0 overflow-hidden ${requiresFirstFrameForMotionClone ? 'flex items-end gap-4' : 'flex items-end justify-center'}`}>
                   {requiresFirstFrameForMotionClone && (
-                    <label className="assets-video-import-preview flex aspect-[9/16] w-full max-w-[320px] min-w-0 overflow-hidden justify-self-center rounded-xl border-2 border-dashed border-gray-300 bg-white transition-colors hover:border-gray-500 cursor-pointer xl:max-w-[300px] 2xl:max-w-[320px]">
+                    <label className="assets-video-import-preview flex min-w-0 min-h-0 border-2 border-dashed border-gray-300 bg-white transition-colors hover:border-gray-500 cursor-pointer flex-none overflow-hidden rounded-xl" style={{ width: '324px', height: '576px' }}>
                       <div className="flex h-full w-full items-center justify-center overflow-hidden px-5 text-center">
                         {processingVideo?.cover_url ? (
                           <img
@@ -1119,12 +1110,12 @@ export default function VideoImportModal({
                       </div>
                     </label>
                   )}
-                  <div className="flex min-h-0 h-full min-w-0 items-start justify-center overflow-hidden">
-                    <div className="assets-video-import-preview aspect-[9/16] w-full max-w-[320px] overflow-hidden rounded-xl border-2 border-gray-300 bg-black/95 xl:max-w-[300px] 2xl:max-w-[320px]">
+                  <div className="min-h-0 flex items-stretch justify-center">
+                    <div className="assets-video-import-preview bg-black/95 flex-none overflow-hidden rounded-xl" style={{ width: '324px', height: '576px' }}>
                       {processingVideo?.video_cdn_url ? (
                         <VideoPlayer
                           src={processingVideo.video_cdn_url}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain"
                           showControls
                         />
                       ) : (
@@ -1136,7 +1127,7 @@ export default function VideoImportModal({
                     </div>
                   </div>
                 </div>
-                <div className="assets-video-import-panel flex min-h-0 h-full min-w-0 flex-col gap-3 overflow-hidden">
+                <div className="assets-video-import-panel min-h-0 flex flex-col gap-4 self-end" style={{ height: '576px' }}>
                   <div className="rounded-2xl border border-[#D9D9D9] bg-[#F7F7F7] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
                     <div className="flex items-center justify-between gap-3">
                       <label htmlFor="import-video-name" className="assets-video-import-label inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[#7A7A7A]">
@@ -1222,7 +1213,7 @@ export default function VideoImportModal({
                         </div>
                       </>
                     ) : (
-                      <GlassWavePanel className="assets-video-import-alert mt-2.5 flex min-h-[360px] flex-1" />
+                      <GlassWavePanel className="assets-video-import-alert mt-2.5 flex flex-1" />
                     )}
                     </div>
                   </div>

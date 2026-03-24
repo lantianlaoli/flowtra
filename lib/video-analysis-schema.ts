@@ -210,7 +210,9 @@ const deriveVideoDurationSeconds = (record: JsonRecord): number => {
 export const isCanonicalAnalysisV2 = (value: unknown): value is CanonicalAnalysisV2 => {
   const record = toRecord(value);
   if (!record) return false;
-  return record.schema_version === 2
+  // Accept both number 2 and string "2" — some models return schema_version as a string
+  const sv = record.schema_version;
+  return (sv === 2 || sv === '2')
     && Array.isArray(record.shots);
 };
 

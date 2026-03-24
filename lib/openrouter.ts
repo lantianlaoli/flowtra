@@ -145,8 +145,13 @@ export function getOpenRouterClient(): OpenRouter {
 }
 
 function isResponseValidationFailure(error: unknown): error is Error & { rawResponse?: Response } {
-  return error instanceof Error
-    && (error.name === 'ResponseValidationError' || error.message.includes('Response validation failed'));
+  if (!(error instanceof Error)) return false;
+  // Match both ResponseValidationError and SDKValidationError from @openrouter/sdk
+  if (error.name === 'ResponseValidationError' || error.name === 'SDKValidationError') return true;
+  // Safely access message — it may be a getter-only property on some SDK error subclasses
+  let msg = '';
+  try { msg = error.message; } catch { /* ignore getter errors */ }
+  return msg.includes('Response validation failed') || msg.includes('validation');
 }
 
 async function sendOpenRouterChatWithRawFetch(

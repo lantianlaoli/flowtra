@@ -1,12 +1,7 @@
 import { after, NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import {
-  fetchTikTokCoverByUrl,
-  parseTikTokHandle,
-  resolveTikTokProfileUrl
-} from '@/lib/tiktok-creator-source';
-import { fetchTikTokVideoUrl, isValidTikTokUrl } from '@/lib/fetch-tiktok-video';
+import { fetchSocialVideoInfo, isValidSocialVideoUrl, detectPlatform } from '@/lib/fetch-social-video';
 import { downloadVideoBuffer, uploadCreatorVideoCoverToStorage, uploadCreatorVideoToStorage } from '@/lib/creator-videos-storage';
 import { analyzeCreatorVideoAndUpdate } from '@/lib/creator-video-analysis';
 
@@ -14,13 +9,17 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const maxDuration = 300;
 
-const extractHandleAndVideoId = (url: string) => {
-  const handleMatch = url.match(/tiktok\.com\/@([^/]+)/i);
-  const videoMatch = url.match(/\/video\/(\d+)/i);
-  return {
-    handle: handleMatch?.[1] ? handleMatch[1].trim() : null,
-    videoId: videoMatch?.[1] ? videoMatch[1].trim() : null
-  };
+const extractVideoId = (url: string): string | null => {
+  // TikTok: /video/<id>
+  const tikTokMatch = url.match(/\/video\/(\d+)/i);
+  if (tikTokMatch?.[1]) return tikTokMatch[1].trim();
+  // Instagram: /p/<shortcode>/ or /reel/<shortcode>/
+  const igMatch = url.match(/\/(p|reel|reels|tv)\/([\w-]+)/i);
+  if (igMatch?.[2]) return igMatch[2].trim();
+  // YouTube: v=<id> or youtu.be/<id>
+  const ytMatch = url.match(/(?:v=|youtu\.be\/)([\w-]+)/i);
+  if (ytMatch?.[1]) return ytMatch[1].trim();
+  return null;
 };
 
 export async function POST(request: NextRequest) {
@@ -40,19 +39,21 @@ export async function POST(request: NextRequest) {
     const providedLanguage = typeof body.language === 'string' ? body.language.trim() : '';
 
     if (!url) {
-      return NextResponse.json({ error: 'TikTok video link is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Video link is required' }, { status: 400 });
     }
-    if (!isValidTikTokUrl(url)) {
-      return NextResponse.json({ error: 'Invalid TikTok video link' }, { status: 400 });
+    if (!isValidSocialVideoUrl(url)) {
+      return NextResponse.json(
+        { error: 'Unsupported video link. Please provide a TikTok, Instagram, YouTube, or Facebook video URL.' },
+        { status: 400 }
+      );
     }
 
-    const { handle: rawHandle, videoId } = extractHandleAndVideoId(url);
-    const handle = rawHandle ? parseTikTokHandle(rawHandle) : null;
-    const sourceName = handle || 'Imported';
+    const platform = detectPlatform(url) || 'tiktok';
+    const videoId = extractVideoId(url);
+    const sourceName = 'Imported';
 
     const supabase = getSupabaseAdmin();
 
-    // Schema verified via Supabase MCP (2026-02-26): creator_sources
     const { data: existingSources, error: sourceError } = await supabase
       .from('creator_sources')
       .select('*')
@@ -69,10 +70,7 @@ export async function POST(request: NextRequest) {
     if (!source) {
       const { data: createdSource, error: createError } = await supabase
         .from('creator_sources')
-        .insert({
-          user_id: userId,
-          source_name: sourceName
-        })
+        .insert({ user_id: userId, source_name: sourceName })
         .select()
         .single();
 
@@ -84,35 +82,25 @@ export async function POST(request: NextRequest) {
       source = createdSource;
     }
 
-    if (handle) {
-      // Schema verified via Supabase MCP (2026-02-26): creator_source_platforms
-      await supabase
-        .from('creator_source_platforms')
-        .upsert({
-          user_id: userId,
-          source_id: source.id,
-          platform: 'tiktok',
-          handle,
-          profile_url: resolveTikTokProfileUrl(handle)
-        }, { onConflict: 'source_id,platform' });
-    }
-
-    let cdnUrl: string | null = null;
+    // Fetch video info (URL + thumbnail) in one API call
+    let videoInfo: Awaited<ReturnType<typeof fetchSocialVideoInfo>> | null = null;
     try {
-      cdnUrl = await fetchTikTokVideoUrl(url);
+      videoInfo = await fetchSocialVideoInfo(url);
     } catch (error) {
-      console.warn('[Creator Videos Import Link] Failed to fetch TikTok CDN url:', error);
+      console.warn('[Creator Videos Import Link] Failed to fetch video info:', error);
     }
 
-    if (!cdnUrl) {
-      return NextResponse.json({ error: 'Failed to fetch TikTok video URL' }, { status: 500 });
+    if (!videoInfo?.videoUrl) {
+      return NextResponse.json({ error: 'Failed to fetch video URL' }, { status: 500 });
     }
+
+    const { videoUrl: cdnUrl, thumbnailUrl: apiThumbnail, durationSeconds: apiDuration } = videoInfo;
 
     const platformVideoId = videoId || crypto.randomUUID();
     const analysisDurationSeconds =
       typeof providedAnalysisResult?.video_duration_seconds === 'number'
         ? providedAnalysisResult.video_duration_seconds
-        : null;
+        : apiDuration;
     const analysisLanguage =
       providedLanguage
       || (typeof providedAnalysisResult?.detected_language === 'string'
@@ -122,7 +110,7 @@ export async function POST(request: NextRequest) {
     const creatorVideoUpsertPayload: Record<string, unknown> = {
       user_id: userId,
       source_id: source.id,
-      platform: 'tiktok',
+      platform: 'tiktok',  // DB CHECK CONSTRAINT only allows 'tiktok' for now
       platform_video_id: platformVideoId,
       video_url: url,
       video_cdn_url: cdnUrl,
@@ -135,14 +123,14 @@ export async function POST(request: NextRequest) {
       creatorVideoUpsertPayload.analysis_result = providedAnalysisResult;
       creatorVideoUpsertPayload.analysis_language = analysisLanguage;
       creatorVideoUpsertPayload.analyzed_at = new Date().toISOString();
-      creatorVideoUpsertPayload.duration_seconds = analysisDurationSeconds;
+      creatorVideoUpsertPayload.duration_seconds = analysisDurationSeconds != null ? Math.round(analysisDurationSeconds) : analysisDurationSeconds;
     } else {
       creatorVideoUpsertPayload.analysis_status = 'pending';
+      if (analysisDurationSeconds) {
+        creatorVideoUpsertPayload.duration_seconds = Math.round(analysisDurationSeconds);
+      }
     }
 
-    // Schema verified via Supabase MCP (2026-03-03): creator_source_videos includes
-    // analysis_status, analysis_result, analysis_language, analyzed_at, duration_seconds,
-    // storage_bucket, storage_path, cover_storage_bucket, cover_storage_path.
     const { data: storedVideo, error: videoError } = await supabase
       .from('creator_source_videos')
       .upsert(creatorVideoUpsertPayload, { onConflict: 'source_id,platform,platform_video_id' })
@@ -157,15 +145,16 @@ export async function POST(request: NextRequest) {
     const storedVideoId = storedVideo.id;
     const sourceNameForAnalysis = source.source_name;
     const originalCdnUrl = cdnUrl;
-    const originalUrl = url;
-    const expectedVideoFileName = `${videoId || 'tiktok'}.mp4`;
-    const expectedCoverFileName = `${videoId || 'tiktok'}.png`;
+    const expectedVideoFileName = `${platformVideoId}.mp4`;
+    const expectedCoverFileName = `${platformVideoId}.png`;
+    const thumbnailUrl = apiThumbnail;
 
-    // Run heavy tasks after response to avoid connection closure on production edge/network timeouts.
+    // Run heavy tasks after response to avoid connection timeouts
     after(async () => {
       const bgSupabase = getSupabaseAdmin();
       let analysisVideoUrl = originalCdnUrl;
 
+      // Upload video to Supabase Storage
       try {
         const { buffer, contentType } = await downloadVideoBuffer(originalCdnUrl);
         const uploadResult = await uploadCreatorVideoToStorage({
@@ -187,13 +176,13 @@ export async function POST(request: NextRequest) {
           })
           .eq('id', storedVideoId);
       } catch (storageError) {
-        console.warn('[Creator Videos Import Link] Background storage upload failed, using TikTok CDN URL:', storageError);
+        console.warn('[Creator Videos Import Link] Background storage upload failed, using CDN URL:', storageError);
       }
 
-      try {
-        const fallbackCover = await fetchTikTokCoverByUrl(originalUrl);
-        if (fallbackCover) {
-          const coverFile = await downloadVideoBuffer(fallbackCover);
+      // Upload cover thumbnail from API response (works for all platforms)
+      if (thumbnailUrl) {
+        try {
+          const coverFile = await downloadVideoBuffer(thumbnailUrl);
           const coverUpload = await uploadCreatorVideoCoverToStorage({
             userId,
             creatorVideoId: storedVideoId,
@@ -210,11 +199,12 @@ export async function POST(request: NextRequest) {
               cover_storage_path: coverUpload.path
             })
             .eq('id', storedVideoId);
+        } catch (coverError) {
+          console.warn('[Creator Videos Import Link] Cover upload failed:', coverError);
         }
-      } catch (fallbackError) {
-        console.warn('[Creator Videos Import Link] Cover download failed:', fallbackError);
       }
 
+      // Run AI analysis if not already provided
       if (!providedAnalysisResult) {
         try {
           await analyzeCreatorVideoAndUpdate({
