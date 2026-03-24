@@ -3,11 +3,14 @@ export type ProjectAgentFeatureNodeType =
   | 'avatar_ads'
   | 'motion_clone';
 
-export type ProjectAgentAssetNodeType = 'avatar' | 'product' | 'video';
+export type ProjectAgentAssetNodeType = 'avatar' | 'product' | 'video' | 'text';
+
+export type ProjectAgentOutputNodeType = 'output_video';
 
 export type ProjectAgentCanvasNodeType =
   | ProjectAgentAssetNodeType
-  | ProjectAgentFeatureNodeType;
+  | ProjectAgentFeatureNodeType
+  | ProjectAgentOutputNodeType;
 
 export type ProjectAgentNodeExecutionState =
   | 'idle'
@@ -39,6 +42,8 @@ export type ProjectAgentCanvasAssetRef = {
   id: string;
   name: string;
   imageUrl?: string | null;
+  photos?: string[];
+  content?: string | null;
   sourceType?: 'creator' | 'competitor_ad' | null;
   videoUrl?: string | null;
   videoCdnUrl?: string | null;
@@ -103,7 +108,11 @@ export const getCanvasConnectionError = (
     return 'This connection is not supported.';
   }
 
-  if (!PROJECT_AGENT_FEATURE_INPUTS[targetNode.type].includes(edge.targetHandle)) {
+  if (
+    !PROJECT_AGENT_FEATURE_INPUTS[targetNode.type].includes(edge.targetHandle) &&
+    !(PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS[targetNode.type] || []).includes(edge.targetHandle) &&
+    !(PROJECT_AGENT_FEATURE_ANY_OF_INPUTS[targetNode.type] || []).includes(edge.targetHandle)
+  ) {
     return `This ${sourceNode.type} cannot connect to ${getProjectAgentFeatureDisplayName(targetNode.type)}.`;
   }
 
@@ -145,8 +154,24 @@ export const PROJECT_AGENT_FEATURE_INPUTS: Record<
   ProjectAgentAssetNodeType[]
 > = {
   video_clone: ['avatar', 'product', 'video'],
-  avatar_ads: ['avatar', 'product'],
+  avatar_ads: [],
   motion_clone: ['avatar', 'product', 'video'],
+};
+
+// "Any one of" input groups — at least one from the group must be connected
+export const PROJECT_AGENT_FEATURE_ANY_OF_INPUTS: Partial<Record<
+  ProjectAgentFeatureNodeType,
+  ProjectAgentAssetNodeType[]
+>> = {
+  avatar_ads: ['avatar', 'product'],
+};
+
+// Optional (non-required) inputs for each feature node type
+export const PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS: Partial<Record<
+  ProjectAgentFeatureNodeType,
+  ProjectAgentAssetNodeType[]
+>> = {
+  avatar_ads: ['text'],
 };
 
 export const getProjectAgentFeatureDisplayName = (
@@ -174,6 +199,8 @@ export const getProjectAgentAssetDisplayName = (
       return 'Product';
     case 'video':
       return 'Video';
+    case 'text':
+      return 'Text';
     default:
       return type;
   }
@@ -188,7 +215,13 @@ export const isProjectAgentFeatureNode = (
 export const isProjectAgentAssetNode = (
   type: ProjectAgentCanvasNodeType
 ): type is ProjectAgentAssetNodeType => {
-  return type === 'avatar' || type === 'product' || type === 'video';
+  return type === 'avatar' || type === 'product' || type === 'video' || type === 'text';
+};
+
+export const isProjectAgentOutputNode = (
+  type: ProjectAgentCanvasNodeType
+): type is ProjectAgentOutputNodeType => {
+  return type === 'output_video';
 };
 
 export const createProjectAgentCanvasNodeId = (prefix: string) => (
@@ -273,9 +306,18 @@ export const getMissingFeatureInputs = (
   }
 
   const connected = getConnectedAssetNodeMap(state, featureNodeId);
-  return PROJECT_AGENT_FEATURE_INPUTS[featureNode.type].filter(
+
+  // Strict required inputs — ALL must be connected
+  const strictMissing = PROJECT_AGENT_FEATURE_INPUTS[featureNode.type].filter(
     (requiredInput) => !connected.has(requiredInput)
   );
+
+  // "Any of" group — if NONE in the group is connected, the group counts as missing
+  const anyOfGroup = PROJECT_AGENT_FEATURE_ANY_OF_INPUTS[featureNode.type];
+  const anyOfMissing: ProjectAgentAssetNodeType[] =
+    anyOfGroup && !anyOfGroup.some((t) => connected.has(t)) ? anyOfGroup : [];
+
+  return [...strictMissing, ...anyOfMissing];
 };
 
 export const canRunFeatureNode = (

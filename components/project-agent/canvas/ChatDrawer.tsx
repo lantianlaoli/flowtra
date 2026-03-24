@@ -133,24 +133,22 @@ export default function ChatDrawer({
             })}
           </div>
 
-          <form className="border-t border-[#f0ede5] px-4 py-4" onSubmit={handleSubmit}>
+          <form className="border-t border-[#f0ede5] px-4 py-4" onSubmit={(e) => e.preventDefault()}>
             {statusNote ? (
               <p className="mb-3 rounded-2xl bg-[#f4f1e8] px-3 py-2 text-xs text-[#66665f]">{statusNote}</p>
             ) : null}
-            <textarea
-              className="min-h-[88px] w-full resize-none rounded-[20px] border border-[#ddd8cc] bg-[#fcfbf8] px-4 py-3 text-sm text-black outline-none focus:border-black"
-              onChange={(event) => onDraftChange(event.target.value)}
-              placeholder="Tell the agent to place or connect nodes..."
-              value={draft}
-            />
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <p className="text-xs text-[#7b7b75]">
-                {status === 'streaming' ? 'Agent is responding...' : 'Canvas actions apply immediately when recognized.'}
-              </p>
+            {/* Under construction — chat agent coming soon */}
+            <div className="relative min-h-[88px] w-full overflow-hidden rounded-[20px] border border-dashed border-[#d4cfbf] bg-[#faf9f5]">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-4 py-3">
+                <span className="text-lg">🚧</span>
+                <p className="text-center text-xs font-medium text-[#9b9890]">Chat agent coming soon</p>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-end">
               <button
-                className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#d1cec3]"
-                disabled={status === 'streaming' || !draft.trim()}
-                type="submit"
+                className="rounded-full bg-[#d1cec3] px-4 py-2 text-sm font-semibold text-white cursor-not-allowed"
+                disabled
+                type="button"
               >
                 Send
               </button>

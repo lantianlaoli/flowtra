@@ -1,7 +1,7 @@
 'use client';
 
 import { type ReactNode, useState } from 'react';
-import { Box, ChevronDown, Clapperboard, Package2, Sparkles, User, Video } from 'lucide-react';
+import { Box, ChevronDown, Clapperboard, Package2, Sparkles, Type, User, Video } from 'lucide-react';
 import {
   getProjectAgentFeatureDisplayName,
   type ProjectAgentAssetNodeType,
@@ -107,7 +107,7 @@ export default function InsertToolbar({
 
   return (
     <div className="pointer-events-auto rounded-[28px] border border-[#ddd9ce] bg-white/95 p-3 shadow-[0_20px_50px_rgba(0,0,0,0.12)] backdrop-blur">
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex items-end gap-2">
         {[
           { key: 'avatar', label: 'Avatar' },
           { key: 'product', label: 'Product' },
@@ -118,9 +118,9 @@ export default function InsertToolbar({
           const open = openKey === entry.key;
 
           return (
-          <div className="relative" key={entry.key}>
+          <div className="relative min-w-0 shrink" key={entry.key}>
             <button
-              className={`flex items-center gap-2 rounded-[22px] border px-4 py-2.5 text-sm font-semibold ${
+              className={`flex min-w-0 items-center gap-1.5 rounded-[22px] border px-3 py-2.5 text-sm font-semibold ${
                 open
                   ? 'border-black bg-black text-white'
                   : 'border-[#dad6cb] bg-[#f8f7f2] text-black'
@@ -128,9 +128,9 @@ export default function InsertToolbar({
               onClick={() => setOpenKey((current) => current === entry.key ? null : entry.key)}
               type="button"
             >
-              <EntryIcon className="h-4 w-4" />
-              <span>{entry.label}</span>
-              <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+              <EntryIcon className="h-4 w-4 shrink-0" />
+              <span className="hidden min-[520px]:inline truncate">{entry.label}</span>
+              <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
             </button>
 
             {openKey === entry.key ? (
@@ -158,6 +158,19 @@ export default function InsertToolbar({
           </div>
           );
         })}
+
+        {/* Text node — directly draggable, no dropdown */}
+        <div
+          className="flex shrink cursor-grab items-center gap-1.5 overflow-hidden rounded-[22px] border border-[#dad6cb] bg-[#f8f7f2] px-3 py-2.5 text-sm font-semibold text-black active:cursor-grabbing"
+          draggable
+          onDragStart={(event) => {
+            event.dataTransfer.effectAllowed = 'copy';
+            event.dataTransfer.setData('application/json', JSON.stringify({ kind: 'text' }));
+          }}
+        >
+          <Type className="h-4 w-4 shrink-0" />
+          <span className="hidden min-[520px]:inline">Text</span>
+        </div>
       </div>
     </div>
   );

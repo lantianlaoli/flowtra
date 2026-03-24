@@ -1,10 +1,14 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
+  BrushCleaning,
   CheckCircle2,
+  Circle,
   Clapperboard,
+  Download,
+  GripVertical,
   Loader2,
   Package,
   Play,
@@ -12,6 +16,7 @@ import {
   Scissors,
   Sparkles,
   Trash2,
+  Type,
   User,
   Video as VideoIcon,
   WandSparkles,
@@ -21,6 +26,9 @@ import {
   getProjectAgentFeatureDisplayName,
   isProjectAgentAssetNode,
   isProjectAgentFeatureNode,
+  isProjectAgentOutputNode,
+  PROJECT_AGENT_FEATURE_ANY_OF_INPUTS,
+  PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS,
   type ProjectAgentAssetNodeType,
   type ProjectAgentCanvasNode,
   type ProjectAgentCanvasState,
@@ -49,6 +57,8 @@ type CanvasBoardProps = {
   onDeleteNode: (nodeId: string) => void;
   onNodeDoubleClick: (nodeId: string) => void;
   onRunFeatureNode: (nodeId: string) => void;
+  onUpdateNodeContent: (nodeId: string, content: string) => void;
+  onFormatLayout: () => void;
   onBeginConnection: (event: React.PointerEvent<HTMLButtonElement>, nodeId: string) => void;
   onConnectToHandle: (targetNodeId: string, handle: ProjectAgentAssetNodeType) => void;
   onRemoveEdge: (edgeId: string) => void;
@@ -56,10 +66,10 @@ type CanvasBoardProps = {
 };
 
 const getNodeSize = (node: ProjectAgentCanvasNode) => {
-  if (isProjectAgentAssetNode(node.type)) {
-    return { width: 248, height: 96 };
-  }
-  return { width: 248, height: 96 };
+  if (node.type === 'video') return { width: 130, height: 246 };
+  if (isProjectAgentAssetNode(node.type)) return { width: 188, height: 224 };
+  if (isProjectAgentOutputNode(node.type)) return { width: 130, height: 246 };
+  return { width: 248, height: 216 };
 };
 
 const getSourceHandlePosition = (node: ProjectAgentCanvasNode) => {
@@ -126,9 +136,45 @@ const getBezierTangentAngle = (source: { x: number; y: number }, target: { x: nu
   return (Math.atan2(tangentY, tangentX) * 180) / Math.PI;
 };
 
+// Returns the tangent angle at an arbitrary canvas point by finding the closest t on the bezier
+const getBezierTangentAngleAtPoint = (
+  source: { x: number; y: number },
+  target: { x: number; y: number },
+  pt: { x: number; y: number }
+) => {
+  const dx = Math.max(60, Math.abs(target.x - source.x) / 2);
+  const c1 = { x: source.x + dx, y: source.y };
+  const c2 = { x: target.x - dx, y: target.y };
+
+  // Sample 20 points and find the t closest to pt
+  let bestT = 0.5;
+  let bestDist = Infinity;
+  for (let i = 0; i <= 20; i++) {
+    const t = i / 20;
+    const mt = 1 - t;
+    const bx = mt ** 3 * source.x + 3 * mt ** 2 * t * c1.x + 3 * mt * t ** 2 * c2.x + t ** 3 * target.x;
+    const by = mt ** 3 * source.y + 3 * mt ** 2 * t * c1.y + 3 * mt * t ** 2 * c2.y + t ** 3 * target.y;
+    const d = Math.hypot(pt.x - bx, pt.y - by);
+    if (d < bestDist) { bestDist = d; bestT = t; }
+  }
+
+  const mt = 1 - bestT;
+  const tx =
+    3 * mt ** 2 * (c1.x - source.x) +
+    6 * mt * bestT * (c2.x - c1.x) +
+    3 * bestT ** 2 * (target.x - c2.x);
+  const ty =
+    3 * mt ** 2 * (c1.y - source.y) +
+    6 * mt * bestT * (c2.y - c1.y) +
+    3 * bestT ** 2 * (target.y - c2.y);
+
+  return (Math.atan2(ty, tx) * 180) / Math.PI;
+};
+
 const getAssetFallbackIcon = (type: ProjectAgentAssetNodeType) => {
   if (type === 'avatar') return User;
   if (type === 'product') return Package;
+  if (type === 'text') return Type;
   return VideoIcon;
 };
 
@@ -138,9 +184,6 @@ const getFeatureIcon = (type: ProjectAgentFeatureNodeType) => {
   return WandSparkles;
 };
 
-const formatMissingInputs = (inputs: ProjectAgentAssetNodeType[]) => (
-  inputs.map((input) => getProjectAgentAssetDisplayName(input).toLowerCase()).join(', ')
-);
 
 export default function CanvasBoard({
   canvas,
@@ -159,6 +202,8 @@ export default function CanvasBoard({
   onDeleteNode,
   onNodeDoubleClick,
   onRunFeatureNode,
+  onUpdateNodeContent,
+  onFormatLayout,
   onBeginConnection,
   onConnectToHandle,
   onRemoveEdge,
@@ -168,6 +213,19 @@ export default function CanvasBoard({
     ? canvas.nodes.find((node) => node.id === pendingConnectionSourceId) || null
     : null;
   const hoverTimeoutRef = useRef<number | null>(null);
+  const [edgeHoverPoint, setEdgeHoverPoint] = useState<{ edgeId: string; x: number; y: number } | null>(null);
+
+  const getSvgPoint = (event: React.PointerEvent<SVGGElement>) => {
+    const svg = event.currentTarget.ownerSVGElement;
+    if (!svg) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = event.clientX;
+    pt.y = event.clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    const svgPt = pt.matrixTransform(ctm.inverse());
+    return { x: svgPt.x, y: svgPt.y };
+  };
 
   useEffect(() => {
     return () => {
@@ -207,18 +265,21 @@ export default function CanvasBoard({
             const target = getTargetHandlePosition(targetNode, edge.targetHandle);
             const selected = selectedEdgeId === edge.id;
             const midpoint = getBezierMidpoint(source, target);
-            const tangentAngle = getBezierTangentAngle(source, target);
 
             return (
               <g
                 key={edge.id}
+                onPointerMove={(event) => {
+                  const pt = getSvgPoint(event);
+                  if (pt) setEdgeHoverPoint({ edgeId: edge.id, x: pt.x, y: pt.y });
+                }}
                 onPointerEnter={() => {
                   if (hoverTimeoutRef.current) {
                     window.clearTimeout(hoverTimeoutRef.current);
                   }
                   hoverTimeoutRef.current = window.setTimeout(() => {
                     onSelectEdge(edge.id);
-                  }, 1000);
+                  }, 600);
                 }}
                 onPointerLeave={() => {
                   if (hoverTimeoutRef.current) {
@@ -228,6 +289,7 @@ export default function CanvasBoard({
                   if (selectedEdgeId === edge.id) {
                     onSelectEdge(null);
                   }
+                  setEdgeHoverPoint(null);
                 }}
               >
                 <path
@@ -240,35 +302,41 @@ export default function CanvasBoard({
                   pointerEvents="stroke"
                   style={{ cursor: 'pointer' }}
                 />
-                {selected ? (
-                  <g
-                    transform={`translate(${midpoint.x}, ${midpoint.y})`}
-                    style={{ cursor: 'pointer' }}
-                    onPointerDown={(event) => {
-                      event.stopPropagation();
-                      onRemoveEdge(edge.id);
-                    }}
-                  >
-                    <g transform={`rotate(${tangentAngle})`}>
-                      <circle
-                        cx="0"
-                        cy="0"
-                        r="17"
-                        fill="#ffffff"
-                        stroke="#d7d4ca"
-                        strokeWidth="1.5"
-                      />
-                      <Scissors
-                        className="text-black"
-                        height={14}
-                        style={{ transform: 'translate(-7px, -7px)' }}
-                        width={14}
-                        x={0}
-                        y={0}
-                      />
+                {selected ? (() => {
+                  const scissorPt = (edgeHoverPoint?.edgeId === edge.id)
+                    ? edgeHoverPoint
+                    : midpoint;
+                  const angle = getBezierTangentAngleAtPoint(source, target, scissorPt);
+                  return (
+                    <g
+                      transform={`translate(${scissorPt.x}, ${scissorPt.y})`}
+                      style={{ cursor: 'pointer' }}
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                        onRemoveEdge(edge.id);
+                      }}
+                    >
+                      <g transform={`rotate(${angle})`}>
+                        <circle
+                          cx="0"
+                          cy="0"
+                          r="17"
+                          fill="#ffffff"
+                          stroke="#d7d4ca"
+                          strokeWidth="1.5"
+                        />
+                        <Scissors
+                          className="text-black"
+                          height={14}
+                          style={{ transform: 'translate(-7px, -7px)' }}
+                          width={14}
+                          x={0}
+                          y={0}
+                        />
+                      </g>
                     </g>
-                  </g>
-                ) : null}
+                  );
+                })() : null}
               </g>
             );
           })}
@@ -287,6 +355,32 @@ export default function CanvasBoard({
               />
             );
           })() : null}
+          {canvas.nodes.map((node) => {
+            if (!isProjectAgentOutputNode(node.type)) return null;
+            const featureNodeId = node.asset?.id;
+            if (!featureNodeId) return null;
+            const featureNode = canvas.nodes.find((n) => n.id === featureNodeId);
+            if (!featureNode) return null;
+            const featureSize = getNodeSize(featureNode);
+            const source = {
+              x: featureNode.x + featureSize.width,
+              y: featureNode.y + featureSize.height / 2,
+            };
+            const target = {
+              x: node.x,
+              y: node.y + getNodeSize(node).height / 2,
+            };
+            return (
+              <path
+                key={`output-edge-${node.id}`}
+                d={renderEdgePath(source, target)}
+                fill="none"
+                opacity={0.95}
+                stroke="#0f0f0f"
+                strokeWidth={3}
+              />
+            );
+          })}
         </svg>
 
         {canvas.nodes.map((node) => {
@@ -299,30 +393,32 @@ export default function CanvasBoard({
           const missingInputs = isFeatureNode ? (node.runtime?.missingInputs || []) : [];
           const canStart = isFeatureNode ? Boolean(node.runtime?.canStart) : false;
           const executionState = node.runtime?.executionState || 'invalid';
+          const hasAnyInput = isFeatureNode
+            ? canvas.edges.some((e) => e.targetNodeId === node.id)
+            : false;
+          // Receiver dot state: green = ready, yellow = partial, white = empty
+          const dotState = canStart ? 'ready' : hasAnyInput ? 'partial' : 'empty';
+          const featureOptionalInputs = featureType
+            ? (PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS[featureType] || [])
+            : [];
+          const featureAnyOfInputs = featureType
+            ? (PROJECT_AGENT_FEATURE_ANY_OF_INPUTS[featureType] || [])
+            : [];
           const supportsPendingConnection = (
             isFeatureNode &&
             pendingSourceNode &&
             isProjectAgentAssetNode(pendingSourceNode.type) &&
-            missingInputs.includes(pendingSourceNode.type)
+            (missingInputs.includes(pendingSourceNode.type) ||
+             featureOptionalInputs.includes(pendingSourceNode.type) ||
+             featureAnyOfInputs.includes(pendingSourceNode.type))
           );
           const FeatureIcon = featureType ? getFeatureIcon(featureType) : null;
-          const statusTooltip = (
-            executionState === 'completed'
-              ? 'Completed'
-              : executionState === 'failed'
-                ? (node.runtime?.error || 'Failed. Click to retry.')
-                : executionState === 'running'
-                  ? (node.runtime?.statusLabel || 'Running')
-                  : canStart
-                    ? 'Start'
-                    : `Need ${formatMissingInputs(missingInputs)}`
-          );
 
           return (
             <div
               key={node.id}
               data-canvas-node="true"
-              className={`absolute rounded-[24px] border bg-white/96 shadow-[0_18px_40px_rgba(0,0,0,0.08)] transition-shadow ${
+              className={`group absolute rounded-[24px] border bg-white/96 shadow-[0_18px_40px_rgba(0,0,0,0.08)] transition-shadow ${
                 selected
                   ? 'border-black shadow-[0_24px_60px_rgba(0,0,0,0.14)]'
                   : 'border-[#dfddd5] hover:shadow-[0_22px_48px_rgba(0,0,0,0.10)]'
@@ -331,12 +427,12 @@ export default function CanvasBoard({
                 left: node.x,
                 top: node.y,
                 width: size.width,
-                minHeight: size.height,
+                height: size.height,
               }}
               onPointerDown={(event) => onNodePointerDown(event, node.id)}
               onClick={() => onSelectNode(node.id)}
               onDoubleClick={() => {
-                if (isFeatureNode) {
+                if (!isFeatureNode) {
                   onNodeDoubleClick(node.id);
                 }
               }}
@@ -346,46 +442,155 @@ export default function CanvasBoard({
                 onConnectToHandle(node.id, pendingSourceNode.type);
               }}
             >
-              {selected ? (
-                <div className="absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-[calc(100%+12px)]">
-                  <div className="flex items-center rounded-full border border-[#ddd7ca] bg-white/96 p-1 shadow-[0_12px_28px_rgba(0,0,0,0.12)] backdrop-blur">
-                    <button
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#5e5b54] transition-[transform,background-color,color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:bg-[#f4efe4] hover:text-black hover:shadow-[0_8px_18px_rgba(0,0,0,0.08)] active:translate-y-0 active:scale-[0.96]"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onDeleteNode(node.id);
-                      }}
-                      type="button"
+              {/* Hover toolbar above card — pb-3 bridges the gap so mouse stays in hover zone */}
+              <div className="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-full pb-3 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100">
+                <div className="flex items-center divide-x divide-[#e8e4da] rounded-full border border-[#ddd7ca] bg-white/96 shadow-[0_10px_24px_rgba(0,0,0,0.11)] backdrop-blur">
+                  {isProjectAgentOutputNode(node.type) && node.asset?.videoUrl ? (
+                    <a
+                      className="inline-flex items-center gap-1.5 rounded-l-full px-3.5 py-2 text-xs font-medium text-[#4a4944] transition-colors hover:bg-[#f5f2ea] hover:text-black"
+                      download
+                      href={node.asset.videoUrl}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <Trash2 className="h-4.5 w-4.5" />
-                    </button>
+                      <Download className="h-3.5 w-3.5" />
+                      Download
+                    </a>
+                  ) : null}
+                  <button
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-[#4a4944] transition-colors hover:bg-[#fff1f0] hover:text-red-600 ${isProjectAgentOutputNode(node.type) && node.asset?.videoUrl ? 'rounded-r-full' : 'rounded-full'}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onDeleteNode(node.id);
+                    }}
+                    type="button"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </button>
+                </div>
+              </div>
+              {isProjectAgentOutputNode(node.type) ? (
+                /* Output video node: 9:16 with HTML5 player */
+                <div className="flex flex-col h-full">
+                  <div className="flex items-center gap-1.5 px-2.5 pt-2.5 pb-1.5">
+                    <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-[#c4c1b8] active:cursor-grabbing" strokeWidth={2} />
+                    <span className="truncate text-xs font-semibold text-[#3d3c38]">Output</span>
+                  </div>
+                  <div className="px-2.5 pb-2.5">
+                    <div
+                      className="relative w-full overflow-hidden rounded-xl bg-[#111]"
+                      style={{ aspectRatio: '9/16' }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {node.asset?.videoUrl ? (
+                        <video
+                          className="h-full w-full object-cover"
+                          controls
+                          playsInline
+                          poster={node.asset.imageUrl || undefined}
+                          preload="none"
+                          src={node.asset.videoUrl}
+                        />
+                      ) : node.asset?.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          alt="Output preview"
+                          className="h-full w-full object-cover"
+                          src={node.asset.imageUrl}
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <VideoIcon className="h-7 w-7 text-[#555]" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              ) : null}
-              {isProjectAgentAssetNode(node.type) ? (
-                <div className="relative flex h-full min-h-[96px] items-center gap-4 px-4 py-4">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#f3f1ea]">
-                    {node.asset?.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        alt={node.asset.name}
-                        className="h-full w-full object-cover"
-                        src={node.asset.imageUrl}
+              ) : isProjectAgentAssetNode(node.type) ? (
+                <div className="relative flex flex-col h-full">
+                  {/* Header: drag handle + name */}
+                  <div className="flex items-center gap-1.5 px-2.5 pt-2.5 pb-1.5">
+                    <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-[#c4c1b8] active:cursor-grabbing" strokeWidth={2} />
+                    <span className="truncate text-xs font-semibold text-[#3d3c38]">
+                      {node.asset?.name || getProjectAgentAssetDisplayName(node.type as ProjectAgentAssetNodeType)}
+                    </span>
+                  </div>
+                  {/* Body */}
+                  {node.type === 'text' ? (
+                    /* Text node: editable textarea */
+                    <div className="flex-1 px-2.5 pb-2.5">
+                      <textarea
+                        className="h-full w-full resize-none rounded-xl bg-[#f3f1ea] p-2.5 text-xs text-[#3d3c38] placeholder:text-[#b0ada5] focus:outline-none focus:ring-2 focus:ring-black/10"
+                        placeholder="Enter text..."
+                        value={node.asset?.content || ''}
+                        onChange={(e) => onUpdateNodeContent(node.id, e.target.value)}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
                       />
-                    ) : (
-                      (() => {
-                        const FallbackIcon = getAssetFallbackIcon(node.type);
-                        return <FallbackIcon className="h-5 w-5 text-[#8b8b84]" />;
-                      })()
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1 pr-8">
-                    <p className="truncate text-base font-semibold text-black">
-                      {node.asset?.name || 'Untitled'}
-                    </p>
-                  </div>
+                    </div>
+                  ) : node.type === 'video' ? (
+                    <div className="flex flex-1 items-start justify-center px-2.5 pb-2.5">
+                      <div
+                        className="relative w-full overflow-hidden rounded-xl bg-[#111]"
+                        style={{ aspectRatio: '9/16' }}
+                      >
+                        {node.asset?.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            alt={node.asset.name}
+                            className="h-full w-full object-cover"
+                            src={node.asset.imageUrl}
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <VideoIcon className="h-7 w-7 text-[#555]" />
+                          </div>
+                        )}
+                        {node.asset?.videoUrl ? (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm">
+                              <Play className="h-4 w-4 translate-x-0.5 fill-white text-white" />
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    /* 2×2 photo grid for avatar/product */
+                    <div className="grid grid-cols-2 gap-1 px-2.5 pb-2.5">
+                      {(() => {
+                        const FallbackIcon = getAssetFallbackIcon(node.type as ProjectAgentAssetNodeType);
+                        const photos = (node.asset?.photos?.length
+                          ? node.asset.photos
+                          : node.asset?.imageUrl
+                            ? [node.asset.imageUrl]
+                            : []) as string[];
+                        return Array.from({ length: 4 }).map((_, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center justify-center overflow-hidden rounded-xl bg-[#f3f1ea]"
+                            style={{ aspectRatio: '1/1' }}
+                          >
+                            {photos[i] ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                alt=""
+                                className="h-full w-full object-cover"
+                                src={photos[i]}
+                              />
+                            ) : (
+                              <FallbackIcon className="h-5 w-5 text-[#b0ada5]" />
+                            )}
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  )}
+                  {/* Connection button */}
                   <button
-                    className={`absolute right-0 top-1/2 z-10 h-11 w-11 translate-x-1/2 -translate-y-1/2 rounded-full border shadow-[0_10px_24px_rgba(0,0,0,0.10)] transition-[transform,box-shadow,background-color,color,border-color] duration-200 ease-out hover:-translate-y-[52%] hover:scale-[1.04] hover:shadow-[0_16px_30px_rgba(0,0,0,0.14)] active:-translate-y-1/2 active:scale-[0.97] ${
+                    className={`absolute right-0 top-1/2 z-10 h-10 w-10 translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border shadow-[0_10px_24px_rgba(0,0,0,0.10)] transition-[transform,box-shadow,background-color,color,border-color] duration-200 ease-out hover:-translate-y-[52%] hover:scale-[1.04] hover:shadow-[0_16px_30px_rgba(0,0,0,0.14)] active:-translate-y-1/2 active:scale-[0.97] ${
                       pendingConnectionSourceId === node.id
                         ? 'border-black bg-black text-white'
                         : 'border-[#d7d4ca] bg-white text-black'
@@ -402,91 +607,127 @@ export default function CanvasBoard({
                   </button>
                 </div>
               ) : (
-                <div className="relative flex h-full min-h-[96px] items-center gap-4 px-4 py-4">
+                /* Feature node — vertical layout matching video/asset cards */
+                <div className="relative flex flex-col h-full">
+                  {/* Left connection target dot — colored by input state */}
                   <div
-                    className={`pointer-events-none absolute left-0 top-1/2 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border bg-white shadow-[0_6px_14px_rgba(0,0,0,0.08)] transition-all duration-300 ease-out ${
+                    className={`pointer-events-none absolute left-0 top-1/2 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border shadow-[0_6px_14px_rgba(0,0,0,0.08)] transition-all duration-300 ease-out ${
                       snappedConnectionTarget?.targetNodeId === node.id
-                        ? 'scale-[1.35] border-black shadow-[0_0_0_8px_rgba(15,15,15,0.10)]'
-                        : 'border-[#d7d4ca]'
+                        ? 'scale-[1.4] border-black bg-white shadow-[0_0_0_8px_rgba(15,15,15,0.10)]'
+                        : dotState === 'ready'
+                          ? 'border-emerald-400 bg-emerald-50'
+                          : dotState === 'partial'
+                            ? 'border-amber-400 bg-amber-50'
+                            : 'border-[#d7d4ca] bg-white'
                     }`}
                   >
                     <span
                       className={`absolute inset-[3px] rounded-full transition-all duration-300 ease-out ${
                         snappedConnectionTarget?.targetNodeId === node.id
                           ? 'bg-black'
-                          : 'bg-white'
+                          : dotState === 'ready'
+                            ? 'bg-emerald-400'
+                            : dotState === 'partial'
+                              ? 'bg-amber-400'
+                              : 'bg-white'
                       }`}
                     />
                     {snappedConnectionTarget?.targetNodeId === node.id ? (
                       <span className="absolute inset-[-5px] rounded-full border border-black/15 animate-ping" />
                     ) : null}
                   </div>
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#f3f1ea]">
-                    {FeatureIcon ? <FeatureIcon className="h-5 w-5 text-[#8b8b84]" /> : null}
-                  </div>
-                  <div className="min-w-0 flex-1 pr-8">
-                    <p className="truncate text-base font-semibold text-black">
-                      {getProjectAgentFeatureDisplayName(node.type)}
-                    </p>
-                  </div>
 
-                  <div className="group absolute right-0 top-1/2 z-10 -translate-y-1/2 translate-x-1/2">
+                  {/* Header: grip + feature name + start/status button */}
+                  <div className="flex items-center gap-1.5 px-2.5 pt-2.5 pb-1.5">
+                    <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-[#c4c1b8] active:cursor-grabbing" strokeWidth={2} />
+                    <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#3d3c38]">
+                      {getProjectAgentFeatureDisplayName(node.type as ProjectAgentFeatureNodeType)}
+                    </span>
                     {executionState === 'running' ? (
-                      <button
-                        className="flex h-11 w-11 items-center justify-center rounded-full border border-black bg-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.10)] transition-[transform,box-shadow] duration-300 ease-out group-hover:-translate-y-0.5 group-hover:scale-[1.04] group-hover:shadow-[0_16px_30px_rgba(0,0,0,0.18)]"
-                        type="button"
-                      >
-                        <Loader2 className="h-5 w-5 animate-spin transition-transform duration-300 ease-out group-hover:scale-110" />
-                      </button>
+                      <div className="flex shrink-0 items-center gap-1 rounded-full bg-black px-2 py-1 text-[10px] font-semibold text-white">
+                        <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                        Running
+                      </div>
                     ) : executionState === 'completed' ? (
-                      <button
-                        className="flex h-11 w-11 items-center justify-center rounded-full border border-black bg-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.10)] transition-[transform,box-shadow] duration-300 ease-out group-hover:-translate-y-0.5 group-hover:scale-[1.04] group-hover:shadow-[0_16px_30px_rgba(0,0,0,0.18)]"
-                        type="button"
-                      >
-                        <CheckCircle2 className="h-5 w-5 transition-transform duration-300 ease-out group-hover:scale-110" />
-                      </button>
-                    ) : executionState === 'failed' ? (
-                      <button
-                        className="flex h-11 w-11 items-center justify-center rounded-full border border-black bg-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.10)] transition-[transform,box-shadow,background-color] duration-300 ease-out group-hover:-translate-y-0.5 group-hover:scale-[1.04] group-hover:bg-[#171717] group-hover:shadow-[0_16px_30px_rgba(0,0,0,0.18)] active:translate-y-0 active:scale-95"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onRunFeatureNode(node.id);
-                        }}
-                        title={statusTooltip}
-                        type="button"
-                      >
-                        <AlertCircle className="h-5 w-5 transition-transform duration-300 ease-out group-hover:scale-110" />
-                      </button>
-                    ) : canStart ? (
-                      <button
-                        className="flex h-11 w-11 items-center justify-center rounded-full border border-black bg-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.10)] transition-[transform,box-shadow,background-color] duration-300 ease-out group-hover:-translate-y-0.5 group-hover:scale-[1.05] group-hover:bg-[#171717] group-hover:shadow-[0_16px_30px_rgba(0,0,0,0.18)] active:translate-y-0 active:scale-95"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onRunFeatureNode(node.id);
-                        }}
-                        title={statusTooltip}
-                        type="button"
-                      >
-                        <Play className="h-4 w-4 fill-white transition-transform duration-300 ease-out group-hover:scale-110 group-hover:translate-x-[1px]" />
-                      </button>
+                      <div className="flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-600">
+                        <CheckCircle2 className="h-2.5 w-2.5" />
+                        Done
+                      </div>
                     ) : (
                       <button
-                        className="flex h-11 w-11 items-center justify-center rounded-full border border-[#d7d4ca] bg-white text-[#8c7c4f] shadow-[0_10px_24px_rgba(0,0,0,0.10)] transition-[transform,box-shadow,border-color,color] duration-300 ease-out group-hover:-translate-y-0.5 group-hover:scale-[1.04] group-hover:border-[#b8a16a] group-hover:text-[#7f6d43] group-hover:shadow-[0_14px_28px_rgba(0,0,0,0.14)]"
+                        className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold transition-all duration-200 ${
+                          canStart
+                            ? 'cursor-pointer bg-black text-white shadow-[0_4px_12px_rgba(0,0,0,0.18)] hover:bg-[#1a1a1a] active:scale-95'
+                            : 'cursor-not-allowed bg-[#f3f1ea] text-[#b8b5ad]'
+                        }`}
+                        disabled={!canStart}
+                        onClick={(event) => {
+                          if (!canStart) return;
+                          event.stopPropagation();
+                          onRunFeatureNode(node.id);
+                        }}
                         type="button"
                       >
-                        <AlertCircle className="h-5 w-5 transition-transform duration-300 ease-out group-hover:scale-110" />
+                        <Play className={`h-2.5 w-2.5 ${canStart ? 'fill-white text-white' : 'fill-[#b8b5ad] text-[#b8b5ad]'}`} />
+                        Start
                       </button>
                     )}
+                  </div>
 
-                    {canStart ? (
-                      <div className="pointer-events-none absolute bottom-[calc(100%+10px)] right-1/2 w-max translate-x-1/2 rounded-2xl border border-[#ddd8cb] bg-white px-3 py-2 text-xs font-medium text-[#5f5e57] opacity-0 shadow-[0_12px_28px_rgba(0,0,0,0.10)] transition-[opacity,transform] duration-300 ease-out group-hover:translate-x-1/2 group-hover:-translate-y-1 group-hover:opacity-100">
-                        Start
+                  {/* Divider */}
+                  <div className="mx-2.5 h-px bg-[#eeebe3]" />
+
+                  {/* Body: milestone steps or placeholder */}
+                  <div className="flex-1 overflow-hidden px-2 py-2">
+                    {node.runtime?.milestones?.length ? (
+                      <div className="space-y-0.5">
+                        {node.runtime.milestones.map((milestone) => {
+                          const isActive = milestone.state === 'active';
+                          const isDone = milestone.state === 'completed';
+                          const isFailed = milestone.state === 'failed';
+                          return (
+                            <div
+                              key={milestone.key}
+                              className={`flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors ${
+                                isActive ? 'bg-[#f3f1ea]' : ''
+                              }`}
+                            >
+                              {isDone ? (
+                                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                              ) : isActive ? (
+                                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#3d3c38]" />
+                              ) : isFailed ? (
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+                              ) : (
+                                <Circle className="h-3.5 w-3.5 shrink-0 text-[#d4d1c8]" />
+                              )}
+                              <span
+                                className={`truncate text-xs ${
+                                  isActive
+                                    ? 'font-medium text-[#1a1a18]'
+                                    : isDone
+                                      ? 'text-[#9a9992]'
+                                      : isFailed
+                                        ? 'text-red-500'
+                                        : 'text-[#b0ada5]'
+                                }`}
+                              >
+                                {milestone.label}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
-                    ) : executionState !== 'running' ? (
-                      <div className="pointer-events-none absolute bottom-[calc(100%+10px)] right-1/2 w-max max-w-[220px] translate-x-1/2 rounded-2xl border border-[#ddd8cb] bg-white px-3 py-2 text-xs font-medium text-[#5f5e57] opacity-0 shadow-[0_12px_28px_rgba(0,0,0,0.10)] transition-[opacity,transform] duration-300 ease-out group-hover:translate-x-1/2 group-hover:-translate-y-1 group-hover:opacity-100">
-                        {statusTooltip}
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl bg-[#f8f7f2] px-3 py-4">
+                        {FeatureIcon ? <FeatureIcon className="h-5 w-5 text-[#c8c5bc]" /> : null}
+                        <p className="text-center text-[11px] leading-relaxed text-[#b8b5ad]">
+                          {missingInputs.length > 0
+                            ? `Connect ${missingInputs.join(' & ')} to start`
+                            : 'Ready to start'}
+                        </p>
                       </div>
-                    ) : null}
+                    )}
                   </div>
 
                   {supportsPendingConnection ? (
@@ -502,6 +743,15 @@ export default function CanvasBoard({
       <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/70 bg-white/90 px-3 py-1.5 text-xs font-medium text-[#55554f] shadow-sm">
         Zoom {Math.round(canvas.viewport.zoom * 100)}%
       </div>
+
+      <button
+        className="pointer-events-auto absolute bottom-5 right-5 z-30 flex items-center gap-1.5 rounded-full border border-[#ddd9ce] bg-white/95 px-3.5 py-2 text-xs font-semibold text-[#5f5e57] shadow-[0_8px_20px_rgba(0,0,0,0.08)] backdrop-blur transition-all hover:border-[#ccc8be] hover:bg-white hover:text-black hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)] active:scale-95"
+        onClick={onFormatLayout}
+        type="button"
+      >
+        <BrushCleaning className="h-3.5 w-3.5" />
+        Format
+      </button>
     </div>
   );
 }

@@ -18,21 +18,26 @@ import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import {
   DEFAULT_PROJECT_AGENT_CANVAS_STATE,
   PROJECT_AGENT_FEATURE_INPUTS,
+  PROJECT_AGENT_FEATURE_ANY_OF_INPUTS,
+  PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS,
   connectCanvasNodes,
   createProjectAgentAssetNode,
   createProjectAgentCanvasEdgeId,
+  createProjectAgentCanvasNodeId,
   createProjectAgentFeatureNode,
   getConnectedAssetNodeMap,
   getCanvasConnectionError,
   getProjectAgentCanvasNodeById,
   isProjectAgentAssetNode,
   isProjectAgentFeatureNode,
+  isProjectAgentOutputNode,
   normalizeCanvasState,
   removeCanvasEdge,
   removeCanvasNode,
   upsertCanvasNode,
   type ProjectAgentAssetNodeType,
   type ProjectAgentCanvasAssetRef,
+  type ProjectAgentCanvasNode,
   type ProjectAgentCanvasState,
   type ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
@@ -129,19 +134,21 @@ const toAvatarAssets = (payload: Record<string, unknown>) => {
   const avatars = Array.isArray(payload.avatars) ? payload.avatars : [];
   return avatars
     .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
-    .map((item) => ({
-      id: String(item.id),
-      name: typeof item.avatar_name === 'string'
-        ? item.avatar_name
-        : typeof item.file_name === 'string'
-          ? item.file_name
-          : 'Avatar',
-      imageUrl: typeof item.primary_photo_url === 'string'
-        ? item.primary_photo_url
-        : typeof item.photo_url === 'string'
-          ? item.photo_url
-          : null,
-    })) as ProjectAgentCanvasAssetRef[];
+    .map((item) => {
+      const primaryUrl = typeof item.primary_photo_url === 'string' ? item.primary_photo_url : typeof item.photo_url === 'string' ? item.photo_url : null;
+      const references = Array.isArray(item.reference_photos) ? item.reference_photos : [];
+      const refUrls = references
+        .filter((r): r is Record<string, unknown> => Boolean(r) && typeof r === 'object')
+        .map((r) => r.photo_url)
+        .filter((url): url is string => typeof url === 'string');
+      const photos = [primaryUrl, ...refUrls].filter((url): url is string => typeof url === 'string');
+      return {
+        id: String(item.id),
+        name: typeof item.avatar_name === 'string' ? item.avatar_name : typeof item.file_name === 'string' ? item.file_name : 'Avatar',
+        imageUrl: primaryUrl,
+        photos,
+      };
+    }) as ProjectAgentCanvasAssetRef[];
 };
 
 const toProductAssets = (payload: Record<string, unknown>) => {
@@ -150,11 +157,15 @@ const toProductAssets = (payload: Record<string, unknown>) => {
     .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
     .map((item) => {
       const photos = Array.isArray(item.user_product_photos) ? item.user_product_photos : [];
-      const firstPhoto = photos.find((photo): photo is Record<string, unknown> => Boolean(photo) && typeof photo === 'object');
+      const photoUrls = photos
+        .filter((photo): photo is Record<string, unknown> => Boolean(photo) && typeof photo === 'object')
+        .map((photo) => photo.photo_url)
+        .filter((url): url is string => typeof url === 'string');
       return {
         id: String(item.id),
         name: typeof item.product_name === 'string' ? item.product_name : 'Product',
-        imageUrl: firstPhoto && typeof firstPhoto.photo_url === 'string' ? firstPhoto.photo_url : null,
+        imageUrl: photoUrls[0] || null,
+        photos: photoUrls,
       };
     }) as ProjectAgentCanvasAssetRef[];
 };
@@ -212,6 +223,7 @@ export default function ProjectAgentPage() {
   const persistenceTimeoutRef = useRef<number | null>(null);
   const statusFetchInFlightRef = useRef<Set<string>>(new Set());
   const subscriptionsRef = useRef<Map<string, RealtimeChannel>>(new Map());
+  const supabaseRef = useRef(supabase);
   const connectionCommittedRef = useRef(false);
 
   const ensureHistoryTracked = useCallback((id: string) => {
@@ -311,17 +323,41 @@ export default function ProjectAgentPage() {
       fetch('/api/assets', { cache: 'no-store' }),
     ]);
 
+    let freshAvatars: ProjectAgentCanvasAssetRef[] = [];
+    let freshProducts: ProjectAgentCanvasAssetRef[] = [];
+    let freshVideos: ProjectAgentCanvasAssetRef[] = [];
+
     if (avatarsResponse.ok) {
       const payload = await avatarsResponse.json() as Record<string, unknown>;
-      setAvatars(toAvatarAssets(payload));
+      freshAvatars = toAvatarAssets(payload);
+      setAvatars(freshAvatars);
     }
 
     if (assetsResponse.ok) {
       const payload = await assetsResponse.json() as Record<string, unknown>;
-      setProducts(toProductAssets(payload));
-      setVideos(toVideoAssets(payload));
+      freshProducts = toProductAssets(payload);
+      freshVideos = toVideoAssets(payload);
+      setProducts(freshProducts);
+      setVideos(freshVideos);
     }
-  }, []);
+
+    // Sync photos into existing canvas asset nodes so cards show all angles
+    const allFresh = [...freshAvatars, ...freshProducts, ...freshVideos];
+    if (allFresh.length > 0) {
+      updateCanvas((current) => {
+        let changed = false;
+        const nextNodes = current.nodes.map((node) => {
+          if (!isProjectAgentAssetNode(node.type) || !node.asset?.id) return node;
+          const fresh = allFresh.find((a) => a.id === node.asset!.id);
+          if (!fresh?.photos?.length) return node;
+          if (JSON.stringify(node.asset.photos) === JSON.stringify(fresh.photos)) return node;
+          changed = true;
+          return { ...node, asset: { ...node.asset, photos: fresh.photos } };
+        });
+        return changed ? { ...current, nodes: nextNodes } : current;
+      });
+    }
+  }, [updateCanvas]);
 
   const ensureSessionExists = useCallback(async (targetSessionId: string) => {
     await fetch('/api/project-agent/session', {
@@ -432,12 +468,18 @@ export default function ProjectAgentPage() {
       const nextNodes = current.nodes.map((node) => {
         if (!isProjectAgentFeatureNode(node.type)) return node;
         const featureType = node.type;
-        const missingInputs = PROJECT_AGENT_FEATURE_INPUTS[featureType].filter((inputType) => {
+        const strictMissing = PROJECT_AGENT_FEATURE_INPUTS[featureType].filter((inputType) => {
           const connected = current.edges.some(
             (edge) => edge.targetNodeId === node.id && edge.targetHandle === inputType,
           );
           return !connected;
         });
+        const anyOfGroup = PROJECT_AGENT_FEATURE_ANY_OF_INPUTS[featureType];
+        const anyOfMissing: ProjectAgentAssetNodeType[] =
+          anyOfGroup && !anyOfGroup.some((t) =>
+            current.edges.some((e) => e.targetNodeId === node.id && e.targetHandle === t)
+          ) ? anyOfGroup : [];
+        const missingInputs = [...strictMissing, ...anyOfMissing];
         const canStart = missingInputs.length === 0;
         const executionState = node.runtime?.executionState;
         const preservedState = executionState === 'running' || executionState === 'completed' || executionState === 'failed';
@@ -477,13 +519,19 @@ export default function ProjectAgentPage() {
       const node = getProjectAgentCanvasNodeById(current, nodeId);
       if (!node || !isProjectAgentFeatureNode(node.type)) return current;
       const featureType = node.type;
-      const missingInputs = PROJECT_AGENT_FEATURE_INPUTS[featureType].filter((inputType) => {
+      const strictMissing2 = PROJECT_AGENT_FEATURE_INPUTS[featureType].filter((inputType) => {
         const connected = current.edges.some(
           (edge) => edge.targetNodeId === node.id && edge.targetHandle === inputType,
         );
         return !connected;
       });
-      return upsertCanvasNode(current, {
+      const anyOfGroup2 = PROJECT_AGENT_FEATURE_ANY_OF_INPUTS[featureType];
+      const anyOfMissing2: ProjectAgentAssetNodeType[] =
+        anyOfGroup2 && !anyOfGroup2.some((t) =>
+          current.edges.some((e) => e.targetNodeId === node.id && e.targetHandle === t)
+        ) ? anyOfGroup2 : [];
+      const missingInputs = [...strictMissing2, ...anyOfMissing2];
+      let next = upsertCanvasNode(current, {
         ...node,
         runtime: {
           executionState: execution.executionState,
@@ -500,6 +548,29 @@ export default function ProjectAgentPage() {
           canStart: missingInputs.length === 0,
         },
       });
+
+      // When completed with an output URL, ensure an independent output_video node exists
+      if (execution.executionState === 'completed' && execution.outputUrl) {
+        const outputNodeId = `output-${nodeId}`;
+        const existing = getProjectAgentCanvasNodeById(next, outputNodeId);
+        const outputNode = {
+          id: outputNodeId,
+          type: 'output_video' as const,
+          // Preserve position if already placed, otherwise initialize to the right of the feature node
+          x: existing?.x ?? node.x + 328,
+          y: existing?.y ?? node.y - 75,
+          label: 'Output',
+          asset: {
+            id: nodeId,
+            name: 'Output',
+            videoUrl: execution.outputUrl,
+            imageUrl: execution.previewUrl || null,
+          },
+        };
+        next = upsertCanvasNode(next, outputNode);
+      }
+
+      return next;
     });
   }, [updateCanvas]);
 
@@ -545,11 +616,14 @@ export default function ProjectAgentPage() {
   }, [updateNodeRuntime]);
 
   useEffect(() => {
-    const currentSubscriptions = subscriptionsRef.current;
-    subscriptionsRef.current.forEach((channel) => {
-      void supabase.removeChannel(channel);
-    });
-    subscriptionsRef.current.clear();
+    // If the supabase client instance changed (e.g. Clerk auth loaded), clear stale channels
+    if (supabaseRef.current !== supabase) {
+      subscriptionsRef.current.forEach((channel) => {
+        void supabaseRef.current.removeChannel(channel);
+      });
+      subscriptionsRef.current.clear();
+      supabaseRef.current = supabase;
+    }
 
     canvas.nodes.forEach((node) => {
       if (!isProjectAgentFeatureNode(node.type) || !node.runtime?.projectId) return;
@@ -559,6 +633,7 @@ export default function ProjectAgentPage() {
           ? 'competitor_ugc_replication_projects'
           : 'motion_clone_projects';
       const channelKey = `${table}:${node.runtime.projectId}`;
+      if (subscriptionsRef.current.has(channelKey)) return;
       const channel = supabase
         .channel(`project-agent-canvas-${channelKey}`)
         .on('postgres_changes', {
@@ -571,15 +646,44 @@ export default function ProjectAgentPage() {
         })
         .subscribe();
       subscriptionsRef.current.set(channelKey, channel);
+      // Immediately fetch current status for running nodes to sync stale session state
+      if (node.runtime.executionState === 'running') {
+        void fetchNodeStatus(node.id, node.type as ProjectAgentFeatureNodeType, node.runtime.projectId);
+      }
     });
 
+    // Remove channels for nodes that no longer have a projectId
+    const activeKeys = new Set(
+      canvas.nodes
+        .filter((n) => isProjectAgentFeatureNode(n.type) && n.runtime?.projectId)
+        .map((n) => {
+          const table = n.type === 'avatar_ads'
+            ? 'avatar_ads_projects'
+            : n.type === 'video_clone'
+              ? 'competitor_ugc_replication_projects'
+              : 'motion_clone_projects';
+          return `${table}:${n.runtime!.projectId}`;
+        })
+    );
+    subscriptionsRef.current.forEach((channel, key) => {
+      if (!activeKeys.has(key)) {
+        void supabase.removeChannel(channel);
+        subscriptionsRef.current.delete(key);
+      }
+    });
+  }, [canvas.nodes, fetchNodeStatus, supabase]);
+
+  useEffect(() => {
     return () => {
-      currentSubscriptions.forEach((channel) => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      subscriptionsRef.current.forEach((channel) => {
         void supabase.removeChannel(channel);
       });
-      currentSubscriptions.clear();
+      subscriptionsRef.current.clear();
     };
-  }, [canvas.nodes, fetchNodeStatus, supabase]);
+  // Only run on unmount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getCanvasPointFromClient = useCallback((clientX: number, clientY: number) => {
     const bounds = canvasContainerRef.current?.getBoundingClientRect();
@@ -600,7 +704,9 @@ export default function ProjectAgentPage() {
 
     const compatibleNodes = canvas.nodes.filter((node) => (
       isProjectAgentFeatureNode(node.type) &&
-      PROJECT_AGENT_FEATURE_INPUTS[node.type].includes(assetType)
+      (PROJECT_AGENT_FEATURE_INPUTS[node.type].includes(assetType) ||
+       (PROJECT_AGENT_FEATURE_ANY_OF_INPUTS[node.type] || []).includes(assetType) ||
+       (PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS[node.type] || []).includes(assetType))
     ));
 
     const bestTarget = compatibleNodes.reduce<{
@@ -612,10 +718,10 @@ export default function ProjectAgentPage() {
     } | null>((closest, node) => {
       const targetPoint = {
         x: node.x,
-        y: node.y + 48,
+        y: node.y + 108,  // feature node height (216) / 2
       };
       const distance = Math.hypot(point.x - targetPoint.x, point.y - targetPoint.y);
-      if (distance > 34) return closest;
+      if (distance > 50) return closest;
       if (!closest || distance < closest.distance) {
         const edge = {
           id: createProjectAgentCanvasEdgeId(sourceNode.id, node.id, assetType),
@@ -772,7 +878,25 @@ export default function ProjectAgentPage() {
     if (payload.kind === 'feature' && typeof payload.featureType === 'string') {
       addFeatureNode(payload.featureType as ProjectAgentFeatureNodeType, x, y);
     }
-  }, [addAssetNode, addFeatureNode, getCanvasPointFromClient]);
+
+    if (payload.kind === 'text') {
+      updateCanvas((current) => {
+        const nodeId = createProjectAgentCanvasNodeId('text');
+        const nextNode: ProjectAgentCanvasNode = {
+          id: nodeId,
+          type: 'text',
+          x,
+          y,
+          label: 'Text',
+          asset: { id: nodeId, name: 'Text', content: '' },
+        };
+        return {
+          ...upsertCanvasNode(current, nextNode),
+          selectedNodeId: nodeId,
+        };
+      });
+    }
+  }, [addAssetNode, addFeatureNode, getCanvasPointFromClient, updateCanvas]);
 
   const handleNodePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>, nodeId: string) => {
     event.stopPropagation();
@@ -961,6 +1085,64 @@ export default function ProjectAgentPage() {
     setDetailNodeId((current) => (current === nodeId ? null : current));
   }, [updateCanvas]);
 
+  const handleUpdateNodeContent = useCallback((nodeId: string, content: string) => {
+    updateCanvas((current) => {
+      const node = getProjectAgentCanvasNodeById(current, nodeId);
+      if (!node) return current;
+      return upsertCanvasNode(current, {
+        ...node,
+        asset: { ...(node.asset || { id: nodeId, name: 'Text' }), content },
+      });
+    });
+  }, [updateCanvas]);
+
+  const handleFormatLayout = useCallback(() => {
+    updateCanvas((current) => {
+      const ASSET_X = 80;
+      const FEATURE_X = 360;
+      const OUTPUT_X = 710;
+      const START_Y = 80;
+      const V_GAP = 40;
+
+      const getNodeHeight = (node: ProjectAgentCanvasNode) => {
+        if (node.type === 'video') return 246;
+        if (isProjectAgentAssetNode(node.type)) return 224;
+        if (isProjectAgentFeatureNode(node.type)) return 216;
+        return 246;
+      };
+
+      const placeColumn = (nodes: ProjectAgentCanvasNode[], x: number, startY: number) => {
+        let y = startY;
+        return nodes.map((node) => {
+          const positioned = { ...node, x, y };
+          y += getNodeHeight(node) + V_GAP;
+          return positioned;
+        });
+      };
+
+      const assetNodes = current.nodes.filter((n) => isProjectAgentAssetNode(n.type));
+      const featureNodes = current.nodes.filter((n) => isProjectAgentFeatureNode(n.type));
+      const outputNodes = current.nodes.filter((n) => isProjectAgentOutputNode(n.type));
+
+      const totalHeight = (nodes: ProjectAgentCanvasNode[]) =>
+        nodes.reduce((sum, n, i) => sum + getNodeHeight(n) + (i < nodes.length - 1 ? V_GAP : 0), 0);
+
+      const maxH = Math.max(totalHeight(assetNodes), totalHeight(featureNodes), totalHeight(outputNodes), 0);
+
+      const centeredStartY = (nodes: ProjectAgentCanvasNode[]) =>
+        START_Y + Math.max(0, (maxH - totalHeight(nodes)) / 2);
+
+      const positionedNodes = [
+        ...placeColumn(assetNodes, ASSET_X, centeredStartY(assetNodes)),
+        ...placeColumn(featureNodes, FEATURE_X, centeredStartY(featureNodes)),
+        ...placeColumn(outputNodes, OUTPUT_X, centeredStartY(outputNodes)),
+      ];
+
+      if (positionedNodes.length === 0) return current;
+      return { ...current, nodes: positionedNodes };
+    });
+  }, [updateCanvas]);
+
   const handleBeginConnection = useCallback((event: React.PointerEvent<HTMLButtonElement>, nodeId: string) => {
     event.preventDefault();
     event.stopPropagation();
@@ -975,7 +1157,9 @@ export default function ProjectAgentPage() {
 
     const hasConnectableFeature = canvas.nodes.some((node) => (
       isProjectAgentFeatureNode(node.type) &&
-      PROJECT_AGENT_FEATURE_INPUTS[node.type].includes(assetType)
+      (PROJECT_AGENT_FEATURE_INPUTS[node.type].includes(assetType) ||
+       (PROJECT_AGENT_FEATURE_ANY_OF_INPUTS[node.type] || []).includes(assetType) ||
+       (PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS[node.type] || []).includes(assetType))
     ));
 
     if (!hasConnectableFeature) {
@@ -1111,12 +1295,14 @@ export default function ProjectAgentPage() {
                   onCanvasWheel={handleCanvasWheel}
                   onConnectToHandle={handleConnectToHandle}
                   onDeleteNode={handleDeleteNode}
+                  onFormatLayout={handleFormatLayout}
                   onNodeDoubleClick={setDetailNodeId}
                   onNodePointerDown={handleNodePointerDown}
                   onRemoveEdge={handleRemoveEdge}
                   onRunFeatureNode={handleRunNode}
                   onSelectEdge={setSelectedEdgeId}
                   onSelectNode={(nodeId) => updateCanvas((current) => ({ ...current, selectedNodeId: nodeId }))}
+                  onUpdateNodeContent={handleUpdateNodeContent}
                   pendingConnectionSourceId={pendingConnectionSourceId}
                   selectedEdgeId={selectedEdgeId}
                 />
