@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 const KIE_UPLOAD_ENDPOINT = 'https://kieai.redpandaai.co/api/file-base64-upload';
 const KIE_CREATE_TASK_ENDPOINT = 'https://api.kie.ai/api/v1/jobs/createTask';
@@ -161,6 +162,31 @@ export async function POST(request: NextRequest) {
     if (!process.env.KIE_API_KEY) {
       return NextResponse.json({ error: 'KIE API key not configured' }, { status: 500 });
     }
+
+    // Daily usage limit: 1 use per account per calendar day (UTC)
+    const today = new Date().toISOString().slice(0, 10);
+    const supabase = getSupabaseAdmin();
+    const { data: usageRow } = await supabase
+      .from('tool_daily_usage')
+      .select('count')
+      .eq('user_id', userId)
+      .eq('tool_key', 'ai-angle-generator')
+      .eq('usage_date', today)
+      .maybeSingle();
+
+    if (usageRow && usageRow.count >= 1) {
+      return NextResponse.json(
+        { error: 'You have already used this tool today. Daily limit is 1 use per account. Please come back tomorrow.' },
+        { status: 429 }
+      );
+    }
+
+    await supabase
+      .from('tool_daily_usage')
+      .upsert(
+        { user_id: userId, tool_key: 'ai-angle-generator', usage_date: today, count: 1 },
+        { onConflict: 'user_id,tool_key,usage_date' }
+      );
 
     const body = await request.json();
     const imageDataUrl = typeof body?.imageDataUrl === 'string' ? body.imageDataUrl : '';

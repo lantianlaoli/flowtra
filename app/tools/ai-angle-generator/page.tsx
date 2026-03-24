@@ -278,6 +278,10 @@ export default function AiAngleGeneratorPage() {
         throw new Error("Please sign in to use this tool.");
       }
 
+      if (createResponse.status === 429) {
+        throw new Error(createPayload?.error || "Daily limit reached. You can use this tool once per day.");
+      }
+
       if (!createResponse.ok || !Array.isArray(createPayload?.tasks) || createPayload.tasks.length !== 3) {
         throw new Error(createPayload?.error || "Failed to start AI generation.");
       }
