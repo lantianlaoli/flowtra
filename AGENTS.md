@@ -377,7 +377,7 @@ When you (AI Agent) complete ANY significant task, you MUST execute the sound no
 **Command to run**:
 
 ```bash
-./agent-task-complete-sound.sh
+./task-complete-sound.sh
 ```
 
 **When to trigger**:
@@ -394,7 +394,7 @@ When you (AI Agent) complete ANY significant task, you MUST execute the sound no
 1. User requests: "Implement feature X"
 2. You plan and execute the feature
 3. You verify it works (run build, tests, etc.)
-4. You run `./agent-task-complete-sound.sh` to notify the user
+4. You run `./task-complete-sound.sh` to notify the user
 5. You report completion to the user
 
 This ensures the user is immediately notified when tasks complete, especially useful when they're working on other things.

@@ -674,16 +674,43 @@ export default function ProjectAgentPage() {
   }, [canvas.nodes, fetchNodeStatus, supabase]);
 
   useEffect(() => {
-    return () => {
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      subscriptionsRef.current.forEach((channel) => {
-        void supabase.removeChannel(channel);
+    const runningNodes = canvas.nodes.filter((node) => (
+      isProjectAgentFeatureNode(node.type) &&
+      node.runtime?.projectId &&
+      node.runtime.executionState === 'running'
+    ));
+
+    if (runningNodes.length === 0) return;
+
+    const pollRunningNodes = () => {
+      if (document.visibilityState === 'hidden') return;
+
+      runningNodes.forEach((node) => {
+        void fetchNodeStatus(
+          node.id,
+          node.type as ProjectAgentFeatureNodeType,
+          node.runtime!.projectId!
+        );
       });
-      subscriptionsRef.current.clear();
     };
-  // Only run on unmount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+
+    const intervalId = window.setInterval(pollRunningNodes, 4000);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [canvas.nodes, fetchNodeStatus]);
+
+  useEffect(() => {
+    const subscriptions = subscriptionsRef.current;
+    const supabaseClient = supabase;
+
+    return () => {
+      subscriptions.forEach((channel) => {
+        void supabaseClient.removeChannel(channel);
+      });
+      subscriptions.clear();
+    };
+  }, [supabase]);
 
   const getCanvasPointFromClient = useCallback((clientX: number, clientY: number) => {
     const bounds = canvasContainerRef.current?.getBoundingClientRect();
