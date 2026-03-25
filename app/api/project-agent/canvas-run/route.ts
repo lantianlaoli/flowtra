@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { checkCredits } from '@/lib/credits';
 import { getGenerationCost, getMotionCloneGenerationCost } from '@/lib/constants';
+import { getAvatarPlannedTotalDurationSeconds } from '@/lib/avatar-ads-workflow';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import {
   buildAvatarAdsStartPayload,
@@ -16,6 +17,7 @@ import type {
   ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
 import { signInternalUserRequest } from '@/lib/security/internal-request';
+import { buildAvatarGeneratedPrompts } from '@/lib/project-agent/avatar-script-planning';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -97,9 +99,19 @@ const assertAvatarCredits = async (userId: string, body: CanvasRunRequestBody) =
     config: body.config,
   });
 
+  const plannedDurationSeconds = payload.videoModel === 'kling_3' && payload.customDialogue
+    ? buildAvatarGeneratedPrompts({
+        imagePrompt: null,
+        scriptSource: payload.customDialogue,
+        language: payload.language,
+        avatarName: avatar.name,
+        productName: product?.name || null,
+      }).totalDurationSeconds
+    : payload.videoDurationSeconds;
+
   await ensureEnoughCredits(
     userId,
-    getGenerationCost(payload.videoModel, String(payload.videoDurationSeconds))
+    getGenerationCost(payload.videoModel, String(plannedDurationSeconds))
   );
 };
 
@@ -227,9 +239,13 @@ const startAvatarAds = async (origin: string, userId: string, body: CanvasRunReq
       headers: internalHeaders,
     });
     const project = statusPayload.project as Record<string, unknown> | undefined;
-    const totalDuration = typeof project?.video_duration_seconds === 'number'
-      ? project.video_duration_seconds
-      : Number(body.config?.videoDuration || '16');
+    const totalDuration = getAvatarPlannedTotalDurationSeconds(
+      project?.generated_prompts as Record<string, unknown> | null | undefined,
+      'kling_3',
+      typeof project?.video_duration_seconds === 'number'
+        ? project.video_duration_seconds
+        : Number(body.config?.videoDuration || '16')
+    );
 
     await fetchJson(`${origin}/api/avatar-ads/${projectId}/confirm`, {
       method: 'PATCH',

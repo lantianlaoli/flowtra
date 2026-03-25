@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { processAvatarAdsProject } from '@/lib/avatar-ads-workflow';
+import {
+  getAvatarPlannedTotalDurationSeconds,
+  processAvatarAdsProject
+} from '@/lib/avatar-ads-workflow';
 
 export async function PATCH(
   request: Request,
@@ -36,6 +39,13 @@ export async function PATCH(
     const nextScenes = Array.isArray(nextPrompts?.scenes)
       ? nextPrompts.scenes as Array<{ prompt?: Record<string, unknown> | null }>
       : [];
+    const nextTotalDurationSeconds = typeof totalDurationSeconds === 'number' && totalDurationSeconds > 0
+      ? Math.round(totalDurationSeconds)
+      : getAvatarPlannedTotalDurationSeconds(
+        nextPrompts as Record<string, unknown> | null | undefined,
+        project.video_model === 'kling_3' ? 'kling_3' : 'veo3_fast',
+        project.video_duration_seconds
+      );
 
     const { error: deleteScenesError } = await supabase
       .from('avatar_ads_scenes')
@@ -68,9 +78,7 @@ export async function PATCH(
       .from('avatar_ads_projects')
       .update({
         generated_prompts: nextPrompts,
-        video_duration_seconds: typeof totalDurationSeconds === 'number' && totalDurationSeconds > 0
-          ? Math.round(totalDurationSeconds)
-          : project.video_duration_seconds,
+        video_duration_seconds: nextTotalDurationSeconds,
         status: 'generating_videos',
         current_step: 'generating_videos',
         progress_percentage: 60,
