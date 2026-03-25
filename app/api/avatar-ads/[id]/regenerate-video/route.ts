@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { processAvatarAdsProject } from '@/lib/avatar-ads-workflow';
+import {
+  getAvatarPlannedTotalDurationSeconds,
+  processAvatarAdsProject
+} from '@/lib/avatar-ads-workflow';
 
 export async function POST(
   request: Request,
@@ -36,6 +39,11 @@ export async function POST(
     if (!nextPrompts) {
       return NextResponse.json({ error: 'Generated prompts are missing.' }, { status: 400 });
     }
+    const nextTotalDurationSeconds = totalDurationSeconds ?? getAvatarPlannedTotalDurationSeconds(
+      nextPrompts as Record<string, unknown> | null | undefined,
+      project.video_model === 'kling_3' ? 'kling_3' : 'veo3_fast',
+      project.video_duration_seconds
+    );
 
     const nextScenes = Array.isArray(nextPrompts?.scenes)
       ? nextPrompts.scenes as Array<{ prompt?: Record<string, unknown> | null }>
@@ -71,7 +79,7 @@ export async function POST(
       .from('avatar_ads_projects')
       .update({
         generated_prompts: nextPrompts,
-        video_duration_seconds: totalDurationSeconds ?? project.video_duration_seconds,
+        video_duration_seconds: nextTotalDurationSeconds,
         kie_video_task_ids: null,
         generated_video_urls: null,
         merged_video_url: null,

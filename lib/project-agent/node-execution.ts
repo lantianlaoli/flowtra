@@ -10,6 +10,7 @@ export type ProjectAgentConnectedFeatureInputs = {
   avatar?: ProjectAgentCanvasAssetRef | null;
   product?: ProjectAgentCanvasAssetRef | null;
   video?: ProjectAgentCanvasAssetRef | null;
+  text?: ProjectAgentCanvasAssetRef | null;
 };
 
 export type ProjectAgentCanvasExecutionAction =
@@ -101,15 +102,16 @@ const getCurrentMilestoneForAvatar = (status: string) => {
   return 'preparing_prompt';
 };
 
-const getCurrentMilestoneForClone = (status: string, step: string, awaitingMerge: boolean, needsVideoStart: boolean) => {
+const getCurrentMilestoneForClone = (
+  status: string,
+  step: string,
+  awaitingMerge: boolean,
+  needsVideoStart: boolean,
+  hasActiveVideoGeneration: boolean,
+) => {
   if (status === 'completed') return 'completed';
   if (awaitingMerge || step === 'merging' || status === 'merging') return 'merging';
-  if (
-    step === 'generating_video' ||
-    status === 'generating_video' ||
-    status === 'video_generating' ||
-    needsVideoStart
-  ) {
+  if (hasActiveVideoGeneration) {
     return 'generating_video';
   }
   if (
@@ -159,11 +161,14 @@ export const getExecutionTableForNodeType = (
 
 export const buildAvatarAdsStartPayload = (input: {
   avatar: ProjectAgentCanvasAssetRef;
-  product: ProjectAgentCanvasAssetRef;
+  product?: ProjectAgentCanvasAssetRef | null;
+  text?: ProjectAgentCanvasAssetRef | null;
   config?: ProjectAgentFeatureNodeConfig | null;
 }) => ({
   selectedPersonPhotoUrl: input.avatar.imageUrl || '',
-  selectedProductId: input.product.id,
+  selectedProductId: input.product?.id || '',
+  customDialogue: input.text?.content?.trim() || '',
+  talkingHeadMode: !input.product?.id,
   videoDurationSeconds: Number(input.config?.videoDuration || '16'),
   videoAspectRatio: input.config?.aspectRatio || '9:16',
   language: input.config?.language || 'en',
@@ -264,6 +269,23 @@ export const normalizeCloneExecutionStatus = (
   const progress = toProgress(payload.progress_percentage, toProgress(payload.progress, status === 'completed' ? 100 : 20));
   const awaitingMerge = Boolean(data.awaitingMerge) || status === 'awaiting_merge';
   const step = typeof payload.current_step === 'string' ? payload.current_step : '';
+  const segments = Array.isArray(data.segments)
+    ? data.segments as Array<Record<string, unknown>>
+    : [];
+  const hasSegmentVideoTask = segments.some((segment) => (
+    typeof segment.videoTaskId === 'string' ||
+    typeof segment.video_task_id === 'string' ||
+    typeof segment.videoUrl === 'string' ||
+    typeof segment.video_url === 'string' ||
+    segment.status === 'generating_video'
+  ));
+  const hasActiveVideoGeneration = (
+    step === 'generating_segment_videos' ||
+    step === 'generating_video' ||
+    status === 'generating_video' ||
+    status === 'video_generating' ||
+    hasSegmentVideoTask
+  );
   const needsVideoStart = (
     step === 'ready_for_video' ||
     step === 'reviewing_segment_frames' ||
@@ -273,7 +295,13 @@ export const normalizeCloneExecutionStatus = (
   const failed = status === 'failed';
   const completed = status === 'completed';
   const executionState = completed ? 'completed' : failed ? 'failed' : 'running';
-  const currentMilestoneKey = getCurrentMilestoneForClone(status, step, awaitingMerge, needsVideoStart);
+  const currentMilestoneKey = getCurrentMilestoneForClone(
+    status,
+    step,
+    awaitingMerge,
+    needsVideoStart,
+    hasActiveVideoGeneration,
+  );
 
   return {
     executionState,
@@ -288,7 +316,9 @@ export const normalizeCloneExecutionStatus = (
         ? 'Failed'
         : awaitingMerge
           ? 'Auto merging segments'
-          : needsVideoStart
+          : hasActiveVideoGeneration
+            ? 'Running clone workflow'
+            : needsVideoStart
             ? 'Auto starting video generation'
             : 'Running clone workflow',
     projectId,

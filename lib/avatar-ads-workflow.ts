@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import {
   GENERATION_COSTS,
+  KLING_MAX_TASK_DURATION_SECONDS,
   NON_AGENT_IMAGE_MODEL,
   NON_AGENT_IMAGE_OUTPUT_FORMAT,
   NON_AGENT_IMAGE_RESOLUTION,
@@ -13,10 +14,13 @@ import {
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
-import { generateDialogueLengthGuidance, validateSceneDurations } from '@/lib/dialogue-duration-estimator';
+import { estimateDialogueDuration, generateDialogueLengthGuidance, validateSceneDurations } from '@/lib/dialogue-duration-estimator';
 import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 import { MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
-import { normalizeAvatarPromptDuration } from '@/lib/project-agent/avatar-script-planning';
+import {
+  buildAvatarGeneratedPrompts,
+  normalizeAvatarPromptDuration
+} from '@/lib/project-agent/avatar-script-planning';
 // Events table removed: no tracking imports
 
 const UNIT_SECONDS = 8;
@@ -112,6 +116,26 @@ const getAvatarSceneDurationSeconds = (
   return normalizeAvatarPromptDuration(prompt?.duration_seconds);
 };
 
+export const getAvatarPlannedTotalDurationSeconds = (
+  generatedPrompts: Record<string, unknown> | null | undefined,
+  model: 'veo3_fast' | 'kling_3',
+  fallbackDurationSeconds: number
+) => {
+  const promptScenes = getAvatarPromptScenes(generatedPrompts);
+  if (promptScenes.length === 0) {
+    return fallbackDurationSeconds;
+  }
+
+  const total = promptScenes.reduce((sum, scene) => (
+    sum + getAvatarSceneDurationSeconds(
+      (scene?.prompt as Record<string, unknown> | null | undefined) ?? null,
+      model
+    )
+  ), 0);
+
+  return total > 0 ? total : fallbackDurationSeconds;
+};
+
 export const buildAvatarAdsVideoExecutionPrompt = (
   prompt: Record<string, unknown>,
   options?: { hasProductContext?: boolean }
@@ -151,7 +175,9 @@ export const buildAvatarAdsVideoExecutionPrompt = (
     : buildAvatarAdsTalkingHeadVisualLines(hasProductContext);
 
   if (dialogText) {
-    parts.push(`dialogue, the character in the video says: ${dialogText}`);
+    parts.push(`Delivery: ${hasProductContext ? 'UGC-style direct response product pitch.' : 'UGC-style direct-to-camera talking-head pitch.'}`);
+    parts.push('Performance: Visible lip sync, natural blinking, subtle eyebrow movement, small head nods, expressive face. Prioritize facial performance over hand motion.');
+    parts.push(`Dialogue: "${dialogText}"`);
   }
 
   if (promptObj.voice_type) {
@@ -159,6 +185,24 @@ export const buildAvatarAdsVideoExecutionPrompt = (
   }
 
   return parts.join('\n\n').trim();
+};
+
+const getAvatarVideoReferenceImages = (
+  referenceImageUrls: string[],
+  durationSeconds?: number
+) => {
+  const uniqueUrls = referenceImageUrls.filter((url, index, all) => (
+    typeof url === 'string' &&
+    url.trim().length > 0 &&
+    all.indexOf(url) === index
+  ));
+
+  if (uniqueUrls.length === 0) return [];
+  if ((durationSeconds || 0) > 15 && uniqueUrls.length >= 2) {
+    return uniqueUrls.slice(0, 2);
+  }
+
+  return uniqueUrls.slice(0, 1);
 };
 
 // Fallback product analysis for temporary products (no database record)
@@ -211,7 +255,7 @@ async function generatePrompts(
   videoDurationSeconds: number,
   language?: string,
   userDialogue?: string,
-  options?: { talkingHeadMode?: boolean }
+  options?: { talkingHeadMode?: boolean; model?: 'veo3_fast' | 'kling_3' }
 ): Promise<Record<string, unknown>> {
   const result = await _generatePromptsInternal(
     productContext,
@@ -236,17 +280,36 @@ async function _generatePromptsInternal(
   videoDurationSeconds: number,
   language?: string,
   userDialogue?: string,
-  options?: { talkingHeadMode?: boolean }
+  options?: { talkingHeadMode?: boolean; model?: 'veo3_fast' | 'kling_3' }
 ): Promise<Record<string, unknown>> {
-  const videoScenes = videoDurationSeconds / UNIT_SECONDS;
-
   // Get language name for prompts
   const languageCode = (language || 'en') as LanguageCode;
   const languageName = getLanguagePromptName(languageCode);
   const isTalkingHeadMode = options?.talkingHeadMode ?? false;
+  const resolvedModel = options?.model === 'kling_3' ? 'kling_3' : DEFAULT_VIDEO_MODEL;
+  const estimatedDialogueDurationSeconds = userDialogue
+    ? estimateDialogueDuration(userDialogue, languageCode)
+    : 0;
+  const isKlingDurationPlanning = resolvedModel === 'kling_3';
+  const targetSceneDuration = resolvedModel === 'kling_3'
+    ? KLING_MAX_TASK_DURATION_SECONDS
+    : UNIT_SECONDS;
+  const videoScenes = resolvedModel === 'kling_3'
+    ? (
+        userDialogue && estimatedDialogueDurationSeconds > 0
+          ? Math.max(1, Math.ceil(estimatedDialogueDurationSeconds / KLING_MAX_TASK_DURATION_SECONDS))
+          : Math.max(1, Math.ceil(videoDurationSeconds / KLING_MAX_TASK_DURATION_SECONDS))
+      )
+    : Math.max(1, Math.ceil(videoDurationSeconds / UNIT_SECONDS));
 
-  // Generate dialogue length guidance based on segment duration and language
-  const dialogueLengthGuidance = generateDialogueLengthGuidance(videoScenes, UNIT_SECONDS, languageCode);
+  const dialogueLengthGuidance = isKlingDurationPlanning
+    ? `KLING 3 TIMING CONSTRAINTS:
+- Each scene duration must be set between 3 and 15 seconds
+- Plan scene count around natural speaking speed, not a fixed 8-second template
+- If the full spoken script fits inside 15 seconds, keep it as ONE scene
+- Only split into multiple scenes when the estimated spoken runtime exceeds 15 seconds
+- Split only at natural sentence or clause boundaries so the delivery feels continuous`
+    : generateDialogueLengthGuidance(videoScenes, targetSceneDuration, languageCode);
 
   if (!personImageUrl) {
     throw new Error('Person image URL is required for prompt generation');
@@ -258,25 +321,18 @@ async function _generatePromptsInternal(
     }
   }
 
-  const talkHeadContext = userDialogue
+ const talkHeadContext = userDialogue
     ? `The user provided this custom script: "${userDialogue.replace(/"/g, '\\"')}"
 
 CRITICAL SCRIPT SPLITTING RULES:
-1. Split the script across ${videoScenes} scene(s)
-2. MANDATORY WORD COUNT: Each scene MUST contain 17-20 words of dialogue
-   - This is NON-NEGOTIABLE and must be strictly enforced
-   - If a natural sentence boundary occurs at <17 words, you MUST combine it with the next sentence
-   - Only split at boundaries that result in ≥17 words for the current scene
-3. Split at natural phrase/sentence boundaries ONLY when word count minimum is met
+1. Split the script across ${videoScenes} scene(s) only if needed for natural spoken timing
+2. For KLING 3, each scene should land naturally between 3 and 15 seconds
+3. Split at natural phrase/sentence boundaries ONLY
 4. Preserve complete thoughts - do NOT split mid-concept or mid-solution
    - Example: Keep "problem + solution" together in one scene
    - Do NOT separate "I'm invisible to AI?" from "AI Bot Manager fixes this in ONE CLICK"
-5. If total word count is insufficient for ${videoScenes} scenes × 17 words minimum, expand by:
-   - Adding natural transitions between sentences
-   - Expanding key points with more detail
-   - Adding emphasis or clarifying phrases
-   - Maintaining the core message and tone
-6. Do NOT simply divide words evenly - ensure EACH scene has 17-20 words AND complete thoughts
+5. If the full script fits naturally in one scene, keep it in one scene
+6. Do NOT simply divide words evenly
 7. Preserve all key phrases and main ideas from the user's script
 
 EXAMPLES OF CORRECT SPLITTING:
@@ -314,35 +370,38 @@ CRITICAL RULES FOR GENDER:
 - The gender MUST match what you see in the person image
 
 UGC STYLE PRINCIPLES:
+- This must feel like a social-media UGC talking ad made by a real creator, not a cinematic brand commercial
 - Amateur iPhone selfie video aesthetic
 - Natural, casual environments
 - Slightly imperfect framing and lighting
 - Genuine, relatable expressions
+- Strong direct-to-camera selling energy
 - The character must SHOW the product to camera naturally
+- Dialogue should sound like authentic product recommendation copy that could convert on TikTok / Reels / Shorts
 
 VIDEO SCENE REQUIREMENTS:
-- Each scene is ${UNIT_SECONDS} seconds long
+- Each scene should fit naturally within ${targetSceneDuration} seconds
 - Write ALL dialogue in ENGLISH (regardless of target language)
 - The 'language' field is metadata - actual dialogue text is always English
 - Camera movement: always "fixed"
 - Emotion: "excited, genuine" or similar positive emotions
 ${userDialogue ? `- The user has provided a custom script: "${userDialogue.replace(/"/g, '\\"')}"
-- CRITICAL: You MUST split this script across ${videoScenes} scenes following these rules:
-  1. MANDATORY WORD COUNT: Each scene MUST have 17-20 words (NON-NEGOTIABLE)
-  2. If a sentence boundary occurs at <17 words, COMBINE it with the next sentence
-  3. Only split at boundaries that result in ≥17 words for the current scene
+- CRITICAL: You MUST split this script across ${videoScenes} scenes only when required by natural spoken timing
+  1. For KLING 3, keep each scene between 3 and 15 seconds
+  2. If the entire script fits within 15 seconds, keep it in one scene
+  3. Split only at natural sentence or clause boundaries
   4. Preserve complete thoughts - do NOT split problems from solutions
-  5. If total word count is insufficient, expand by adding natural transitions and detail
-  6. Ensure EACH scene has 17-20 words AND semantic completeness
-  7. Preserve the core message and key phrases from the user's script` : ''}
+  5. Preserve the core message and key phrases from the user's script` : ''}
 
 ${dialogueLengthGuidance}
 
 DIALOGUE PACING RULES:
-- Each ${UNIT_SECONDS}-second scene needs natural speaking rhythm
+- Each scene needs natural speaking rhythm within ${targetSceneDuration} seconds
 - Include brief pauses between phrases
 - Avoid cramming too many words - clarity over quantity
 - The 'dialog' field should contain the natural product pitch directly
+- Use UGC ad structure when possible: hook, benefit, proof/experience, recommendation, soft CTA
+- Avoid generic narration or documentary tone; this should sound like creator-led spoken ad copy
 
 IMAGE PROMPT REQUIREMENTS:
 - Analyze the PRODUCT image to determine how it should be presented:
@@ -362,8 +421,8 @@ OUTPUT FORMAT (JSON):
       "prompt": {
         "subject": "A confident [man/woman] in [clothing description]...",
         "context_environment": "A minimalist, upscale interior setting...",
-        "action": "The character is standing still... [performing subtle movements]...",
-        "style": "Amateur iPhone selfie video style...",
+        "action": "The character delivers a persuasive UGC sales pitch, maintains eye contact with camera, shows the product naturally, and uses subtle but confident creator-style gestures...",
+        "style": "Amateur iPhone selfie UGC ad style for TikTok/Reels/Shorts...",
         "camera_motion_positioning": "Fixed Medium Shot (MS). The camera is stable...",
         "composition": "A balanced composition...",
         "ambiance_color_lighting": "Warm color grading...",
@@ -400,14 +459,15 @@ CRITICAL RULES FOR GENDER:
 - The gender MUST match what you see in the person image
 
 TALKING HEAD STYLE PRINCIPLES:
-- Amateur iPhone selfie video aesthetic
+- Amateur iPhone selfie UGC testimonial aesthetic
 - Character faces camera the entire time
 - Natural, casual background (desk, living room, office, etc.)
 - Slight hand gestures, natural blinking, subtle movement
-- No product props, nothing held in hand
+- Creator-style direct response delivery, as if recording a persuasive social ad
+- No product props, nothing held in hand unless the user explicitly provided product context
 
 VIDEO SCENE REQUIREMENTS:
-- Each scene is ${UNIT_SECONDS} seconds long
+- Each scene should fit naturally within ${targetSceneDuration} seconds
 - Write ALL dialogue in ENGLISH (regardless of target language)
 - The 'language' field is metadata - actual dialogue text is always English
 - Camera movement: always "fixed"
@@ -417,10 +477,11 @@ VIDEO SCENE REQUIREMENTS:
 ${dialogueLengthGuidance}
 
 DIALOGUE PACING RULES:
-- Each ${UNIT_SECONDS}-second scene needs natural speaking rhythm
+- Each scene needs natural speaking rhythm within ${targetSceneDuration} seconds
 - Include brief pauses between phrases for emphasis
 - Avoid cramming too many words - clarity and authenticity over quantity
 - Natural conversational flow is essential for talking head content
+- Delivery should still feel like UGC ad copy, not a lecture or documentary voiceover
 
 IMAGE PROMPT REQUIREMENTS:
 - Describe the character centered in frame, speaking to camera
@@ -436,8 +497,8 @@ OUTPUT FORMAT (JSON):
       "prompt": {
         "subject": "A confident [man/woman] in [clothing description] speaking directly to the camera...",
         "context_environment": "A cozy home office with natural daylight...",
-        "action": "The character delivers their point with subtle hand gestures and a warm smile...",
-        "style": "Authentic talking head vlog style...",
+        "action": "The character delivers a persuasive UGC-style talking-head pitch with confident eye contact, expressive face, and subtle creator gestures...",
+        "style": "Authentic UGC talking head ad style...",
         "camera_motion_positioning": "Fixed Medium Shot (MS). The camera is stable...",
         "composition": "Centered framing with soft depth of field...",
         "ambiance_color_lighting": "Natural daylight with warm tones...",
@@ -510,7 +571,28 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
       parsed.scenes = parsed.scenes.filter((s) => s && Number(s.scene) !== 0);
     }
 
-    // User dialogue is now handled by the LLM system prompt directly to ensure proper distribution across scenes
+    if (resolvedModel === 'kling_3') {
+      const scriptSource = userDialogue || productContext?.talking_head_script || '';
+      if (scriptSource) {
+        const normalized = buildAvatarGeneratedPrompts({
+          imagePrompt: parsed.image_prompt,
+          scriptSource,
+          existingScenes: parsed.scenes.map((scene, index) => ({
+            sceneIndex: Number(scene.scene) || index + 1,
+            prompt: scene.prompt || {}
+          })),
+          language: languageCode
+        });
+
+        parsed.image_prompt = typeof normalized.generatedPrompts.image_prompt === 'string'
+          ? normalized.generatedPrompts.image_prompt
+          : parsed.image_prompt;
+        parsed.scenes = normalized.scenes.map((scene) => ({
+          scene: scene.sceneIndex,
+          prompt: scene.prompt
+        }));
+      }
+    }
 
     // Ensure language field is set
     if (!parsed.language) {
@@ -751,6 +833,10 @@ export async function generateVideoWithKIE(
   const finalPrompt = languageName !== 'English'
     ? `"language": "${languageName}"\n\n${basePrompt}`
     : basePrompt;
+  const durationSeconds = options?.durationSeconds && options.durationSeconds > 0
+    ? options.durationSeconds
+    : UNIT_SECONDS;
+  const selectedReferenceImages = getAvatarVideoReferenceImages(referenceImageUrls, durationSeconds);
 
   const requestBody = resolvedModel === 'kling_3'
     ? {
@@ -758,10 +844,10 @@ export async function generateVideoWithKIE(
         ...(callBackUrl ? { callBackUrl } : {}),
         input: {
           mode: 'std',
-          image_urls: referenceImageUrls.slice(0, 2),
+          image_urls: selectedReferenceImages,
           prompt: finalPrompt,
           sound: true,
-          duration: String(options?.durationSeconds && options.durationSeconds > 0 ? options.durationSeconds : UNIT_SECONDS),
+          duration: String(durationSeconds),
           aspect_ratio: videoAspectRatio || '16:9',
           multi_shots: false
         }
@@ -770,8 +856,8 @@ export async function generateVideoWithKIE(
         prompt: finalPrompt,
         model: DEFAULT_VIDEO_MODEL,
         aspectRatio: videoAspectRatio || '16:9',
-        imageUrls: referenceImageUrls,
-        generationType: referenceImageUrls.length >= 1 ? 'FIRST_AND_LAST_FRAMES_2_VIDEO' : 'TEXT_2_VIDEO',
+        imageUrls: selectedReferenceImages,
+        generationType: selectedReferenceImages.length >= 1 ? 'FIRST_AND_LAST_FRAMES_2_VIDEO' : 'TEXT_2_VIDEO',
         enableAudio: true,
         audioEnabled: true,
         generateVoiceover: false,
@@ -1064,7 +1150,20 @@ export async function processAvatarAdsProject(
           project.video_duration_seconds,
           project.language,
           project.custom_dialogue || undefined,
-          { talkingHeadMode }
+          {
+            talkingHeadMode,
+            model: resolveAvatarAdsVideoModel(project)
+          }
+        );
+        const resolvedVideoModel = resolveAvatarAdsVideoModel(project);
+        const plannedDurationSeconds = getAvatarPlannedTotalDurationSeconds(
+          prompts as Record<string, unknown>,
+          resolvedVideoModel,
+          project.video_duration_seconds
+        );
+        const plannedCreditsCost = getGenerationCost(
+          resolvedVideoModel,
+          String(plannedDurationSeconds)
         );
 
         // Create scene records (video scenes only, starting from 1)
@@ -1095,6 +1194,8 @@ export async function processAvatarAdsProject(
           .update({
             generated_prompts: prompts,
             image_prompt: (prompts as { image_prompt?: string }).image_prompt, // Store project-level image prompt
+            video_duration_seconds: plannedDurationSeconds,
+            credits_cost: plannedCreditsCost,
             status: 'generating_image',
             current_step: 'generating_image',
             progress_percentage: 40,
@@ -1214,10 +1315,35 @@ export async function processAvatarAdsProject(
         const promptScenes = getAvatarPromptScenes(project.generated_prompts);
         const videoScenes = promptScenes.length;
         const resolvedVideoModel = resolveAvatarAdsVideoModel(project);
-        const generationCost = getGenerationCost(resolvedVideoModel, String(project.video_duration_seconds));
+        const plannedDurationSeconds = getAvatarPlannedTotalDurationSeconds(
+          project.generated_prompts,
+          resolvedVideoModel,
+          project.video_duration_seconds
+        );
+        const generationCost = getGenerationCost(resolvedVideoModel, String(plannedDurationSeconds));
 
         if (videoScenes === 0) {
           throw new Error('No video scenes found in generated prompts.');
+        }
+
+        if (
+          plannedDurationSeconds !== project.video_duration_seconds ||
+          generationCost !== (typeof (project as { credits_cost?: unknown }).credits_cost === 'number'
+            ? (project as { credits_cost?: number }).credits_cost
+            : null)
+        ) {
+          const { error: syncError } = await supabase
+            .from('avatar_ads_projects')
+            .update({
+              video_duration_seconds: plannedDurationSeconds,
+              credits_cost: generationCost,
+              last_processed_at: new Date().toISOString()
+            })
+            .eq('id', project.id);
+
+          if (syncError) {
+            throw syncError;
+          }
         }
 
         // Check if user has enough credits
@@ -1633,7 +1759,16 @@ export async function processAvatarAdsProject(
           // Or scenes are still retrying
           // If error occurred before scenes were created or during generation, refund full cost
           if (!scenes || scenes.length === 0 || step === 'generate_videos') {
-            const generationCost = getGenerationCost(resolveAvatarAdsVideoModel(project), String(project.video_duration_seconds));
+            const generationCost = getGenerationCost(
+              resolveAvatarAdsVideoModel(project),
+              String(
+                getAvatarPlannedTotalDurationSeconds(
+                  project.generated_prompts,
+                  resolveAvatarAdsVideoModel(project),
+                  project.video_duration_seconds
+                )
+              )
+            );
 
             if (generationCost > 0) {
               const { refundCredits } = await import('@/lib/credits');

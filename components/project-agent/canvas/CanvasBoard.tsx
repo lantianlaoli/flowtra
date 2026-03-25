@@ -9,10 +9,12 @@ import {
   Clapperboard,
   Download,
   GripVertical,
+  Keyboard,
   Loader2,
   Package,
   Play,
   Plus,
+  RefreshCcw,
   Scissors,
   Sparkles,
   Trash2,
@@ -22,6 +24,7 @@ import {
   WandSparkles,
 } from 'lucide-react';
 import {
+  getProjectAgentCanvasNodeSize,
   getProjectAgentAssetDisplayName,
   getProjectAgentFeatureDisplayName,
   isProjectAgentAssetNode,
@@ -40,6 +43,7 @@ type CanvasBoardProps = {
   draggingNodeId?: string | null;
   isPanning: boolean;
   isSpacePressed: boolean;
+  selectionRect?: { x: number; y: number; width: number; height: number } | null;
   pendingConnectionPoint: { x: number; y: number } | null;
   snappedConnectionTarget: {
     targetNodeId: string;
@@ -58,6 +62,7 @@ type CanvasBoardProps = {
   onDeleteNode: (nodeId: string) => void;
   onNodeDoubleClick: (nodeId: string) => void;
   onRunFeatureNode: (nodeId: string) => void;
+  onRegenerateFeatureNode: (nodeId: string) => void;
   onUpdateNodeContent: (nodeId: string, content: string) => void;
   onFormatLayout: () => void;
   onBeginConnection: (event: React.PointerEvent<HTMLButtonElement>, nodeId: string) => void;
@@ -66,12 +71,7 @@ type CanvasBoardProps = {
   onSelectEdge: (edgeId: string | null) => void;
 };
 
-const getNodeSize = (node: ProjectAgentCanvasNode) => {
-  if (node.type === 'video') return { width: 168, height: 314 };
-  if (isProjectAgentAssetNode(node.type)) return { width: 188, height: 224 };
-  if (isProjectAgentOutputNode(node.type)) return { width: 168, height: 314 };
-  return { width: 248, height: 216 };
-};
+const getNodeSize = (node: ProjectAgentCanvasNode) => getProjectAgentCanvasNodeSize(node);
 
 const getSourceHandlePosition = (node: ProjectAgentCanvasNode) => {
   const size = getNodeSize(node);
@@ -191,6 +191,7 @@ export default function CanvasBoard({
   draggingNodeId,
   isPanning,
   isSpacePressed,
+  selectionRect,
   pendingConnectionPoint,
   snappedConnectionTarget,
   pendingConnectionSourceId,
@@ -204,6 +205,7 @@ export default function CanvasBoard({
   onDeleteNode,
   onNodeDoubleClick,
   onRunFeatureNode,
+  onRegenerateFeatureNode,
   onUpdateNodeContent,
   onFormatLayout,
   onBeginConnection,
@@ -214,8 +216,10 @@ export default function CanvasBoard({
   const pendingSourceNode = pendingConnectionSourceId
     ? canvas.nodes.find((node) => node.id === pendingConnectionSourceId) || null
     : null;
+  const shortcutsRef = useRef<HTMLDivElement | null>(null);
   const hoverTimeoutRef = useRef<number | null>(null);
   const [edgeHoverPoint, setEdgeHoverPoint] = useState<{ edgeId: string; x: number; y: number } | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   const getSvgPoint = (event: React.PointerEvent<SVGGElement>) => {
     const svg = event.currentTarget.ownerSVGElement;
@@ -234,6 +238,19 @@ export default function CanvasBoard({
       if (hoverTimeoutRef.current) {
         window.clearTimeout(hoverTimeoutRef.current);
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (shortcutsRef.current?.contains(target)) return;
+      setShortcutsOpen(false);
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
     };
   }, []);
 
@@ -258,6 +275,19 @@ export default function CanvasBoard({
         }}
       >
         <svg className="absolute inset-0 h-full w-full overflow-visible">
+          {selectionRect ? (
+            <rect
+              x={selectionRect.x}
+              y={selectionRect.y}
+              width={selectionRect.width}
+              height={selectionRect.height}
+              fill="rgba(17,17,17,0.06)"
+              stroke="#111111"
+              strokeDasharray="6 6"
+              rx="14"
+              ry="14"
+            />
+          ) : null}
           {canvas.edges.map((edge) => {
             const sourceNode = canvas.nodes.find((node) => node.id === edge.sourceNodeId);
             const targetNode = canvas.nodes.find((node) => node.id === edge.targetNodeId);
@@ -387,7 +417,7 @@ export default function CanvasBoard({
 
         {canvas.nodes.map((node) => {
           const size = getNodeSize(node);
-          const selected = canvas.selectedNodeId === node.id;
+          const selected = canvas.selectedNodeIds.includes(node.id);
           const isDragging = draggingNodeId === node.id;
           const isFeatureNode = isProjectAgentFeatureNode(node.type);
           const featureType: ProjectAgentFeatureNodeType | null = isFeatureNode
@@ -396,6 +426,9 @@ export default function CanvasBoard({
           const missingInputs = isFeatureNode ? (node.runtime?.missingInputs || []) : [];
           const canStart = isFeatureNode ? Boolean(node.runtime?.canStart) : false;
           const executionState = node.runtime?.executionState || 'invalid';
+          const hasActiveMilestone = Boolean(node.runtime?.milestones?.some((milestone) => milestone.state === 'active'));
+          const isQueuedPhase = node.runtime?.phase === 'queued';
+          const showRunningState = executionState === 'running' || hasActiveMilestone || isQueuedPhase;
           const hasAnyInput = isFeatureNode
             ? canvas.edges.some((e) => e.targetNodeId === node.id)
             : false;
@@ -447,10 +480,25 @@ export default function CanvasBoard({
             >
               {/* Hover toolbar above card — pb-3 bridges the gap so mouse stays in hover zone */}
               <div className="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-full pb-3 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100">
-                <div className="flex items-center divide-x divide-[#e8e4da] rounded-full border border-[#ddd7ca] bg-white/96 shadow-[0_10px_24px_rgba(0,0,0,0.11)] backdrop-blur">
+                <div className="flex items-center divide-x divide-[#e8e4da] overflow-hidden rounded-full border border-[#ddd7ca] bg-white/96 shadow-[0_10px_24px_rgba(0,0,0,0.11)] backdrop-blur">
+                  {isFeatureNode && executionState === 'completed' ? (
+                    <button
+                      className="inline-flex items-center gap-1.5 rounded-l-full px-3.5 py-2 text-xs font-medium text-[#4a4944] transition-colors hover:bg-[#eef7ef] hover:text-[#0d7a43]"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onRegenerateFeatureNode(node.id);
+                      }}
+                      type="button"
+                    >
+                      <RefreshCcw className="h-3.5 w-3.5" />
+                      Regenerate
+                    </button>
+                  ) : null}
                   {isProjectAgentOutputNode(node.type) && node.asset?.videoUrl ? (
                     <a
-                      className="inline-flex items-center gap-1.5 rounded-l-full px-3.5 py-2 text-xs font-medium text-[#4a4944] transition-colors hover:bg-[#f5f2ea] hover:text-black"
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-[#4a4944] transition-colors hover:bg-[#f5f2ea] hover:text-black ${
+                        !isFeatureNode ? 'rounded-l-full' : ''
+                      }`}
                       download
                       href={node.asset.videoUrl}
                       rel="noopener noreferrer"
@@ -462,7 +510,7 @@ export default function CanvasBoard({
                     </a>
                   ) : null}
                   <button
-                    className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-[#4a4944] transition-colors hover:bg-[#fff1f0] hover:text-red-600 ${isProjectAgentOutputNode(node.type) && node.asset?.videoUrl ? 'rounded-r-full' : 'rounded-full'}`}
+                    className="inline-flex items-center gap-1.5 rounded-r-full px-3.5 py-2 text-xs font-medium text-[#4a4944] transition-colors hover:bg-[#fff1f0] hover:text-red-600"
                     onClick={(event) => {
                       event.stopPropagation();
                       onDeleteNode(node.id);
@@ -653,7 +701,7 @@ export default function CanvasBoard({
                     <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#3d3c38]">
                       {getProjectAgentFeatureDisplayName(node.type as ProjectAgentFeatureNodeType)}
                     </span>
-                    {executionState === 'running' ? (
+                    {showRunningState ? (
                       <div className="flex shrink-0 items-center gap-1 rounded-full bg-black px-2 py-1 text-[10px] font-semibold text-white">
                         <Loader2 className="h-2.5 w-2.5 animate-spin" />
                         Running
@@ -750,18 +798,75 @@ export default function CanvasBoard({
         })}
       </div>
 
-      <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/70 bg-white/90 px-3 py-1.5 text-xs font-medium text-[#55554f] shadow-sm">
+      <div data-canvas-ui="true" className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/70 bg-white/90 px-3 py-1.5 text-xs font-medium text-[#55554f] shadow-sm">
         Zoom {Math.round(canvas.viewport.zoom * 100)}%
       </div>
 
-      <button
-        className="pointer-events-auto absolute bottom-5 right-5 z-30 flex items-center gap-1.5 rounded-full border border-[#ddd9ce] bg-white/95 px-3.5 py-2 text-xs font-semibold text-[#5f5e57] shadow-[0_8px_20px_rgba(0,0,0,0.08)] backdrop-blur transition-all hover:border-[#ccc8be] hover:bg-white hover:text-black hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)] active:scale-95"
-        onClick={onFormatLayout}
-        type="button"
-      >
-        <BrushCleaning className="h-3.5 w-3.5" />
-        Format
-      </button>
+      <div data-canvas-ui="true" className="pointer-events-auto absolute bottom-5 left-5 z-30 flex items-end gap-2">
+        <div className="relative" data-canvas-ui="true" ref={shortcutsRef}>
+          {shortcutsOpen ? (
+            <div className="absolute bottom-[calc(100%+10px)] left-0 w-[300px] rounded-[20px] border border-[#ddd9ce] bg-white/95 p-3 shadow-[0_14px_32px_rgba(0,0,0,0.10)] backdrop-blur">
+              <div className="space-y-2.5 text-[11px] leading-relaxed text-[#6a6963]">
+                <div className="flex items-center gap-2 text-xs font-semibold text-[#4f4e47]">
+                  <Keyboard className="h-3.5 w-3.5" />
+                  Shortcuts
+                </div>
+                <div className="rounded-[16px] bg-[#f8f7f2] px-3 py-2.5">
+                  <p className="font-medium text-[#4f4e47]">Pan canvas</p>
+                  <p className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <kbd className="rounded-md border border-[#d8d4c8] bg-white px-1.5 py-0.5 font-semibold text-[#3f3e38]">Scroll</kbd>
+                    <span>vertical</span>
+                  </p>
+                  <p className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <kbd className="rounded-md border border-[#d8d4c8] bg-white px-1.5 py-0.5 font-semibold text-[#3f3e38]">Shift</kbd>
+                    <span>+</span>
+                    <kbd className="rounded-md border border-[#d8d4c8] bg-white px-1.5 py-0.5 font-semibold text-[#3f3e38]">Scroll</kbd>
+                    <span>horizontal</span>
+                  </p>
+                  <p className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <kbd className="rounded-md border border-[#d8d4c8] bg-white px-1.5 py-0.5 font-semibold text-[#3f3e38]">Space</kbd>
+                    <span>+</span>
+                    <kbd className="rounded-md border border-[#d8d4c8] bg-white px-1.5 py-0.5 font-semibold text-[#3f3e38]">Drag</kbd>
+                    <span>free pan</span>
+                  </p>
+                </div>
+                <div className="rounded-[16px] bg-[#f8f7f2] px-3 py-2.5">
+                  <p className="font-medium text-[#4f4e47]">Zoom canvas</p>
+                  <p className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <kbd className="rounded-md border border-[#d8d4c8] bg-white px-1.5 py-0.5 font-semibold text-[#3f3e38]">⌘</kbd>
+                    <span>/</span>
+                    <kbd className="rounded-md border border-[#d8d4c8] bg-white px-1.5 py-0.5 font-semibold text-[#3f3e38]">Ctrl</kbd>
+                    <span>+</span>
+                    <kbd className="rounded-md border border-[#d8d4c8] bg-white px-1.5 py-0.5 font-semibold text-[#3f3e38]">Scroll</kbd>
+                  </p>
+                  <p className="mt-1 text-[#7b7a74]">macOS uses <span className="font-semibold">⌘</span>, Windows uses <span className="font-semibold">Ctrl</span>.</p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          <button
+            className={`flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-semibold shadow-[0_8px_20px_rgba(0,0,0,0.08)] backdrop-blur transition-all active:scale-95 ${
+              shortcutsOpen
+                ? 'border-black bg-black text-white'
+                : 'border-[#ddd9ce] bg-white/95 text-[#5f5e57] hover:border-[#ccc8be] hover:bg-white hover:text-black hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)]'
+            }`}
+            onClick={() => setShortcutsOpen((open) => !open)}
+            type="button"
+          >
+            <Keyboard className="h-3.5 w-3.5" />
+            Shortcuts
+          </button>
+        </div>
+
+        <button
+          className="flex items-center gap-1.5 rounded-full border border-[#ddd9ce] bg-white/95 px-3.5 py-2 text-xs font-semibold text-[#5f5e57] shadow-[0_8px_20px_rgba(0,0,0,0.08)] backdrop-blur transition-all hover:border-[#ccc8be] hover:bg-white hover:text-black hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)] active:scale-95"
+          onClick={onFormatLayout}
+          type="button"
+        >
+          <BrushCleaning className="h-3.5 w-3.5" />
+          Format
+        </button>
+      </div>
     </div>
   );
 }

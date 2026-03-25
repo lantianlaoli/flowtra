@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Box, ChevronDown, Clapperboard, Package2, Sparkles, Type, User, Video } from 'lucide-react';
 import {
   getProjectAgentFeatureDisplayName,
@@ -131,11 +131,83 @@ export default function InsertToolbar({
   videos,
 }: InsertToolbarProps) {
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [dropdownOffset, setDropdownOffset] = useState(0);
   const featureTypes: ProjectAgentFeatureNodeType[] = ['video_clone', 'avatar_ads', 'motion_clone'];
 
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (toolbarRef.current?.contains(target)) return;
+      setOpenKey(null);
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!openKey) return;
+
+    const updateOffset = () => {
+      const toolbarRect = toolbarRef.current?.getBoundingClientRect();
+      const triggerRect = triggerRefs.current[openKey]?.getBoundingClientRect();
+      if (!toolbarRect || !triggerRect) return;
+      setDropdownOffset(triggerRect.left - toolbarRect.left);
+    };
+
+    updateOffset();
+
+    const scrollEl = scrollRef.current;
+    scrollEl?.addEventListener('scroll', updateOffset, { passive: true });
+    window.addEventListener('resize', updateOffset);
+
+    return () => {
+      scrollEl?.removeEventListener('scroll', updateOffset);
+      window.removeEventListener('resize', updateOffset);
+    };
+  }, [openKey]);
+
+  const renderDropdownContent = () => {
+    if (openKey === 'avatar') return <AssetList items={avatars} type="avatar" />;
+    if (openKey === 'product') return <AssetList items={products} type="product" />;
+    if (openKey === 'video') return <AssetList items={videos} type="video" />;
+    if (openKey === 'feature') {
+      return (
+        <div className="grid gap-2">
+          {featureTypes.map((featureType) => {
+            const FeatureIcon = getFeatureIcon(featureType);
+            return (
+              <DragItem
+                key={featureType}
+                label={getProjectAgentFeatureDisplayName(featureType)}
+                payload={{ kind: 'feature', featureType }}
+                leading={<FeatureIcon className="h-4.5 w-4.5 text-[#787871]" />}
+              />
+            );
+          })}
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
-    <div className="pointer-events-auto rounded-[28px] border border-[#ddd9ce] bg-white/95 p-3 shadow-[0_20px_50px_rgba(0,0,0,0.12)] backdrop-blur">
-      <div className="flex items-end gap-2">
+    <div ref={toolbarRef} className="pointer-events-auto relative max-w-full rounded-[28px] border border-[#ddd9ce] bg-white/95 p-3 shadow-[0_20px_50px_rgba(0,0,0,0.12)] backdrop-blur">
+      {openKey ? (
+        <div
+          className="absolute bottom-[calc(100%+12px)] z-20 min-w-[220px] rounded-[24px] border border-[#ddd9ce] bg-white p-3 shadow-[0_24px_60px_rgba(0,0,0,0.16)]"
+          style={{ left: dropdownOffset }}
+        >
+          {renderDropdownContent()}
+        </div>
+      ) : null}
+      <div ref={scrollRef} className="overflow-x-auto">
+        <div className="flex min-w-max items-end gap-2">
         {[
           { key: 'avatar', label: 'Avatar' },
           { key: 'product', label: 'Product' },
@@ -148,6 +220,9 @@ export default function InsertToolbar({
           return (
           <div className="relative min-w-0 shrink" key={entry.key}>
             <button
+              ref={(element) => {
+                triggerRefs.current[entry.key] = element;
+              }}
               className={`flex min-w-0 items-center gap-1.5 rounded-[22px] border px-3 py-2.5 text-sm font-semibold ${
                 open
                   ? 'border-black bg-black text-white'
@@ -160,29 +235,6 @@ export default function InsertToolbar({
               <span className="hidden min-[520px]:inline truncate">{entry.label}</span>
               <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
             </button>
-
-            {openKey === entry.key ? (
-              <div className="absolute bottom-[calc(100%+12px)] left-0 z-20 min-w-[220px] rounded-[24px] border border-[#ddd9ce] bg-white p-3 shadow-[0_24px_60px_rgba(0,0,0,0.16)]">
-                {entry.key === 'avatar' ? <AssetList items={avatars} type="avatar" /> : null}
-                {entry.key === 'product' ? <AssetList items={products} type="product" /> : null}
-                {entry.key === 'video' ? <AssetList items={videos} type="video" /> : null}
-                {entry.key === 'feature' ? (
-                  <div className="grid gap-2">
-                    {featureTypes.map((featureType) => {
-                      const FeatureIcon = getFeatureIcon(featureType);
-                      return (
-                        <DragItem
-                          key={featureType}
-                          label={getProjectAgentFeatureDisplayName(featureType)}
-                          payload={{ kind: 'feature', featureType }}
-                          leading={<FeatureIcon className="h-4.5 w-4.5 text-[#787871]" />}
-                        />
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
           </div>
           );
         })}
@@ -199,6 +251,7 @@ export default function InsertToolbar({
         >
           <Type className="h-4 w-4 shrink-0" />
           <span className="hidden min-[520px]:inline">Text</span>
+        </div>
         </div>
       </div>
     </div>
