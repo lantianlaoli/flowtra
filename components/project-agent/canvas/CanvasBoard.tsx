@@ -37,6 +37,7 @@ import {
 
 type CanvasBoardProps = {
   canvas: ProjectAgentCanvasState;
+  draggingNodeId?: string | null;
   isPanning: boolean;
   isSpacePressed: boolean;
   pendingConnectionPoint: { x: number; y: number } | null;
@@ -66,9 +67,9 @@ type CanvasBoardProps = {
 };
 
 const getNodeSize = (node: ProjectAgentCanvasNode) => {
-  if (node.type === 'video') return { width: 130, height: 246 };
+  if (node.type === 'video') return { width: 168, height: 314 };
   if (isProjectAgentAssetNode(node.type)) return { width: 188, height: 224 };
-  if (isProjectAgentOutputNode(node.type)) return { width: 130, height: 246 };
+  if (isProjectAgentOutputNode(node.type)) return { width: 168, height: 314 };
   return { width: 248, height: 216 };
 };
 
@@ -187,6 +188,7 @@ const getFeatureIcon = (type: ProjectAgentFeatureNodeType) => {
 
 export default function CanvasBoard({
   canvas,
+  draggingNodeId,
   isPanning,
   isSpacePressed,
   pendingConnectionPoint,
@@ -386,6 +388,7 @@ export default function CanvasBoard({
         {canvas.nodes.map((node) => {
           const size = getNodeSize(node);
           const selected = canvas.selectedNodeId === node.id;
+          const isDragging = draggingNodeId === node.id;
           const isFeatureNode = isProjectAgentFeatureNode(node.type);
           const featureType: ProjectAgentFeatureNodeType | null = isFeatureNode
             ? node.type as ProjectAgentFeatureNodeType
@@ -418,11 +421,11 @@ export default function CanvasBoard({
             <div
               key={node.id}
               data-canvas-node="true"
-              className={`group absolute rounded-[24px] border bg-white/96 shadow-[0_18px_40px_rgba(0,0,0,0.08)] transition-shadow ${
+              className={`group absolute rounded-[24px] border bg-white/96 transition-[box-shadow,border-color] ${
                 selected
                   ? 'border-black shadow-[0_24px_60px_rgba(0,0,0,0.14)]'
                   : 'border-[#dfddd5] hover:shadow-[0_22px_48px_rgba(0,0,0,0.10)]'
-              }`}
+              } ${isDragging ? 'z-20 select-none shadow-[0_28px_70px_rgba(0,0,0,0.16)]' : 'shadow-[0_18px_40px_rgba(0,0,0,0.08)]'}`}
               style={{
                 left: node.x,
                 top: node.y,
@@ -474,14 +477,15 @@ export default function CanvasBoard({
               {isProjectAgentOutputNode(node.type) ? (
                 /* Output video node: 9:16 with HTML5 player */
                 <div className="flex flex-col h-full">
-                  <div className="flex items-center gap-1.5 px-2.5 pt-2.5 pb-1.5">
+                  <div className="flex items-center gap-1.5 px-2 pt-2 pb-1.5">
                     <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-[#c4c1b8] active:cursor-grabbing" strokeWidth={2} />
                     <span className="truncate text-xs font-semibold text-[#3d3c38]">Output</span>
                   </div>
-                  <div className="px-2.5 pb-2.5">
+                  <div className="px-2 pb-2">
                     <div
                       className="relative w-full overflow-hidden rounded-xl bg-[#111]"
                       style={{ aspectRatio: '9/16' }}
+                      onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => e.stopPropagation()}
                     >
                       {node.asset?.videoUrl ? (
@@ -489,8 +493,8 @@ export default function CanvasBoard({
                           className="h-full w-full object-cover"
                           controls
                           playsInline
+                          preload="metadata"
                           poster={node.asset.imageUrl || undefined}
-                          preload="none"
                           src={node.asset.videoUrl}
                         />
                       ) : node.asset?.imageUrl ? (
@@ -521,22 +525,35 @@ export default function CanvasBoard({
                   {node.type === 'text' ? (
                     /* Text node: editable textarea */
                     <div className="flex-1 px-2.5 pb-2.5">
-                      <textarea
-                        className="h-full w-full resize-none rounded-xl bg-[#f3f1ea] p-2.5 text-xs text-[#3d3c38] placeholder:text-[#b0ada5] focus:outline-none focus:ring-2 focus:ring-black/10"
-                        placeholder="Enter text..."
-                        value={node.asset?.content || ''}
-                        onChange={(e) => onUpdateNodeContent(node.id, e.target.value)}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onClick={(e) => e.stopPropagation()}
-                      />
+                      <div className="h-full w-full overflow-hidden rounded-[20px] bg-[#f3f1ea]">
+                        <textarea
+                          className="h-full w-full resize-none bg-transparent p-2.5 text-xs text-[#3d3c38] placeholder:text-[#b0ada5] focus:outline-none focus:ring-0"
+                          placeholder="Enter text..."
+                          value={node.asset?.content || ''}
+                          onChange={(e) => onUpdateNodeContent(node.id, e.target.value)}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
                     </div>
                   ) : node.type === 'video' ? (
-                    <div className="flex flex-1 items-start justify-center px-2.5 pb-2.5">
+                    <div className="flex flex-1 items-start justify-center px-2 pb-2">
                       <div
                         className="relative w-full overflow-hidden rounded-xl bg-[#111]"
                         style={{ aspectRatio: '9/16' }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        {node.asset?.imageUrl ? (
+                        {node.asset?.videoUrl ? (
+                          <video
+                            className="h-full w-full object-cover"
+                            controls
+                            playsInline
+                            poster={node.asset.imageUrl || undefined}
+                            preload="metadata"
+                            src={node.asset.videoUrl}
+                          />
+                        ) : node.asset?.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             alt={node.asset.name}
@@ -548,13 +565,6 @@ export default function CanvasBoard({
                             <VideoIcon className="h-7 w-7 text-[#555]" />
                           </div>
                         )}
-                        {node.asset?.videoUrl ? (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm">
-                              <Play className="h-4 w-4 translate-x-0.5 fill-white text-white" />
-                            </div>
-                          </div>
-                        ) : null}
                       </div>
                     </div>
                   ) : (

@@ -551,6 +551,8 @@ export default function CloneSceneWorkspaceStep({
                                 src={scene.videoUrl}
                                 controls
                                 className="h-full w-full rounded-2xl border border-[#e6e6e4] bg-black object-cover"
+                                playsInline
+                                preload="metadata"
                               />
                             ) : (
                               <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-[#d9d9d7] bg-[#f7f7f5] px-4 text-center text-xs text-[#8d8d8a]">

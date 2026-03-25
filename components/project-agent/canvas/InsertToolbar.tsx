@@ -18,6 +18,33 @@ type InsertToolbarProps = {
 const draggableButtonClass =
   'flex w-full items-center gap-3 rounded-[18px] border border-[#dedbd1] bg-white px-3 py-2.5 text-left text-sm font-medium text-black shadow-[0_10px_24px_rgba(0,0,0,0.06)] transition hover:-translate-y-0.5 hover:border-[#cfc9bb]';
 
+const setCustomDragPreview = (event: React.DragEvent<HTMLElement>, label: string) => {
+  const preview = document.createElement('div');
+  preview.textContent = label;
+  preview.style.position = 'fixed';
+  preview.style.top = '-9999px';
+  preview.style.left = '-9999px';
+  preview.style.padding = '10px 14px';
+  preview.style.borderRadius = '18px';
+  preview.style.border = '1px solid #dad6cb';
+  preview.style.background = 'rgba(255,255,255,0.98)';
+  preview.style.color = '#111111';
+  preview.style.fontSize = '14px';
+  preview.style.fontWeight = '600';
+  preview.style.lineHeight = '1';
+  preview.style.boxShadow = '0 12px 28px rgba(0,0,0,0.12)';
+  preview.style.pointerEvents = 'none';
+  preview.style.zIndex = '9999';
+  preview.style.whiteSpace = 'nowrap';
+
+  document.body.appendChild(preview);
+  event.dataTransfer.setDragImage(preview, 18, 18);
+
+  window.setTimeout(() => {
+    preview.remove();
+  }, 0);
+};
+
 const getToolbarIcon = (key: string) => {
   if (key === 'avatar') return User;
   if (key === 'product') return Box;
@@ -52,6 +79,7 @@ const DragItem = ({
     onDragStart={(event) => {
       event.dataTransfer.effectAllowed = 'copy';
       event.dataTransfer.setData('application/json', JSON.stringify(payload));
+      setCustomDragPreview(event, label);
     }}
     type="button"
   >
@@ -166,6 +194,7 @@ export default function InsertToolbar({
           onDragStart={(event) => {
             event.dataTransfer.effectAllowed = 'copy';
             event.dataTransfer.setData('application/json', JSON.stringify({ kind: 'text' }));
+            setCustomDragPreview(event, 'Text');
           }}
         >
           <Type className="h-4 w-4 shrink-0" />
