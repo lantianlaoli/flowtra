@@ -96,6 +96,8 @@ export default function CloneMergedVideoReviewStep({
                 src={execution.mergedVideoUrl}
                 controls
                 className="h-full w-full bg-black object-contain"
+                playsInline
+                preload="metadata"
               />
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center px-6 text-center text-[#8d8d8a]">

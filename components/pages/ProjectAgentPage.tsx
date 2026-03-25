@@ -191,6 +191,15 @@ const isAssetPhrase = (text: string, assetType: ProjectAgentAssetNodeType) => {
   return /add .*video node|放.*video 节点|create .*video node/i.test(text);
 };
 
+const isInteractiveNodeSurface = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+  return Boolean(
+    target.closest(
+      'video,button,a,input,textarea,select,summary,[contenteditable="true"],[data-node-interactive="true"]'
+    )
+  );
+};
+
 export default function ProjectAgentPage() {
   const { user, isLoaded } = useUser();
   const { credits, creditsData } = useCredits();
@@ -627,43 +636,69 @@ export default function ProjectAgentPage() {
 
     canvas.nodes.forEach((node) => {
       if (!isProjectAgentFeatureNode(node.type) || !node.runtime?.projectId) return;
-      const table = node.type === 'avatar_ads'
-        ? 'avatar_ads_projects'
+      const subscriptionSpecs = node.type === 'avatar_ads'
+        ? [{
+            key: `avatar_ads_projects:${node.runtime.projectId}`,
+            channelName: `project-agent-canvas-avatar_ads_projects:${node.runtime.projectId}`,
+            table: 'avatar_ads_projects',
+            filter: `id=eq.${node.runtime.projectId}`,
+          }]
         : node.type === 'video_clone'
-          ? 'competitor_ugc_replication_projects'
-          : 'motion_clone_projects';
-      const channelKey = `${table}:${node.runtime.projectId}`;
-      if (subscriptionsRef.current.has(channelKey)) return;
-      const channel = supabase
-        .channel(`project-agent-canvas-${channelKey}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table,
-          filter: `id=eq.${node.runtime.projectId}`,
-        }, () => {
-          void fetchNodeStatus(node.id, node.type as ProjectAgentFeatureNodeType, node.runtime?.projectId || '');
-        })
-        .subscribe();
-      subscriptionsRef.current.set(channelKey, channel);
-      // Immediately fetch current status for running nodes to sync stale session state
-      if (node.runtime.executionState === 'running') {
-        void fetchNodeStatus(node.id, node.type as ProjectAgentFeatureNodeType, node.runtime.projectId);
-      }
+          ? [
+              {
+                key: `competitor_ugc_replication_projects:${node.runtime.projectId}`,
+                channelName: `project-agent-canvas-competitor_ugc_replication_projects:${node.runtime.projectId}`,
+                table: 'competitor_ugc_replication_projects',
+                filter: `id=eq.${node.runtime.projectId}`,
+              },
+              {
+                key: `competitor_ugc_replication_segments:${node.runtime.projectId}`,
+                channelName: `project-agent-canvas-competitor_ugc_replication_segments:${node.runtime.projectId}`,
+                table: 'competitor_ugc_replication_segments',
+                filter: `project_id=eq.${node.runtime.projectId}`,
+              },
+            ]
+          : [{
+              key: `motion_clone_projects:${node.runtime.projectId}`,
+              channelName: `project-agent-canvas-motion_clone_projects:${node.runtime.projectId}`,
+              table: 'motion_clone_projects',
+              filter: `id=eq.${node.runtime.projectId}`,
+            }];
+
+      subscriptionSpecs.forEach(({ key, channelName, table, filter }) => {
+        if (subscriptionsRef.current.has(key)) return;
+        const channel = supabase
+          .channel(channelName)
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table,
+            filter,
+          }, () => {
+            void fetchNodeStatus(node.id, node.type as ProjectAgentFeatureNodeType, node.runtime?.projectId || '');
+          })
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              void fetchNodeStatus(node.id, node.type as ProjectAgentFeatureNodeType, node.runtime?.projectId || '');
+            }
+          });
+        subscriptionsRef.current.set(key, channel);
+      });
     });
 
     // Remove channels for nodes that no longer have a projectId
     const activeKeys = new Set(
-      canvas.nodes
-        .filter((n) => isProjectAgentFeatureNode(n.type) && n.runtime?.projectId)
-        .map((n) => {
-          const table = n.type === 'avatar_ads'
-            ? 'avatar_ads_projects'
-            : n.type === 'video_clone'
-              ? 'competitor_ugc_replication_projects'
-              : 'motion_clone_projects';
-          return `${table}:${n.runtime!.projectId}`;
-        })
+      canvas.nodes.flatMap((n) => {
+        if (!isProjectAgentFeatureNode(n.type) || !n.runtime?.projectId) return [];
+        if (n.type === 'avatar_ads') return [`avatar_ads_projects:${n.runtime.projectId}`];
+        if (n.type === 'video_clone') {
+          return [
+            `competitor_ugc_replication_projects:${n.runtime.projectId}`,
+            `competitor_ugc_replication_segments:${n.runtime.projectId}`,
+          ];
+        }
+        return [`motion_clone_projects:${n.runtime.projectId}`];
+      })
     );
     subscriptionsRef.current.forEach((channel, key) => {
       if (!activeKeys.has(key)) {
@@ -672,33 +707,6 @@ export default function ProjectAgentPage() {
       }
     });
   }, [canvas.nodes, fetchNodeStatus, supabase]);
-
-  useEffect(() => {
-    const runningNodes = canvas.nodes.filter((node) => (
-      isProjectAgentFeatureNode(node.type) &&
-      node.runtime?.projectId &&
-      node.runtime.executionState === 'running'
-    ));
-
-    if (runningNodes.length === 0) return;
-
-    const pollRunningNodes = () => {
-      if (document.visibilityState === 'hidden') return;
-
-      runningNodes.forEach((node) => {
-        void fetchNodeStatus(
-          node.id,
-          node.type as ProjectAgentFeatureNodeType,
-          node.runtime!.projectId!
-        );
-      });
-    };
-
-    const intervalId = window.setInterval(pollRunningNodes, 4000);
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [canvas.nodes, fetchNodeStatus]);
 
   useEffect(() => {
     const subscriptions = subscriptionsRef.current;
@@ -926,6 +934,10 @@ export default function ProjectAgentPage() {
   }, [addAssetNode, addFeatureNode, getCanvasPointFromClient, updateCanvas]);
 
   const handleNodePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>, nodeId: string) => {
+    if (isInteractiveNodeSurface(event.target)) {
+      event.stopPropagation();
+      return;
+    }
     event.stopPropagation();
     const bounds = canvasContainerRef.current?.getBoundingClientRect();
     const node = getProjectAgentCanvasNodeById(canvas, nodeId);
@@ -1132,10 +1144,10 @@ export default function ProjectAgentPage() {
       const V_GAP = 40;
 
       const getNodeHeight = (node: ProjectAgentCanvasNode) => {
-        if (node.type === 'video') return 246;
+        if (node.type === 'video') return 314;
         if (isProjectAgentAssetNode(node.type)) return 224;
         if (isProjectAgentFeatureNode(node.type)) return 216;
-        return 246;
+        return 314;
       };
 
       const placeColumn = (nodes: ProjectAgentCanvasNode[], x: number, startY: number) => {
@@ -1311,6 +1323,7 @@ export default function ProjectAgentPage() {
               <div className="h-full w-full p-0" ref={canvasContainerRef}>
                 <CanvasBoard
                   canvas={canvas}
+                  draggingNodeId={draggingNodeId}
                   isPanning={panning}
                   isSpacePressed={spacePressed}
                   pendingConnectionPoint={pendingConnectionPoint}

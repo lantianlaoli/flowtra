@@ -351,6 +351,8 @@ export default function CloneSceneReviewStep({
                         src={segment.videoUrl}
                         controls
                         className="h-full w-full bg-black object-cover"
+                        playsInline
+                        preload="metadata"
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center px-4 text-center text-xs text-[#8d8d8a]">
