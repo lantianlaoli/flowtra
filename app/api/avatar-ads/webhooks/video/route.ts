@@ -15,6 +15,10 @@ interface KIEVideoWebhookPayload {
   msg: string;
   data: {
     taskId: string;
+    state?: 'waiting' | 'success' | 'fail';
+    resultJson?: string;
+    failCode?: string;
+    failMsg?: string;
     info?: {
       resultUrls?: string[];
       originUrls?: string[];
@@ -38,7 +42,8 @@ export async function POST(request: NextRequest) {
   try {
     const payload: KIEVideoWebhookPayload = await request.json();
     const { code, msg, data } = payload;
-    const { taskId, info, fallbackFlag } = data;
+    const { taskId, info, resultJson, state, failCode, failMsg } = data;
+    const webhookState = typeof state === 'string' ? state.toLowerCase() : '';
 
     // Security validation: Check if taskId exists in database (scene-level)
     const supabase = getSupabaseAdmin();
@@ -61,10 +66,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: 'Already processed' }, { status: 200 });
     }
 
-    const videoUrl = info?.resultUrls?.[0];
+    let videoUrl: string | undefined;
+
+    if (info?.resultUrls?.[0]) {
+      videoUrl = info.resultUrls[0];
+    } else if (resultJson) {
+      try {
+        const parsed = JSON.parse(resultJson);
+        videoUrl = parsed.resultUrls?.[0];
+      } catch (parseError) {
+        console.error('[Avatar Ads Video Webhook] Failed to parse resultJson:', parseError);
+      }
+    }
 
     // Update scene based on webhook status
-    if (code === 200 && videoUrl) {
+    const isSuccess = code === 200 && webhookState !== 'fail' && Boolean(videoUrl);
+    const shouldTreatAsFailure = webhookState === 'fail' || (
+      webhookState !== 'waiting' && (
+        code === 400 ||
+        code === 422 ||
+        code === 500 ||
+        code === 501 ||
+        code === 503 ||
+        (code === 200 && !videoUrl)
+      )
+    );
+
+    if (isSuccess) {
       const { error: updateError } = await supabase
         .from('avatar_ads_scenes')
         .update({
@@ -159,21 +187,24 @@ export async function POST(request: NextRequest) {
         }
       }
 
-    } else if (code === 400 || code === 422 || code === 500 || code === 501) {
+    } else if (shouldTreatAsFailure) {
       console.error('[Avatar Ads Video Webhook] Video generation failed for scene', scene.scene_number, {
         code,
-        msg
+        msg,
+        state: webhookState || 'unknown',
+        failCode,
+        failMsg,
       });
 
       // Determine if error is retryable (server errors only)
-      const isRetryable = code === 500;
+      const isRetryable = code === 500 || code === 503;
 
       const { error: updateError } = await supabase
         .from('avatar_ads_scenes')
         .update({
           status: isRetryable ? 'generating' : 'failed', // Keep generating if retryable
-          error_code: String(code),
-          error_message: msg,
+          error_code: failCode || String(code),
+          error_message: failMsg || msg || 'Video generation failed',
           webhook_received_at: new Date().toISOString()
         })
         .eq('id', scene.id);
@@ -189,8 +220,8 @@ export async function POST(request: NextRequest) {
           surface: 'avatar_ads_video_webhook',
           project_id: scene.project_id,
           segment_index: scene.scene_number,
-          error_code: String(code),
-          error_message: msg,
+          error_code: failCode || String(code),
+          error_message: failMsg || msg || 'Video generation failed',
         }
       });
 

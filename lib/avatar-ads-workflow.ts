@@ -151,7 +151,9 @@ export const buildAvatarAdsVideoExecutionPrompt = (
     : buildAvatarAdsTalkingHeadVisualLines(hasProductContext);
 
   if (dialogText) {
-    parts.push(`dialogue, the character in the video says: ${dialogText}`);
+    parts.push(`Delivery: ${hasProductContext ? 'UGC-style direct response product pitch.' : 'UGC-style direct-to-camera talking-head pitch.'}`);
+    parts.push('Performance: Visible lip sync, natural blinking, subtle eyebrow movement, small head nods, expressive face. Prioritize facial performance over hand motion.');
+    parts.push(`Dialogue: "${dialogText}"`);
   }
 
   if (promptObj.voice_type) {
@@ -159,6 +161,24 @@ export const buildAvatarAdsVideoExecutionPrompt = (
   }
 
   return parts.join('\n\n').trim();
+};
+
+const getAvatarVideoReferenceImages = (
+  referenceImageUrls: string[],
+  durationSeconds?: number
+) => {
+  const uniqueUrls = referenceImageUrls.filter((url, index, all) => (
+    typeof url === 'string' &&
+    url.trim().length > 0 &&
+    all.indexOf(url) === index
+  ));
+
+  if (uniqueUrls.length === 0) return [];
+  if ((durationSeconds || 0) > 15 && uniqueUrls.length >= 2) {
+    return uniqueUrls.slice(0, 2);
+  }
+
+  return uniqueUrls.slice(0, 1);
 };
 
 // Fallback product analysis for temporary products (no database record)
@@ -314,11 +334,14 @@ CRITICAL RULES FOR GENDER:
 - The gender MUST match what you see in the person image
 
 UGC STYLE PRINCIPLES:
+- This must feel like a social-media UGC talking ad made by a real creator, not a cinematic brand commercial
 - Amateur iPhone selfie video aesthetic
 - Natural, casual environments
 - Slightly imperfect framing and lighting
 - Genuine, relatable expressions
+- Strong direct-to-camera selling energy
 - The character must SHOW the product to camera naturally
+- Dialogue should sound like authentic product recommendation copy that could convert on TikTok / Reels / Shorts
 
 VIDEO SCENE REQUIREMENTS:
 - Each scene is ${UNIT_SECONDS} seconds long
@@ -343,6 +366,8 @@ DIALOGUE PACING RULES:
 - Include brief pauses between phrases
 - Avoid cramming too many words - clarity over quantity
 - The 'dialog' field should contain the natural product pitch directly
+- Use UGC ad structure when possible: hook, benefit, proof/experience, recommendation, soft CTA
+- Avoid generic narration or documentary tone; this should sound like creator-led spoken ad copy
 
 IMAGE PROMPT REQUIREMENTS:
 - Analyze the PRODUCT image to determine how it should be presented:
@@ -362,8 +387,8 @@ OUTPUT FORMAT (JSON):
       "prompt": {
         "subject": "A confident [man/woman] in [clothing description]...",
         "context_environment": "A minimalist, upscale interior setting...",
-        "action": "The character is standing still... [performing subtle movements]...",
-        "style": "Amateur iPhone selfie video style...",
+        "action": "The character delivers a persuasive UGC sales pitch, maintains eye contact with camera, shows the product naturally, and uses subtle but confident creator-style gestures...",
+        "style": "Amateur iPhone selfie UGC ad style for TikTok/Reels/Shorts...",
         "camera_motion_positioning": "Fixed Medium Shot (MS). The camera is stable...",
         "composition": "A balanced composition...",
         "ambiance_color_lighting": "Warm color grading...",
@@ -400,11 +425,12 @@ CRITICAL RULES FOR GENDER:
 - The gender MUST match what you see in the person image
 
 TALKING HEAD STYLE PRINCIPLES:
-- Amateur iPhone selfie video aesthetic
+- Amateur iPhone selfie UGC testimonial aesthetic
 - Character faces camera the entire time
 - Natural, casual background (desk, living room, office, etc.)
 - Slight hand gestures, natural blinking, subtle movement
-- No product props, nothing held in hand
+- Creator-style direct response delivery, as if recording a persuasive social ad
+- No product props, nothing held in hand unless the user explicitly provided product context
 
 VIDEO SCENE REQUIREMENTS:
 - Each scene is ${UNIT_SECONDS} seconds long
@@ -421,6 +447,7 @@ DIALOGUE PACING RULES:
 - Include brief pauses between phrases for emphasis
 - Avoid cramming too many words - clarity and authenticity over quantity
 - Natural conversational flow is essential for talking head content
+- Delivery should still feel like UGC ad copy, not a lecture or documentary voiceover
 
 IMAGE PROMPT REQUIREMENTS:
 - Describe the character centered in frame, speaking to camera
@@ -436,8 +463,8 @@ OUTPUT FORMAT (JSON):
       "prompt": {
         "subject": "A confident [man/woman] in [clothing description] speaking directly to the camera...",
         "context_environment": "A cozy home office with natural daylight...",
-        "action": "The character delivers their point with subtle hand gestures and a warm smile...",
-        "style": "Authentic talking head vlog style...",
+        "action": "The character delivers a persuasive UGC-style talking-head pitch with confident eye contact, expressive face, and subtle creator gestures...",
+        "style": "Authentic UGC talking head ad style...",
         "camera_motion_positioning": "Fixed Medium Shot (MS). The camera is stable...",
         "composition": "Centered framing with soft depth of field...",
         "ambiance_color_lighting": "Natural daylight with warm tones...",
@@ -751,6 +778,10 @@ export async function generateVideoWithKIE(
   const finalPrompt = languageName !== 'English'
     ? `"language": "${languageName}"\n\n${basePrompt}`
     : basePrompt;
+  const durationSeconds = options?.durationSeconds && options.durationSeconds > 0
+    ? options.durationSeconds
+    : UNIT_SECONDS;
+  const selectedReferenceImages = getAvatarVideoReferenceImages(referenceImageUrls, durationSeconds);
 
   const requestBody = resolvedModel === 'kling_3'
     ? {
@@ -758,10 +789,10 @@ export async function generateVideoWithKIE(
         ...(callBackUrl ? { callBackUrl } : {}),
         input: {
           mode: 'std',
-          image_urls: referenceImageUrls.slice(0, 2),
+          image_urls: selectedReferenceImages,
           prompt: finalPrompt,
           sound: true,
-          duration: String(options?.durationSeconds && options.durationSeconds > 0 ? options.durationSeconds : UNIT_SECONDS),
+          duration: String(durationSeconds),
           aspect_ratio: videoAspectRatio || '16:9',
           multi_shots: false
         }
@@ -770,8 +801,8 @@ export async function generateVideoWithKIE(
         prompt: finalPrompt,
         model: DEFAULT_VIDEO_MODEL,
         aspectRatio: videoAspectRatio || '16:9',
-        imageUrls: referenceImageUrls,
-        generationType: referenceImageUrls.length >= 1 ? 'FIRST_AND_LAST_FRAMES_2_VIDEO' : 'TEXT_2_VIDEO',
+        imageUrls: selectedReferenceImages,
+        generationType: selectedReferenceImages.length >= 1 ? 'FIRST_AND_LAST_FRAMES_2_VIDEO' : 'TEXT_2_VIDEO',
         enableAudio: true,
         audioEnabled: true,
         generateVoiceover: false,

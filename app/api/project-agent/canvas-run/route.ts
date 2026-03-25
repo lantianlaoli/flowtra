@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
+import { checkCredits } from '@/lib/credits';
+import { getGenerationCost, getMotionCloneGenerationCost } from '@/lib/constants';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import {
   buildAvatarAdsStartPayload,
   buildMotionCloneStartPayload,
@@ -70,6 +73,87 @@ const ensureAsset = (
   return value;
 };
 
+const ensureEnoughCredits = async (userId: string, requiredCredits: number) => {
+  if (requiredCredits <= 0) return;
+
+  const creditCheck = await checkCredits(userId, requiredCredits);
+  if (!creditCheck.success) {
+    throw new Error(creditCheck.error || 'Failed to check credits.');
+  }
+
+  if (!creditCheck.hasEnoughCredits) {
+    throw new Error(`Insufficient credits. Need ${requiredCredits}, have ${creditCheck.currentCredits || 0}.`);
+  }
+};
+
+const assertAvatarCredits = async (userId: string, body: CanvasRunRequestBody) => {
+  const avatar = ensureAsset(body.connectedAssets?.avatar, 'Avatar');
+  const product = body.connectedAssets?.product || null;
+  const text = ensureAsset(body.connectedAssets?.text, 'Text');
+  const payload = buildAvatarAdsStartPayload({
+    avatar,
+    product,
+    text,
+    config: body.config,
+  });
+
+  await ensureEnoughCredits(
+    userId,
+    getGenerationCost(payload.videoModel, String(payload.videoDurationSeconds))
+  );
+};
+
+const assertVideoCloneCredits = async (userId: string, body: CanvasRunRequestBody) => {
+  const avatar = ensureAsset(body.connectedAssets?.avatar, 'Avatar');
+  const product = ensureAsset(body.connectedAssets?.product, 'Product');
+  const video = ensureAsset(body.connectedAssets?.video, 'Video');
+  const payload = buildVideoCloneStartPayload({
+    avatar,
+    product,
+    video,
+    config: body.config,
+  });
+
+  await ensureEnoughCredits(
+    userId,
+    getGenerationCost(payload.videoModel, payload.videoDuration, 'standard')
+  );
+};
+
+const assertMotionCloneCredits = async (userId: string, body: CanvasRunRequestBody) => {
+  const avatar = ensureAsset(body.connectedAssets?.avatar, 'Avatar');
+  const product = ensureAsset(body.connectedAssets?.product, 'Product');
+  const video = ensureAsset(body.connectedAssets?.video, 'Video');
+  const payload = buildMotionCloneStartPayload({
+    avatar,
+    product,
+    video,
+    config: body.config,
+  });
+
+  // Schema verified via existing Motion Clone usage (2026-03-25):
+  // creator_source_videos.duration_seconds is used by app/api/motion-clone/[id]/start/route.ts
+  // to calculate generation cost for preview/video creation.
+  const supabase = getSupabaseAdmin();
+  const { data: referenceVideo, error } = await supabase
+    .from('creator_source_videos')
+    .select('duration_seconds')
+    .eq('id', payload.referenceVideoId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error || !referenceVideo) {
+    throw new Error('Reference video not found.');
+  }
+
+  const requiredCredits = getMotionCloneGenerationCost(
+    referenceVideo.duration_seconds,
+    payload.mode
+  );
+
+  await ensureEnoughCredits(userId, requiredCredits);
+};
+
 const fetchAvatarStatus = async (origin: string, projectId: string, headers?: HeadersInit) => {
   const payload = await fetchJson(`${origin}/api/avatar-ads/${projectId}/status`, {
     cache: 'no-store',
@@ -96,26 +180,39 @@ const fetchMotionStatus = async (origin: string, projectId: string, headers?: He
 
 const startAvatarAds = async (origin: string, userId: string, body: CanvasRunRequestBody) => {
   const avatar = ensureAsset(body.connectedAssets?.avatar, 'Avatar');
-  const product = ensureAsset(body.connectedAssets?.product, 'Product');
+  const product = body.connectedAssets?.product || null;
+  const text = ensureAsset(body.connectedAssets?.text, 'Text');
   const payload = buildAvatarAdsStartPayload({
     avatar,
     product,
+    text,
     config: body.config,
   });
 
   const internalHeaders = buildInternalHeaders(userId);
+  const formData = toFormData({
+    user_id: userId,
+    selected_person_photo_url: payload.selectedPersonPhotoUrl,
+    video_duration_seconds: String(payload.videoDurationSeconds),
+    video_aspect_ratio: payload.videoAspectRatio,
+    language: payload.language,
+    video_model: payload.videoModel,
+  });
+
+  if (payload.selectedProductId) {
+    formData.set('selected_product_id', payload.selectedProductId);
+  }
+  if (payload.customDialogue) {
+    formData.set('custom_dialogue', payload.customDialogue);
+  }
+  if (payload.talkingHeadMode) {
+    formData.set('talking_head_mode', 'true');
+  }
+
   const createPayload = await fetchJson(`${origin}/api/avatar-ads/create`, {
     method: 'POST',
     headers: internalHeaders,
-    body: toFormData({
-      user_id: userId,
-      selected_person_photo_url: payload.selectedPersonPhotoUrl,
-      selected_product_id: payload.selectedProductId,
-      video_duration_seconds: String(payload.videoDurationSeconds),
-      video_aspect_ratio: payload.videoAspectRatio,
-      language: payload.language,
-      video_model: payload.videoModel,
-    }),
+    body: formData,
   });
 
   const projectId = typeof createPayload.id === 'string' ? createPayload.id : null;
@@ -316,6 +413,14 @@ export async function POST(request: NextRequest) {
           : await fetchMotionStatus(origin, body.projectId, buildInternalHeaders(userId));
 
       return NextResponse.json({ success: true, execution: advancedStatus });
+    }
+
+    if (nodeType === 'avatar_ads') {
+      await assertAvatarCredits(userId, body);
+    } else if (nodeType === 'video_clone') {
+      await assertVideoCloneCredits(userId, body);
+    } else if (nodeType === 'motion_clone') {
+      await assertMotionCloneCredits(userId, body);
     }
 
     const execution = nodeType === 'avatar_ads'

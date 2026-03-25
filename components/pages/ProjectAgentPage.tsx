@@ -25,6 +25,7 @@ import {
   createProjectAgentCanvasEdgeId,
   createProjectAgentCanvasNodeId,
   createProjectAgentFeatureNode,
+  getProjectAgentCanvasNodeSize,
   getConnectedAssetNodeMap,
   getCanvasConnectionError,
   getProjectAgentCanvasNodeById,
@@ -200,6 +201,14 @@ const isInteractiveNodeSurface = (target: EventTarget | null) => {
   );
 };
 
+const setSingleSelectedNode = (current: ProjectAgentCanvasState, nodeId: string | null): ProjectAgentCanvasState => ({
+  ...current,
+  selectedNodeId: nodeId,
+  selectedNodeIds: nodeId ? [nodeId] : [],
+});
+
+const isSelectionBoxMeaningful = (width: number, height: number) => width > 6 || height > 6;
+
 export default function ProjectAgentPage() {
   const { user, isLoaded } = useUser();
   const { credits, creditsData } = useCredits();
@@ -214,9 +223,13 @@ export default function ProjectAgentPage() {
   const [videos, setVideos] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [draggingNodeIds, setDraggingNodeIds] = useState<string[]>([]);
+  const [dragStartPoint, setDragStartPoint] = useState<{ x: number; y: number } | null>(null);
+  const [dragStartPositions, setDragStartPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [panning, setPanning] = useState(false);
   const [spacePressed, setSpacePressed] = useState(false);
+  const [selectionStartPoint, setSelectionStartPoint] = useState<{ x: number; y: number } | null>(null);
+  const [selectionCurrentPoint, setSelectionCurrentPoint] = useState<{ x: number; y: number } | null>(null);
   const [panOrigin, setPanOrigin] = useState({ x: 0, y: 0, viewportX: 0, viewportY: 0 });
   const [pendingConnectionPoint, setPendingConnectionPoint] = useState<{ x: number; y: number } | null>(null);
   const [snappedConnectionTarget, setSnappedConnectionTarget] = useState<SnappedConnectionTarget | null>(null);
@@ -227,9 +240,11 @@ export default function ProjectAgentPage() {
   const [isHistoryPopoverOpen, setIsHistoryPopoverOpen] = useState(false);
   const [historyQuery, setHistoryQuery] = useState('');
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<ProjectAgentCanvasState>(DEFAULT_PROJECT_AGENT_CANVAS_STATE);
   const historyPopoverRef = useRef<HTMLDivElement | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const persistenceTimeoutRef = useRef<number | null>(null);
+  const dragMovedRef = useRef(false);
   const statusFetchInFlightRef = useRef<Set<string>>(new Set());
   const subscriptionsRef = useRef<Map<string, RealtimeChannel>>(new Map());
   const supabaseRef = useRef(supabase);
@@ -290,6 +305,7 @@ export default function ProjectAgentPage() {
       const next = typeof updater === 'function'
         ? (updater as (current: ProjectAgentCanvasState) => ProjectAgentCanvasState)(current)
         : updater;
+      canvasRef.current = next;
       persistCanvasState(next);
       return next;
     });
@@ -558,16 +574,20 @@ export default function ProjectAgentPage() {
         },
       });
 
-      // When completed with an output URL, ensure an independent output_video node exists
+      // When completed with an output URL, append an independent output_video node for this project run.
       if (execution.executionState === 'completed' && execution.outputUrl) {
-        const outputNodeId = `output-${nodeId}`;
+        const outputNodeId = `output-${nodeId}-${execution.projectId}`;
         const existing = getProjectAgentCanvasNodeById(next, outputNodeId);
+        const linkedOutputs = next.nodes.filter((candidate) => (
+          isProjectAgentOutputNode(candidate.type) &&
+          candidate.asset?.id === nodeId
+        ));
         const outputNode = {
           id: outputNodeId,
           type: 'output_video' as const,
-          // Preserve position if already placed, otherwise initialize to the right of the feature node
+          // Preserve position if already placed, otherwise cascade new results under the previous output.
           x: existing?.x ?? node.x + 328,
-          y: existing?.y ?? node.y - 75,
+          y: existing?.y ?? node.y - 75 + (linkedOutputs.length * 24),
           label: 'Output',
           asset: {
             id: nodeId,
@@ -599,6 +619,10 @@ export default function ProjectAgentPage() {
       if (!response.ok) return;
       let payload = await response.json() as Record<string, unknown>;
       let execution = normalizeExecutionStatus(nodeType, payload);
+      const latestNode = getProjectAgentCanvasNodeById(canvasRef.current, nodeId);
+      if (latestNode?.runtime?.projectId !== projectId) {
+        return;
+      }
       updateNodeRuntime(nodeId, execution);
 
       if (execution.nextAction !== 'none') {
@@ -615,6 +639,10 @@ export default function ProjectAgentPage() {
           const advancePayload = await advanceResponse.json() as { execution?: ProjectAgentCanvasExecutionStatus };
           if (advancePayload.execution) {
             execution = advancePayload.execution;
+            const latestNodeAfterAdvance = getProjectAgentCanvasNodeById(canvasRef.current, nodeId);
+            if (latestNodeAfterAdvance?.runtime?.projectId !== projectId) {
+              return;
+            }
             updateNodeRuntime(nodeId, execution);
           }
         }
@@ -709,6 +737,29 @@ export default function ProjectAgentPage() {
   }, [canvas.nodes, fetchNodeStatus, supabase]);
 
   useEffect(() => {
+    const activeRuntimeNodes = canvas.nodes.filter((node) => (
+      isProjectAgentFeatureNode(node.type) &&
+      typeof node.runtime?.projectId === 'string' &&
+      node.runtime.projectId.length > 0 &&
+      node.runtime.executionState === 'running'
+    ));
+
+    if (activeRuntimeNodes.length === 0) return;
+
+    const interval = window.setInterval(() => {
+      activeRuntimeNodes.forEach((node) => {
+        const projectId = node.runtime?.projectId;
+        if (!projectId) return;
+        void fetchNodeStatus(node.id, node.type as ProjectAgentFeatureNodeType, projectId);
+      });
+    }, 4000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [canvas.nodes, fetchNodeStatus]);
+
+  useEffect(() => {
     const subscriptions = subscriptionsRef.current;
     const supabaseClient = supabase;
 
@@ -796,6 +847,7 @@ export default function ProjectAgentPage() {
       return {
         ...upsertCanvasNode(current, nextNode),
         selectedNodeId: nextNode.id,
+        selectedNodeIds: [nextNode.id],
       };
     });
   }, [updateCanvas]);
@@ -811,6 +863,7 @@ export default function ProjectAgentPage() {
       return {
         ...upsertCanvasNode(current, nextNode),
         selectedNodeId: nextNode.id,
+        selectedNodeIds: [nextNode.id],
       };
     });
   }, [updateCanvas]);
@@ -819,8 +872,15 @@ export default function ProjectAgentPage() {
     const normalized = text.toLowerCase();
     let changed = false;
 
-    if (/delete node|remove node|删除节点/.test(normalized) && canvas.selectedNodeId) {
-      updateCanvas((current) => removeCanvasNode(current, canvas.selectedNodeId!));
+    if (/delete node|remove node|删除节点/.test(normalized) && (canvas.selectedNodeIds.length > 0 || canvas.selectedNodeId)) {
+      updateCanvas((current) => {
+        const targetIds = current.selectedNodeIds.length > 0
+          ? current.selectedNodeIds
+          : current.selectedNodeId
+            ? [current.selectedNodeId]
+            : [];
+        return targetIds.reduce((nextState, nodeId) => removeCanvasNode(nextState, nodeId), current);
+      });
       setDetailNodeId(null);
       changed = true;
     }
@@ -854,11 +914,12 @@ export default function ProjectAgentPage() {
         let nextState: ProjectAgentCanvasState = {
           ...upsertCanvasNode(current, nextNode),
           selectedNodeId: nextNode.id,
+          selectedNodeIds: [nextNode.id],
         };
 
         if (/connect|连接/.test(normalized)) {
           const requirements = featureType === 'avatar_ads'
-            ? (['avatar', 'product'] as ProjectAgentAssetNodeType[])
+            ? (['avatar', 'text'] as ProjectAgentAssetNodeType[])
             : (['avatar', 'product', 'video'] as ProjectAgentAssetNodeType[]);
 
           requirements.forEach((handle) => {
@@ -885,7 +946,7 @@ export default function ProjectAgentPage() {
     if (changed) {
       setStatusNote('Canvas updated from your chat instruction.');
     }
-  }, [addAssetNode, avatars, canvas.selectedNodeId, products, updateCanvas, videos]);
+  }, [addAssetNode, avatars, canvas.selectedNodeId, canvas.selectedNodeIds.length, products, updateCanvas, videos]);
 
   const handleSend = useCallback(async () => {
     if (!sessionId || !draft.trim()) return;
@@ -928,6 +989,7 @@ export default function ProjectAgentPage() {
         return {
           ...upsertCanvasNode(current, nextNode),
           selectedNodeId: nodeId,
+          selectedNodeIds: [nodeId],
         };
       });
     }
@@ -939,19 +1001,34 @@ export default function ProjectAgentPage() {
       return;
     }
     event.stopPropagation();
-    const bounds = canvasContainerRef.current?.getBoundingClientRect();
+    const point = getCanvasPointFromClient(event.clientX, event.clientY);
     const node = getProjectAgentCanvasNodeById(canvas, nodeId);
-    if (!bounds || !node) return;
+    if (!point || !node) return;
+    const nextSelectedIds = canvas.selectedNodeIds.includes(nodeId)
+      ? canvas.selectedNodeIds
+      : [nodeId];
+    dragMovedRef.current = false;
+    updateCanvas((current) => ({
+      ...current,
+      selectedNodeId: nodeId,
+      selectedNodeIds: nextSelectedIds,
+    }));
     setDraggingNodeId(nodeId);
-    setDragOffset({
-      x: (event.clientX - bounds.left - canvas.viewport.x) / canvas.viewport.zoom - node.x,
-      y: (event.clientY - bounds.top - canvas.viewport.y) / canvas.viewport.zoom - node.y,
-    });
-  }, [canvas]);
+    setDraggingNodeIds(nextSelectedIds);
+    setDragStartPoint(point);
+    setDragStartPositions(
+      nextSelectedIds.reduce<Record<string, { x: number; y: number }>>((acc, selectedId) => {
+        const selectedNode = getProjectAgentCanvasNodeById(canvas, selectedId);
+        if (selectedNode) {
+          acc[selectedId] = { x: selectedNode.x, y: selectedNode.y };
+        }
+        return acc;
+      }, {})
+    );
+  }, [canvas, getCanvasPointFromClient, updateCanvas]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.code !== 'Space') return;
       const target = event.target as HTMLElement | null;
       const tagName = target?.tagName?.toLowerCase();
       const isEditable = (
@@ -961,7 +1038,22 @@ export default function ProjectAgentPage() {
         tagName === 'select'
       );
 
-      if (isEditable) return;
+      if ((event.key === 'Delete' || event.key === 'Backspace') && !isEditable) {
+        const selectedIds = canvas.selectedNodeIds.length > 0
+          ? canvas.selectedNodeIds
+          : canvas.selectedNodeId
+            ? [canvas.selectedNodeId]
+            : [];
+
+        if (selectedIds.length > 0) {
+          event.preventDefault();
+          updateCanvas((current) => selectedIds.reduce((nextState, nodeId) => removeCanvasNode(nextState, nodeId), current));
+          setDetailNodeId((current) => (current && selectedIds.includes(current) ? null : current));
+          return;
+        }
+      }
+
+      if (event.code !== 'Space' || isEditable) return;
       event.preventDefault();
       setSpacePressed(true);
     };
@@ -978,20 +1070,45 @@ export default function ProjectAgentPage() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [canvas.selectedNodeId, canvas.selectedNodeIds, updateCanvas]);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
-      if (draggingNodeId && canvasContainerRef.current) {
+      if (draggingNodeId && dragStartPoint && draggingNodeIds.length > 0 && canvasContainerRef.current) {
         const point = getCanvasPointFromClient(event.clientX, event.clientY);
         if (!point) return;
-        const x = point.x - dragOffset.x;
-        const y = point.y - dragOffset.y;
+        const deltaX = point.x - dragStartPoint.x;
+        const deltaY = point.y - dragStartPoint.y;
+        if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
+          dragMovedRef.current = true;
+        }
         updateCanvas((current) => {
-          const node = getProjectAgentCanvasNodeById(current, draggingNodeId);
-          if (!node) return current;
-          return upsertCanvasNode(current, { ...node, x, y });
+          let nextState = current;
+          draggingNodeIds.forEach((nodeId) => {
+            const node = getProjectAgentCanvasNodeById(nextState, nodeId);
+            const startPosition = dragStartPositions[nodeId];
+            if (!node || !startPosition) return;
+            nextState = upsertCanvasNode(nextState, {
+              ...node,
+              x: startPosition.x + deltaX,
+              y: startPosition.y + deltaY,
+            });
+          });
+          return nextState;
         });
+      }
+
+      if (selectionStartPoint) {
+        const point = getCanvasPointFromClient(event.clientX, event.clientY);
+        if (point) {
+          if (
+            Math.abs(point.x - selectionStartPoint.x) > 1 ||
+            Math.abs(point.y - selectionStartPoint.y) > 1
+          ) {
+            dragMovedRef.current = true;
+          }
+          setSelectionCurrentPoint(point);
+        }
       }
 
       if (pendingConnectionSourceId) {
@@ -1016,7 +1133,39 @@ export default function ProjectAgentPage() {
 
     const handlePointerUp = () => {
       setDraggingNodeId(null);
+      setDraggingNodeIds([]);
+      setDragStartPoint(null);
+      setDragStartPositions({});
       setPanning(false);
+      if (selectionStartPoint && selectionCurrentPoint) {
+        const x = Math.min(selectionStartPoint.x, selectionCurrentPoint.x);
+        const y = Math.min(selectionStartPoint.y, selectionCurrentPoint.y);
+        const width = Math.abs(selectionCurrentPoint.x - selectionStartPoint.x);
+        const height = Math.abs(selectionCurrentPoint.y - selectionStartPoint.y);
+
+        if (isSelectionBoxMeaningful(width, height)) {
+          updateCanvas((current) => {
+            const selectedIds = current.nodes
+              .filter((node) => {
+                const size = getProjectAgentCanvasNodeSize(node);
+                return (
+                  node.x < x + width &&
+                  node.x + size.width > x &&
+                  node.y < y + height &&
+                  node.y + size.height > y
+                );
+              })
+              .map((node) => node.id);
+            return {
+              ...current,
+              selectedNodeId: selectedIds[0] || null,
+              selectedNodeIds: selectedIds,
+            };
+          });
+        }
+      }
+      setSelectionStartPoint(null);
+      setSelectionCurrentPoint(null);
       if (pendingConnectionSourceId) {
         if (!connectionCommittedRef.current && snappedConnectionTarget) {
           connectionCommittedRef.current = true;
@@ -1053,36 +1202,60 @@ export default function ProjectAgentPage() {
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
     };
-  }, [dragOffset.x, dragOffset.y, draggingNodeId, getCanvasPointFromClient, getSnappedConnectionTarget, panOrigin.viewportX, panOrigin.viewportY, panOrigin.x, panOrigin.y, panning, pendingConnectionSourceId, snappedConnectionTarget, updateCanvas]);
+  }, [dragStartPoint, dragStartPositions, draggingNodeId, draggingNodeIds, getCanvasPointFromClient, getSnappedConnectionTarget, panOrigin.viewportX, panOrigin.viewportY, panOrigin.x, panOrigin.y, panning, pendingConnectionSourceId, selectionCurrentPoint, selectionStartPoint, snappedConnectionTarget, updateCanvas]);
 
   const handleCanvasPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null;
-    if (target?.closest('[data-canvas-node="true"]')) return;
+    if (target?.closest('[data-canvas-node="true"], [data-canvas-ui="true"]')) return;
+    if (event.button !== 0) return;
     setPendingConnectionSourceId(null);
     setPendingConnectionPoint(null);
     setSnappedConnectionTarget(null);
     setSelectedEdgeId(null);
     setDetailNodeId(null);
-    updateCanvas((current) => ({ ...current, selectedNodeId: null }));
-    if (!spacePressed) return;
-    event.preventDefault();
-    setPanning(true);
-    setPanOrigin({
-      x: event.clientX,
-      y: event.clientY,
-      viewportX: canvas.viewport.x,
-      viewportY: canvas.viewport.y,
-    });
-  }, [canvas.viewport.x, canvas.viewport.y, spacePressed, updateCanvas]);
+    const point = getCanvasPointFromClient(event.clientX, event.clientY);
+    if (!point) return;
+    updateCanvas((current) => ({ ...current, selectedNodeId: null, selectedNodeIds: [] }));
+    dragMovedRef.current = false;
+    if (spacePressed) {
+      event.preventDefault();
+      setPanning(true);
+      setPanOrigin({
+        x: event.clientX,
+        y: event.clientY,
+        viewportX: canvas.viewport.x,
+        viewportY: canvas.viewport.y,
+      });
+    } else {
+      setSelectionStartPoint(point);
+      setSelectionCurrentPoint(point);
+    }
+  }, [canvas.viewport.x, canvas.viewport.y, getCanvasPointFromClient, spacePressed, updateCanvas]);
 
   const handleCanvasWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
-    const nextZoom = Math.min(1.6, Math.max(0.55, canvas.viewport.zoom - event.deltaY * 0.001));
+    if (event.metaKey) {
+      const nextZoom = Math.min(1.6, Math.max(0.55, canvas.viewport.zoom - event.deltaY * 0.001));
+      updateCanvas((current) => ({
+        ...current,
+        viewport: {
+          ...current.viewport,
+          zoom: Number(nextZoom.toFixed(2)),
+        },
+      }));
+      return;
+    }
+
     updateCanvas((current) => ({
       ...current,
       viewport: {
         ...current.viewport,
-        zoom: Number(nextZoom.toFixed(2)),
+        x: current.viewport.x - (
+          event.shiftKey
+            ? (Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY)
+            : event.deltaX
+        ),
+        y: current.viewport.y - (event.shiftKey ? 0 : event.deltaY),
       },
     }));
   }, [canvas.viewport.zoom, updateCanvas]);
@@ -1144,10 +1317,10 @@ export default function ProjectAgentPage() {
       const V_GAP = 40;
 
       const getNodeHeight = (node: ProjectAgentCanvasNode) => {
-        if (node.type === 'video') return 314;
-        if (isProjectAgentAssetNode(node.type)) return 224;
+        if (node.type === 'video') return 308;
+        if (isProjectAgentAssetNode(node.type)) return 210;
         if (isProjectAgentFeatureNode(node.type)) return 216;
-        return 314;
+        return 308;
       };
 
       const placeColumn = (nodes: ProjectAgentCanvasNode[], x: number, startY: number) => {
@@ -1228,8 +1401,10 @@ export default function ProjectAgentPage() {
       return upsertCanvasNode(current, {
         ...nextNode,
         runtime: {
-          ...(nextNode.runtime || {}),
           executionState: 'running',
+          projectId: null,
+          outputUrl: null,
+          previewUrl: null,
           ...createQueuedExecutionStatus(nextNode.type),
           error: null,
           canStart: true,
@@ -1249,6 +1424,7 @@ export default function ProjectAgentPage() {
           avatar: inputs.get('avatar')?.asset || null,
           product: inputs.get('product')?.asset || null,
           video: inputs.get('video')?.asset || null,
+          text: inputs.get('text')?.asset || null,
         },
       }),
     });
@@ -1278,9 +1454,23 @@ export default function ProjectAgentPage() {
     updateNodeRuntime(nodeId, payload.execution);
   }, [canvas, updateCanvas, updateNodeRuntime]);
 
+  const handleRegenerateFeatureNode = useCallback(async (nodeId: string) => {
+    await handleRunNode(nodeId);
+  }, [handleRunNode]);
+
   const detailNode = detailNodeId
     ? canvas.nodes.find((node) => node.id === detailNodeId) || null
     : null;
+
+  const selectionRect = useMemo(() => {
+    if (!selectionStartPoint || !selectionCurrentPoint) return null;
+    const x = Math.min(selectionStartPoint.x, selectionCurrentPoint.x);
+    const y = Math.min(selectionStartPoint.y, selectionCurrentPoint.y);
+    const width = Math.abs(selectionCurrentPoint.x - selectionStartPoint.x);
+    const height = Math.abs(selectionCurrentPoint.y - selectionStartPoint.y);
+    if (!isSelectionBoxMeaningful(width, height)) return null;
+    return { x, y, width, height };
+  }, [selectionCurrentPoint, selectionStartPoint]);
 
   const displayMessages = useMemo(
     () => messages.filter((message) => renderUIMessageText(message).trim().length > 0),
@@ -1326,6 +1516,7 @@ export default function ProjectAgentPage() {
                   draggingNodeId={draggingNodeId}
                   isPanning={panning}
                   isSpacePressed={spacePressed}
+                  selectionRect={selectionRect}
                   pendingConnectionPoint={pendingConnectionPoint}
                   snappedConnectionTarget={snappedConnectionTarget}
                   onBeginConnection={handleBeginConnection}
@@ -1338,16 +1529,23 @@ export default function ProjectAgentPage() {
                   onFormatLayout={handleFormatLayout}
                   onNodeDoubleClick={setDetailNodeId}
                   onNodePointerDown={handleNodePointerDown}
+                  onRegenerateFeatureNode={handleRegenerateFeatureNode}
                   onRemoveEdge={handleRemoveEdge}
                   onRunFeatureNode={handleRunNode}
                   onSelectEdge={setSelectedEdgeId}
-                  onSelectNode={(nodeId) => updateCanvas((current) => ({ ...current, selectedNodeId: nodeId }))}
+                  onSelectNode={(nodeId) => updateCanvas((current) => {
+                    if (dragMovedRef.current) {
+                      dragMovedRef.current = false;
+                      return current;
+                    }
+                    return setSingleSelectedNode(current, nodeId);
+                  })}
                   onUpdateNodeContent={handleUpdateNodeContent}
                   pendingConnectionSourceId={pendingConnectionSourceId}
                   selectedEdgeId={selectedEdgeId}
                 />
               </div>
-              <div className="pointer-events-none absolute bottom-5 left-1/2 z-30 -translate-x-1/2">
+              <div data-canvas-ui="true" className="pointer-events-none absolute right-5 bottom-5 left-64 z-30 flex justify-center">
                 <InsertToolbar
                   avatars={avatars}
                   products={products}

@@ -132,6 +132,7 @@ export type ProjectAgentCanvasState = {
   edges: ProjectAgentCanvasEdge[];
   viewport: ProjectAgentCanvasViewport;
   selectedNodeId: string | null;
+  selectedNodeIds: string[];
   chatDrawerOpen: boolean;
 };
 
@@ -146,7 +147,15 @@ export const DEFAULT_PROJECT_AGENT_CANVAS_STATE: ProjectAgentCanvasState = {
   edges: [],
   viewport: DEFAULT_PROJECT_AGENT_CANVAS_VIEWPORT,
   selectedNodeId: null,
+  selectedNodeIds: [],
   chatDrawerOpen: true,
+};
+
+export const getProjectAgentCanvasNodeSize = (node: Pick<ProjectAgentCanvasNode, 'type'>) => {
+  if (node.type === 'video') return { width: 168, height: 308 };
+  if (isProjectAgentAssetNode(node.type)) return { width: 188, height: 210 };
+  if (isProjectAgentOutputNode(node.type)) return { width: 168, height: 308 };
+  return { width: 248, height: 216 };
 };
 
 export const PROJECT_AGENT_FEATURE_INPUTS: Record<
@@ -154,7 +163,7 @@ export const PROJECT_AGENT_FEATURE_INPUTS: Record<
   ProjectAgentAssetNodeType[]
 > = {
   video_clone: ['avatar', 'product', 'video'],
-  avatar_ads: [],
+  avatar_ads: ['avatar', 'text'],
   motion_clone: ['avatar', 'product', 'video'],
 };
 
@@ -162,16 +171,14 @@ export const PROJECT_AGENT_FEATURE_INPUTS: Record<
 export const PROJECT_AGENT_FEATURE_ANY_OF_INPUTS: Partial<Record<
   ProjectAgentFeatureNodeType,
   ProjectAgentAssetNodeType[]
->> = {
-  avatar_ads: ['avatar', 'product'],
-};
+>> = {};
 
 // Optional (non-required) inputs for each feature node type
 export const PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS: Partial<Record<
   ProjectAgentFeatureNodeType,
   ProjectAgentAssetNodeType[]
 >> = {
-  avatar_ads: ['text'],
+  avatar_ads: ['product'],
 };
 
 export const getProjectAgentFeatureDisplayName = (
@@ -264,7 +271,7 @@ export const createProjectAgentFeatureNode = (input: {
     aspectRatio: '9:16',
     language: 'en',
     videoDuration: input.type === 'avatar_ads' ? '16' : '8',
-    videoModel: input.type === 'avatar_ads' || input.type === 'video_clone'
+    videoModel: input.type === 'avatar_ads'
       ? 'kling_3'
       : 'kling_3',
     videoQuality: '720p',
@@ -349,6 +356,7 @@ export const removeCanvasNode = (
     (edge) => edge.sourceNodeId !== nodeId && edge.targetNodeId !== nodeId
   ),
   selectedNodeId: state.selectedNodeId === nodeId ? null : state.selectedNodeId,
+  selectedNodeIds: state.selectedNodeIds.filter((selectedId) => selectedId !== nodeId),
 });
 
 export const connectCanvasNodes = (
@@ -404,6 +412,11 @@ export const normalizeCanvasState = (
     edges,
     viewport,
     selectedNodeId: typeof record.selectedNodeId === 'string' ? record.selectedNodeId : null,
+    selectedNodeIds: Array.isArray(record.selectedNodeIds)
+      ? record.selectedNodeIds.filter((item): item is string => typeof item === 'string')
+      : typeof record.selectedNodeId === 'string'
+        ? [record.selectedNodeId]
+        : [],
     chatDrawerOpen: typeof record.chatDrawerOpen === 'boolean'
       ? record.chatDrawerOpen
       : true,
