@@ -74,6 +74,7 @@ test('motion clone canvas nodes require avatar, product, and video inputs', () =
     edges: [],
     viewport: { x: 0, y: 0, zoom: 1 },
     selectedNodeId: null,
+    selectedNodeIds: [],
     chatDrawerOpen: true,
   };
 
@@ -262,6 +263,7 @@ test('motion clone rejects videos without a cover image at connection time', () 
     edges: [],
     viewport: { x: 0, y: 0, zoom: 1 },
     selectedNodeId: null,
+    selectedNodeIds: [],
     chatDrawerOpen: true,
   };
   const edge = {
