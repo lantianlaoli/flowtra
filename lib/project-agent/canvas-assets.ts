@@ -19,6 +19,7 @@ export const toProjectAgentVideoAssets = (value: unknown): ProjectAgentCanvasAss
           ? item.description
           : 'Video',
       imageUrl: typeof item.cover_url === 'string' ? item.cover_url : null,
+      durationSeconds: typeof item.duration_seconds === 'number' ? item.duration_seconds : null,
       sourceType: item.source_type === 'competitor_ad' ? 'competitor_ad' : 'creator',
       videoUrl: typeof item.video_url === 'string' ? item.video_url : null,
       videoCdnUrl: typeof item.video_cdn_url === 'string' ? item.video_cdn_url : null,

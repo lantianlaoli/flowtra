@@ -133,9 +133,14 @@ const assertVideoCloneCredits = async (userId: string, body: CanvasRunRequestBod
 };
 
 const assertMotionCloneCredits = async (userId: string, body: CanvasRunRequestBody) => {
-  const avatar = ensureAsset(body.connectedAssets?.avatar, 'Avatar');
-  const product = ensureAsset(body.connectedAssets?.product, 'Product');
+  const avatar = body.connectedAssets?.avatar || null;
+  const product = body.connectedAssets?.product || null;
   const video = ensureAsset(body.connectedAssets?.video, 'Video');
+
+  if (!avatar && !product) {
+    throw new Error('Motion Clone requires an avatar or product.');
+  }
+
   const payload = buildMotionCloneStartPayload({
     avatar,
     product,
@@ -156,6 +161,20 @@ const assertMotionCloneCredits = async (userId: string, body: CanvasRunRequestBo
 
   if (error || !referenceVideo) {
     throw new Error('Reference video not found.');
+  }
+
+  if (
+    typeof referenceVideo.duration_seconds !== 'number' ||
+    !Number.isFinite(referenceVideo.duration_seconds) ||
+    referenceVideo.duration_seconds <= 0
+  ) {
+    throw new Error('Reference video duration is missing.');
+  }
+
+  if (referenceVideo.duration_seconds < 3 || referenceVideo.duration_seconds > 30) {
+    throw new Error(
+      `Reference video must be 3-30s. Current: ${Math.round(referenceVideo.duration_seconds)}s.`
+    );
   }
 
   const requiredCredits = getMotionCloneGenerationCost(
@@ -302,11 +321,15 @@ const startVideoClone = async (origin: string, userId: string, body: CanvasRunRe
 };
 
 export const startMotionClone = async (origin: string, userId: string, body: CanvasRunRequestBody) => {
-  const avatar = ensureAsset(body.connectedAssets?.avatar, 'Avatar');
-  const product = ensureAsset(body.connectedAssets?.product, 'Product');
+  const avatar = body.connectedAssets?.avatar || null;
+  const product = body.connectedAssets?.product || null;
   const video = ensureAsset(body.connectedAssets?.video, 'Video');
   if (video.sourceType === 'competitor_ad') {
     throw new Error('Motion Clone requires a creator video, not a competitor ad.');
+  }
+
+  if (!avatar && !product) {
+    throw new Error('Motion Clone requires an avatar or product.');
   }
 
   const internalHeaders = buildInternalHeaders(userId);

@@ -196,14 +196,14 @@ export const buildVideoCloneStartPayload = (input: {
 });
 
 export const buildMotionCloneStartPayload = (input: {
-  avatar: ProjectAgentCanvasAssetRef;
-  product: ProjectAgentCanvasAssetRef;
+  avatar?: ProjectAgentCanvasAssetRef | null;
+  product?: ProjectAgentCanvasAssetRef | null;
   video: ProjectAgentCanvasAssetRef;
   config?: ProjectAgentFeatureNodeConfig | null;
 }) => ({
   referenceVideoId: input.video.id,
-  avatarId: input.avatar.id,
-  productId: input.product.id,
+  avatarId: input.avatar?.id || null,
+  productId: input.product?.id || null,
   action: 'video' as const,
   mode: input.config?.videoQuality || '720p',
 });
