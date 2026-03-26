@@ -44,6 +44,7 @@ export type ProjectAgentCanvasAssetRef = {
   imageUrl?: string | null;
   photos?: string[];
   content?: string | null;
+  durationSeconds?: number | null;
   sourceType?: 'creator' | 'competitor_ad' | null;
   videoUrl?: string | null;
   videoCdnUrl?: string | null;
@@ -71,6 +72,7 @@ export type ProjectAgentCanvasNodeRuntime = {
   currentMilestoneKey?: string | null;
   missingInputs?: ProjectAgentAssetNodeType[] | null;
   canStart?: boolean;
+  blockedReason?: string | null;
 };
 
 export type ProjectAgentCanvasNode = {
@@ -164,14 +166,16 @@ export const PROJECT_AGENT_FEATURE_INPUTS: Record<
 > = {
   video_clone: ['avatar', 'product', 'video'],
   avatar_ads: ['avatar', 'text'],
-  motion_clone: ['avatar', 'product', 'video'],
+  motion_clone: ['video'],
 };
 
 // "Any one of" input groups — at least one from the group must be connected
 export const PROJECT_AGENT_FEATURE_ANY_OF_INPUTS: Partial<Record<
   ProjectAgentFeatureNodeType,
   ProjectAgentAssetNodeType[]
->> = {};
+>> = {
+  motion_clone: ['avatar', 'product'],
+};
 
 // Optional (non-required) inputs for each feature node type
 export const PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS: Partial<Record<
@@ -325,6 +329,60 @@ export const getMissingFeatureInputs = (
     anyOfGroup && !anyOfGroup.some((t) => connected.has(t)) ? anyOfGroup : [];
 
   return [...strictMissing, ...anyOfMissing];
+};
+
+export const formatMissingFeatureInputsLabel = (
+  featureType: ProjectAgentFeatureNodeType,
+  missingInputs: ProjectAgentAssetNodeType[]
+) => {
+  if (featureType === 'motion_clone') {
+    const needsVideo = missingInputs.includes('video');
+    const needsSwapTarget =
+      missingInputs.includes('avatar') && missingInputs.includes('product');
+
+    if (needsVideo && needsSwapTarget) {
+      return 'video and avatar or product';
+    }
+
+    if (needsVideo) {
+      return 'video';
+    }
+
+    if (needsSwapTarget) {
+      return 'avatar or product';
+    }
+  }
+
+  return missingInputs.join(', ');
+};
+
+export const getFeatureStartBlockedReason = (
+  state: ProjectAgentCanvasState,
+  featureNodeId: string
+) => {
+  const featureNode = getProjectAgentCanvasNodeById(state, featureNodeId);
+  if (!featureNode || !isProjectAgentFeatureNode(featureNode.type)) {
+    return null;
+  }
+
+  const connected = getConnectedAssetNodeMap(state, featureNodeId);
+
+  if (featureNode.type === 'motion_clone') {
+    const videoNode = connected.get('video');
+    const durationSeconds = videoNode?.asset?.durationSeconds;
+
+    if (videoNode) {
+      if (typeof durationSeconds !== 'number' || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+        return 'Reference video duration is unavailable.';
+      }
+
+      if (durationSeconds < 3 || durationSeconds > 30) {
+        return `Reference video must be 3-30s. Current: ${Math.round(durationSeconds)}s.`;
+      }
+    }
+  }
+
+  return null;
 };
 
 export const canRunFeatureNode = (

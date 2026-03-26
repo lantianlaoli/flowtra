@@ -36,7 +36,7 @@ const motionCloneAssets = {
   },
 } satisfies Record<'avatar' | 'product' | 'video', ProjectAgentCanvasAssetRef>;
 
-test('motion clone canvas nodes require avatar, product, and video inputs', () => {
+test('motion clone canvas nodes require a video plus avatar or product', () => {
   const avatarNode = createProjectAgentAssetNode({
     type: 'avatar',
     x: 0,
@@ -61,7 +61,7 @@ test('motion clone canvas nodes require avatar, product, and video inputs', () =
     y: 0,
   });
 
-  assert.deepEqual(PROJECT_AGENT_FEATURE_INPUTS.motion_clone, ['avatar', 'product', 'video']);
+  assert.deepEqual(PROJECT_AGENT_FEATURE_INPUTS.motion_clone, ['video']);
   assert.equal(featureNode.config?.aspectRatio, '9:16');
   assert.equal(featureNode.config?.language, 'en');
   assert.equal(featureNode.config?.videoDuration, '8');
@@ -74,10 +74,21 @@ test('motion clone canvas nodes require avatar, product, and video inputs', () =
     edges: [],
     viewport: { x: 0, y: 0, zoom: 1 },
     selectedNodeId: null,
+    selectedNodeIds: [],
     chatDrawerOpen: true,
   };
 
-  assert.deepEqual(getMissingFeatureInputs(state, featureNode.id), ['avatar', 'product', 'video']);
+  assert.deepEqual(getMissingFeatureInputs(state, featureNode.id), ['video', 'avatar', 'product']);
+  assert.equal(canRunFeatureNode(state, featureNode.id), false);
+
+  state = connectCanvasNodes(state, {
+    id: createProjectAgentCanvasEdgeId(videoNode.id, featureNode.id, 'video'),
+    sourceNodeId: videoNode.id,
+    targetNodeId: featureNode.id,
+    targetHandle: 'video',
+  });
+
+  assert.deepEqual(getMissingFeatureInputs(state, featureNode.id), ['avatar', 'product']);
   assert.equal(canRunFeatureNode(state, featureNode.id), false);
 
   state = connectCanvasNodes(state, {
@@ -85,18 +96,6 @@ test('motion clone canvas nodes require avatar, product, and video inputs', () =
     sourceNodeId: avatarNode.id,
     targetNodeId: featureNode.id,
     targetHandle: 'avatar',
-  });
-  state = connectCanvasNodes(state, {
-    id: createProjectAgentCanvasEdgeId(productNode.id, featureNode.id, 'product'),
-    sourceNodeId: productNode.id,
-    targetNodeId: featureNode.id,
-    targetHandle: 'product',
-  });
-  state = connectCanvasNodes(state, {
-    id: createProjectAgentCanvasEdgeId(videoNode.id, featureNode.id, 'video'),
-    sourceNodeId: videoNode.id,
-    targetNodeId: featureNode.id,
-    targetHandle: 'video',
   });
 
   assert.deepEqual(getMissingFeatureInputs(state, featureNode.id), []);
@@ -207,6 +206,64 @@ test('startMotionClone rejects competitor ad references before making requests',
   );
 });
 
+test('startMotionClone allows product-only swaps for creator videos', async () => {
+  const originalClerkSecretKey = process.env.CLERK_SECRET_KEY;
+  process.env.CLERK_SECRET_KEY = 'test-secret';
+
+  mock.method(globalThis, 'fetch', async (input: string | URL | Request) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+
+    if (url.endsWith('/api/motion-clone/create')) {
+      return new Response(JSON.stringify({ project: { id: 'motion-2' } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+
+    if (url.endsWith('/api/motion-clone/motion-2/start')) {
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+
+    if (url.endsWith('/api/motion-clone/motion-2/status')) {
+      return new Response(JSON.stringify({
+        project: {
+          id: 'motion-2',
+          status: 'generating_preview',
+        },
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+
+    throw new Error(`Unexpected fetch: ${url}`);
+  });
+
+  try {
+    const execution = await startMotionClone('https://example.com', 'user-1', {
+      connectedAssets: {
+        product: motionCloneAssets.product,
+        video: motionCloneAssets.video,
+      },
+      config: {
+        videoQuality: '720p',
+      },
+    });
+
+    assert.equal(execution.projectId, 'motion-2');
+  } finally {
+    mock.restoreAll();
+    if (originalClerkSecretKey === undefined) {
+      delete process.env.CLERK_SECRET_KEY;
+    } else {
+      process.env.CLERK_SECRET_KEY = originalClerkSecretKey;
+    }
+  }
+});
+
 test('toProjectAgentVideoAssets keeps only motion-clone-ready creator videos', () => {
   const videos = toProjectAgentVideoAssets([
     {
@@ -262,6 +319,7 @@ test('motion clone rejects videos without a cover image at connection time', () 
     edges: [],
     viewport: { x: 0, y: 0, zoom: 1 },
     selectedNodeId: null,
+    selectedNodeIds: [],
     chatDrawerOpen: true,
   };
   const edge = {

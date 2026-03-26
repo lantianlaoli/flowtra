@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
+  AlertTriangle,
   BrushCleaning,
   CheckCircle2,
   Circle,
@@ -27,6 +28,7 @@ import {
   getProjectAgentCanvasNodeSize,
   getProjectAgentAssetDisplayName,
   getProjectAgentFeatureDisplayName,
+  formatMissingFeatureInputsLabel,
   isProjectAgentAssetNode,
   isProjectAgentFeatureNode,
   isProjectAgentOutputNode,
@@ -425,6 +427,7 @@ export default function CanvasBoard({
             : null;
           const missingInputs = isFeatureNode ? (node.runtime?.missingInputs || []) : [];
           const canStart = isFeatureNode ? Boolean(node.runtime?.canStart) : false;
+          const blockedReason = isFeatureNode ? (node.runtime?.blockedReason || null) : null;
           const executionState = node.runtime?.executionState || 'invalid';
           const hasActiveMilestone = Boolean(node.runtime?.milestones?.some((milestone) => milestone.state === 'active'));
           const isQueuedPhase = node.runtime?.phase === 'queued';
@@ -716,9 +719,12 @@ export default function CanvasBoard({
                         className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold transition-all duration-200 ${
                           canStart
                             ? 'cursor-pointer bg-black text-white shadow-[0_4px_12px_rgba(0,0,0,0.18)] hover:bg-[#1a1a1a] active:scale-95'
-                            : 'cursor-not-allowed bg-[#f3f1ea] text-[#b8b5ad]'
+                            : blockedReason
+                              ? 'cursor-not-allowed border border-amber-200 bg-amber-50 text-amber-700'
+                              : 'cursor-not-allowed bg-[#f3f1ea] text-[#b8b5ad]'
                         }`}
                         disabled={!canStart}
+                        title={!canStart ? blockedReason || undefined : undefined}
                         onClick={(event) => {
                           if (!canStart) return;
                           event.stopPropagation();
@@ -726,8 +732,14 @@ export default function CanvasBoard({
                         }}
                         type="button"
                       >
-                        <Play className={`h-2.5 w-2.5 ${canStart ? 'fill-white text-white' : 'fill-[#b8b5ad] text-[#b8b5ad]'}`} />
-                        Start
+                        {canStart ? (
+                          <Play className="h-2.5 w-2.5 fill-white text-white" />
+                        ) : blockedReason ? (
+                          <AlertTriangle className="h-2.5 w-2.5 text-amber-700" />
+                        ) : (
+                          <Play className="h-2.5 w-2.5 fill-[#b8b5ad] text-[#b8b5ad]" />
+                        )}
+                        {blockedReason ? 'Warning' : 'Start'}
                       </button>
                     )}
                   </div>
@@ -780,8 +792,10 @@ export default function CanvasBoard({
                       <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl bg-[#f8f7f2] px-3 py-4">
                         {FeatureIcon ? <FeatureIcon className="h-5 w-5 text-[#c8c5bc]" /> : null}
                         <p className="text-center text-[11px] leading-relaxed text-[#b8b5ad]">
-                          {missingInputs.length > 0
-                            ? `Connect ${missingInputs.join(' & ')} to start`
+                          {blockedReason
+                            ? blockedReason
+                            : missingInputs.length > 0
+                            ? `Connect ${formatMissingFeatureInputsLabel(node.type, missingInputs).replace(', ', ' and ')} to start`
                             : 'Ready to start'}
                         </p>
                       </div>

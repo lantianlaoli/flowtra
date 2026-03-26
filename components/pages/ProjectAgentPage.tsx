@@ -28,6 +28,8 @@ import {
   getProjectAgentCanvasNodeSize,
   getConnectedAssetNodeMap,
   getCanvasConnectionError,
+  getFeatureStartBlockedReason,
+  formatMissingFeatureInputsLabel,
   getProjectAgentCanvasNodeById,
   isProjectAgentAssetNode,
   isProjectAgentFeatureNode,
@@ -505,15 +507,19 @@ export default function ProjectAgentPage() {
             current.edges.some((e) => e.targetNodeId === node.id && e.targetHandle === t)
           ) ? anyOfGroup : [];
         const missingInputs = [...strictMissing, ...anyOfMissing];
-        const canStart = missingInputs.length === 0;
+        const blockedReason = getFeatureStartBlockedReason(current, node.id);
+        const canStart = missingInputs.length === 0 && !blockedReason;
         const executionState = node.runtime?.executionState;
         const preservedState = executionState === 'running' || executionState === 'completed' || executionState === 'failed';
         const nextState: 'ready' | 'invalid' = canStart ? 'ready' : 'invalid';
-        const nextStatusLabel = canStart ? 'Ready to start' : `Need ${missingInputs.join(', ')}`;
+        const nextStatusLabel = canStart
+          ? 'Ready to start'
+          : blockedReason || `Need ${formatMissingFeatureInputsLabel(featureType, missingInputs)}`;
         const runtime = {
           ...(node.runtime || {}),
           missingInputs,
           canStart,
+          blockedReason,
           executionState: preservedState ? executionState : nextState,
           statusLabel: preservedState ? node.runtime?.statusLabel : nextStatusLabel,
         };
@@ -521,7 +527,8 @@ export default function ProjectAgentPage() {
           node.runtime?.executionState === runtime.executionState &&
           node.runtime?.statusLabel === runtime.statusLabel &&
           JSON.stringify(node.runtime?.missingInputs || []) === JSON.stringify(missingInputs) &&
-          node.runtime?.canStart === canStart
+          node.runtime?.canStart === canStart &&
+          node.runtime?.blockedReason === blockedReason
         ) {
           return node;
         }
@@ -556,6 +563,7 @@ export default function ProjectAgentPage() {
           current.edges.some((e) => e.targetNodeId === node.id && e.targetHandle === t)
         ) ? anyOfGroup2 : [];
       const missingInputs = [...strictMissing2, ...anyOfMissing2];
+      const blockedReason = getFeatureStartBlockedReason(current, node.id);
       let next = upsertCanvasNode(current, {
         ...node,
         runtime: {
@@ -570,7 +578,8 @@ export default function ProjectAgentPage() {
           milestones: execution.milestones,
           currentMilestoneKey: execution.currentMilestoneKey,
           missingInputs,
-          canStart: missingInputs.length === 0,
+          canStart: missingInputs.length === 0 && !blockedReason,
+          blockedReason,
         },
       });
 

@@ -182,6 +182,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       return NextResponse.json({ error: 'Reference video duration is missing' }, { status: 400 });
     }
 
+    if (durationSeconds < 3 || durationSeconds > 30) {
+      return NextResponse.json(
+        { error: `Reference video must be 3-30s. Current: ${Math.round(durationSeconds)}s.` },
+        { status: 400 }
+      );
+    }
+
     let videoCdnUrl = referenceVideo.video_cdn_url as string | null;
     if (!videoCdnUrl) {
       if (!referenceVideo.video_url) {
