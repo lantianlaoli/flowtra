@@ -4,19 +4,13 @@ export const toProjectAgentVideoAssets = (value: unknown): ProjectAgentCanvasAss
   const videos = Array.isArray(value) ? value : [];
 
   return videos
-    .filter((item): item is Record<string, unknown> => {
-      if (!item || typeof item !== 'object') return false;
-      if (item.source_type === 'competitor_ad') return true;
-
-      // Motion Clone requires a creator video with a resolved cover image.
-      return typeof item.cover_url === 'string' && item.cover_url.length > 0;
-    })
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
     .map((item) => ({
       id: String(item.id),
-      name: typeof item.source_name === 'string'
-        ? item.source_name
-        : typeof item.description === 'string'
-          ? item.description
+      name: typeof item.description === 'string' && item.description.trim().length > 0
+        ? item.description.trim()
+        : typeof item.source_name === 'string' && item.source_name.trim().length > 0
+          ? item.source_name.trim()
           : 'Video',
       imageUrl: typeof item.cover_url === 'string' ? item.cover_url : null,
       durationSeconds: typeof item.duration_seconds === 'number' ? item.duration_seconds : null,

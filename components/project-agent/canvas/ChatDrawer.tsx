@@ -55,7 +55,7 @@ export default function ChatDrawer({
 
   return (
     <aside
-      className={`flex h-full flex-col rounded-[28px] border border-[#e7e3d7] bg-white/92 shadow-[0_10px_28px_rgba(15,23,42,0.06)] transition-all ${
+      className={`flex h-full flex-col rounded-[20px] border border-[#e7e3d7] bg-white/92 shadow-[0_10px_28px_rgba(15,23,42,0.06)] transition-all ${
         open ? 'w-[360px] min-w-[360px]' : 'w-[72px] min-w-[72px]'
       }`}
     >
@@ -67,7 +67,7 @@ export default function ChatDrawer({
           </div>
         ) : null}
         <button
-          className="rounded-full border border-[#ddd8cc] bg-[#f8f7f2] px-3 py-2 text-xs font-semibold text-black"
+          className="project-agent-press-button rounded-[12px] border border-[#ddd8cc] bg-[#f8f7f2] px-3 py-2 text-xs font-semibold text-black"
           onClick={onToggle}
           type="button"
         >
@@ -81,7 +81,7 @@ export default function ChatDrawer({
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#7c7c76]">Sessions</p>
               <button
-                className="rounded-full border border-[#ddd8cc] px-3 py-1.5 text-xs font-medium text-black"
+                className="project-agent-press-button rounded-[12px] border border-[#ddd8cc] px-3 py-1.5 text-xs font-medium text-black"
                 onClick={onStartNewSession}
                 type="button"
               >
@@ -91,7 +91,7 @@ export default function ChatDrawer({
             <div className="mt-3 grid gap-2">
               {historyItems.slice(0, 6).map((item) => (
                 <button
-                  className={`rounded-[18px] border px-3 py-2.5 text-left ${
+                  className={`project-agent-press-button rounded-[12px] border px-3 py-2.5 text-left ${
                     item.sessionId === activeSessionId
                       ? 'border-black bg-black text-white'
                       : 'border-[#ebe6da] bg-white text-black'
@@ -111,7 +111,7 @@ export default function ChatDrawer({
 
           <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
             {messages.length === 0 ? (
-              <div className="rounded-[20px] border border-dashed border-[#ddd8cc] bg-[#faf8f3] px-4 py-5 text-sm leading-6 text-[#6c6c66]">
+              <div className="rounded-[16px] border border-dashed border-[#ddd8cc] bg-[#faf8f3] px-4 py-5 text-sm leading-6 text-[#6c6c66]">
                 Ask the agent to add or connect nodes. Example: `Add an Avatar Ads node and connect the current avatar and product.`
               </div>
             ) : null}
@@ -122,7 +122,7 @@ export default function ChatDrawer({
               const isUser = message.role === 'user';
               return (
                 <div
-                  className={`rounded-[18px] px-4 py-3 text-sm leading-6 ${
+                  className={`rounded-[12px] px-4 py-3 text-sm leading-6 ${
                     isUser ? 'ml-10 bg-black text-white' : 'mr-10 border border-[#eee9de] bg-[#faf8f3] text-black'
                   }`}
                   key={message.id}
@@ -135,10 +135,10 @@ export default function ChatDrawer({
 
           <form className="border-t border-[#f0ede5] px-4 py-4" onSubmit={(e) => e.preventDefault()}>
             {statusNote ? (
-              <p className="mb-3 rounded-2xl bg-[#f4f1e8] px-3 py-2 text-xs text-[#66665f]">{statusNote}</p>
+              <p className="mb-3 rounded-[12px] bg-[#f4f1e8] px-3 py-2 text-xs text-[#66665f]">{statusNote}</p>
             ) : null}
             {/* Under construction — chat agent coming soon */}
-            <div className="relative min-h-[88px] w-full overflow-hidden rounded-[20px] border border-dashed border-[#d4cfbf] bg-[#faf9f5]">
+            <div className="relative min-h-[88px] w-full overflow-hidden rounded-[16px] border border-dashed border-[#d4cfbf] bg-[#faf9f5]">
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-4 py-3">
                 <span className="text-lg">🚧</span>
                 <p className="text-center text-xs font-medium text-[#9b9890]">Chat agent coming soon</p>
@@ -146,7 +146,7 @@ export default function ChatDrawer({
             </div>
             <div className="mt-3 flex items-center justify-end">
               <button
-                className="rounded-full bg-[#d1cec3] px-4 py-2 text-sm font-semibold text-white cursor-not-allowed"
+                className="rounded-[12px] bg-[#d1cec3] px-4 py-2 text-sm font-semibold text-white cursor-not-allowed"
                 disabled
                 type="button"
               >

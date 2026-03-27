@@ -89,13 +89,13 @@ export const CLONE_PROMPT_SHOT_FIELD_GROUPS: ClonePromptShotFieldGroup[] = [
 export const CLONE_PROMPT_SHOT_FIELDS = CLONE_PROMPT_SHOT_FIELD_GROUPS.flatMap((group) => group.fields);
 
 export const promptUi = {
-  frame: 'w-full rounded-2xl border border-[#e6e6e4] bg-white p-4 space-y-4',
-  sectionCard: 'rounded-2xl border border-[#e6e6e4] bg-[#fcfcfb] overflow-hidden',
-  block: 'rounded-2xl border border-[#e6e6e4] bg-white p-3',
-  shotCard: 'rounded-2xl border border-[#ececea] bg-[#fcfcfb] p-3 space-y-3',
+  frame: 'w-full rounded-[16px] border border-[#e6e6e4] bg-white p-4 space-y-4',
+  sectionCard: 'rounded-[16px] border border-[#e6e6e4] bg-[#fcfcfb] overflow-hidden',
+  block: 'rounded-[16px] border border-[#e6e6e4] bg-white p-3',
+  shotCard: 'rounded-[16px] border border-[#ececea] bg-[#fcfcfb] p-3 space-y-3',
   fieldBase: 'text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6f6f6d] mb-1 inline-flex items-center gap-1.5',
-  fieldInput: 'overflow-y-auto rounded-2xl min-h-[7rem]',
-  shotFieldInput: 'overflow-y-auto rounded-2xl min-h-[5.5rem]'
+  fieldInput: 'overflow-y-auto rounded-[12px] min-h-[7rem]',
+  shotFieldInput: 'overflow-y-auto rounded-[12px] min-h-[5.5rem]'
 } as const;
 
 export const PromptFieldLabel = ({

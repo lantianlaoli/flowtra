@@ -456,8 +456,9 @@ export default function CanvasBoard({
           return (
             <div
               key={node.id}
+              data-node-interactive="true"
               data-canvas-node="true"
-              className={`group absolute rounded-[24px] border bg-white/96 transition-[box-shadow,border-color] ${
+              className={`project-agent-node-card group absolute rounded-[24px] border transition-[box-shadow,border-color,transform] ${
                 selected
                   ? 'border-black shadow-[0_24px_60px_rgba(0,0,0,0.14)]'
                   : 'border-[#dfddd5] hover:shadow-[0_22px_48px_rgba(0,0,0,0.10)]'
@@ -651,10 +652,10 @@ export default function CanvasBoard({
                   )}
                   {/* Connection button */}
                   <button
-                    className={`absolute right-0 top-1/2 z-10 h-10 w-10 translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border shadow-[0_10px_24px_rgba(0,0,0,0.10)] transition-[transform,box-shadow,background-color,color,border-color] duration-200 ease-out hover:-translate-y-[52%] hover:scale-[1.04] hover:shadow-[0_16px_30px_rgba(0,0,0,0.14)] active:-translate-y-1/2 active:scale-[0.97] ${
+                    className={`project-agent-press-icon-button absolute right-0 top-1/2 z-10 h-10 w-10 translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border ${
                       pendingConnectionSourceId === node.id
-                        ? 'border-black bg-black text-white'
-                        : 'border-[#d7d4ca] bg-white text-black'
+                        ? 'project-agent-press-button--active'
+                        : ''
                     }`}
                     onPointerDown={(event) => {
                       onBeginConnection(event, node.id);
@@ -716,9 +717,9 @@ export default function CanvasBoard({
                       </div>
                     ) : (
                       <button
-                        className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold transition-all duration-200 ${
+                        className={`project-agent-press-button flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${
                           canStart
-                            ? 'cursor-pointer bg-black text-white shadow-[0_4px_12px_rgba(0,0,0,0.18)] hover:bg-[#1a1a1a] active:scale-95'
+                            ? 'project-agent-press-button--active cursor-pointer'
                             : blockedReason
                               ? 'cursor-not-allowed border border-amber-200 bg-amber-50 text-amber-700'
                               : 'cursor-not-allowed bg-[#f3f1ea] text-[#b8b5ad]'
@@ -816,10 +817,10 @@ export default function CanvasBoard({
         Zoom {Math.round(canvas.viewport.zoom * 100)}%
       </div>
 
-      <div data-canvas-ui="true" className="pointer-events-auto absolute bottom-5 left-5 z-30 flex items-end gap-2">
+      <div data-canvas-ui="true" className="pointer-events-auto absolute bottom-5 left-5 z-30 flex items-end gap-2 max-[1500px]:gap-1.5">
         <div className="relative" data-canvas-ui="true" ref={shortcutsRef}>
           {shortcutsOpen ? (
-            <div className="absolute bottom-[calc(100%+10px)] left-0 w-[300px] rounded-[20px] border border-[#ddd9ce] bg-white/95 p-3 shadow-[0_14px_32px_rgba(0,0,0,0.10)] backdrop-blur">
+            <div className="project-agent-card absolute bottom-[calc(100%+10px)] left-0 w-[300px] rounded-[20px] border p-3 shadow-[0_14px_32px_rgba(0,0,0,0.10)] backdrop-blur">
               <div className="space-y-2.5 text-[11px] leading-relaxed text-[#6a6963]">
                 <div className="flex items-center gap-2 text-xs font-semibold text-[#4f4e47]">
                   <Keyboard className="h-3.5 w-3.5" />
@@ -859,26 +860,30 @@ export default function CanvasBoard({
             </div>
           ) : null}
           <button
-            className={`flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-semibold shadow-[0_8px_20px_rgba(0,0,0,0.08)] backdrop-blur transition-all active:scale-95 ${
+            className={`project-agent-press-button flex h-10 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold max-[1500px]:w-10 max-[1500px]:justify-center max-[1500px]:px-0 ${
               shortcutsOpen
-                ? 'border-black bg-black text-white'
-                : 'border-[#ddd9ce] bg-white/95 text-[#5f5e57] hover:border-[#ccc8be] hover:bg-white hover:text-black hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)]'
+                ? 'project-agent-press-button--active'
+                : ''
             }`}
             onClick={() => setShortcutsOpen((open) => !open)}
             type="button"
+            aria-label="Shortcuts"
+            title="Shortcuts"
           >
             <Keyboard className="h-3.5 w-3.5" />
-            Shortcuts
+            <span className="max-[1500px]:hidden">Shortcuts</span>
           </button>
         </div>
 
         <button
-          className="flex items-center gap-1.5 rounded-full border border-[#ddd9ce] bg-white/95 px-3.5 py-2 text-xs font-semibold text-[#5f5e57] shadow-[0_8px_20px_rgba(0,0,0,0.08)] backdrop-blur transition-all hover:border-[#ccc8be] hover:bg-white hover:text-black hover:shadow-[0_10px_24px_rgba(0,0,0,0.12)] active:scale-95"
+          className="project-agent-press-button flex h-10 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold max-[1500px]:w-10 max-[1500px]:justify-center max-[1500px]:px-0"
           onClick={onFormatLayout}
           type="button"
+          aria-label="Format"
+          title="Format"
         >
           <BrushCleaning className="h-3.5 w-3.5" />
-          Format
+          <span className="max-[1500px]:hidden">Format</span>
         </button>
       </div>
     </div>

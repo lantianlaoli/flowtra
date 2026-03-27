@@ -1515,10 +1515,10 @@ export default function ProjectAgentPage() {
     <div className="project-agent-page h-[100dvh] overflow-hidden text-black">
       <Sidebar {...sidebarProps} />
 
-      <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background h-[100dvh] overflow-hidden min-h-0">
+      <DashboardContentTransition className="dashboard-content-offset bg-background h-[100dvh] overflow-hidden min-h-0">
         <div className="h-full box-border min-h-0 p-3 md:py-3 md:pr-3 md:pl-0">
           <div className="grid h-full min-h-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
-            <section className="project-agent-panel-shell relative h-full min-h-0 overflow-hidden rounded-[30px]">
+            <section className="project-agent-panel-shell relative h-full min-h-0 overflow-visible rounded-[20px]">
               <div className="h-full w-full p-0" ref={canvasContainerRef}>
                 <CanvasBoard
                   canvas={canvas}
@@ -1563,7 +1563,7 @@ export default function ProjectAgentPage() {
               </div>
             </section>
 
-            <section className="project-agent-panel-shell project-agent-chat-surface flowgen-chat-font relative flex h-full min-h-0 flex-col overflow-hidden rounded-[30px]">
+            <section className="project-agent-panel-shell project-agent-chat-surface flowgen-chat-font relative flex h-full min-h-0 flex-col overflow-hidden rounded-[20px]">
               <div className="project-agent-chat-header relative flex items-center justify-between px-4 py-3">
                 <div className="flex min-w-0 items-center gap-2 text-[#1f1f1e]">
                   <MessageCircle className="h-4 w-4" />
@@ -1574,13 +1574,13 @@ export default function ProjectAgentPage() {
                     <button
                       type="button"
                       onClick={() => setIsHistoryPopoverOpen((prev) => !prev)}
-                      className="project-agent-toolbar-button inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#d9d9d7] bg-white text-[#1f1f1e] hover:bg-[#f3f3f2]"
+                      className="project-agent-press-button project-agent-toolbar-button inline-flex h-9 w-9 items-center justify-center rounded-[12px] border text-[#1f1f1e]"
                       aria-label="Open history"
                     >
                       <History className="h-4 w-4" />
                     </button>
                     {isHistoryPopoverOpen ? (
-                      <div className="project-agent-history-popover absolute right-0 top-11 z-50 w-[320px] max-w-[calc(100vw-2rem)] rounded-xl border border-[#e6e6e4] bg-white shadow-[0_12px_36px_rgba(0,0,0,0.14)]">
+                      <div className="project-agent-history-popover absolute right-0 top-11 z-50 w-[320px] max-w-[calc(100vw-2rem)] rounded-[16px] border border-[#e6e6e4] bg-white shadow-[0_12px_36px_rgba(0,0,0,0.14)]">
                         <div className="px-3 py-3">
                           <p className="text-xs font-semibold text-[#1f1f1e]">History</p>
                           <div className="relative mt-2">
@@ -1589,7 +1589,7 @@ export default function ProjectAgentPage() {
                               value={historyQuery}
                               onChange={(event) => setHistoryQuery(event.target.value)}
                               placeholder="Search..."
-                              className="project-agent-history-search h-9 w-full rounded-xl border border-[#d9d9d7] bg-[#fbfbfa] pl-8 pr-3 text-xs text-[#1f1f1e] placeholder:text-[#a3a3a0] focus:outline-none focus:ring-2 focus:ring-black"
+                              className="project-agent-history-search h-9 w-full rounded-[12px] border border-[#d9d9d7] bg-[#fbfbfa] pl-8 pr-3 text-xs text-[#1f1f1e] placeholder:text-[#a3a3a0] focus:outline-none focus:ring-2 focus:ring-black"
                             />
                           </div>
                           <button
@@ -1606,7 +1606,7 @@ export default function ProjectAgentPage() {
                               setHistoryQuery('');
                               setIsHistoryPopoverOpen(false);
                             }}
-                            className="project-agent-toolbar-button mt-2 inline-flex min-h-8 items-center gap-1 rounded-xl border border-[#d9d9d7] bg-white px-2.5 text-xs font-medium text-[#1f1f1e] hover:bg-[#f3f3f2]"
+                            className="project-agent-press-button project-agent-toolbar-button mt-2 inline-flex min-h-8 items-center gap-1 rounded-[12px] border px-2.5 text-xs font-medium text-[#1f1f1e]"
                           >
                             <Plus className="h-3.5 w-3.5" />
                             New chat
@@ -1626,7 +1626,7 @@ export default function ProjectAgentPage() {
                                   setSessionId(item.sessionId);
                                   setIsHistoryPopoverOpen(false);
                                 }}
-                                className={`project-agent-history-item w-full rounded-xl border px-2.5 py-2 text-left transition-colors ${
+                                className={`project-agent-history-item w-full rounded-[12px] border px-2.5 py-2 text-left transition-colors ${
                                   item.sessionId === sessionId
                                     ? 'project-agent-history-item--active border-[#1f1f1e] bg-[#f7f7f5]'
                                     : 'project-agent-history-item--idle border-transparent bg-transparent hover:border-[#e6e6e4] hover:bg-[#f7f7f5]'
@@ -1647,7 +1647,7 @@ export default function ProjectAgentPage() {
               </div>
 
               {statusNote ? (
-                <div className="project-agent-status-note mx-4 mt-3 inline-flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <div className="project-agent-status-note mx-4 mt-3 inline-flex items-start gap-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span>{statusNote}</span>
                 </div>
@@ -1662,7 +1662,7 @@ export default function ProjectAgentPage() {
                     return (
                       <div key={message.id} className={isUserMessage ? 'ml-auto w-fit max-w-[94%]' : 'max-w-[94%]'}>
                         <div
-                          className={`project-agent-chat-bubble rounded-xl px-4 py-3 text-sm ${
+                          className={`project-agent-chat-bubble rounded-[12px] px-4 py-3 text-sm ${
                             isUserMessage
                               ? 'project-agent-chat-bubble--user bg-[#0f0f0f] text-white leading-7'
                               : 'project-agent-chat-bubble--assistant bg-[#efefed] text-[#1f1f1e] leading-6'
@@ -1675,7 +1675,7 @@ export default function ProjectAgentPage() {
                   })}
 
                   {awaitingAssistantTurn ? (
-                    <div className="project-agent-chat-bubble project-agent-chat-bubble--assistant max-w-[94%] rounded-xl bg-[#efefed] px-4 py-3 text-sm text-[#787876]">
+                    <div className="project-agent-chat-bubble project-agent-chat-bubble--assistant max-w-[94%] rounded-[12px] bg-[#efefed] px-4 py-3 text-sm text-[#787876]">
                       <div className="flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         <span>Working on it...</span>
@@ -1692,23 +1692,23 @@ export default function ProjectAgentPage() {
                     event.preventDefault();
                     void handleSend();
                   }}
-                  className="project-agent-chat-input mt-3 flex items-center gap-2 rounded-[26px] border border-[#d9d9d7] bg-white p-2 shadow-[0_18px_40px_rgba(15,15,15,0.06)]"
+                  className="project-agent-chat-input mt-3 flex items-center gap-2 rounded-[16px] border border-[#d9d9d7] bg-white p-2 shadow-[0_18px_40px_rgba(15,15,15,0.06)]"
                 >
                   <input
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
                     placeholder={chatInputPlaceholder}
-                    className="project-agent-chat-input-field flex-1 min-h-12 rounded-[18px] bg-transparent px-4 text-sm text-[#1f1f1e] placeholder:text-[#9b9b98] focus:outline-none disabled:opacity-50"
+                    className="project-agent-chat-input-field flex-1 min-h-12 rounded-[12px] bg-transparent px-4 text-sm text-[#1f1f1e] placeholder:text-[#9b9b98] focus:outline-none disabled:opacity-50"
                     disabled={awaitingAssistantTurn}
                   />
                   <button
                     type="submit"
                     disabled={awaitingAssistantTurn || !draft.trim()}
                     aria-label={awaitingAssistantTurn ? 'Waiting for response' : 'Send message'}
-                    className={`project-agent-send-button inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white transition-all duration-200 ease-out disabled:opacity-50 ${
+                    className={`project-agent-send-button inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] text-white transition-all duration-200 ease-out disabled:opacity-50 ${
                       awaitingAssistantTurn
-                        ? 'bg-[#8d8d8a]'
-                        : 'bg-[#0f0f0f] shadow-[0_10px_24px_rgba(15,15,15,0.16)] hover:-translate-y-[1px] hover:scale-[1.03] hover:bg-[#1a1a1a] hover:shadow-[0_16px_32px_rgba(15,15,15,0.2)] active:translate-y-0 active:scale-[0.97] active:bg-black active:shadow-[0_8px_18px_rgba(15,15,15,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f1f1e]/12'
+                        ? 'project-agent-press-button project-agent-press-button--disabled bg-[#8d8d8a]'
+                        : 'project-agent-press-button project-agent-press-button--active shadow-[0_10px_24px_rgba(15,15,15,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f1f1e]/12'
                     }`}
                   >
                     {awaitingAssistantTurn ? (
@@ -1721,7 +1721,7 @@ export default function ProjectAgentPage() {
               </div>
 
               <div className="absolute inset-0 z-40 flex items-center justify-center bg-white/72 backdrop-blur-[3px]">
-                <div className="rounded-[24px] border border-[#d9d9d7] bg-white px-6 py-5 text-center shadow-[0_18px_40px_rgba(15,15,15,0.08)]">
+                <div className="rounded-[16px] border border-[#d9d9d7] bg-white px-6 py-5 text-center shadow-[0_18px_40px_rgba(15,15,15,0.08)]">
                   <p className="text-sm font-semibold text-[#1f1f1e]">Chat panel under construction</p>
                   <p className="mt-1 text-xs text-[#787876]">This section is temporarily unavailable.</p>
                 </div>

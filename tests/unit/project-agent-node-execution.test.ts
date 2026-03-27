@@ -13,7 +13,6 @@ import {
 test('buildVideoCloneStartPayload maps connected assets into clone request fields', () => {
   const payload = buildVideoCloneStartPayload({
     avatar: { id: 'avatar-1', name: 'Avatar' },
-    product: { id: 'product-1', name: 'Product' },
     video: { id: 'video-1', name: 'Video', sourceType: 'creator', analysisLanguage: 'en' },
     config: { videoDuration: '16', videoModel: 'veo3', videoQuality: '720p', aspectRatio: '9:16', language: 'en' },
   });
@@ -21,9 +20,21 @@ test('buildVideoCloneStartPayload maps connected assets into clone request field
   assert.equal(payload.creatorSourceVideoId, 'video-1');
   assert.equal(payload.competitorAdId, undefined);
   assert.deepEqual(payload.selectedAvatarIds, ['avatar-1']);
-  assert.deepEqual(payload.selectedProductIds, ['product-1']);
+  assert.deepEqual(payload.selectedProductIds, []);
   assert.equal(payload.videoDuration, '16');
   assert.equal(payload.videoModel, 'kling_3');
+});
+
+test('buildVideoCloneStartPayload supports product-only replacements', () => {
+  const payload = buildVideoCloneStartPayload({
+    product: { id: 'product-1', name: 'Product' },
+    video: { id: 'video-1', name: 'Video', sourceType: 'competitor_ad', analysisLanguage: 'en' },
+  });
+
+  assert.equal(payload.creatorSourceVideoId, undefined);
+  assert.equal(payload.competitorAdId, 'video-1');
+  assert.deepEqual(payload.selectedAvatarIds, []);
+  assert.deepEqual(payload.selectedProductIds, ['product-1']);
 });
 
 test('buildAvatarAdsStartPayload keeps strict avatar and product requirements', () => {
