@@ -1515,10 +1515,10 @@ export default function ProjectAgentPage() {
     <div className="project-agent-page h-[100dvh] overflow-hidden text-black">
       <Sidebar {...sidebarProps} />
 
-      <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background h-[100dvh] overflow-hidden min-h-0">
+      <DashboardContentTransition className="dashboard-content-offset bg-background h-[100dvh] overflow-hidden min-h-0">
         <div className="h-full box-border min-h-0 p-3 md:py-3 md:pr-3 md:pl-0">
           <div className="grid h-full min-h-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
-            <section className="project-agent-panel-shell relative h-full min-h-0 overflow-hidden rounded-[30px]">
+            <section className="project-agent-panel-shell relative h-full min-h-0 overflow-visible rounded-[30px]">
               <div className="h-full w-full p-0" ref={canvasContainerRef}>
                 <CanvasBoard
                   canvas={canvas}

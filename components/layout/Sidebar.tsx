@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, LayoutGroup } from 'framer-motion';
 import {
@@ -63,6 +63,7 @@ const sidebarNavButtonActive =
 
 export default function Sidebar({ credits, creditsData }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const desktopSidebarRef = useRef<HTMLDivElement | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -74,6 +75,12 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
   const displayCredits = creditsData?.credits_remaining ?? credits;
   const subscriptionCredits = creditsData?.subscription_credits ?? 0;
   const purchasedCredits = creditsData?.purchased_credits ?? 0;
+
+  const navigateTo = (href: string, onNavigate?: () => void) => {
+    onNavigate?.();
+    if (pathname === href) return;
+    router.push(href);
+  };
 
   const toggleDarkMode = (trigger?: HTMLElement) => {
     const nextValue = !isDarkMode;
@@ -174,7 +181,15 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
             <Link
               key={item.name}
               href={item.href}
-              onClick={onNavigate}
+              onPointerUp={(event) => {
+                if (event.button !== 0) return;
+                event.preventDefault();
+                navigateTo(item.href, onNavigate);
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                navigateTo(item.href, onNavigate);
+              }}
               className={cn(
                 sidebarNavButtonBase,
                 isActive
@@ -240,7 +255,7 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
     <>
       <div
         ref={desktopSidebarRef}
-        className="fixed left-0 top-0 z-20 hidden h-screen w-fit max-w-[calc(100vw-2rem)] md:block"
+        className="fixed left-0 top-0 z-50 hidden h-screen w-fit max-w-[calc(100vw-2rem)] md:block"
       >
         <SidebarPanels />
       </div>

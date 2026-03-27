@@ -138,15 +138,15 @@ export default function InsertToolbar({
   const featureTypes: ProjectAgentFeatureNodeType[] = ['video_clone', 'avatar_ads', 'motion_clone'];
 
   useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
+    const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node | null;
       if (toolbarRef.current?.contains(target)) return;
       setOpenKey(null);
     };
 
-    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('click', handleClickOutside);
     return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('click', handleClickOutside);
     };
   }, []);
 
@@ -203,7 +203,9 @@ export default function InsertToolbar({
           className="absolute bottom-[calc(100%+12px)] z-20 min-w-[220px] rounded-[24px] border border-[#ddd9ce] bg-white p-3 shadow-[0_24px_60px_rgba(0,0,0,0.16)]"
           style={{ left: dropdownOffset }}
         >
-          {renderDropdownContent()}
+          <div className="max-h-[min(60vh,420px)] overflow-y-auto pr-1">
+            {renderDropdownContent()}
+          </div>
         </div>
       ) : null}
       <div ref={scrollRef} className="overflow-x-auto">
