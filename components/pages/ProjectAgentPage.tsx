@@ -9,6 +9,7 @@ import { AlertTriangle, ArrowUpRight, History, Loader2, MessageCircle, Plus, Sea
 import Sidebar from '@/components/layout/Sidebar';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
+import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import CanvasBoard from '@/components/project-agent/canvas/CanvasBoard';
 import InsertToolbar from '@/components/project-agent/canvas/InsertToolbar';
 import NodeDetailsDialog from '@/components/project-agent/canvas/NodeDetailsDialog';
@@ -49,6 +50,14 @@ import {
   createQueuedExecutionStatus,
   type ProjectAgentCanvasExecutionStatus,
 } from '@/lib/project-agent/node-execution';
+import {
+  buildPendingSelectionActions,
+  executeProjectAgentCanvasActions,
+  normalizeProjectAgentPendingUiRequest,
+  type ProjectAgentCanvasAction,
+  type ProjectAgentSelectableAssetType,
+  type ProjectAgentPendingUiRequest,
+} from '@/lib/project-agent/canvas-actions';
 
 type PersistedSessionPayload = {
   session?: {
@@ -182,18 +191,6 @@ const getDefaultNodePlacement = (canvas: ProjectAgentCanvasState) => ({
   y: 180 - canvas.viewport.y / canvas.viewport.zoom,
 });
 
-const isFeaturePhrase = (text: string, feature: ProjectAgentFeatureNodeType) => {
-  if (feature === 'avatar_ads') return /avatar ads|character ads/i.test(text);
-  if (feature === 'motion_clone') return /motion clone/i.test(text);
-  return /video clone|ugc clone|clone node/i.test(text);
-};
-
-const isAssetPhrase = (text: string, assetType: ProjectAgentAssetNodeType) => {
-  if (assetType === 'avatar') return /add .*avatar node|放.*avatar 节点|create .*avatar node/i.test(text);
-  if (assetType === 'product') return /add .*product node|放.*product 节点|create .*product node/i.test(text);
-  return /add .*video node|放.*video 节点|create .*video node/i.test(text);
-};
-
 const isInteractiveNodeSurface = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false;
   return Boolean(
@@ -220,6 +217,9 @@ export default function ProjectAgentPage() {
   const [draft, setDraft] = useState('');
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const [statusNote, setStatusNote] = useState('');
+  const [pendingUiRequest, setPendingUiRequest] = useState<ProjectAgentPendingUiRequest | null>(null);
+  const [appliedCanvasActionCallIds, setAppliedCanvasActionCallIds] = useState<string[]>([]);
+  const [toolbarOpenKey, setToolbarOpenKey] = useState<'avatar' | 'product' | 'video' | 'feature' | null>(null);
   const [avatars, setAvatars] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [products, setProducts] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [videos, setVideos] = useState<ProjectAgentCanvasAssetRef[]>([]);
@@ -244,13 +244,18 @@ export default function ProjectAgentPage() {
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<ProjectAgentCanvasState>(DEFAULT_PROJECT_AGENT_CANVAS_STATE);
   const historyPopoverRef = useRef<HTMLDivElement | null>(null);
+  const chatScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
+  const composerInputRef = useRef<HTMLInputElement | null>(null);
   const persistenceTimeoutRef = useRef<number | null>(null);
   const dragMovedRef = useRef(false);
   const statusFetchInFlightRef = useRef<Set<string>>(new Set());
   const subscriptionsRef = useRef<Map<string, RealtimeChannel>>(new Map());
   const supabaseRef = useRef(supabase);
   const connectionCommittedRef = useRef(false);
+  const pendingUiRequestRef = useRef<ProjectAgentPendingUiRequest | null>(null);
+  const appliedCanvasActionCallIdsRef = useRef<string[]>([]);
+  const processedCanvasToolCallIdsRef = useRef<Set<string>>(new Set());
 
   const ensureHistoryTracked = useCallback((id: string) => {
     const current = readHistoryIds();
@@ -285,21 +290,48 @@ export default function ProjectAgentPage() {
     setHistoryItems(loaded.filter((item): item is HistoryItem => Boolean(item)));
   }, []);
 
-  const persistCanvasState = useCallback((nextCanvas: ProjectAgentCanvasState) => {
+  useEffect(() => {
+    pendingUiRequestRef.current = pendingUiRequest;
+  }, [pendingUiRequest]);
+
+  useEffect(() => {
+    appliedCanvasActionCallIdsRef.current = appliedCanvasActionCallIds;
+    processedCanvasToolCallIdsRef.current = new Set(appliedCanvasActionCallIds);
+  }, [appliedCanvasActionCallIds]);
+
+  useEffect(() => {
+    if (pendingUiRequest?.type === 'asset_selection') {
+      setToolbarOpenKey(pendingUiRequest.assetType);
+      return;
+    }
+
+    if (!pendingUiRequest) {
+      setToolbarOpenKey(null);
+    }
+  }, [pendingUiRequest]);
+
+  const persistSessionState = useCallback((statePatch: Record<string, unknown>, debounceMs = 0) => {
     if (!sessionId) return;
     if (persistenceTimeoutRef.current) {
       window.clearTimeout(persistenceTimeoutRef.current);
     }
-    persistenceTimeoutRef.current = window.setTimeout(() => {
+    const persist = () => {
       void fetch('/api/project-agent/session', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId,
-          statePatch: { canvas: nextCanvas },
+          statePatch,
         }),
       });
-    }, 180);
+    };
+
+    if (debounceMs > 0) {
+      persistenceTimeoutRef.current = window.setTimeout(persist, debounceMs);
+      return;
+    }
+
+    persist();
   }, [sessionId]);
 
   const updateCanvas = useCallback((updater: ProjectAgentCanvasState | ((current: ProjectAgentCanvasState) => ProjectAgentCanvasState)) => {
@@ -308,10 +340,14 @@ export default function ProjectAgentPage() {
         ? (updater as (current: ProjectAgentCanvasState) => ProjectAgentCanvasState)(current)
         : updater;
       canvasRef.current = next;
-      persistCanvasState(next);
+      persistSessionState({
+        canvas: next,
+        pendingUiRequest: pendingUiRequestRef.current,
+        appliedCanvasActionCallIds: appliedCanvasActionCallIdsRef.current,
+      }, 180);
       return next;
     });
-  }, [persistCanvasState]);
+  }, [persistSessionState]);
 
   const {
     messages,
@@ -329,6 +365,8 @@ export default function ProjectAgentPage() {
           message: outgoingMessages[outgoingMessages.length - 1],
           statePatch: {
             canvas,
+            pendingUiRequest,
+            appliedCanvasActionCallIds,
           },
         },
       }),
@@ -402,12 +440,18 @@ export default function ProjectAgentPage() {
     if (response.status === 404) {
       await ensureSessionExists(targetSessionId);
       setCanvas(DEFAULT_PROJECT_AGENT_CANVAS_STATE);
+      setPendingUiRequest(null);
+      setAppliedCanvasActionCallIds([]);
       setMessages([]);
       return;
     }
     const payload = await response.json() as PersistedSessionPayload;
     const incomingCanvas = normalizeCanvasState(payload.session?.state?.canvas);
     setCanvas(incomingCanvas);
+    setPendingUiRequest(normalizeProjectAgentPendingUiRequest(payload.session?.state?.pendingUiRequest));
+    setAppliedCanvasActionCallIds(Array.isArray(payload.session?.state?.appliedCanvasActionCallIds)
+      ? payload.session?.state?.appliedCanvasActionCallIds.filter((item): item is string => typeof item === 'string').slice(-200)
+      : []);
     if (Array.isArray(payload.session?.messages)) {
       setMessages(payload.session.messages);
     } else {
@@ -541,10 +585,14 @@ export default function ProjectAgentPage() {
 
       if (!changed) return current;
       const next = { ...current, nodes: nextNodes };
-      persistCanvasState(next);
+      persistSessionState({
+        canvas: next,
+        pendingUiRequest: pendingUiRequestRef.current,
+        appliedCanvasActionCallIds: appliedCanvasActionCallIdsRef.current,
+      }, 180);
       return next;
     });
-  }, [canvas.edges, canvas.nodes, persistCanvasState]);
+  }, [canvas.edges, canvas.nodes, persistSessionState]);
 
   const updateNodeRuntime = useCallback((nodeId: string, execution: ProjectAgentCanvasExecutionStatus) => {
     updateCanvas((current) => {
@@ -877,95 +925,115 @@ export default function ProjectAgentPage() {
     });
   }, [updateCanvas]);
 
-  const applyChatIntent = useCallback((text: string) => {
-    const normalized = text.toLowerCase();
-    let changed = false;
-
-    if (/delete node|remove node|删除节点/.test(normalized) && (canvas.selectedNodeIds.length > 0 || canvas.selectedNodeId)) {
-      updateCanvas((current) => {
-        const targetIds = current.selectedNodeIds.length > 0
-          ? current.selectedNodeIds
-          : current.selectedNodeId
-            ? [current.selectedNodeId]
-            : [];
-        return targetIds.reduce((nextState, nodeId) => removeCanvasNode(nextState, nodeId), current);
+  const markCanvasToolCallApplied = useCallback((toolCallId: string) => {
+    setAppliedCanvasActionCallIds((current) => {
+      if (current.includes(toolCallId)) return current;
+      const next = [...current, toolCallId].slice(-200);
+      appliedCanvasActionCallIdsRef.current = next;
+      processedCanvasToolCallIdsRef.current = new Set(next);
+      persistSessionState({
+        canvas: canvasRef.current,
+        pendingUiRequest: pendingUiRequestRef.current,
+        appliedCanvasActionCallIds: next,
       });
-      setDetailNodeId(null);
-      changed = true;
-    }
+      return next;
+    });
+  }, [persistSessionState]);
 
-    if (isAssetPhrase(normalized, 'avatar') && !/avatar ads|character ads/.test(normalized) && avatars[0]) {
-      addAssetNode('avatar', avatars[0]);
-      changed = true;
-    }
-    if (isAssetPhrase(normalized, 'product') && products[0]) {
-      addAssetNode('product', products[0]);
-      changed = true;
-    }
-    if (isAssetPhrase(normalized, 'video') && videos[0] && !/video clone|motion clone/.test(normalized)) {
-      addAssetNode('video', videos[0]);
-      changed = true;
-    }
+  const applyCanvasActions = useCallback((actions: ProjectAgentCanvasAction[], selectedAsset?: ProjectAgentCanvasAssetRef | null) => {
+    setCanvas((currentCanvas) => {
+      const result = executeProjectAgentCanvasActions({
+        canvas: currentCanvas,
+        actions,
+        detailNodeId,
+        pendingUiRequest: pendingUiRequestRef.current,
+        selectedAsset: selectedAsset ?? null,
+      });
+      canvasRef.current = result.canvas;
+      setDetailNodeId(result.detailNodeId);
+      setPendingUiRequest(result.pendingUiRequest);
+      persistSessionState({
+        canvas: result.canvas,
+        pendingUiRequest: result.pendingUiRequest,
+        appliedCanvasActionCallIds: appliedCanvasActionCallIdsRef.current,
+      }, 180);
+      return result.canvas;
+    });
+  }, [detailNodeId, persistSessionState]);
 
-    const featureType = (['avatar_ads', 'video_clone', 'motion_clone'] as ProjectAgentFeatureNodeType[])
-      .find((item) => isFeaturePhrase(normalized, item));
+  useEffect(() => {
+    messages.forEach((message) => {
+      message.parts.forEach((part) => {
+        if (!('type' in part) || typeof part.type !== 'string' || !part.type.startsWith('tool-')) return;
+        if (!('state' in part) || part.state !== 'output-available') return;
+        if (!('toolCallId' in part) || typeof part.toolCallId !== 'string') return;
+        if (!('output' in part) || !part.output || typeof part.output !== 'object') return;
+        if (processedCanvasToolCallIdsRef.current.has(part.toolCallId)) return;
 
-    if (featureType) {
-      let createdNodeId = '';
-      updateCanvas((current) => {
-        const placement = getDefaultNodePlacement(current);
-        const nextNode = createProjectAgentFeatureNode({
-          type: featureType,
-          x: placement.x + 260,
-          y: placement.y,
-        });
-        createdNodeId = nextNode.id;
-        let nextState: ProjectAgentCanvasState = {
-          ...upsertCanvasNode(current, nextNode),
-          selectedNodeId: nextNode.id,
-          selectedNodeIds: [nextNode.id],
-        };
+        const toolName = part.type.slice('tool-'.length);
+        if (!['planCanvasEdit', 'requestAssetSelection', 'confirmDestructiveCanvasAction'].includes(toolName)) return;
 
-        if (/connect|连接/.test(normalized)) {
-          const requirements = featureType === 'avatar_ads'
-            ? (['avatar', 'text'] as ProjectAgentAssetNodeType[])
-            : (['avatar', 'product', 'video'] as ProjectAgentAssetNodeType[]);
-
-          requirements.forEach((handle) => {
-            const sourceNode = nextState.nodes.find((node) => node.type === handle && node.asset);
-            if (!sourceNode) return;
-            nextState = connectCanvasNodes(nextState, {
-              id: createProjectAgentCanvasEdgeId(sourceNode.id, nextNode.id, handle),
-              sourceNodeId: sourceNode.id,
-              targetNodeId: nextNode.id,
-              targetHandle: handle,
-            });
-          });
+        const output = part.output as { actions?: ProjectAgentCanvasAction[] };
+        if (Array.isArray(output.actions) && output.actions.length > 0) {
+          applyCanvasActions(output.actions);
         }
-
-        return nextState;
+        markCanvasToolCallApplied(part.toolCallId);
       });
+    });
+  }, [applyCanvasActions, markCanvasToolCallApplied, messages]);
 
-      if (createdNodeId) {
-        setDetailNodeId(createdNodeId);
-      }
-      changed = true;
+  const handleToolbarAssetSelect = useCallback((assetType: ProjectAgentSelectableAssetType, asset: ProjectAgentCanvasAssetRef) => {
+    if (!pendingUiRequest || pendingUiRequest.type !== 'asset_selection' || pendingUiRequest.assetType !== assetType) {
+      return;
     }
 
-    if (changed) {
-      setStatusNote('Canvas updated from your chat instruction.');
-    }
-  }, [addAssetNode, avatars, canvas.selectedNodeId, canvas.selectedNodeIds.length, products, updateCanvas, videos]);
+    const actions = buildPendingSelectionActions(pendingUiRequest, asset);
+    applyCanvasActions(actions, asset);
+  }, [applyCanvasActions, pendingUiRequest]);
+
+  const handleConfirmPendingAction = useCallback(() => {
+    if (!pendingUiRequest || pendingUiRequest.type !== 'confirmation') return;
+    const actions: ProjectAgentCanvasAction[] = [
+      ...pendingUiRequest.mutations.map((mutation) => ({
+        kind: 'canvas_mutation' as const,
+        mutation,
+      })),
+      {
+        kind: 'ui_action',
+        action: {
+          type: 'clear_pending_request',
+        },
+      },
+    ];
+    applyCanvasActions(actions);
+  }, [applyCanvasActions, pendingUiRequest]);
+
+  const handleCancelPendingAction = useCallback(() => {
+    setPendingUiRequest(null);
+    pendingUiRequestRef.current = null;
+    persistSessionState({
+      canvas: canvasRef.current,
+      pendingUiRequest: null,
+      appliedCanvasActionCallIds: appliedCanvasActionCallIdsRef.current,
+    });
+  }, [persistSessionState]);
 
   const handleSend = useCallback(async () => {
     if (!sessionId || !draft.trim()) return;
     ensureHistoryTracked(sessionId);
-    applyChatIntent(draft);
     const text = draft;
     setDraft('');
     setStatusNote('');
     await sendMessage({ text });
-  }, [applyChatIntent, draft, ensureHistoryTracked, sendMessage, sessionId]);
+  }, [draft, ensureHistoryTracked, sendMessage, sessionId]);
+
+  const handleQuickPromptSelect = useCallback((prompt: string) => {
+    setDraft(prompt);
+    setStatusNote('');
+    window.requestAnimationFrame(() => {
+      composerInputRef.current?.focus();
+    });
+  }, []);
 
   const handleCanvasDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -1481,6 +1549,30 @@ export default function ProjectAgentPage() {
     return { x, y, width, height };
   }, [selectionCurrentPoint, selectionStartPoint]);
 
+  const transientSelectedNodeIds = useMemo(() => {
+    if (!selectionRect) return [];
+    return canvas.nodes
+      .filter((node) => {
+        const size = getProjectAgentCanvasNodeSize(node);
+        return (
+          node.x < selectionRect.x + selectionRect.width &&
+          node.x + size.width > selectionRect.x &&
+          node.y < selectionRect.y + selectionRect.height &&
+          node.y + size.height > selectionRect.y
+        );
+      })
+      .map((node) => node.id);
+  }, [canvas.nodes, selectionRect]);
+
+  useEffect(() => {
+    if (!selectionStartPoint) return;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.userSelect = 'none';
+    return () => {
+      document.body.style.userSelect = previousUserSelect;
+    };
+  }, [selectionStartPoint]);
+
   const displayMessages = useMemo(
     () => messages.filter((message) => renderUIMessageText(message).trim().length > 0),
     [messages],
@@ -1497,8 +1589,58 @@ export default function ProjectAgentPage() {
     return historyItems.filter((item) => item.title.toLowerCase().includes(query));
   }, [historyItems, historyQuery]);
 
+  const quickPromptChips = useMemo(() => {
+    if (pendingUiRequest?.type === 'asset_selection') {
+      return [] as string[];
+    }
+
+    return [
+      'Clone a video for my product',
+      'Add an avatar ads workflow',
+      'Connect my selected assets for motion clone',
+      'Clean up and format the canvas',
+    ];
+  }, [pendingUiRequest]);
+
   const awaitingAssistantTurn = isStreaming;
   const chatInputPlaceholder = 'Tell the agent what to build next...';
+
+  const scrollChatToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const container = chatScrollContainerRef.current;
+    if (!container) return;
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (displayMessages.length === 0 && !awaitingAssistantTurn) return;
+
+    let frameOne = 0;
+    let frameTwo = 0;
+    let resizeObserver: ResizeObserver | null = null;
+
+    const syncToLatestReply = () => {
+      scrollChatToBottom('auto');
+    };
+
+    frameOne = window.requestAnimationFrame(() => {
+      syncToLatestReply();
+      frameTwo = window.requestAnimationFrame(syncToLatestReply);
+    });
+
+    if (chatScrollContainerRef.current) {
+      resizeObserver = new ResizeObserver(syncToLatestReply);
+      resizeObserver.observe(chatScrollContainerRef.current);
+    }
+
+    return () => {
+      window.cancelAnimationFrame(frameOne);
+      window.cancelAnimationFrame(frameTwo);
+      resizeObserver?.disconnect();
+    };
+  }, [awaitingAssistantTurn, displayMessages, scrollChatToBottom]);
 
   const sidebarProps = useMemo(() => ({
     credits,
@@ -1522,8 +1664,10 @@ export default function ProjectAgentPage() {
               <div className="h-full w-full p-0" ref={canvasContainerRef}>
                 <CanvasBoard
                   canvas={canvas}
+                  transientSelectedNodeIds={transientSelectedNodeIds}
                   draggingNodeId={draggingNodeId}
                   isPanning={panning}
+                  isSelecting={Boolean(selectionStartPoint)}
                   isSpacePressed={spacePressed}
                   selectionRect={selectionRect}
                   pendingConnectionPoint={pendingConnectionPoint}
@@ -1559,6 +1703,14 @@ export default function ProjectAgentPage() {
                   avatars={avatars}
                   products={products}
                   videos={videos}
+                  openKey={toolbarOpenKey}
+                  onOpenKeyChange={setToolbarOpenKey}
+                  selectionMode={pendingUiRequest?.type === 'asset_selection' ? {
+                    assetType: pendingUiRequest.assetType,
+                    title: pendingUiRequest.title,
+                    instructions: pendingUiRequest.instructions,
+                  } : null}
+                  onAssetSelect={handleToolbarAssetSelect}
                 />
               </div>
             </section>
@@ -1600,6 +1752,9 @@ export default function ProjectAgentPage() {
                               ensureHistoryTracked(nextSessionId);
                               setSessionId(nextSessionId);
                               setCanvas(DEFAULT_PROJECT_AGENT_CANVAS_STATE);
+                              setPendingUiRequest(null);
+                              setAppliedCanvasActionCallIds([]);
+                              setToolbarOpenKey(null);
                               setMessages([]);
                               setDraft('');
                               setStatusNote('');
@@ -1653,7 +1808,30 @@ export default function ProjectAgentPage() {
                 </div>
               ) : null}
 
-              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+              {pendingUiRequest?.type === 'confirmation' ? (
+                <div className="mx-4 mt-3 rounded-[14px] border border-[#d9d9d7] bg-[#f7f7f5] px-4 py-3">
+                  <p className="text-sm font-semibold text-[#1f1f1e]">{pendingUiRequest.title}</p>
+                  <p className="mt-1 text-xs leading-5 text-[#6c6c66]">{pendingUiRequest.message}</p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleConfirmPendingAction}
+                      className="rounded-[12px] bg-[#111111] px-3 py-2 text-xs font-semibold text-white"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelPendingAction}
+                      className="rounded-[12px] border border-[#d3d3d0] bg-white px-3 py-2 text-xs font-semibold text-[#1f1f1e]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div ref={chatScrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
                 <div className="space-y-4">
                   {displayMessages.map((message) => {
                     const messageText = renderUIMessageText(message).trim();
@@ -1668,7 +1846,14 @@ export default function ProjectAgentPage() {
                               : 'project-agent-chat-bubble--assistant bg-[#efefed] text-[#1f1f1e] leading-6'
                           }`}
                         >
-                          {messageText}
+                          {isUserMessage ? (
+                            messageText
+                          ) : (
+                            <MarkdownRenderer
+                              content={messageText}
+                              className="[&_h1]:!mt-0 [&_h2]:!mt-0 [&_h3]:!mt-0 [&_p:last-child]:!mb-0 [&_p]:!mb-3 [&_p]:!text-[#1f1f1e] [&_li]:!text-[#1f1f1e] [&_ol]:!mb-3 [&_ol]:!text-[#1f1f1e] [&_strong]:!text-[#111111] [&_ul]:!mb-3 [&_ul]:!text-[#1f1f1e]"
+                            />
+                          )}
                         </div>
                       </div>
                     );
@@ -1678,7 +1863,7 @@ export default function ProjectAgentPage() {
                     <div className="project-agent-chat-bubble project-agent-chat-bubble--assistant max-w-[94%] rounded-[12px] bg-[#efefed] px-4 py-3 text-sm text-[#787876]">
                       <div className="flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Working on it...</span>
+                        <span>thinking...</span>
                       </div>
                     </div>
                   ) : null}
@@ -1687,28 +1872,48 @@ export default function ProjectAgentPage() {
               </div>
 
               <div className="project-agent-chat-footer px-4 py-4">
+                {quickPromptChips.length > 0 ? (
+                  <div className="mb-3">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8b8b86]">
+                      Try asking Flowgen to
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {quickPromptChips.map((prompt) => (
+                        <button
+                          key={prompt}
+                          type="button"
+                          onClick={() => handleQuickPromptSelect(prompt)}
+                          className="project-agent-press-button project-agent-chip inline-flex min-h-9 items-center rounded-[14px] border px-3 py-2 text-xs font-medium text-[#1f1f1e]"
+                        >
+                          {prompt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
                     void handleSend();
                   }}
-                  className="project-agent-chat-input mt-3 flex items-center gap-2 rounded-[16px] border border-[#d9d9d7] bg-white p-2 shadow-[0_18px_40px_rgba(15,15,15,0.06)]"
+                  className="project-agent-chat-input mt-3 flex items-center gap-2 rounded-[18px] border border-[#d9d9d7] bg-white p-2 shadow-[0_18px_40px_rgba(15,15,15,0.06)]"
                 >
                   <input
+                    ref={composerInputRef}
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
                     placeholder={chatInputPlaceholder}
-                    className="project-agent-chat-input-field flex-1 min-h-12 rounded-[12px] bg-transparent px-4 text-sm text-[#1f1f1e] placeholder:text-[#9b9b98] focus:outline-none disabled:opacity-50"
+                    className="project-agent-chat-input-field flex-1 min-h-12 rounded-[14px] bg-transparent px-4 text-sm text-[#1f1f1e] placeholder:text-[#9b9b98] focus:outline-none disabled:opacity-50"
                     disabled={awaitingAssistantTurn}
                   />
                   <button
                     type="submit"
                     disabled={awaitingAssistantTurn || !draft.trim()}
                     aria-label={awaitingAssistantTurn ? 'Waiting for response' : 'Send message'}
-                    className={`project-agent-send-button inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] text-white transition-all duration-200 ease-out disabled:opacity-50 ${
+                    className={`project-agent-send-button inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] border text-white transition-all duration-200 ease-out disabled:opacity-50 ${
                       awaitingAssistantTurn
                         ? 'project-agent-press-button project-agent-press-button--disabled bg-[#8d8d8a]'
-                        : 'project-agent-press-button project-agent-press-button--active shadow-[0_10px_24px_rgba(15,15,15,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f1f1e]/12'
+                        : 'project-agent-press-button project-agent-press-button--active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f1f1e]/12'
                     }`}
                   >
                     {awaitingAssistantTurn ? (
@@ -1718,13 +1923,6 @@ export default function ProjectAgentPage() {
                     )}
                   </button>
                 </form>
-              </div>
-
-              <div className="absolute inset-0 z-40 flex items-center justify-center bg-white/72 backdrop-blur-[3px]">
-                <div className="rounded-[16px] border border-[#d9d9d7] bg-white px-6 py-5 text-center shadow-[0_18px_40px_rgba(15,15,15,0.08)]">
-                  <p className="text-sm font-semibold text-[#1f1f1e]">Chat panel under construction</p>
-                  <p className="mt-1 text-xs text-[#787876]">This section is temporarily unavailable.</p>
-                </div>
               </div>
             </section>
           </div>
