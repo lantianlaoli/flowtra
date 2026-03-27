@@ -42,8 +42,10 @@ import {
 
 type CanvasBoardProps = {
   canvas: ProjectAgentCanvasState;
+  transientSelectedNodeIds?: string[];
   draggingNodeId?: string | null;
   isPanning: boolean;
+  isSelecting?: boolean;
   isSpacePressed: boolean;
   selectionRect?: { x: number; y: number; width: number; height: number } | null;
   pendingConnectionPoint: { x: number; y: number } | null;
@@ -190,8 +192,10 @@ const getFeatureIcon = (type: ProjectAgentFeatureNodeType) => {
 
 export default function CanvasBoard({
   canvas,
+  transientSelectedNodeIds = [],
   draggingNodeId,
   isPanning,
+  isSelecting = false,
   isSpacePressed,
   selectionRect,
   pendingConnectionPoint,
@@ -259,6 +263,8 @@ export default function CanvasBoard({
   return (
     <div
       className={`project-agent-canvas-shell relative h-full w-full overflow-hidden rounded-[30px] ${
+        isSelecting ? 'select-none' : ''
+      } ${
         isPanning ? 'cursor-grabbing' : isSpacePressed ? 'cursor-grab' : 'cursor-default'
       }`}
       onPointerDown={onCanvasPointerDown}
@@ -419,7 +425,7 @@ export default function CanvasBoard({
 
         {canvas.nodes.map((node) => {
           const size = getNodeSize(node);
-          const selected = canvas.selectedNodeIds.includes(node.id);
+          const selected = transientSelectedNodeIds.includes(node.id) || canvas.selectedNodeIds.includes(node.id);
           const isDragging = draggingNodeId === node.id;
           const isFeatureNode = isProjectAgentFeatureNode(node.type);
           const featureType: ProjectAgentFeatureNodeType | null = isFeatureNode

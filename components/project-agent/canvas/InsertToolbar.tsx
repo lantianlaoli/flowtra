@@ -1,18 +1,28 @@
 'use client';
 
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Box, ChevronDown, Clapperboard, Package2, Sparkles, Type, User, Video } from 'lucide-react';
 import {
   getProjectAgentFeatureDisplayName,
-  type ProjectAgentAssetNodeType,
   type ProjectAgentCanvasAssetRef,
   type ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
+import type { ProjectAgentSelectableAssetType } from '@/lib/project-agent/canvas-actions';
+
+type InsertToolbarKey = 'avatar' | 'product' | 'video' | 'feature';
 
 type InsertToolbarProps = {
   avatars: ProjectAgentCanvasAssetRef[];
   products: ProjectAgentCanvasAssetRef[];
   videos: ProjectAgentCanvasAssetRef[];
+  openKey?: InsertToolbarKey | null;
+  onOpenKeyChange?: (next: InsertToolbarKey | null) => void;
+  selectionMode?: {
+    assetType: ProjectAgentSelectableAssetType;
+    title: string;
+    instructions: string;
+  } | null;
+  onAssetSelect?: (assetType: ProjectAgentSelectableAssetType, asset: ProjectAgentCanvasAssetRef) => void;
 };
 
 const draggableButtonClass =
@@ -52,7 +62,7 @@ const getToolbarIcon = (key: string) => {
   return Sparkles;
 };
 
-const getAssetFallbackIcon = (type: ProjectAgentAssetNodeType) => {
+const getAssetFallbackIcon = (type: ProjectAgentSelectableAssetType) => {
   if (type === 'avatar') return User;
   if (type === 'product') return Package2;
   return Video;
@@ -68,10 +78,12 @@ const DragItem = ({
   label,
   payload,
   leading,
+  onClick,
 }: {
   label: string;
   payload: Record<string, unknown>;
   leading: ReactNode;
+  onClick?: () => void;
 }) => (
   <button
     className={draggableButtonClass}
@@ -81,6 +93,7 @@ const DragItem = ({
       event.dataTransfer.setData('application/json', JSON.stringify(payload));
       setCustomDragPreview(event, label);
     }}
+    onClick={onClick}
     type="button"
     title={label}
   >
@@ -94,9 +107,13 @@ const DragItem = ({
 const AssetList = ({
   items,
   type,
+  selectionMode,
+  onAssetSelect,
 }: {
   items: ProjectAgentCanvasAssetRef[];
-  type: ProjectAgentAssetNodeType;
+  type: ProjectAgentSelectableAssetType;
+  selectionMode?: InsertToolbarProps['selectionMode'];
+  onAssetSelect?: InsertToolbarProps['onAssetSelect'];
 }) => (
   <div className="flex flex-col items-start gap-2">
     {items.length === 0 ? (
@@ -111,6 +128,7 @@ const AssetList = ({
             key={`${type}-${item.id}`}
             label={item.name}
             payload={{ kind: 'asset', type, asset: item }}
+            onClick={selectionMode?.assetType === type && onAssetSelect ? () => onAssetSelect(type, item) : undefined}
             leading={
               item.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -130,12 +148,35 @@ export default function InsertToolbar({
   avatars,
   products,
   videos,
+  openKey: controlledOpenKey,
+  onOpenKeyChange,
+  selectionMode = null,
+  onAssetSelect,
 }: InsertToolbarProps) {
-  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [internalOpenKey, setInternalOpenKey] = useState<InsertToolbarKey | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
-  const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const triggerRefs = useRef<Record<InsertToolbarKey, HTMLButtonElement | null>>({
+    avatar: null,
+    product: null,
+    video: null,
+    feature: null,
+  });
   const [dropdownOffset, setDropdownOffset] = useState(0);
   const featureTypes: ProjectAgentFeatureNodeType[] = ['video_clone', 'avatar_ads', 'motion_clone'];
+  const openKey = controlledOpenKey ?? internalOpenKey;
+
+  const setOpenKey = useCallback((next: InsertToolbarKey | null) => {
+    onOpenKeyChange?.(next);
+    if (controlledOpenKey === undefined) {
+      setInternalOpenKey(next);
+    }
+  }, [controlledOpenKey, onOpenKeyChange]);
+
+  useEffect(() => {
+    if (!selectionMode) return;
+    setOpenKey(selectionMode.assetType);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectionMode?.assetType]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -148,7 +189,7 @@ export default function InsertToolbar({
     return () => {
       window.removeEventListener('click', handleClickOutside);
     };
-  }, []);
+  }, [setOpenKey]);
 
   useEffect(() => {
     if (!openKey) return;
@@ -171,9 +212,9 @@ export default function InsertToolbar({
   }, [openKey]);
 
   const renderDropdownContent = () => {
-    if (openKey === 'avatar') return <AssetList items={avatars} type="avatar" />;
-    if (openKey === 'product') return <AssetList items={products} type="product" />;
-    if (openKey === 'video') return <AssetList items={videos} type="video" />;
+    if (openKey === 'avatar') return <AssetList items={avatars} type="avatar" selectionMode={selectionMode} onAssetSelect={onAssetSelect} />;
+    if (openKey === 'product') return <AssetList items={products} type="product" selectionMode={selectionMode} onAssetSelect={onAssetSelect} />;
+    if (openKey === 'video') return <AssetList items={videos} type="video" selectionMode={selectionMode} onAssetSelect={onAssetSelect} />;
     if (openKey === 'feature') {
       return (
         <div className="flex flex-col items-start gap-2">
@@ -210,12 +251,12 @@ export default function InsertToolbar({
         </div>
       ) : null}
       <div className="flex items-end gap-1.5 max-[1320px]:gap-1.5">
-        {[
+        {([
           { key: 'avatar', label: 'Avatar' },
           { key: 'product', label: 'Product' },
           { key: 'video', label: 'Video' },
           { key: 'feature', label: 'Feature' },
-        ].map((entry) => {
+        ] as const).map((entry) => {
           const EntryIcon = getToolbarIcon(entry.key);
           const open = openKey === entry.key;
 
@@ -230,7 +271,7 @@ export default function InsertToolbar({
                   ? 'border-[#111111] bg-[#111111] text-white shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_3px_0_rgba(20,20,20,0.95),0_12px_20px_rgba(0,0,0,0.16)] hover:-translate-y-[1px] hover:bg-[#1a1a1a] hover:shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_5px_0_rgba(20,20,20,0.95),0_16px_24px_rgba(0,0,0,0.18)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.06)_inset,0_1px_0_rgba(20,20,20,0.9),0_8px_12px_rgba(0,0,0,0.14)]'
                   : 'border-[#cfcfcb] bg-white text-[#2a2a2a] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f6f6f4] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)]'
               }`}
-              onClick={() => setOpenKey((current) => current === entry.key ? null : entry.key)}
+              onClick={() => setOpenKey(open ? null : entry.key)}
               type="button"
               aria-label={entry.label}
               title={entry.label}

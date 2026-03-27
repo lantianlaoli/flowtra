@@ -89,6 +89,21 @@ import {
 } from '@/lib/project-agent/avatar-script-planning';
 import { signInternalUserRequest } from '@/lib/security/internal-request';
 import { buildTypedMentionToken } from '@/lib/prompt-mention-tokens';
+import {
+  normalizeProjectAgentPendingUiRequest,
+  summarizeProjectAgentCanvas,
+  type ProjectAgentCanvasAction,
+  type ProjectAgentCanvasMutation,
+  type ProjectAgentPendingConfirmationRequest,
+  type ProjectAgentPendingUiRequest,
+  type ProjectAgentSelectableAssetType,
+} from '@/lib/project-agent/canvas-actions';
+import {
+  normalizeCanvasState,
+  type ProjectAgentAssetNodeType,
+  type ProjectAgentCanvasState,
+} from '@/lib/project-agent/canvas-state';
+import { planProjectAgentCanvasCommand } from '@/lib/project-agent/canvas-command-planner';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -116,6 +131,9 @@ const CHINESE_SCENE_NUMERALS: Record<string, number> = {
 };
 
 type SessionState = {
+  canvas?: ProjectAgentCanvasState;
+  pendingUiRequest?: ProjectAgentPendingUiRequest | null;
+  appliedCanvasActionCallIds?: string[];
   intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_clone';
   step?: 'collecting' | 'creating' | 'awaiting_review' | 'regenerating_image' | 'generating_videos' | 'completed';
   avatarStage?: ProjectAgentAvatarStage;
@@ -204,6 +222,9 @@ type SessionState = {
 };
 
 const DEFAULT_STATE: SessionState = {
+  canvas: normalizeCanvasState(null),
+  pendingUiRequest: null,
+  appliedCanvasActionCallIds: [],
   intent: 'avatar_ads',
   step: 'collecting',
   avatarStage: 'avatar_asset_selection',
@@ -905,6 +926,12 @@ const buildSystemPrompt = (state: SessionState) => {
   const motionCloneError = state.motionClone?.error || 'none';
   const selectedVideoModel = normalizeProjectAgentVideoModel(state.videoModel, 'kling_3', state.intent);
   const effectiveVideoModel = getEffectiveProjectAgentVideoModel(state.intent, state.videoModel);
+  const canvasSummary = summarizeProjectAgentCanvas(state.canvas ?? normalizeCanvasState(null));
+  const pendingUiRequestSummary = state.pendingUiRequest
+    ? state.pendingUiRequest.type === 'asset_selection'
+      ? `asset_selection:${state.pendingUiRequest.assetType}:${state.pendingUiRequest.title}`
+      : `confirmation:${state.pendingUiRequest.confirmationType}:${state.pendingUiRequest.title}`
+    : 'none';
 
   return `You are Flowgen, the Flowtra growth agent. Core mission: "Make virality accessible."
 
@@ -1052,6 +1079,16 @@ Workflow rules:
   1) Avatar Ads
   2) Clone Viral Videos (Competitor UGC Replication)
   3) Motion Clone
+- Canvas editing workflow:
+  - Treat the right chat panel as the primary controller for the current canvas.
+  - Use inspectCanvas before making non-trivial canvas edits when you need the latest node/edge context.
+  - Use requestAssetSelection when the user wants an avatar, product, or video but has not specified which exact asset.
+  - Use planCanvasEdit for safe direct canvas changes such as adding nodes, connecting nodes, updating text, updating feature config, formatting layout, and opening node details.
+  - Use confirmDestructiveCanvasAction before clearing the canvas, deleting a multi-node selection, or replacing an existing graph in a way that would drop connections.
+  - Never ask the user to drag nodes manually when the action can be done through canvas editing tools.
+  - If the user asks to clone a video without naming a specific asset, open the video picker and tell them to choose one from the bottom toolbar.
+  - When a canvas action tool succeeds, assume the frontend will apply the returned actions. Do not describe that as a suggestion; describe it as the change you are making.
+  - Keep canvas editing replies concise and action-oriented.
 
 Current state:
 - Avatar: ${avatarLabel}
@@ -1091,6 +1128,10 @@ Current state:
 - Aspect: ${state.videoAspectRatio ?? 'unset'}
 - Language: ${state.language ?? 'unset'}
 - Step: ${state.step ?? 'unknown'}
+- Canvas Nodes: ${canvasSummary.nodeSummary}
+- Canvas Edges: ${canvasSummary.edgeSummary}
+- Canvas Selected Nodes: ${canvasSummary.selectedSummary}
+- Pending Canvas UI Request: ${pendingUiRequestSummary}
 
 Stay concise, ask one clarification at a time, and prefer explicit confirmations before running generation tools.
 `;
@@ -1133,6 +1174,12 @@ const mergeState = (state: SessionState, patch: Partial<SessionState>) => {
     ...patch
   };
 
+  nextState.canvas = normalizeCanvasState(nextState.canvas);
+  nextState.pendingUiRequest = normalizeProjectAgentPendingUiRequest(nextState.pendingUiRequest);
+  nextState.appliedCanvasActionCallIds = Array.isArray(nextState.appliedCanvasActionCallIds)
+    ? nextState.appliedCanvasActionCallIds.filter((item): item is string => typeof item === 'string').slice(-200)
+    : [];
+
   nextState.avatarSelection = syncAvatarSelectionFromState(nextState);
   if (nextState.intent === 'avatar_ads') {
     nextState.avatarStage = inferProjectAgentAvatarStage({
@@ -1161,6 +1208,7 @@ const buildFreshCloneState = (state: SessionState): SessionState => ({
   ...state,
   intent: 'competitor_ugc_replication',
   videoModel: 'kling_3',
+  pendingUiRequest: null,
   cloneReferenceVideo: undefined,
   cloneReplacementDraft: undefined,
   cloneExecution: null,
@@ -1176,6 +1224,7 @@ const mapClonePhaseFromStatusPayload = mapClonePhaseFromPayload;
 const buildFreshAvatarState = (state: SessionState): SessionState => ({
   ...state,
   intent: 'avatar_ads',
+  pendingUiRequest: null,
   step: 'collecting',
   avatarStage: 'avatar_asset_selection',
   avatarDraft: null,
@@ -1202,6 +1251,7 @@ const buildFreshAvatarState = (state: SessionState): SessionState => ({
 const buildFreshMotionCloneState = (state: SessionState): SessionState => ({
   ...state,
   intent: 'motion_clone',
+  pendingUiRequest: null,
   cloneReferenceVideo: undefined,
   cloneReplacementDraft: undefined,
   cloneExecution: null,
@@ -1593,6 +1643,46 @@ export async function POST(request: Request) {
       return createUIMessageStreamResponse({ stream });
     };
 
+    const sendDirectCanvasActionReply = async (input: {
+      replyText: string;
+      toolName: 'planCanvasEdit' | 'requestAssetSelection' | 'confirmDestructiveCanvasAction';
+      output: {
+        success: boolean;
+        actions: ProjectAgentCanvasAction[];
+      };
+      nextState?: SessionState;
+    }) => {
+      const assistantMessage: UIMessage = {
+        id: `assistant-direct-${Date.now().toString(36)}`,
+        role: 'assistant',
+        parts: [{ type: 'text', text: input.replyText }]
+      };
+      const messagesToPersist = dedupeMessages([...conversationMessages, assistantMessage]);
+      await persistMessagesOnly(messagesToPersist, input.nextState);
+
+      const toolCallId = `canvas-tool-${Date.now().toString(36)}`;
+      const stream = createUIMessageStream<UIMessage>({
+        execute: ({ writer }) => {
+          writer.write({
+            type: 'tool-input-available',
+            toolCallId,
+            toolName: input.toolName,
+            input: {},
+          });
+          writer.write({
+            type: 'tool-output-available',
+            toolCallId,
+            output: input.output,
+          });
+          writer.write({ type: 'text-start', id: assistantMessage.id });
+          writer.write({ type: 'text-delta', id: assistantMessage.id, delta: input.replyText });
+          writer.write({ type: 'text-end', id: assistantMessage.id });
+        }
+      });
+
+      return createUIMessageStreamResponse({ stream });
+    };
+
     if (!existingSession) {
       const insertPayload = {
         id: resolvedSessionId,
@@ -1638,6 +1728,72 @@ export async function POST(request: Request) {
         conversationMessages,
         statePatch && typeof statePatch === 'object' ? sessionState : undefined
       );
+    }
+
+    const plannedCanvasCommand = planProjectAgentCanvasCommand(
+      messageText(normalizedIncomingMessage),
+      sessionState.canvas ?? normalizeCanvasState(null),
+    );
+
+    if (plannedCanvasCommand?.type === 'asset_selection') {
+      const nextState = mergeState(sessionState, {
+        pendingUiRequest: plannedCanvasCommand.request,
+      });
+      return sendDirectCanvasActionReply({
+        replyText: plannedCanvasCommand.reply,
+        toolName: 'requestAssetSelection',
+        output: {
+          success: true,
+          actions: [
+            {
+              kind: 'ui_action',
+              action: {
+                type: 'open_asset_picker',
+                request: plannedCanvasCommand.request,
+              },
+            },
+          ],
+        },
+        nextState,
+      });
+    }
+
+    if (plannedCanvasCommand?.type === 'confirmation') {
+      const nextState = mergeState(sessionState, {
+        pendingUiRequest: plannedCanvasCommand.request,
+      });
+      return sendDirectCanvasActionReply({
+        replyText: plannedCanvasCommand.reply,
+        toolName: 'confirmDestructiveCanvasAction',
+        output: {
+          success: true,
+          actions: [
+            {
+              kind: 'ui_action',
+              action: {
+                type: 'request_confirmation',
+                request: plannedCanvasCommand.request,
+              },
+            },
+          ],
+        },
+        nextState,
+      });
+    }
+
+    if (plannedCanvasCommand?.type === 'safe_edit') {
+      return sendDirectCanvasActionReply({
+        replyText: plannedCanvasCommand.reply,
+        toolName: 'planCanvasEdit',
+        output: {
+          success: true,
+          actions: plannedCanvasCommand.actions,
+        },
+      });
+    }
+
+    if (plannedCanvasCommand?.type === 'inspect_only') {
+      return sendDirectAssistantReply(plannedCanvasCommand.reply);
     }
 
     if (nextCloneFollowupDecision === 'clarify-finished' || nextCloneFollowupDecision === 'clarify-in-progress') {
@@ -2463,6 +2619,106 @@ export async function POST(request: Request) {
       stopWhen: stepCountIs(5),
       ...(forcedToolChoice ? { toolChoice: forcedToolChoice } : {}),
       tools: {
+        inspectCanvas: tool({
+          description: 'Inspect the current canvas graph, selection, and pending UI request before planning canvas edits.',
+          inputSchema: emptySchema,
+          execute: async () => ({
+            success: true,
+            canvas: summarizeProjectAgentCanvas(sessionState.canvas ?? normalizeCanvasState(null)),
+            pendingUiRequest: sessionState.pendingUiRequest ?? null,
+          })
+        }),
+        planCanvasEdit: tool({
+          description: 'Return safe canvas actions that the frontend can apply directly.',
+          inputSchema: jsonSchema({
+            type: 'object',
+            properties: {
+              actions: {
+                type: 'array',
+                items: { type: 'object', additionalProperties: true }
+              }
+            },
+            required: ['actions']
+          }),
+          execute: async ({ actions }) => ({
+            success: true,
+            actions: Array.isArray(actions) ? actions as ProjectAgentCanvasAction[] : [],
+          })
+        }),
+        requestAssetSelection: tool({
+          description: 'Open the bottom asset picker when a concrete avatar, product, or video must be chosen by the user.',
+          inputSchema: jsonSchema({
+            type: 'object',
+            properties: {
+              assetType: { type: 'string', enum: ['avatar', 'product', 'video'] },
+              title: { type: 'string' },
+              instructions: { type: 'string' },
+              nodeAlias: { type: 'string' },
+              mutations: {
+                type: 'array',
+                items: { type: 'object', additionalProperties: true }
+              }
+            },
+            required: ['assetType', 'title', 'instructions', 'nodeAlias', 'mutations']
+          }),
+          execute: async ({ assetType, title, instructions, nodeAlias, mutations }) => {
+            const request: ProjectAgentPendingUiRequest = {
+              type: 'asset_selection',
+              assetType: assetType as ProjectAgentSelectableAssetType,
+              title,
+              instructions,
+              nodeAlias,
+              mutations: Array.isArray(mutations) ? mutations as ProjectAgentCanvasMutation[] : [],
+            };
+            await persistSession({ pendingUiRequest: request });
+            return {
+              success: true,
+              actions: [{
+                kind: 'ui_action',
+                action: {
+                  type: 'open_asset_picker',
+                  request,
+                },
+              }] as ProjectAgentCanvasAction[],
+            };
+          }
+        }),
+        confirmDestructiveCanvasAction: tool({
+          description: 'Request user confirmation before destructive canvas actions such as clear canvas or deleting a graph.',
+          inputSchema: jsonSchema({
+            type: 'object',
+            properties: {
+              confirmationType: { type: 'string', enum: ['clear_canvas', 'delete_nodes', 'replace_graph'] },
+              title: { type: 'string' },
+              message: { type: 'string' },
+              mutations: {
+                type: 'array',
+                items: { type: 'object', additionalProperties: true }
+              }
+            },
+            required: ['confirmationType', 'title', 'message', 'mutations']
+          }),
+          execute: async ({ confirmationType, title, message, mutations }) => {
+            const request: ProjectAgentPendingConfirmationRequest = {
+              type: 'confirmation',
+              confirmationType: confirmationType as ProjectAgentPendingConfirmationRequest['confirmationType'],
+              title,
+              message,
+              mutations: Array.isArray(mutations) ? mutations as ProjectAgentCanvasMutation[] : [],
+            };
+            await persistSession({ pendingUiRequest: request });
+            return {
+              success: true,
+              actions: [{
+                kind: 'ui_action',
+                action: {
+                  type: 'request_confirmation',
+                  request,
+                },
+              }] as ProjectAgentCanvasAction[],
+            };
+          }
+        }),
         listAvatars: tool({
           description: 'List available avatars for the user',
           inputSchema: emptySchema,
