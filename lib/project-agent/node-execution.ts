@@ -176,15 +176,15 @@ export const buildAvatarAdsStartPayload = (input: {
 });
 
 export const buildVideoCloneStartPayload = (input: {
-  avatar: ProjectAgentCanvasAssetRef;
-  product: ProjectAgentCanvasAssetRef;
+  avatar?: ProjectAgentCanvasAssetRef | null;
+  product?: ProjectAgentCanvasAssetRef | null;
   video: ProjectAgentCanvasAssetRef;
   config?: ProjectAgentFeatureNodeConfig | null;
 }) => ({
   creatorSourceVideoId: input.video.sourceType === 'competitor_ad' ? undefined : input.video.id,
   competitorAdId: input.video.sourceType === 'competitor_ad' ? input.video.id : undefined,
-  selectedAvatarIds: [input.avatar.id],
-  selectedProductIds: [input.product.id],
+  selectedAvatarIds: input.avatar?.id ? [input.avatar.id] : [],
+  selectedProductIds: input.product?.id ? [input.product.id] : [],
   videoModel: 'kling_3' as const,
   videoAspectRatio: input.config?.aspectRatio || '9:16',
   videoDuration: input.config?.videoDuration || '8',

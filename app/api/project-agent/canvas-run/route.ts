@@ -116,9 +116,14 @@ const assertAvatarCredits = async (userId: string, body: CanvasRunRequestBody) =
 };
 
 const assertVideoCloneCredits = async (userId: string, body: CanvasRunRequestBody) => {
-  const avatar = ensureAsset(body.connectedAssets?.avatar, 'Avatar');
-  const product = ensureAsset(body.connectedAssets?.product, 'Product');
+  const avatar = body.connectedAssets?.avatar || null;
+  const product = body.connectedAssets?.product || null;
   const video = ensureAsset(body.connectedAssets?.video, 'Video');
+
+  if (!avatar && !product) {
+    throw new Error('Video Clone requires an avatar or product.');
+  }
+
   const payload = buildVideoCloneStartPayload({
     avatar,
     product,
@@ -284,9 +289,14 @@ const startAvatarAds = async (origin: string, userId: string, body: CanvasRunReq
 };
 
 const startVideoClone = async (origin: string, userId: string, body: CanvasRunRequestBody) => {
-  const avatar = ensureAsset(body.connectedAssets?.avatar, 'Avatar');
-  const product = ensureAsset(body.connectedAssets?.product, 'Product');
+  const avatar = body.connectedAssets?.avatar || null;
+  const product = body.connectedAssets?.product || null;
   const video = ensureAsset(body.connectedAssets?.video, 'Video');
+
+  if (!avatar && !product) {
+    throw new Error('Video Clone requires an avatar or product.');
+  }
+
   const payload = buildVideoCloneStartPayload({
     avatar,
     product,

@@ -16,7 +16,7 @@ type InsertToolbarProps = {
 };
 
 const draggableButtonClass =
-  'flex w-full items-center gap-3 rounded-[18px] border border-[#dedbd1] bg-white px-3 py-2.5 text-left text-sm font-medium text-black shadow-[0_10px_24px_rgba(0,0,0,0.06)] transition hover:-translate-y-0.5 hover:border-[#cfc9bb]';
+  'inline-flex w-fit max-w-full items-center gap-3 overflow-hidden rounded-[12px] border border-[#cfcfcb] bg-white px-3 py-2.5 text-left text-sm font-medium text-[#171717] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f3f3f1] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)]';
 
 const setCustomDragPreview = (event: React.DragEvent<HTMLElement>, label: string) => {
   const preview = document.createElement('div');
@@ -82,11 +82,12 @@ const DragItem = ({
       setCustomDragPreview(event, label);
     }}
     type="button"
+    title={label}
   >
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#f4f2ea]">
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[8px] border border-[#d8d8d4] bg-[#f1f1ef]">
       {leading}
     </span>
-    <span className="truncate whitespace-nowrap pr-2">{label}</span>
+    <span className="max-w-[240px] truncate whitespace-nowrap pr-1">{label}</span>
   </button>
 );
 
@@ -97,9 +98,9 @@ const AssetList = ({
   items: ProjectAgentCanvasAssetRef[];
   type: ProjectAgentAssetNodeType;
 }) => (
-  <div className="grid gap-2">
+  <div className="flex flex-col items-start gap-2">
     {items.length === 0 ? (
-      <p className="rounded-2xl border border-dashed border-[#ddd9ce] px-3 py-3 text-xs text-[#7c7c76]">
+      <p className="rounded-[14px] border border-dashed border-[#d4d4d4] bg-[#fafafa] px-3 py-3 text-xs text-[#737373]">
         No {type} assets yet.
       </p>
     ) : (
@@ -132,7 +133,6 @@ export default function InsertToolbar({
 }: InsertToolbarProps) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
   const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const [dropdownOffset, setDropdownOffset] = useState(0);
   const featureTypes: ProjectAgentFeatureNodeType[] = ['video_clone', 'avatar_ads', 'motion_clone'];
@@ -157,17 +157,15 @@ export default function InsertToolbar({
       const toolbarRect = toolbarRef.current?.getBoundingClientRect();
       const triggerRect = triggerRefs.current[openKey]?.getBoundingClientRect();
       if (!toolbarRect || !triggerRect) return;
-      setDropdownOffset(triggerRect.left - toolbarRect.left);
+      const desiredLeft = triggerRect.left - toolbarRect.left;
+      setDropdownOffset(Math.max(0, desiredLeft));
     };
 
     updateOffset();
 
-    const scrollEl = scrollRef.current;
-    scrollEl?.addEventListener('scroll', updateOffset, { passive: true });
     window.addEventListener('resize', updateOffset);
 
     return () => {
-      scrollEl?.removeEventListener('scroll', updateOffset);
       window.removeEventListener('resize', updateOffset);
     };
   }, [openKey]);
@@ -178,7 +176,7 @@ export default function InsertToolbar({
     if (openKey === 'video') return <AssetList items={videos} type="video" />;
     if (openKey === 'feature') {
       return (
-        <div className="grid gap-2">
+        <div className="flex flex-col items-start gap-2">
           {featureTypes.map((featureType) => {
             const FeatureIcon = getFeatureIcon(featureType);
             return (
@@ -197,19 +195,21 @@ export default function InsertToolbar({
   };
 
   return (
-    <div ref={toolbarRef} className="pointer-events-auto relative max-w-full rounded-[28px] border border-[#ddd9ce] bg-white/95 p-3 shadow-[0_20px_50px_rgba(0,0,0,0.12)] backdrop-blur">
+    <div
+      ref={toolbarRef}
+      className="pointer-events-auto relative max-w-full rounded-[20px] border border-[#cdcdca] bg-[#f1f1ef] p-2 shadow-[0_14px_30px_rgba(0,0,0,0.08)] backdrop-blur"
+    >
       {openKey ? (
         <div
-          className="absolute bottom-[calc(100%+12px)] z-20 min-w-[220px] rounded-[24px] border border-[#ddd9ce] bg-white p-3 shadow-[0_24px_60px_rgba(0,0,0,0.16)]"
-          style={{ left: dropdownOffset }}
+          className="absolute bottom-[calc(100%+10px)] z-20 inline-flex w-fit max-w-[360px] rounded-[16px] border border-[#cdcdca] bg-[#f1f1ef] p-2 shadow-[0_16px_36px_rgba(0,0,0,0.10)]"
+          style={{ left: dropdownOffset, width: 'fit-content' }}
         >
           <div className="max-h-[min(60vh,420px)] overflow-y-auto pr-1">
             {renderDropdownContent()}
           </div>
         </div>
       ) : null}
-      <div ref={scrollRef} className="overflow-x-auto">
-        <div className="flex min-w-max items-end gap-2">
+      <div className="flex items-end gap-1.5 max-[1320px]:gap-1.5">
         {[
           { key: 'avatar', label: 'Avatar' },
           { key: 'product', label: 'Product' },
@@ -225,16 +225,18 @@ export default function InsertToolbar({
               ref={(element) => {
                 triggerRefs.current[entry.key] = element;
               }}
-              className={`flex min-w-0 items-center gap-1.5 rounded-[22px] border px-3 py-2.5 text-sm font-semibold ${
+              className={`flex h-11 min-w-0 items-center gap-1.5 rounded-[12px] border px-3 py-2 text-sm font-semibold transition-all duration-150 max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0 ${
                 open
-                  ? 'border-black bg-black text-white'
-                  : 'border-[#dad6cb] bg-[#f8f7f2] text-black'
+                  ? 'border-[#111111] bg-[#111111] text-white shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_3px_0_rgba(20,20,20,0.95),0_12px_20px_rgba(0,0,0,0.16)] hover:-translate-y-[1px] hover:bg-[#1a1a1a] hover:shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_5px_0_rgba(20,20,20,0.95),0_16px_24px_rgba(0,0,0,0.18)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.06)_inset,0_1px_0_rgba(20,20,20,0.9),0_8px_12px_rgba(0,0,0,0.14)]'
+                  : 'border-[#cfcfcb] bg-white text-[#2a2a2a] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f6f6f4] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)]'
               }`}
               onClick={() => setOpenKey((current) => current === entry.key ? null : entry.key)}
               type="button"
+              aria-label={entry.label}
+              title={entry.label}
             >
               <EntryIcon className="h-4 w-4 shrink-0" />
-              <span className="hidden min-[520px]:inline truncate">{entry.label}</span>
+              <span className="truncate max-[1320px]:hidden">{entry.label}</span>
               <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
             </button>
           </div>
@@ -243,17 +245,17 @@ export default function InsertToolbar({
 
         {/* Text node — directly draggable, no dropdown */}
         <div
-          className="flex shrink cursor-grab items-center gap-1.5 overflow-hidden rounded-[22px] border border-[#dad6cb] bg-[#f8f7f2] px-3 py-2.5 text-sm font-semibold text-black active:cursor-grabbing"
+          className="flex h-11 shrink cursor-grab items-center gap-1.5 overflow-hidden rounded-[12px] border border-[#cfcfcb] bg-white px-3 py-2 text-sm font-semibold text-[#2a2a2a] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f6f6f4] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:cursor-grabbing active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)] max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0"
           draggable
           onDragStart={(event) => {
             event.dataTransfer.effectAllowed = 'copy';
             event.dataTransfer.setData('application/json', JSON.stringify({ kind: 'text' }));
             setCustomDragPreview(event, 'Text');
           }}
+          title="Text"
         >
           <Type className="h-4 w-4 shrink-0" />
-          <span className="hidden min-[520px]:inline">Text</span>
-        </div>
+          <span className="max-[1320px]:hidden">Text</span>
         </div>
       </div>
     </div>

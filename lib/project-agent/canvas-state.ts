@@ -164,7 +164,7 @@ export const PROJECT_AGENT_FEATURE_INPUTS: Record<
   ProjectAgentFeatureNodeType,
   ProjectAgentAssetNodeType[]
 > = {
-  video_clone: ['avatar', 'product', 'video'],
+  video_clone: ['video'],
   avatar_ads: ['avatar', 'text'],
   motion_clone: ['video'],
 };
@@ -174,6 +174,7 @@ export const PROJECT_AGENT_FEATURE_ANY_OF_INPUTS: Partial<Record<
   ProjectAgentFeatureNodeType,
   ProjectAgentAssetNodeType[]
 >> = {
+  video_clone: ['avatar', 'product'],
   motion_clone: ['avatar', 'product'],
 };
 
@@ -335,7 +336,7 @@ export const formatMissingFeatureInputsLabel = (
   featureType: ProjectAgentFeatureNodeType,
   missingInputs: ProjectAgentAssetNodeType[]
 ) => {
-  if (featureType === 'motion_clone') {
+  if (featureType === 'video_clone' || featureType === 'motion_clone') {
     const needsVideo = missingInputs.includes('video');
     const needsSwapTarget =
       missingInputs.includes('avatar') && missingInputs.includes('product');
