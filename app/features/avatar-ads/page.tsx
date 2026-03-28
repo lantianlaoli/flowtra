@@ -1,5 +1,6 @@
 import { type Metadata } from 'next';
 import AvatarAdsShowcasePage from '@/components/pages/AvatarAdsShowcasePage';
+import { DEFAULT_SOCIAL_IMAGE_PATH } from '@/lib/social-image';
 
 export const metadata: Metadata = {
   title: 'Avatar Ads - AI Character-Driven Video Ads | Flowtra',
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
     siteName: 'Flowtra',
     images: [
       {
-        url: '/opengraph-image.jpg',
+        url: DEFAULT_SOCIAL_IMAGE_PATH,
         width: 1200,
         height: 630,
         alt: 'Avatar Ads - AI Character-Driven Video Ads',
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Avatar Ads - AI Character-Driven Video Ads | Flowtra',
     description: 'Create realistic AI character-driven video ads with Google Veo3. Custom dialogue and professional quality.',
-    images: ['/twitter-image.png'],
+    images: [DEFAULT_SOCIAL_IMAGE_PATH],
     creator: '@flowtra',
   },
   robots: {

@@ -1,5 +1,6 @@
 import { type Metadata } from 'next';
 import MotionCloneShowcasePage from '@/components/pages/MotionCloneShowcasePage';
+import { DEFAULT_SOCIAL_IMAGE_PATH } from '@/lib/social-image';
 
 export const metadata: Metadata = {
   title: 'Motion Clone - Clone Viral Ads Instantly | Flowtra',
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
     siteName: 'Flowtra',
     images: [
       {
-        url: '/opengraph-image.jpg',
+        url: DEFAULT_SOCIAL_IMAGE_PATH,
         width: 1200,
         height: 630,
         alt: 'Motion Clone - Clone Viral Ads Instantly',
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Motion Clone - Clone Viral Ads Instantly | Flowtra',
     description: 'Clone viral ads in seconds. AI preserves movements while swapping person and product. Smart frame editing included.',
-    images: ['/twitter-image.png'],
+    images: [DEFAULT_SOCIAL_IMAGE_PATH],
     creator: '@flowtra',
   },
   robots: {

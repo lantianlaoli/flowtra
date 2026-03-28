@@ -1,5 +1,6 @@
 import { type Metadata } from 'next';
 import CompetitorReplicaShowcasePage from '@/components/pages/CompetitorReplicaShowcasePage';
+import { DEFAULT_SOCIAL_IMAGE_PATH } from '@/lib/social-image';
 
 export const metadata: Metadata = {
   title: 'Viral Clone - Clone Viral Videos with AI | Flowtra',
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
     siteName: 'Flowtra',
     images: [
       {
-        url: '/opengraph-image.jpg',
+        url: DEFAULT_SOCIAL_IMAGE_PATH,
         width: 1200,
         height: 630,
         alt: 'Viral Clone - AI Video Cloning',
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Viral Clone - Clone Viral Videos with AI | Flowtra',
     description: 'Recreate top-performing viral videos in minutes with AI.',
-    images: ['/twitter-image.png'],
+    images: [DEFAULT_SOCIAL_IMAGE_PATH],
     creator: '@flowtra',
   },
   robots: {

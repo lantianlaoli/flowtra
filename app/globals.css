@@ -3517,7 +3517,84 @@ body {
 }
 
 .project-agent-chat-bubble--assistant {
+  --flowgen-thinking-mark-fill: #1f1f1e;
+  --flowgen-thinking-mark-cutout: #efefed;
+  --flowgen-thinking-mark-glow: rgba(31, 31, 30, 0.12);
+  --flowgen-thinking-mark-shadow: rgba(31, 31, 30, 0.16);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.project-agent-thinking-row {
+  min-height: 20px;
+}
+
+.project-agent-thinking-mark {
+  color: var(--flowgen-thinking-mark-fill, currentColor);
+  overflow: visible;
+  transform-origin: center;
+  will-change: transform;
+}
+
+.flowgen-thinking-mark__glow {
+  opacity: 0.14;
+}
+
+.flowgen-thinking-mark__glyph {
+  fill: currentColor;
+}
+
+.flowgen-thinking-mark__counter {
+  fill: var(--flowgen-thinking-mark-cutout, #efefed);
+}
+
+.flowgen-thinking-mark__breath,
+.flowgen-thinking-mark__glow,
+.flowgen-thinking-mark__glyph-group,
+.flowgen-thinking-mark__eye-line {
+  transform-box: view-box;
+  transform-origin: center;
+}
+
+.flowgen-thinking-mark--light {
+  --flowgen-thinking-mark-fill: #f8fafc;
+  --flowgen-thinking-mark-cutout: #111827;
+  --flowgen-thinking-mark-glow: rgba(248, 250, 252, 0.12);
+  --flowgen-thinking-mark-shadow: rgba(15, 23, 42, 0.24);
+}
+
+.flowgen-thinking-mark--dark {
+  --flowgen-thinking-mark-fill: #111111;
+  --flowgen-thinking-mark-cutout: #f5f5f4;
+  --flowgen-thinking-mark-glow: rgba(17, 17, 17, 0.1);
+  --flowgen-thinking-mark-shadow: rgba(17, 17, 17, 0.16);
+}
+
+.flowgen-thinking-mark--animated .flowgen-thinking-mark__breath {
+  animation: flowgen-thinking-mark-breath 4.2s ease-in-out infinite;
+}
+
+.flowgen-thinking-mark--animated .flowgen-thinking-mark__settle {
+  animation: flowgen-thinking-mark-settle 5.2s cubic-bezier(0.45, 0.05, 0.2, 1) infinite;
+}
+
+.flowgen-thinking-mark--animated .flowgen-thinking-mark__glow {
+  animation: flowgen-thinking-mark-glow 4.2s ease-in-out infinite;
+}
+
+.flowgen-thinking-mark--animated .flowgen-thinking-mark__glyph-group--t {
+  animation: flowgen-thinking-mark-forehead 3.6s cubic-bezier(0.45, 0.05, 0.2, 1) infinite;
+}
+
+.flowgen-thinking-mark--animated .flowgen-thinking-mark__glyph-group--r {
+  animation: flowgen-thinking-mark-nose 3.6s cubic-bezier(0.45, 0.05, 0.2, 1) infinite;
+}
+
+.flowgen-thinking-mark--animated .flowgen-thinking-mark__glyph-group--a {
+  animation: flowgen-thinking-mark-eye-face 3.6s cubic-bezier(0.45, 0.05, 0.2, 1) infinite;
+}
+
+.flowgen-thinking-mark--animated .flowgen-thinking-mark__eye-line {
+  animation: flowgen-thinking-mark-blink-line 3.6s ease-in-out infinite;
 }
 
 .project-agent-chip {
@@ -3739,6 +3816,10 @@ body {
 }
 
 .dashboard-theme .project-agent-chat-bubble--assistant {
+  --flowgen-thinking-mark-fill: #e2e8f0;
+  --flowgen-thinking-mark-cutout: #172136;
+  --flowgen-thinking-mark-glow: rgba(226, 232, 240, 0.12);
+  --flowgen-thinking-mark-shadow: rgba(2, 6, 23, 0.34);
   background:
     linear-gradient(180deg, rgba(23, 33, 54, 0.98) 0%, rgba(15, 23, 42, 1) 100%) !important;
   color: #e2e8f0 !important;
@@ -3751,6 +3832,156 @@ body {
 .dashboard-theme .project-agent-inline-code {
   background: rgba(148, 163, 184, 0.14) !important;
   color: inherit !important;
+}
+
+@keyframes flowgen-thinking-mark-breath {
+  0%,
+  100% {
+    transform: translateX(0) translateY(0) scale(1.01);
+  }
+  22% {
+    transform: translateX(0) translateY(-0.35px) scale(1.03, 1.045);
+  }
+  48% {
+    transform: translateX(0) translateY(0.2px) scale(0.992, 0.982);
+  }
+  68% {
+    transform: translateX(0) translateY(-0.45px) scale(1.04, 1.055);
+  }
+  84% {
+    transform: translateX(0) translateY(0.15px) scale(1.005, 0.995);
+  }
+}
+
+@keyframes flowgen-thinking-mark-settle {
+  0%,
+  100% {
+    transform: translateX(0) translateY(0) rotate(-0.35deg);
+  }
+  16% {
+    transform: translateX(-0.2px) translateY(-0.15px) rotate(-0.9deg);
+  }
+  34% {
+    transform: translateX(0.18px) translateY(0.12px) rotate(0.55deg);
+  }
+  52% {
+    transform: translateX(0.25px) translateY(-0.22px) rotate(1.1deg);
+  }
+  72% {
+    transform: translateX(-0.16px) translateY(0.16px) rotate(-0.7deg);
+  }
+  88% {
+    transform: translateX(0.08px) translateY(-0.08px) rotate(0.3deg);
+  }
+}
+
+@keyframes flowgen-thinking-mark-glow {
+  0%,
+  100% {
+    opacity: 0.1;
+    transform: translateX(0) translateY(0) scale(0.985);
+  }
+  32% {
+    opacity: 0.16;
+    transform: translateX(-1.2px) translateY(-0.7px) scale(1.01);
+  }
+  68% {
+    opacity: 0.19;
+    transform: translateX(1.4px) translateY(-1px) scale(1.018);
+  }
+}
+
+@keyframes flowgen-thinking-mark-forehead {
+  0%,
+  100% {
+    transform: translateX(0) translateY(0) rotate(0deg);
+  }
+  18% {
+    transform: translateX(-2.1px) translateY(-2px) rotate(-5deg);
+  }
+  36% {
+    transform: translateX(1.4px) translateY(0.6px) rotate(2.6deg);
+  }
+  58% {
+    transform: translateX(0.5px) translateY(-1.6px) rotate(1.4deg);
+  }
+  80% {
+    transform: translateX(-1px) translateY(0.3px) rotate(-2.2deg);
+  }
+}
+
+@keyframes flowgen-thinking-mark-nose {
+  0%,
+  100% {
+    transform: translateX(0) translateY(0) rotate(0deg);
+  }
+  14% {
+    transform: translateX(2px) translateY(-1px) rotate(4.2deg);
+  }
+  32% {
+    transform: translateX(-1.6px) translateY(1.2px) rotate(-3.2deg);
+  }
+  56% {
+    transform: translateX(1.8px) translateY(-2px) rotate(5deg);
+  }
+  76% {
+    transform: translateX(-1.2px) translateY(0.8px) rotate(-2.5deg);
+  }
+}
+
+@keyframes flowgen-thinking-mark-eye-face {
+  0%,
+  100% {
+    transform: translateX(0) translateY(0) rotate(0deg);
+  }
+  12% {
+    transform: translateX(-1.4px) translateY(-1.6px) rotate(-3deg);
+  }
+  30% {
+    transform: translateX(1.9px) translateY(0.8px) rotate(3.8deg);
+  }
+  52% {
+    transform: translateX(-0.9px) translateY(-2.1px) rotate(-4.2deg);
+  }
+  72% {
+    transform: translateX(1.1px) translateY(0.5px) rotate(2.4deg);
+  }
+  88% {
+    transform: translateX(-0.5px) translateY(-0.4px) rotate(-1deg);
+  }
+}
+
+@keyframes flowgen-thinking-mark-blink-line {
+  0%,
+  7%,
+  13%,
+  59%,
+  65%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+  9%,
+  61% {
+    transform: translateY(20px) scaleY(0.08);
+  }
+  11%,
+  63% {
+    transform: translateY(20px) scaleY(0.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flowgen-thinking-mark--animated.project-agent-thinking-mark,
+  .flowgen-thinking-mark--animated .flowgen-thinking-mark__breath,
+  .flowgen-thinking-mark--animated .flowgen-thinking-mark__settle,
+  .flowgen-thinking-mark--animated .flowgen-thinking-mark__glow,
+  .flowgen-thinking-mark--animated .flowgen-thinking-mark__eye-line {
+    animation: none;
+  }
+
+  .flowgen-thinking-mark--animated {
+    opacity: 0.92;
+  }
 }
 
 /* Custom scrollbar styling */

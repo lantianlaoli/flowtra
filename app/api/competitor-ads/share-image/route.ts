@@ -7,6 +7,7 @@ import {
   buildShareImagePrompt,
   resolveClerkDisplayName,
 } from '@/lib/competitor-share-image';
+import { DEFAULT_SOCIAL_IMAGE_URL } from '@/lib/social-image';
 
 const KIE_API_BASE_URL = 'https://api.kie.ai/api/v1/jobs';
 
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
       creatorUsername,
       generatedAt: new Date(),
     });
-    const logoReferenceUrl = 'https://flowtra.store/twitter-image.png';
+    const logoReferenceUrl = DEFAULT_SOCIAL_IMAGE_URL;
     console.log('[Share Image] Resolved creator username:', creatorUsername);
 
     const payload = {

@@ -9,6 +9,7 @@ import { AlertTriangle, ArrowUpRight, History, Loader2, MessageCircle, Plus, Sea
 import Sidebar from '@/components/layout/Sidebar';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
+import FlowgenThinkingMark from '@/components/ui/FlowgenThinkingMark';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import CanvasBoard from '@/components/project-agent/canvas/CanvasBoard';
 import InsertToolbar from '@/components/project-agent/canvas/InsertToolbar';
@@ -1861,8 +1862,13 @@ export default function ProjectAgentPage() {
 
                   {awaitingAssistantTurn ? (
                     <div className="project-agent-chat-bubble project-agent-chat-bubble--assistant max-w-[94%] rounded-[12px] bg-[#efefed] px-4 py-3 text-sm text-[#787876]">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                      <div className="project-agent-thinking-row flex items-center gap-2.5">
+                        <FlowgenThinkingMark
+                          size={22}
+                          animated
+                          tone="inherit"
+                          className="project-agent-thinking-mark shrink-0"
+                        />
                         <span>thinking...</span>
                       </div>
                     </div>
