@@ -83,6 +83,7 @@ type SnappedConnectionTarget = {
 
 const SESSION_STORAGE_KEY = 'flowtra_project_agent_session_id';
 const HISTORY_STORAGE_KEY = 'flowtra_project_agent_history_ids';
+const MAX_HISTORY_ITEMS = 8;
 
 const createSessionId = () => {
   try {
@@ -265,7 +266,12 @@ export default function ProjectAgentPage() {
   }, []);
 
   const refreshHistory = useCallback(async () => {
-    const ids = readHistoryIds();
+    if (!user) {
+      setHistoryItems([]);
+      return;
+    }
+
+    const ids = readHistoryIds().slice(0, MAX_HISTORY_ITEMS);
     if (ids.length === 0) {
       setHistoryItems([]);
       return;
@@ -289,7 +295,7 @@ export default function ProjectAgentPage() {
     }));
 
     setHistoryItems(loaded.filter((item): item is HistoryItem => Boolean(item)));
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     pendingUiRequestRef.current = pendingUiRequest;
@@ -461,15 +467,15 @@ export default function ProjectAgentPage() {
   }, [ensureSessionExists, setMessages]);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || !user) return;
     const nextSessionId = readCurrentSessionId() || createSessionId();
     writeCurrentSessionId(nextSessionId);
     ensureHistoryTracked(nextSessionId);
     setSessionId(nextSessionId);
-  }, [ensureHistoryTracked, isLoaded]);
+  }, [ensureHistoryTracked, isLoaded, user]);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || !user) return;
     let cancelled = false;
 
     const load = async () => {
@@ -494,7 +500,7 @@ export default function ProjectAgentPage() {
     return () => {
       cancelled = true;
     };
-  }, [fetchSession, loadAssets, refreshHistory, sessionId]);
+  }, [fetchSession, loadAssets, refreshHistory, sessionId, user]);
 
   useEffect(() => {
     if (!sessionId || !sessionReady || isStreaming) return;
