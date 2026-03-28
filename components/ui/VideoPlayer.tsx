@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, forwardRef } from 'react';
+import { Volume2, VolumeX } from 'lucide-react';
 import { useVideoAudio } from '@/hooks/useVideoAudio';
 
 interface VideoPlayerProps {
@@ -39,6 +40,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
       handleHover,
       handleLeave,
       handleClickEnable,
+      handleToggleAudio,
     } = useVideoAudio({
       videoRef: currentRef,
       instanceId,
@@ -94,6 +96,25 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
           )}
           Your browser does not support the video tag.
         </video>
+        {!hasError && !showControls ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              handleToggleAudio();
+            }}
+            className="absolute right-3 top-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/65 px-3 py-2 text-xs font-medium text-white shadow-[0_10px_24px_rgba(0,0,0,0.2)] backdrop-blur-sm transition-colors hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-white/60"
+            aria-label={audioEnabled ? 'Mute video audio' : 'Enable video audio'}
+          >
+            {audioEnabled ? (
+              <Volume2 className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <VolumeX className="h-3.5 w-3.5 shrink-0" />
+            )}
+            <span>{audioEnabled ? 'Sound on' : needsClickToEnable ? 'Tap for sound' : 'Sound off'}</span>
+          </button>
+        ) : null}
       </div>
     );
   }
