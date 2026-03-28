@@ -6,6 +6,7 @@ import { Metadata } from 'next';
 import { getArticleBySlug, getAllArticles } from '@/lib/supabase';
 import { calculateReadingTime, extractExcerpt } from '@/lib/article-utils';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
+import { DEFAULT_SOCIAL_IMAGE_PATH, DEFAULT_SOCIAL_IMAGE_URL } from '@/lib/social-image';
 
 // Revalidate individual article pages so content updates without redeploys
 export const revalidate = 60; // seconds
@@ -27,7 +28,7 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
   const readingTime = calculateReadingTime(article.content);
   const publishDate = new Date(article.created_at);
   const excerpt = article.meta_description || extractExcerpt(article.content, 160);
-  const ogImage = article.og_image || article.cover || 'https://www.flowtra.store/opengraph-image.jpg';
+  const ogImage = article.og_image || article.cover || DEFAULT_SOCIAL_IMAGE_URL;
 
   // Schema.org structured data for SEO
   const structuredData = {
@@ -49,7 +50,7 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
       url: 'https://www.flowtra.store',
       logo: {
         '@type': 'ImageObject',
-        url: 'https://www.flowtra.store/logo.png',
+        url: 'https://www.flowtra.store/logo.svg',
       },
     },
     mainEntityOfPage: {
@@ -159,7 +160,7 @@ export async function generateMetadata({ params }: BlogArticlePageProps): Promis
   }
 
   const excerpt = article.meta_description || extractExcerpt(article.content, 160);
-  const ogImage = article.og_image || article.cover || '/opengraph-image.jpg';
+  const ogImage = article.og_image || article.cover || DEFAULT_SOCIAL_IMAGE_PATH;
 
   // Use article-specific keywords if available, otherwise use default keywords
   const keywords = article.keywords && article.keywords.length > 0

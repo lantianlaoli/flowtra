@@ -4,6 +4,7 @@ import { DeferredAnalytics } from '@/components/analytics/DeferredAnalytics';
 import { CookieConsentManager } from '@/components/consent/CookieConsentManager';
 import { CookieConsentProvider } from '@/providers/cookie-consent';
 import { ToastProvider } from '@/contexts/ToastContext';
+import { DEFAULT_SOCIAL_IMAGE_PATH } from '@/lib/social-image';
 import "@fontsource/plus-jakarta-sans/400.css";
 import "@fontsource/plus-jakarta-sans/500.css";
 import "@fontsource/plus-jakarta-sans/600.css";
@@ -83,7 +84,7 @@ export const metadata: Metadata = {
     siteName: 'Flowtra',
     images: [
       {
-        url: '/opengraph-image.png',
+        url: DEFAULT_SOCIAL_IMAGE_PATH,
         width: 1200,
         height: 630,
         alt: 'Turn Viral Videos Into Your Own - Flowtra AI Clone Viral UGC',
@@ -96,7 +97,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Turn Viral Videos Into Your Own - Flowtra AI',
     description: 'Clone viral TikTok & Instagram ads with AI. Proven creative for your products. From $0.30/8s.',
-    images: ['/twitter-image.png'],
+    images: [DEFAULT_SOCIAL_IMAGE_PATH],
     creator: '@flowtra',
   },
   robots: {
@@ -110,22 +111,9 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
-  icons: {
-    icon: [
-      '/favicon.ico',
-      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
-      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' }
-    ],
-    apple: [
-      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }
-    ]
-  },
   other: {
     'msapplication-TileColor': '#ffffff',
-    'msapplication-TileImage': '/ms-icon-150x150.png',
-    'msapplication-config': '/browserconfig.xml',
   },
-  manifest: '/site.webmanifest',
   category: 'technology',
 };
 
@@ -145,6 +133,11 @@ export default function RootLayout({
         <head>
           <meta name="google-site-verification" content="s9LILAiVY8VS08_NWNu9kW3hdlnlQgDMa-Hy1y1Ly3A" />
           <meta name="theme-color" content="#ffffff" />
+          <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+          <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+          <link rel="shortcut icon" href="/favicon.ico" />
+          <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+          <link rel="manifest" href="/site.webmanifest" />
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{
@@ -195,7 +188,7 @@ export default function RootLayout({
                   url: 'https://www.flowtra.store',
                   logo: {
                     '@type': 'ImageObject',
-                    url: 'https://www.flowtra.store/logo.png',
+                    url: 'https://www.flowtra.store/logo.svg',
                     width: '200',
                     height: '60'
                   }
@@ -224,7 +217,7 @@ export default function RootLayout({
                     name: 'Flowtra',
                     logo: {
                       '@type': 'ImageObject',
-                      url: 'https://www.flowtra.store/logo.png'
+                      url: 'https://www.flowtra.store/logo.svg'
                     }
                   }
                 }

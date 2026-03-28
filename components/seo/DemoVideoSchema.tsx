@@ -40,7 +40,7 @@ export default function DemoVideoSchema({ videoUrl, title, description }: DemoVi
       name: 'Flowtra',
       logo: {
         '@type': 'ImageObject',
-        url: 'https://www.flowtra.store/logo.png'
+        url: 'https://www.flowtra.store/logo.svg'
       }
     },
     genre: ['Advertising', 'E-commerce', 'AI Technology'],

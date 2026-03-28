@@ -14,7 +14,7 @@ export default function StructuredData() {
     url: 'https://www.flowtra.store',
     logo: {
       '@type': 'ImageObject',
-      url: 'https://www.flowtra.store/logo.png',
+      url: 'https://www.flowtra.store/logo.svg',
       width: 250,
       height: 60
     },

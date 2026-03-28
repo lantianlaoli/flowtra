@@ -1,5 +1,6 @@
 import { type Metadata } from 'next';
 import AIAgentShowcasePage from '@/components/pages/AIAgentShowcasePage';
+import { DEFAULT_SOCIAL_IMAGE_PATH } from '@/lib/social-image';
 
 export const metadata: Metadata = {
   title: 'AI Agent - Prompt-Guided Clone Workflows | Flowtra',
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
     siteName: 'Flowtra',
     images: [
       {
-        url: '/opengraph-image.jpg',
+        url: DEFAULT_SOCIAL_IMAGE_PATH,
         width: 1200,
         height: 630,
         alt: 'Flowtra AI Agent feature page',
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'AI Agent - Prompt-Guided Clone Workflows | Flowtra',
     description: 'Talk to an AI agent that rewrites image prompts, video prompts, and clone workflows around your assets.',
-    images: ['/twitter-image.png'],
+    images: [DEFAULT_SOCIAL_IMAGE_PATH],
     creator: '@flowtra',
   },
   robots: {
