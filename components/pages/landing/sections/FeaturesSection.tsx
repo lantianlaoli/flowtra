@@ -103,15 +103,15 @@ export default function FeaturesSection() {
         <div className="flex flex-col gap-14 md:gap-24">
           <FeatureSection
             title="AI Agent"
-            description="Talk through clone workflows with an agent that already supports clone videos today, with avatar and motion clone support coming next."
+            description="Build clone workflows in canvas mode with drag-and-drop assets, quick node linking, and support for video clone, motion clone, and talking-head generation."
             href="/features/ai-agent"
             icon={Bot}
             isNew
             bullets={[
-              "Clone videos supported now",
-              "Avatar workflow coming soon",
-              "Motion swap workflow coming soon",
-              "@mentions for asset-aware prompt edits",
+              "Drag people, products, and videos into one canvas",
+              "Connect functions fast with clear visual links",
+              "Run video clone, motion clone, and talking-head flows from one workspace",
+              "Keep asset swaps visible instead of buried in long prompt threads",
             ]}
             media={
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 max-w-lg mx-auto">

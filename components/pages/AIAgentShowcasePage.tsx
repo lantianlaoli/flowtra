@@ -8,20 +8,16 @@ import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
 
 const steps = [
   {
-    title: 'Load the reference context',
-    description: 'Choose the source ad and give the agent the exact clone context it should work from.'
+    title: 'Drag in your assets',
+    description: 'Drop the person, product, and reference video cards onto the canvas to set up the workflow.'
   },
   {
-    title: 'Choose the replacement assets',
-    description: 'Pick the product and character you want the agent to carry through the workflow.'
+    title: 'Drag in the function you want',
+    description: 'Add the canvas function you need, whether it is video clone, motion clone, or batch talking-head generation.'
   },
   {
-    title: 'Refine prompts in chat',
-    description: 'Adjust image prompts, video prompts, and scene intent through conversation before generation.'
-  },
-  {
-    title: 'Generate when the workflow is ready',
-    description: 'Move into images, videos, and final merge only after the clone plan looks right.'
+    title: 'Click start to run it',
+    description: 'Start the selected function when the canvas looks right and let the agent execute the flow from there.'
   }
 ];
 
@@ -35,7 +31,7 @@ export default function AIAgentShowcasePage() {
 
       <FeatureHero
         title="AI Agent"
-        description="Guide a clone workflow through conversation, keep asset swaps explicit, and refine prompts before you spend credits on generation."
+        description="Build clone workflows in canvas mode, drag in people, products, videos, and functions, then launch generation from one clear visual flow."
         primaryCta={primaryCta}
         secondaryCta={secondaryCta}
         mediaVariant="comparison"
@@ -79,7 +75,7 @@ export default function AIAgentShowcasePage() {
       />
 
       <FeatureStepsSection
-        title="Set the clone up in chat before you generate"
+        title="Build the workflow in canvas mode"
         steps={steps}
         primaryCta={primaryCta}
         secondaryCta={secondaryCta}
@@ -88,7 +84,7 @@ export default function AIAgentShowcasePage() {
             <div className="aspect-video w-full">
               <iframe
                 className="h-full w-full"
-                src="https://www.youtube.com/embed/FUkzZvssJTY?rel=0"
+                src="https://www.youtube.com/embed/11CrLHYJ6sA?rel=0"
                 title="Flowtra AI Agent tutorial"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 referrerPolicy="strict-origin-when-cross-origin"
@@ -100,18 +96,18 @@ export default function AIAgentShowcasePage() {
       />
 
       <FeatureBenefitRow
-        title="Choose the video you want to clone"
+        title="Build clone workflows in canvas mode"
         bullets={[
-          'Start from one reference so the clone structure, pacing, and scene order stay grounded.',
-          'Give the agent a clean source context before any prompt rewrites begin.',
-          'Keep the workflow transparent instead of losing the logic behind the clone.'
+          'Drag cards to rearrange the workflow and keep every generation step readable at a glance.',
+          'Connect nodes quickly for video clone flows, motion clone setups, and action-driven variations.',
+          'Batch-generate talking-head product videos and sales-ready character ads from one canvas.'
         ]}
         primaryCta={primaryCta}
         secondaryCta={secondaryCta}
         media={
           <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-[#FAFAFA] shadow-[0_18px_40px_rgba(0,0,0,0.06)] transition-transform duration-200 hover:-translate-y-1">
             <LazyVideoPlayer
-              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/agent_clone_video_select_video.mp4"
+              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/agent_manual_select.mp4"
               wrapperClassName="w-full"
               className="w-full h-auto"
               showControls={false}
@@ -124,11 +120,11 @@ export default function AIAgentShowcasePage() {
       />
 
       <FeatureBenefitRow
-        title="Pick the person and product to replace"
+        title="Swap people, products, and output types fast"
         bullets={[
-          'Keep the chosen character and product explicit so the agent can rewrite prompts cleanly.',
-          'Carry the same asset choices through image prompts, video prompts, and final generation.',
-          'Stay in control of the swap logic instead of rebuilding every scene by hand.'
+          'Drop in the exact person and product cards you want the workflow to use before generation starts.',
+          'Reuse the same canvas setup across clone videos, motion-driven ads, and talking-head sales videos.',
+          'Keep asset swaps visible and editable instead of hiding key choices inside a long chat thread.'
         ]}
         reverse
         primaryCta={primaryCta}
@@ -149,8 +145,8 @@ export default function AIAgentShowcasePage() {
       />
 
       <FeatureSignupCTA
-        title="Ready to plan your first agent-driven clone?"
-        description="Create your account and start shaping clone workflows in chat."
+        title="Ready to build your first canvas workflow?"
+        description="Create your account and start dragging assets, functions, and clone flows into place."
       />
 
       <Footer />

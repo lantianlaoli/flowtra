@@ -3,9 +3,9 @@ import AIAgentShowcasePage from '@/components/pages/AIAgentShowcasePage';
 import { DEFAULT_SOCIAL_IMAGE_PATH } from '@/lib/social-image';
 
 export const metadata: Metadata = {
-  title: 'AI Agent - Prompt-Guided Clone Workflows | Flowtra',
-  description: 'Use Flowtra Agent to replace people and products in prompts, manage long TikTok clone workflows, and generate images plus videos through conversation.',
-  keywords: 'AI agent, prompt editing agent, TikTok clone workflow, image prompt agent, video prompt agent, UGC clone assistant',
+  title: 'AI Agent - Canvas Clone Workflows | Flowtra',
+  description: 'Build clone workflows in canvas mode, drag in people, products, videos, and functions, then launch video clone, motion clone, and talking-head generation from one workspace.',
+  keywords: 'AI agent canvas, canvas clone workflow, video clone canvas, motion clone canvas, talking head video generation, UGC workflow builder',
   authors: [{ name: 'Flowtra Team' }],
   creator: 'Flowtra',
   publisher: 'Flowtra',
@@ -13,8 +13,8 @@ export const metadata: Metadata = {
     canonical: '/features/ai-agent',
   },
   openGraph: {
-    title: 'AI Agent - Prompt-Guided Clone Workflows | Flowtra',
-    description: 'Replace people and products in prompts, manage 60-second TikTok clone workflows, and create images plus videos through conversation.',
+    title: 'AI Agent - Canvas Clone Workflows | Flowtra',
+    description: 'Drag cards into a canvas, connect clone functions, and run video clone, motion clone, and talking-head workflows from one place.',
     url: 'https://www.flowtra.store/features/ai-agent',
     siteName: 'Flowtra',
     images: [
@@ -30,8 +30,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'AI Agent - Prompt-Guided Clone Workflows | Flowtra',
-    description: 'Talk to an AI agent that rewrites image prompts, video prompts, and clone workflows around your assets.',
+    title: 'AI Agent - Canvas Clone Workflows | Flowtra',
+    description: 'Use canvas mode to arrange assets, connect functions, and launch clone workflows without rebuilding everything by hand.',
     images: [DEFAULT_SOCIAL_IMAGE_PATH],
     creator: '@flowtra',
   },
@@ -58,20 +58,20 @@ export default function Page() {
             '@context': 'https://schema.org',
             '@type': 'SoftwareApplication',
             name: 'Flowtra AI Agent',
-            description: 'Use Flowtra Agent to replace people and products in prompts, manage long TikTok clone workflows, and generate images plus videos through conversation.',
+            description: 'Use Flowtra Agent in canvas mode to arrange assets, connect functions, and launch clone workflows for video clone, motion clone, and talking-head generation.',
             url: 'https://www.flowtra.store/features/ai-agent',
             applicationCategory: 'BusinessApplication',
             operatingSystem: 'Web',
             offers: {
               '@type': 'Offer',
               availability: 'https://schema.org/InStock',
-              description: 'AI-guided prompt editing and clone workflow planning'
+              description: 'Canvas-based workflow building for clone video generation'
             },
             featureList: [
-              'Automatic people and product replacement in prompts',
-              '@mention-based asset referencing',
-              'Support for TikTok clone workflows up to 60 seconds',
-              'Conversation-led image and video generation',
+              'Canvas-based workflow builder for clone generation',
+              'Drag-and-drop cards for people, products, videos, and functions',
+              'Support for video clone, motion clone, and talking-head outputs',
+              'Fast node linking and visual workflow editing',
               'Unlimited agent usage for subscribers without credit deductions'
             ],
             provider: {

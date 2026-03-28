@@ -39,7 +39,7 @@ export async function sendWelcomeEmail(options: {
   const subject = 'Welcome to Flowtra — Let\'s Create Your First AI Ad'
   const siteBase = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://www.flowtra.store').replace(/\/$/, '')
   const appUrl = `${siteBase}/dashboard`
-  const logoUrl = `${siteBase}/android-chrome-192x192.png`
+  const logoUrl = `${siteBase}/logo.svg`
   const avatarAdsUrl = `${siteBase}/features/avatar-ads`
   const competitorReplicaUrl = `${siteBase}/features/competitor-replica`
   const recipientName = options.name?.trim()
@@ -70,7 +70,7 @@ export async function sendWelcomeEmail(options: {
                   <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;">
                     <tr>
                       <td style="padding-right:12px;" width="40">
-                        <img src="${logoUrl}" alt="Flowtra logo" width="32" height="32" style="display:block;border-radius:8px;" />
+                        <img src="${logoUrl}" alt="Flowtra logo" width="32" height="32" style="display:block;" />
                       </td>
                       <td style="font-size:16px;letter-spacing:0.08em;font-weight:600;text-transform:uppercase;color:#111827;">Flowtra AI</td>
                       <td></td>

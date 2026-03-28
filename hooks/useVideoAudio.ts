@@ -201,6 +201,24 @@ export function useVideoAudio({
     }
   }, [videoRef]);
 
+  const handleToggleAudio = useCallback(() => {
+    if (!videoRef.current || !managerRef.current) return;
+
+    if (audioEnabled) {
+      try {
+        managerRef.current.releaseAudio(videoInstanceId.current);
+        videoRef.current.muted = true;
+        setAudioEnabled(false);
+        setNeedsClickToEnable(false);
+      } catch (error) {
+        console.warn('Failed to mute video from toggle:', error);
+      }
+      return;
+    }
+
+    handleClickEnable();
+  }, [audioEnabled, handleClickEnable, videoRef]);
+
   return {
     audioEnabled,
     userHasInteracted,
@@ -208,6 +226,7 @@ export function useVideoAudio({
     needsClickToEnable,
     handleHover,
     handleLeave,
-    handleClickEnable
+    handleClickEnable,
+    handleToggleAudio,
   };
 }
