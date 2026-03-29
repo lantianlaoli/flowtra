@@ -120,11 +120,11 @@ export default function AIAgentShowcasePage() {
       />
 
       <FeatureBenefitRow
-        title="Swap people, products, and output types fast"
+        title="Name the assets you want and let the canvas connect them"
         bullets={[
-          'Drop in the exact person and product cards you want the workflow to use before generation starts.',
-          'Reuse the same canvas setup across clone videos, motion-driven ads, and talking-head sales videos.',
-          'Keep asset swaps visible and editable instead of hiding key choices inside a long chat thread.'
+          'Mention the exact person, product, or reference video in chat and the agent can place the matching cards on the canvas.',
+          'Turn a named request into the right workflow structure for video clone, motion clone, or avatar ads without rebuilding the canvas by hand.',
+          'Keep every selected asset and connection visible so follow-up edits refine the current graph instead of starting over.'
         ]}
         reverse
         primaryCta={primaryCta}
@@ -132,7 +132,7 @@ export default function AIAgentShowcasePage() {
         media={
           <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-[#FAFAFA] shadow-[0_18px_40px_rgba(0,0,0,0.06)] transition-transform duration-200 hover:-translate-y-1">
             <LazyVideoPlayer
-              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/agent_clone_video_select_product_and_character.mp4"
+              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/agent_chat.mp4"
               wrapperClassName="w-full"
               className="w-full h-auto"
               showControls={false}
