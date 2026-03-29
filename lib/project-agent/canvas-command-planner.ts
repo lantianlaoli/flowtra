@@ -98,7 +98,7 @@ const includesAny = (text: string, phrases: string[]) => phrases.some((phrase) =
 const getFeatureIntent = (text: string): ProjectAgentFeatureNodeType | null => {
   if (includesAny(text, ['motion clone'])) return 'motion_clone';
   if (includesAny(text, ['avatar ads', 'avatar ad', 'character ads', 'character ad'])) return 'avatar_ads';
-  if (includesAny(text, ['video clone', 'ugc clone', 'clone node'])) return 'video_clone';
+  if (includesAny(text, ['video clone', 'ugc clone', 'clone node', 'clone workflow', 'clone flow'])) return 'video_clone';
   return null;
 };
 
@@ -125,7 +125,7 @@ export const planProjectAgentCanvasCommand = (
     };
   }
 
-  if (includesAny(text, [' format canvas', ' tidy canvas', ' organize canvas', ' layout canvas', ' arrange canvas'])) {
+  if (includesAny(text, [' format canvas', ' format the canvas', ' tidy canvas', ' organize canvas', ' layout canvas', ' arrange canvas', ' clean up canvas', ' clean up the canvas', ' clean up and format the canvas'])) {
     return buildSafeEditPlan('I reorganized the canvas layout.', [{ type: 'format_layout' }]);
   }
 
@@ -191,7 +191,7 @@ export const planProjectAgentCanvasCommand = (
   }
 
   const featureType = getFeatureIntent(text);
-  if (featureType && includesAny(text, [' add ', ' create ', ' insert ', ' place '])) {
+  if (featureType && includesAny(text, [' add ', ' create ', ' insert ', ' place ', ' build ', ' set up '])) {
     return buildSafeEditPlan(
       `I added a ${featureType === 'avatar_ads' ? 'Avatar Ads' : featureType === 'motion_clone' ? 'Motion Clone' : 'Video Clone'} node to the canvas.`,
       [
