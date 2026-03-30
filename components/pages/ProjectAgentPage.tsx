@@ -8,6 +8,8 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { AlertTriangle, ArrowUpRight, History, Loader2, MessageCircle, Plus, Search } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
+import CreateAvatarModal from '@/components/CreateAvatarModal';
+import CreateProductModal from '@/components/CreateProductModal';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import FlowgenThinkingMark from '@/components/ui/FlowgenThinkingMark';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
@@ -59,6 +61,7 @@ import {
   type ProjectAgentSelectableAssetType,
   type ProjectAgentPendingUiRequest,
 } from '@/lib/project-agent/canvas-actions';
+import type { UserAvatar, UserProduct } from '@/lib/supabase';
 
 type PersistedSessionPayload = {
   session?: {
@@ -222,6 +225,8 @@ export default function ProjectAgentPage() {
   const [pendingUiRequest, setPendingUiRequest] = useState<ProjectAgentPendingUiRequest | null>(null);
   const [appliedCanvasActionCallIds, setAppliedCanvasActionCallIds] = useState<string[]>([]);
   const [toolbarOpenKey, setToolbarOpenKey] = useState<'avatar' | 'product' | 'video' | 'feature' | null>(null);
+  const [showCreateAvatarModal, setShowCreateAvatarModal] = useState(false);
+  const [showCreateProductModal, setShowCreateProductModal] = useState(false);
   const [avatars, setAvatars] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [products, setProducts] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [videos, setVideos] = useState<ProjectAgentCanvasAssetRef[]>([]);
@@ -371,9 +376,9 @@ export default function ProjectAgentPage() {
           sessionId: id,
           message: outgoingMessages[outgoingMessages.length - 1],
           statePatch: {
-            canvas,
-            pendingUiRequest,
-            appliedCanvasActionCallIds,
+            canvas: canvasRef.current,
+            pendingUiRequest: pendingUiRequestRef.current,
+            appliedCanvasActionCallIds: appliedCanvasActionCallIdsRef.current,
           },
         },
       }),
@@ -997,6 +1002,55 @@ export default function ProjectAgentPage() {
     const actions = buildPendingSelectionActions(pendingUiRequest, asset);
     applyCanvasActions(actions, asset);
   }, [applyCanvasActions, pendingUiRequest]);
+
+  const handleQuickUploadRequest = useCallback((assetType: 'avatar' | 'product') => {
+    if (assetType === 'avatar') {
+      setShowCreateAvatarModal(true);
+      return;
+    }
+    setShowCreateProductModal(true);
+  }, []);
+
+  const handleAvatarCreated = useCallback((avatar: UserAvatar) => {
+    const createdAsset: ProjectAgentCanvasAssetRef = {
+      id: avatar.id,
+      name: avatar.avatar_name || avatar.file_name || 'Avatar',
+      imageUrl: avatar.primary_photo_url || avatar.photo_url || null,
+      photos: [
+        avatar.primary_photo_url || avatar.photo_url,
+        ...(Array.isArray(avatar.reference_photos) ? avatar.reference_photos.map((photo) => photo.photo_url) : []),
+      ].filter((url): url is string => typeof url === 'string'),
+    };
+
+    void loadAssets();
+    setShowCreateAvatarModal(false);
+
+    if (pendingUiRequest?.type === 'asset_selection' && pendingUiRequest.assetType === 'avatar') {
+      handleToolbarAssetSelect('avatar', createdAsset);
+      setToolbarOpenKey(null);
+    }
+  }, [handleToolbarAssetSelect, loadAssets, pendingUiRequest]);
+
+  const handleProductCreated = useCallback((product: UserProduct) => {
+    const photoUrls = Array.isArray(product.user_product_photos)
+      ? product.user_product_photos.map((photo) => photo.photo_url).filter((url): url is string => typeof url === 'string')
+      : [];
+
+    const createdAsset: ProjectAgentCanvasAssetRef = {
+      id: product.id,
+      name: product.product_name || 'Product',
+      imageUrl: photoUrls[0] || null,
+      photos: photoUrls,
+    };
+
+    void loadAssets();
+    setShowCreateProductModal(false);
+
+    if (pendingUiRequest?.type === 'asset_selection' && pendingUiRequest.assetType === 'product') {
+      handleToolbarAssetSelect('product', createdAsset);
+      setToolbarOpenKey(null);
+    }
+  }, [handleToolbarAssetSelect, loadAssets, pendingUiRequest]);
 
   const handleConfirmPendingAction = useCallback(() => {
     if (!pendingUiRequest || pendingUiRequest.type !== 'confirmation') return;
@@ -1712,6 +1766,7 @@ export default function ProjectAgentPage() {
                   videos={videos}
                   openKey={toolbarOpenKey}
                   onOpenKeyChange={setToolbarOpenKey}
+                  onQuickUploadRequest={handleQuickUploadRequest}
                   selectionMode={pendingUiRequest?.type === 'asset_selection' ? {
                     assetType: pendingUiRequest.assetType,
                     title: pendingUiRequest.title,
@@ -1945,6 +2000,16 @@ export default function ProjectAgentPage() {
         node={detailNode}
         onOpenChange={(open) => setDetailNodeId(open ? detailNodeId : null)}
         open={Boolean(detailNode)}
+      />
+      <CreateAvatarModal
+        isOpen={showCreateAvatarModal}
+        onClose={() => setShowCreateAvatarModal(false)}
+        onAvatarCreated={handleAvatarCreated}
+      />
+      <CreateProductModal
+        isOpen={showCreateProductModal}
+        onClose={() => setShowCreateProductModal(false)}
+        onProductCreated={handleProductCreated}
       />
     </div>
   );

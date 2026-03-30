@@ -71,7 +71,7 @@ function ReferenceImageCard({
   src: string;
 }) {
   return (
-    <div className={`group relative aspect-[4/5] overflow-hidden rounded-[18px] border border-black/8 bg-white ${className || ''}`}>
+    <div className={`group relative aspect-[1/1.08] overflow-hidden rounded-[18px] border border-black/8 bg-white ${className || ''}`}>
       <div className="absolute left-2 top-2 z-10">
         <SlotBadge label={label} />
       </div>
@@ -79,8 +79,8 @@ function ReferenceImageCard({
         src={src}
         alt={alt}
         fill
-        className="object-contain p-2.5 transition-transform duration-300 group-hover:scale-[1.01]"
-        sizes="(max-width: 1024px) 28vw, 180px"
+      className="object-contain p-2.5 transition-transform duration-300 group-hover:scale-[1.01]"
+      sizes="(max-width: 1024px) 28vw, 220px"
       />
       <button
         type="button"
@@ -104,7 +104,7 @@ function ReferenceImageLoadingCard({
 }) {
   return (
     <div
-      className={`relative aspect-[4/5] overflow-hidden rounded-[18px] border border-black/8 bg-[linear-gradient(180deg,#fafafa_0%,#f1f1f1_55%,#fafafa_100%)] ${className || ''}`}
+      className={`relative aspect-[1/1.08] overflow-hidden rounded-[18px] border border-black/8 bg-[linear-gradient(180deg,#fafafa_0%,#f1f1f1_55%,#fafafa_100%)] ${className || ''}`}
       aria-busy="true"
     >
       <div className="absolute left-2 top-2 z-10">
@@ -136,7 +136,7 @@ function ReferenceImageUploadCard({
       type="button"
       onClick={onAdd}
       disabled={disabled}
-      className={`relative flex aspect-[4/5] flex-col items-center justify-center rounded-[18px] border border-dashed border-black/10 bg-white text-gray-500 transition hover:bg-[#fafafa] hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-60 ${className || ''}`}
+      className={`relative flex aspect-[1/1.08] flex-col items-center justify-center rounded-[18px] border border-dashed border-black/10 bg-white text-gray-500 transition hover:bg-[#fafafa] hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-60 ${className || ''}`}
     >
       <div className="absolute left-2 top-2">
         <SlotBadge label={label} />
@@ -168,7 +168,7 @@ function ReferenceImageEmptyCard({
   }
 
   return (
-    <div className={`relative aspect-[4/5] overflow-hidden rounded-[18px] border border-dashed border-black/8 bg-white ${className || ''}`}>
+    <div className={`relative aspect-[1/1.08] overflow-hidden rounded-[18px] border border-dashed border-black/8 bg-white ${className || ''}`}>
       <div className="absolute left-2 top-2 z-10">
         <SlotBadge label={label} />
       </div>
@@ -190,7 +190,7 @@ export default function ReferenceImageGrid({
   const pendingCount = isGenerating ? Math.max(0, MAX_REFERENCE_IMAGES - items.length) : 0;
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-2 gap-2">
+    <div className="grid h-full min-h-0 grid-cols-2 gap-2 lg:grid-cols-3">
       {Array.from({ length: GRID_CARD_COUNT }, (_, index) => {
         const item = items[index];
         const slot = slots[index] || PRODUCT_REFERENCE_SLOTS[index];

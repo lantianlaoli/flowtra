@@ -404,7 +404,7 @@ export default function CreateAvatarModal({
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2 }}
           >
-            <div className="assets-modal-header flex items-center justify-between border-b border-gray-200 px-6 py-5">
+            <div className="assets-modal-header flex items-center justify-between border-b border-gray-200 px-6 py-4">
                 <div className="flex items-center gap-3">
                 <div className="assets-modal-icon flex h-11 w-11 items-center justify-center rounded-xl bg-black text-white">
                   <UserCircle className="h-5 w-5" />
@@ -424,7 +424,7 @@ export default function CreateAvatarModal({
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="assets-modal-body space-y-5 px-6 py-6">
+            <form onSubmit={handleSubmit} className="assets-modal-body space-y-4 px-6 py-5">
               {error && (
                 <div className="assets-modal-error flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                   <AlertCircle className="h-4 w-4" />
@@ -432,20 +432,20 @@ export default function CreateAvatarModal({
                 </div>
               )}
 
-              <div>
-                <label htmlFor="avatar-name-input" className="assets-modal-label text-sm font-medium text-gray-700">Name</label>
+              <div className="sm:flex sm:items-center sm:gap-4">
+                <label htmlFor="avatar-name-input" className="assets-modal-label block text-sm font-medium text-gray-700 sm:w-[68px] sm:flex-none">Name</label>
                 <input
                   id="avatar-name-input"
                   type="text"
                   value={avatarName}
                   onChange={(event) => setAvatarName(event.target.value)}
-                  className="assets-modal-input mt-2 w-full rounded-xl border border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm text-gray-900 transition-all focus:border-black focus:bg-white focus:outline-none focus:ring-0"
+                  className="assets-modal-input mt-2 w-full rounded-xl border border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm text-gray-900 transition-all focus:border-black focus:bg-white focus:outline-none focus:ring-0 sm:mt-0 sm:flex-1"
                   placeholder="Enter avatar name"
                   maxLength={60}
                 />
               </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-5">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.02fr_1fr]">
                   <div className="space-y-3 h-full min-h-0 flex flex-col">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium leading-5 text-gray-900">Primary Portrait</p>
@@ -460,7 +460,7 @@ export default function CreateAvatarModal({
                       >
                         <CircleHelp className="h-4 w-4" />
                       </button>
-                      <div className="pointer-events-none absolute left-0 top-6 z-20 w-72 rounded-xl border border-gray-200 bg-white p-3 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                      <div className="pointer-events-none absolute left-0 top-6 z-20 w-80 rounded-xl border border-gray-200 bg-white p-3 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
                         <p className="text-xs font-semibold text-gray-800 mb-2">Portrait Photo Examples</p>
                         <div className="grid grid-cols-2 gap-3">
                           <div className="flex flex-col items-center">
@@ -474,12 +474,16 @@ export default function CreateAvatarModal({
                               <Image src={BLURRY_EXAMPLE_URL} alt="Bad example" width={64} height={64} className="h-full w-full object-cover" />
                             </div>
                             <span className="mt-1 text-[11px] text-gray-600">Bad (Blurry)</span>
-                      </div>
-                    </div>
+                          </div>
+                        </div>
+                        <div className="mt-3 rounded-lg border border-black/8 bg-[#fafaf9] px-3 py-2">
+                          <p className="text-[11px] leading-5 text-gray-600">
+                            Use a front-facing, well-lit portrait on a clean background.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500">Use a front-facing, well-lit portrait on a clean background.</p>
 
                   <div
                     role="button"
@@ -492,7 +496,7 @@ export default function CreateAvatarModal({
                       }
                     }}
                     className={cn(
-                      'assets-modal-upload relative w-full aspect-[4/5] max-h-[560px] overflow-hidden rounded-2xl border-2 border-dashed transition',
+                      'assets-modal-upload relative w-full min-h-[260px] overflow-hidden rounded-2xl border-2 border-dashed transition lg:min-h-[360px]',
                       primaryImage ? 'border-gray-300 bg-[#F8F8F8]' : 'border-gray-300 bg-[#FAFAFA]'
                     )}
                   >
@@ -565,7 +569,7 @@ export default function CreateAvatarModal({
                       type="button"
                       onClick={handleGenerateReferences}
                       disabled={!primaryImage || referenceImages.length >= 3 || isCreating || isUploadingRefs || isGeneratingReferences}
-                      className="assets-ai-generate-button inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                      className="assets-ai-generate-button inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-[#1d1d1d] bg-white px-3.5 text-xs font-semibold text-[#111111] shadow-[0_1px_0_rgba(255,255,255,0.96)_inset,0_3px_0_rgba(34,34,34,0.18),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:translate-y-[1px] hover:bg-[#f5f5f4] hover:shadow-[0_1px_0_rgba(255,255,255,0.96)_inset,0_2px_0_rgba(34,34,34,0.14),0_6px_12px_rgba(0,0,0,0.05)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.94)_inset,0_1px_0_rgba(34,34,34,0.12),0_4px_8px_rgba(0,0,0,0.04)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none"
                     >
                       {isGeneratingReferences ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -598,7 +602,7 @@ export default function CreateAvatarModal({
                 </div>
               </div>
 
-              <div className="assets-modal-actions flex gap-3 pt-2">
+              <div className="assets-modal-actions flex gap-3 border-t border-gray-100 pt-3">
                 <button
                   type="button"
                   onClick={onClose}
