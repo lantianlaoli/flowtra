@@ -1650,7 +1650,7 @@ export default function ProjectAgentPage() {
   const filteredHistoryItems = useMemo(() => {
     const query = historyQuery.trim().toLowerCase();
     if (!query) return historyItems;
-    return historyItems.filter((item) => item.title.toLowerCase().includes(query));
+    return historyItems.filter((item) => item.title?.toLowerCase().includes(query));
   }, [historyItems, historyQuery]);
 
   const awaitingAssistantTurn = isStreaming;
