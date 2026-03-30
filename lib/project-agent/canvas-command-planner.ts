@@ -1,5 +1,7 @@
 import type { UIMessage } from 'ai';
 import type { ProjectAgentCanvasState, ProjectAgentAssetNodeType, ProjectAgentFeatureNodeType } from '@/lib/project-agent/canvas-state';
+import { SYSTEM_AVATARS } from '@/lib/default-avatars';
+import { matchesAssetReference } from '@/lib/project-agent/asset-name-match';
 import {
   summarizeProjectAgentCanvas,
   type ProjectAgentCanvasAction,
@@ -94,6 +96,10 @@ const buildConfirmationPlan = (
 });
 
 const includesAny = (text: string, phrases: string[]) => phrases.some((phrase) => text.includes(phrase));
+
+const VIDEO_CONTEXT_PHRASES = ['same video', 'same reference video', 'same video context', 'using the same video', 'with the same video', 'with that same video', 'that same video', 'this video', 'that video'];
+const PRODUCT_CONTEXT_PHRASES = ['same product', 'the same product', 'with the same product', 'keep the same product', 'this product', 'that product'];
+const AVATAR_CONTEXT_PHRASES = ['same avatar', 'the same avatar', 'same person', 'the same person', 'this avatar', 'that avatar', 'this person', 'that person'];
 
 const getFeatureIntent = (text: string): ProjectAgentFeatureNodeType | null => {
   if (includesAny(text, ['motion clone'])) return 'motion_clone';
@@ -191,6 +197,230 @@ export const planProjectAgentCanvasCommand = (
   }
 
   const featureType = getFeatureIntent(text);
+  const latestCanvasNodes = [...canvas.nodes].reverse();
+  const getOnlyCanvasAsset = (assetType: ProjectAgentAssetNodeType) => {
+    const matchingNodes = canvas.nodes.filter((node) => node.type === assetType && node.asset);
+    return matchingNodes.length === 1 ? matchingNodes[0]?.asset ?? null : null;
+  };
+  const findLatestCanvasAsset = (assetType: ProjectAgentAssetNodeType) => (
+    latestCanvasNodes.find((node) => node.type === assetType && node.asset)
+  );
+  const findNamedCanvasAsset = (assetType: ProjectAgentAssetNodeType) => (
+    latestCanvasNodes.find((node) => (
+      node.type === assetType &&
+      Boolean(node.asset?.name) &&
+      matchesAssetReference(rawText, node.asset?.name || '')
+    ))
+  );
+
+  if (featureType) {
+    const resolvedVideoAsset = (
+      findNamedCanvasAsset('video')?.asset
+      || (includesAny(text, VIDEO_CONTEXT_PHRASES) ? findLatestCanvasAsset('video')?.asset : null)
+      || getOnlyCanvasAsset('video')
+    );
+    const resolvedProductAsset = (
+      findNamedCanvasAsset('product')?.asset
+      || (includesAny(text, PRODUCT_CONTEXT_PHRASES) ? findLatestCanvasAsset('product')?.asset : null)
+      || getOnlyCanvasAsset('product')
+    );
+    const resolvedAvatarAsset = (
+      findNamedCanvasAsset('avatar')?.asset
+      || (() => {
+        const systemAvatar = SYSTEM_AVATARS.find((avatar) => matchesAssetReference(rawText, avatar.avatar_name));
+        if (!systemAvatar) return null;
+        return {
+          id: systemAvatar.id,
+          name: systemAvatar.avatar_name,
+          imageUrl: systemAvatar.photo_url,
+        };
+      })()
+      || (includesAny(text, AVATAR_CONTEXT_PHRASES) ? findLatestCanvasAsset('avatar')?.asset : null)
+      || getOnlyCanvasAsset('avatar')
+    );
+
+    if (featureType === 'video_clone' && resolvedVideoAsset && (resolvedProductAsset || resolvedAvatarAsset)) {
+      const mutations: ProjectAgentCanvasMutation[] = [
+        {
+          type: 'add_asset_node',
+          alias: 'videoAsset',
+          assetType: 'video',
+          asset: resolvedVideoAsset,
+          reuseExisting: true,
+        },
+        {
+          type: 'add_feature_node',
+          alias: 'featureNode',
+          featureType: 'video_clone',
+          reuseExisting: true,
+          select: true,
+        },
+        {
+          type: 'connect_nodes',
+          source: { kind: 'alias', alias: 'videoAsset' },
+          target: { kind: 'alias', alias: 'featureNode' },
+          targetHandle: 'video',
+        },
+      ];
+
+      if (resolvedProductAsset) {
+        mutations.splice(1, 0, {
+          type: 'add_asset_node',
+          alias: 'productAsset',
+          assetType: 'product',
+          asset: resolvedProductAsset,
+          reuseExisting: true,
+        });
+        mutations.push({
+          type: 'connect_nodes',
+          source: { kind: 'alias', alias: 'productAsset' },
+          target: { kind: 'alias', alias: 'featureNode' },
+          targetHandle: 'product',
+        });
+      } else if (resolvedAvatarAsset) {
+        mutations.splice(1, 0, {
+          type: 'add_asset_node',
+          alias: 'avatarAsset',
+          assetType: 'avatar',
+          asset: resolvedAvatarAsset,
+          reuseExisting: true,
+        });
+        mutations.push({
+          type: 'connect_nodes',
+          source: { kind: 'alias', alias: 'avatarAsset' },
+          target: { kind: 'alias', alias: 'featureNode' },
+          targetHandle: 'avatar',
+        });
+      }
+
+      mutations.push({ type: 'format_layout' });
+      return buildSafeEditPlan(
+        `I added a Video Clone workflow to the canvas with ${resolvedVideoAsset.name}${resolvedProductAsset ? ` and ${resolvedProductAsset.name}` : resolvedAvatarAsset ? ` and ${resolvedAvatarAsset.name}` : ''}.`,
+        mutations,
+      );
+    }
+
+    if (featureType === 'motion_clone' && resolvedVideoAsset && resolvedAvatarAsset) {
+      const mutations: ProjectAgentCanvasMutation[] = [
+        {
+          type: 'add_asset_node',
+          alias: 'videoAsset',
+          assetType: 'video',
+          asset: resolvedVideoAsset,
+          reuseExisting: true,
+        },
+        {
+          type: 'add_asset_node',
+          alias: 'avatarAsset',
+          assetType: 'avatar',
+          asset: resolvedAvatarAsset,
+          reuseExisting: true,
+        },
+        {
+          type: 'add_feature_node',
+          alias: 'featureNode',
+          featureType: 'motion_clone',
+          reuseExisting: true,
+          select: true,
+        },
+        {
+          type: 'connect_nodes',
+          source: { kind: 'alias', alias: 'videoAsset' },
+          target: { kind: 'alias', alias: 'featureNode' },
+          targetHandle: 'video',
+        },
+        {
+          type: 'connect_nodes',
+          source: { kind: 'alias', alias: 'avatarAsset' },
+          target: { kind: 'alias', alias: 'featureNode' },
+          targetHandle: 'avatar',
+        },
+      ];
+
+      if (resolvedProductAsset) {
+        mutations.splice(2, 0, {
+          type: 'add_asset_node',
+          alias: 'productAsset',
+          assetType: 'product',
+          asset: resolvedProductAsset,
+          reuseExisting: true,
+        });
+        mutations.push({
+          type: 'connect_nodes',
+          source: { kind: 'alias', alias: 'productAsset' },
+          target: { kind: 'alias', alias: 'featureNode' },
+          targetHandle: 'product',
+        });
+      }
+
+      mutations.push({ type: 'format_layout' });
+      return buildSafeEditPlan(
+        `I added a Motion Clone workflow to the canvas with ${resolvedAvatarAsset.name}, ${resolvedVideoAsset.name}${resolvedProductAsset ? `, and ${resolvedProductAsset.name}` : ''}.`,
+        mutations,
+      );
+    }
+
+    if (featureType === 'avatar_ads' && resolvedAvatarAsset) {
+      const mutations: ProjectAgentCanvasMutation[] = [
+        {
+          type: 'add_asset_node',
+          alias: 'avatarAsset',
+          assetType: 'avatar',
+          asset: resolvedAvatarAsset,
+          reuseExisting: true,
+        },
+        {
+          type: 'add_text_node',
+          alias: 'scriptAsset',
+          content: resolvedProductAsset
+            ? `Introduce ${resolvedProductAsset.name} in a short premium style.`
+            : 'Create a concise premium avatar ad script.',
+        },
+        {
+          type: 'add_feature_node',
+          alias: 'featureNode',
+          featureType: 'avatar_ads',
+          reuseExisting: true,
+          select: true,
+        },
+        {
+          type: 'connect_nodes',
+          source: { kind: 'alias', alias: 'avatarAsset' },
+          target: { kind: 'alias', alias: 'featureNode' },
+          targetHandle: 'avatar',
+        },
+        {
+          type: 'connect_nodes',
+          source: { kind: 'alias', alias: 'scriptAsset' },
+          target: { kind: 'alias', alias: 'featureNode' },
+          targetHandle: 'text',
+        },
+      ];
+
+      if (resolvedProductAsset) {
+        mutations.splice(1, 0, {
+          type: 'add_asset_node',
+          alias: 'productAsset',
+          assetType: 'product',
+          asset: resolvedProductAsset,
+          reuseExisting: true,
+        });
+        mutations.push({
+          type: 'connect_nodes',
+          source: { kind: 'alias', alias: 'productAsset' },
+          target: { kind: 'alias', alias: 'featureNode' },
+          targetHandle: 'product',
+        });
+      }
+
+      mutations.push({ type: 'format_layout' });
+      return buildSafeEditPlan(
+        `I added an Avatar Ads workflow to the canvas with ${resolvedAvatarAsset.name}${resolvedProductAsset ? ` and ${resolvedProductAsset.name}` : ''}.`,
+        mutations,
+      );
+    }
+  }
+
   if (featureType && includesAny(text, [' add ', ' create ', ' insert ', ' place ', ' build ', ' set up '])) {
     return buildSafeEditPlan(
       `I added a ${featureType === 'avatar_ads' ? 'Avatar Ads' : featureType === 'motion_clone' ? 'Motion Clone' : 'Video Clone'} node to the canvas.`,

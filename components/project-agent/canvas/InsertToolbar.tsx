@@ -17,6 +17,7 @@ type InsertToolbarProps = {
   videos: ProjectAgentCanvasAssetRef[];
   openKey?: InsertToolbarKey | null;
   onOpenKeyChange?: (next: InsertToolbarKey | null) => void;
+  onQuickUploadRequest?: (assetType: Extract<ProjectAgentSelectableAssetType, 'avatar' | 'product'>) => void;
   selectionMode?: {
     assetType: ProjectAgentSelectableAssetType;
     title: string;
@@ -26,7 +27,9 @@ type InsertToolbarProps = {
 };
 
 const draggableButtonClass =
-  'inline-flex w-fit max-w-full items-center gap-3 overflow-hidden rounded-[12px] border border-[#cfcfcb] bg-white px-3 py-2.5 text-left text-sm font-medium text-[#171717] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f3f3f1] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)]';
+  'project-agent-insert-item inline-flex w-fit max-w-full items-center gap-3 overflow-hidden rounded-[12px] border border-[#cfcfcb] bg-white px-3 py-2.5 text-left text-sm font-medium text-[#171717] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f3f3f1] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)]';
+const actionButtonClass =
+  'project-agent-insert-upload inline-flex w-fit max-w-full items-center gap-3 overflow-hidden rounded-[12px] border border-dashed border-[#cfcfcb] bg-[#fcfcfb] px-3 py-2.5 text-left text-sm font-medium text-[#171717] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.75),0_10px_18px_rgba(0,0,0,0.04)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f3f3f1] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)]';
 
 const setCustomDragPreview = (event: React.DragEvent<HTMLElement>, label: string) => {
   const preview = document.createElement('div');
@@ -104,45 +107,83 @@ const DragItem = ({
   </button>
 );
 
+const QuickUploadTile = ({
+  assetType,
+  onClick,
+}: {
+  assetType: Extract<ProjectAgentSelectableAssetType, 'avatar' | 'product'>;
+  onClick: () => void;
+}) => {
+  const Icon = assetType === 'avatar' ? User : Package2;
+  const label = assetType === 'avatar' ? 'Upload avatar' : 'Upload product';
+
+  return (
+    <button
+      className={actionButtonClass}
+      onClick={onClick}
+      type="button"
+      title={label}
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[8px] border border-dashed border-[#d8d8d4] bg-white">
+        <Icon className="h-4.5 w-4.5 text-[#787871]" />
+      </span>
+      <span className="max-w-[240px] truncate whitespace-nowrap pr-1">{label}</span>
+    </button>
+  );
+};
+
 const AssetList = ({
   items,
   type,
   selectionMode,
   onAssetSelect,
+  onQuickUploadRequest,
 }: {
   items: ProjectAgentCanvasAssetRef[];
   type: ProjectAgentSelectableAssetType;
   selectionMode?: InsertToolbarProps['selectionMode'];
   onAssetSelect?: InsertToolbarProps['onAssetSelect'];
-}) => (
-  <div className="flex flex-col items-start gap-2">
-    {items.length === 0 ? (
-      <p className="rounded-[14px] border border-dashed border-[#d4d4d4] bg-[#fafafa] px-3 py-3 text-xs text-[#737373]">
-        No {type} assets yet.
-      </p>
-    ) : (
-      items.map((item) => {
-        const FallbackIcon = getAssetFallbackIcon(type);
-        return (
-          <DragItem
-            key={`${type}-${item.id}`}
-            label={item.name}
-            payload={{ kind: 'asset', type, asset: item }}
-            onClick={selectionMode?.assetType === type && onAssetSelect ? () => onAssetSelect(type, item) : undefined}
-            leading={
-              item.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img alt={item.name} className="h-full w-full object-cover" src={item.imageUrl} />
-              ) : (
-                <FallbackIcon className="h-4.5 w-4.5 text-[#787871]" />
-              )
-            }
-          />
-        );
-      })
-    )}
-  </div>
-);
+  onQuickUploadRequest?: InsertToolbarProps['onQuickUploadRequest'];
+}) => {
+  const hasQuickUpload = (type === 'avatar' || type === 'product') && Boolean(onQuickUploadRequest);
+
+  return (
+    <div className="flex flex-col items-start">
+      <div className="flex max-h-[min(52vh,340px)] w-full flex-col items-start gap-2 overflow-y-auto pr-1">
+        {items.length === 0 ? (
+          <p className="project-agent-insert-empty rounded-[14px] border border-dashed border-[#d4d4d4] bg-[#fafafa] px-3 py-3 text-xs text-[#737373]">
+            No {type} assets yet.
+          </p>
+        ) : (
+          items.map((item) => {
+            const FallbackIcon = getAssetFallbackIcon(type);
+            return (
+              <DragItem
+                key={`${type}-${item.id}`}
+                label={item.name}
+                payload={{ kind: 'asset', type, asset: item }}
+                onClick={selectionMode?.assetType === type && onAssetSelect ? () => onAssetSelect(type, item) : undefined}
+                leading={
+                  item.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img alt={item.name} className="h-full w-full object-cover" src={item.imageUrl} />
+                  ) : (
+                    <FallbackIcon className="h-4.5 w-4.5 text-[#787871]" />
+                  )
+                }
+              />
+            );
+          })
+        )}
+      </div>
+      {hasQuickUpload && onQuickUploadRequest ? (
+        <div className="project-agent-insert-footer sticky bottom-0 mt-2 w-full border-t border-[#d9d9d6] bg-[#f1f1ef] pt-2">
+          <QuickUploadTile assetType={type as 'avatar' | 'product'} onClick={() => onQuickUploadRequest(type as 'avatar' | 'product')} />
+        </div>
+      ) : null}
+    </div>
+  );
+};
 
 export default function InsertToolbar({
   avatars,
@@ -150,6 +191,7 @@ export default function InsertToolbar({
   videos,
   openKey: controlledOpenKey,
   onOpenKeyChange,
+  onQuickUploadRequest,
   selectionMode = null,
   onAssetSelect,
 }: InsertToolbarProps) {
@@ -212,8 +254,8 @@ export default function InsertToolbar({
   }, [openKey]);
 
   const renderDropdownContent = () => {
-    if (openKey === 'avatar') return <AssetList items={avatars} type="avatar" selectionMode={selectionMode} onAssetSelect={onAssetSelect} />;
-    if (openKey === 'product') return <AssetList items={products} type="product" selectionMode={selectionMode} onAssetSelect={onAssetSelect} />;
+    if (openKey === 'avatar') return <AssetList items={avatars} type="avatar" selectionMode={selectionMode} onAssetSelect={onAssetSelect} onQuickUploadRequest={onQuickUploadRequest} />;
+    if (openKey === 'product') return <AssetList items={products} type="product" selectionMode={selectionMode} onAssetSelect={onAssetSelect} onQuickUploadRequest={onQuickUploadRequest} />;
     if (openKey === 'video') return <AssetList items={videos} type="video" selectionMode={selectionMode} onAssetSelect={onAssetSelect} />;
     if (openKey === 'feature') {
       return (
@@ -238,16 +280,14 @@ export default function InsertToolbar({
   return (
     <div
       ref={toolbarRef}
-      className="pointer-events-auto relative max-w-full rounded-[20px] border border-[#cdcdca] bg-[#f1f1ef] p-2 shadow-[0_14px_30px_rgba(0,0,0,0.08)] backdrop-blur"
+      className="project-agent-insert-toolbar pointer-events-auto relative max-w-full rounded-[20px] border border-[#cdcdca] bg-[#f1f1ef] p-2 shadow-[0_14px_30px_rgba(0,0,0,0.08)] backdrop-blur"
     >
       {openKey ? (
         <div
-          className="absolute bottom-[calc(100%+10px)] z-20 inline-flex w-fit max-w-[360px] rounded-[16px] border border-[#cdcdca] bg-[#f1f1ef] p-2 shadow-[0_16px_36px_rgba(0,0,0,0.10)]"
+          className="project-agent-insert-dropdown absolute bottom-[calc(100%+10px)] z-20 inline-flex w-fit max-w-[360px] rounded-[16px] border border-[#cdcdca] bg-[#f1f1ef] p-2 shadow-[0_16px_36px_rgba(0,0,0,0.10)]"
           style={{ left: dropdownOffset, width: 'fit-content' }}
         >
-          <div className="max-h-[min(60vh,420px)] overflow-y-auto pr-1">
-            {renderDropdownContent()}
-          </div>
+          {renderDropdownContent()}
         </div>
       ) : null}
       <div className="flex items-end gap-1.5 max-[1320px]:gap-1.5">
@@ -266,9 +306,9 @@ export default function InsertToolbar({
               ref={(element) => {
                 triggerRefs.current[entry.key] = element;
               }}
-              className={`flex h-11 min-w-0 items-center gap-1.5 rounded-[12px] border px-3 py-2 text-sm font-semibold transition-all duration-150 max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0 ${
+              className={`project-agent-insert-trigger flex h-11 min-w-0 items-center gap-1.5 rounded-[12px] border px-3 py-2 text-sm font-semibold transition-all duration-150 max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0 ${
                 open
-                  ? 'border-[#111111] bg-[#111111] text-white shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_3px_0_rgba(20,20,20,0.95),0_12px_20px_rgba(0,0,0,0.16)] hover:-translate-y-[1px] hover:bg-[#1a1a1a] hover:shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_5px_0_rgba(20,20,20,0.95),0_16px_24px_rgba(0,0,0,0.18)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.06)_inset,0_1px_0_rgba(20,20,20,0.9),0_8px_12px_rgba(0,0,0,0.14)]'
+                  ? 'project-agent-insert-trigger--active border-[#111111] bg-[#111111] text-white shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_3px_0_rgba(20,20,20,0.95),0_12px_20px_rgba(0,0,0,0.16)] hover:-translate-y-[1px] hover:bg-[#1a1a1a] hover:shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_5px_0_rgba(20,20,20,0.95),0_16px_24px_rgba(0,0,0,0.18)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.06)_inset,0_1px_0_rgba(20,20,20,0.9),0_8px_12px_rgba(0,0,0,0.14)]'
                   : 'border-[#cfcfcb] bg-white text-[#2a2a2a] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f6f6f4] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)]'
               }`}
               onClick={() => setOpenKey(open ? null : entry.key)}
@@ -286,7 +326,7 @@ export default function InsertToolbar({
 
         {/* Text node — directly draggable, no dropdown */}
         <div
-          className="flex h-11 shrink cursor-grab items-center gap-1.5 overflow-hidden rounded-[12px] border border-[#cfcfcb] bg-white px-3 py-2 text-sm font-semibold text-[#2a2a2a] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f6f6f4] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:cursor-grabbing active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)] max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0"
+          className="project-agent-insert-trigger project-agent-insert-text-trigger flex h-11 shrink cursor-grab items-center gap-1.5 overflow-hidden rounded-[12px] border border-[#cfcfcb] bg-white px-3 py-2 text-sm font-semibold text-[#2a2a2a] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f6f6f4] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:cursor-grabbing active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)] max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0"
           draggable
           onDragStart={(event) => {
             event.dataTransfer.effectAllowed = 'copy';

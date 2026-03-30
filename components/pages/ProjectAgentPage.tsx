@@ -8,6 +8,8 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { AlertTriangle, ArrowUpRight, History, Loader2, MessageCircle, Plus, Search } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
+import CreateAvatarModal from '@/components/CreateAvatarModal';
+import CreateProductModal from '@/components/CreateProductModal';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import FlowgenThinkingMark from '@/components/ui/FlowgenThinkingMark';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
@@ -59,6 +61,7 @@ import {
   type ProjectAgentSelectableAssetType,
   type ProjectAgentPendingUiRequest,
 } from '@/lib/project-agent/canvas-actions';
+import type { UserAvatar, UserProduct } from '@/lib/supabase';
 
 type PersistedSessionPayload = {
   session?: {
@@ -222,6 +225,8 @@ export default function ProjectAgentPage() {
   const [pendingUiRequest, setPendingUiRequest] = useState<ProjectAgentPendingUiRequest | null>(null);
   const [appliedCanvasActionCallIds, setAppliedCanvasActionCallIds] = useState<string[]>([]);
   const [toolbarOpenKey, setToolbarOpenKey] = useState<'avatar' | 'product' | 'video' | 'feature' | null>(null);
+  const [showCreateAvatarModal, setShowCreateAvatarModal] = useState(false);
+  const [showCreateProductModal, setShowCreateProductModal] = useState(false);
   const [avatars, setAvatars] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [products, setProducts] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [videos, setVideos] = useState<ProjectAgentCanvasAssetRef[]>([]);
@@ -248,7 +253,7 @@ export default function ProjectAgentPage() {
   const historyPopoverRef = useRef<HTMLDivElement | null>(null);
   const chatScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
-  const composerInputRef = useRef<HTMLInputElement | null>(null);
+  const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
   const persistenceTimeoutRef = useRef<number | null>(null);
   const dragMovedRef = useRef(false);
   const statusFetchInFlightRef = useRef<Set<string>>(new Set());
@@ -356,6 +361,13 @@ export default function ProjectAgentPage() {
     });
   }, [persistSessionState]);
 
+  const resizeComposerInput = useCallback((element: HTMLTextAreaElement | null) => {
+    if (!element) return;
+    element.style.height = '0px';
+    const nextHeight = Math.min(element.scrollHeight, 220);
+    element.style.height = `${Math.max(nextHeight, 48)}px`;
+  }, []);
+
   const {
     messages,
     setMessages,
@@ -371,9 +383,9 @@ export default function ProjectAgentPage() {
           sessionId: id,
           message: outgoingMessages[outgoingMessages.length - 1],
           statePatch: {
-            canvas,
-            pendingUiRequest,
-            appliedCanvasActionCallIds,
+            canvas: canvasRef.current,
+            pendingUiRequest: pendingUiRequestRef.current,
+            appliedCanvasActionCallIds: appliedCanvasActionCallIdsRef.current,
           },
         },
       }),
@@ -998,6 +1010,55 @@ export default function ProjectAgentPage() {
     applyCanvasActions(actions, asset);
   }, [applyCanvasActions, pendingUiRequest]);
 
+  const handleQuickUploadRequest = useCallback((assetType: 'avatar' | 'product') => {
+    if (assetType === 'avatar') {
+      setShowCreateAvatarModal(true);
+      return;
+    }
+    setShowCreateProductModal(true);
+  }, []);
+
+  const handleAvatarCreated = useCallback((avatar: UserAvatar) => {
+    const createdAsset: ProjectAgentCanvasAssetRef = {
+      id: avatar.id,
+      name: avatar.avatar_name || avatar.file_name || 'Avatar',
+      imageUrl: avatar.primary_photo_url || avatar.photo_url || null,
+      photos: [
+        avatar.primary_photo_url || avatar.photo_url,
+        ...(Array.isArray(avatar.reference_photos) ? avatar.reference_photos.map((photo) => photo.photo_url) : []),
+      ].filter((url): url is string => typeof url === 'string'),
+    };
+
+    void loadAssets();
+    setShowCreateAvatarModal(false);
+
+    if (pendingUiRequest?.type === 'asset_selection' && pendingUiRequest.assetType === 'avatar') {
+      handleToolbarAssetSelect('avatar', createdAsset);
+      setToolbarOpenKey(null);
+    }
+  }, [handleToolbarAssetSelect, loadAssets, pendingUiRequest]);
+
+  const handleProductCreated = useCallback((product: UserProduct) => {
+    const photoUrls = Array.isArray(product.user_product_photos)
+      ? product.user_product_photos.map((photo) => photo.photo_url).filter((url): url is string => typeof url === 'string')
+      : [];
+
+    const createdAsset: ProjectAgentCanvasAssetRef = {
+      id: product.id,
+      name: product.product_name || 'Product',
+      imageUrl: photoUrls[0] || null,
+      photos: photoUrls,
+    };
+
+    void loadAssets();
+    setShowCreateProductModal(false);
+
+    if (pendingUiRequest?.type === 'asset_selection' && pendingUiRequest.assetType === 'product') {
+      handleToolbarAssetSelect('product', createdAsset);
+      setToolbarOpenKey(null);
+    }
+  }, [handleToolbarAssetSelect, loadAssets, pendingUiRequest]);
+
   const handleConfirmPendingAction = useCallback(() => {
     if (!pendingUiRequest || pendingUiRequest.type !== 'confirmation') return;
     const actions: ProjectAgentCanvasAction[] = [
@@ -1033,14 +1094,6 @@ export default function ProjectAgentPage() {
     setStatusNote('');
     await sendMessage({ text });
   }, [draft, ensureHistoryTracked, sendMessage, sessionId]);
-
-  const handleQuickPromptSelect = useCallback((prompt: string) => {
-    setDraft(prompt);
-    setStatusNote('');
-    window.requestAnimationFrame(() => {
-      composerInputRef.current?.focus();
-    });
-  }, []);
 
   const handleCanvasDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -1155,6 +1208,10 @@ export default function ProjectAgentPage() {
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, [canvas.selectedNodeId, canvas.selectedNodeIds, updateCanvas]);
+
+  useEffect(() => {
+    resizeComposerInput(composerInputRef.current);
+  }, [draft, resizeComposerInput]);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -1596,19 +1653,6 @@ export default function ProjectAgentPage() {
     return historyItems.filter((item) => item.title.toLowerCase().includes(query));
   }, [historyItems, historyQuery]);
 
-  const quickPromptChips = useMemo(() => {
-    if (pendingUiRequest?.type === 'asset_selection') {
-      return [] as string[];
-    }
-
-    return [
-      'Clone a video for my product',
-      'Add an avatar ads workflow',
-      'Connect my selected assets for motion clone',
-      'Clean up and format the canvas',
-    ];
-  }, [pendingUiRequest]);
-
   const awaitingAssistantTurn = isStreaming;
   const chatInputPlaceholder = 'Tell the agent what to build next...';
 
@@ -1667,7 +1711,7 @@ export default function ProjectAgentPage() {
       <DashboardContentTransition className="dashboard-content-offset bg-background h-[100dvh] overflow-hidden min-h-0">
         <div className="h-full box-border min-h-0 p-3 md:py-3 md:pr-3 md:pl-0">
           <div className="grid h-full min-h-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
-            <section className="project-agent-panel-shell relative h-full min-h-0 overflow-visible rounded-[20px]">
+            <section className="project-agent-panel-shell project-agent-surface relative h-full min-h-0 overflow-visible rounded-[20px]">
               <div className="h-full w-full p-0" ref={canvasContainerRef}>
                 <CanvasBoard
                   canvas={canvas}
@@ -1705,13 +1749,14 @@ export default function ProjectAgentPage() {
                   selectedEdgeId={selectedEdgeId}
                 />
               </div>
-              <div data-canvas-ui="true" className="pointer-events-none absolute right-5 bottom-5 left-64 z-30 flex justify-center">
+              <div data-canvas-ui="true" className="pointer-events-none absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 justify-center">
                 <InsertToolbar
                   avatars={avatars}
                   products={products}
                   videos={videos}
                   openKey={toolbarOpenKey}
                   onOpenKeyChange={setToolbarOpenKey}
+                  onQuickUploadRequest={handleQuickUploadRequest}
                   selectionMode={pendingUiRequest?.type === 'asset_selection' ? {
                     assetType: pendingUiRequest.assetType,
                     title: pendingUiRequest.title,
@@ -1816,21 +1861,21 @@ export default function ProjectAgentPage() {
               ) : null}
 
               {pendingUiRequest?.type === 'confirmation' ? (
-                <div className="mx-4 mt-3 rounded-[14px] border border-[#d9d9d7] bg-[#f7f7f5] px-4 py-3">
-                  <p className="text-sm font-semibold text-[#1f1f1e]">{pendingUiRequest.title}</p>
-                  <p className="mt-1 text-xs leading-5 text-[#6c6c66]">{pendingUiRequest.message}</p>
+                <div className="project-agent-confirmation mx-4 mt-3 rounded-[14px] border border-[#d9d9d7] bg-[#f7f7f5] px-4 py-3">
+                  <p className="project-agent-confirmation-title text-sm font-semibold text-[#1f1f1e]">{pendingUiRequest.title}</p>
+                  <p className="project-agent-confirmation-copy mt-1 text-xs leading-5 text-[#6c6c66]">{pendingUiRequest.message}</p>
                   <div className="mt-3 flex items-center gap-2">
                     <button
                       type="button"
                       onClick={handleConfirmPendingAction}
-                      className="rounded-[12px] bg-[#111111] px-3 py-2 text-xs font-semibold text-white"
+                      className="project-agent-confirmation-primary rounded-[12px] bg-[#111111] px-3 py-2 text-xs font-semibold text-white"
                     >
                       Confirm
                     </button>
                     <button
                       type="button"
                       onClick={handleCancelPendingAction}
-                      className="rounded-[12px] border border-[#d3d3d0] bg-white px-3 py-2 text-xs font-semibold text-[#1f1f1e]"
+                      className="project-agent-confirmation-secondary rounded-[12px] border border-[#d3d3d0] bg-white px-3 py-2 text-xs font-semibold text-[#1f1f1e]"
                     >
                       Cancel
                     </button>
@@ -1858,7 +1903,7 @@ export default function ProjectAgentPage() {
                           ) : (
                             <MarkdownRenderer
                               content={messageText}
-                              className="[&_h1]:!mt-0 [&_h2]:!mt-0 [&_h3]:!mt-0 [&_p:last-child]:!mb-0 [&_p]:!mb-3 [&_p]:!text-[#1f1f1e] [&_li]:!text-[#1f1f1e] [&_ol]:!mb-3 [&_ol]:!text-[#1f1f1e] [&_strong]:!text-[#111111] [&_ul]:!mb-3 [&_ul]:!text-[#1f1f1e]"
+                              className="project-agent-markdown [&_h1]:!mt-0 [&_h2]:!mt-0 [&_h3]:!mt-0 [&_p:last-child]:!mb-0 [&_p]:!mb-3 [&_p]:!text-[#1f1f1e] [&_li]:!text-[#1f1f1e] [&_ol]:!mb-3 [&_ol]:!text-[#1f1f1e] [&_strong]:!text-[#111111] [&_ul]:!mb-3 [&_ul]:!text-[#1f1f1e]"
                             />
                           )}
                         </div>
@@ -1884,38 +1929,29 @@ export default function ProjectAgentPage() {
               </div>
 
               <div className="project-agent-chat-footer px-4 py-4">
-                {quickPromptChips.length > 0 ? (
-                  <div className="mb-3">
-                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8b8b86]">
-                      Try asking Flowgen to
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {quickPromptChips.map((prompt) => (
-                        <button
-                          key={prompt}
-                          type="button"
-                          onClick={() => handleQuickPromptSelect(prompt)}
-                          className="project-agent-press-button project-agent-chip inline-flex min-h-9 items-center rounded-[14px] border px-3 py-2 text-xs font-medium text-[#1f1f1e]"
-                        >
-                          {prompt}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
                     void handleSend();
                   }}
-                  className="project-agent-chat-input mt-3 flex items-center gap-2 rounded-[18px] border border-[#d9d9d7] bg-white p-2 shadow-[0_18px_40px_rgba(15,15,15,0.06)]"
+                  className="project-agent-chat-input flex items-end gap-2 rounded-[18px] border border-[#d9d9d7] bg-white p-2 shadow-[0_18px_40px_rgba(15,15,15,0.06)]"
                 >
-                  <input
+                  <textarea
                     ref={composerInputRef}
                     value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
+                    onChange={(event) => {
+                      setDraft(event.target.value);
+                      resizeComposerInput(event.target);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        void handleSend();
+                      }
+                    }}
                     placeholder={chatInputPlaceholder}
-                    className="project-agent-chat-input-field flex-1 min-h-12 rounded-[14px] bg-transparent px-4 text-sm text-[#1f1f1e] placeholder:text-[#9b9b98] focus:outline-none disabled:opacity-50"
+                    rows={1}
+                    className="project-agent-chat-input-field flex-1 rounded-[14px] bg-transparent px-4 py-3 text-sm leading-6 text-[#1f1f1e] placeholder:text-[#9b9b98] focus:outline-none disabled:opacity-50 resize-none overflow-y-auto"
                     disabled={awaitingAssistantTurn}
                   />
                   <button
@@ -1945,6 +1981,16 @@ export default function ProjectAgentPage() {
         node={detailNode}
         onOpenChange={(open) => setDetailNodeId(open ? detailNodeId : null)}
         open={Boolean(detailNode)}
+      />
+      <CreateAvatarModal
+        isOpen={showCreateAvatarModal}
+        onClose={() => setShowCreateAvatarModal(false)}
+        onAvatarCreated={handleAvatarCreated}
+      />
+      <CreateProductModal
+        isOpen={showCreateProductModal}
+        onClose={() => setShowCreateProductModal(false)}
+        onProductCreated={handleProductCreated}
       />
     </div>
   );
