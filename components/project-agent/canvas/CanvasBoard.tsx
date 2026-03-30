@@ -819,7 +819,7 @@ export default function CanvasBoard({
         })}
       </div>
 
-      <div data-canvas-ui="true" className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/70 bg-white/90 px-3 py-1.5 text-xs font-medium text-[#55554f] shadow-sm">
+      <div data-canvas-ui="true" className="project-agent-canvas-zoom pointer-events-none absolute left-4 top-4 rounded-full border border-white/70 bg-white/90 px-3 py-1.5 text-xs font-medium text-[#55554f] shadow-sm">
         Zoom {Math.round(canvas.viewport.zoom * 100)}%
       </div>
 

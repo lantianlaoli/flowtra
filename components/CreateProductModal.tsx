@@ -2,12 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import Image from 'next/image';
-import { AlertCircle, Check, CircleHelp, Loader2, Package, Sparkles, Upload, X } from 'lucide-react';
+import { Package, X } from 'lucide-react';
 import { UserProduct, UserProductPhoto } from '@/lib/supabase';
-import { cn } from '@/lib/utils';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
-import ReferenceImageGrid, { PRODUCT_REFERENCE_SLOTS } from './ReferenceImageGrid';
+import { PRODUCT_REFERENCE_SLOTS } from './ReferenceImageGrid';
+import AssetCreationFields from './AssetCreationFields';
 
 interface CreateProductModalProps {
   isOpen: boolean;
@@ -409,192 +408,67 @@ export default function CreateProductModal({
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="assets-modal-body space-y-5 px-6 py-6">
-              {formError && (
-                <div className="assets-modal-error flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>{renderErrorMessage(formError)}</span>
+            <AssetCreationFields
+              fieldBadgeClassName={fieldBadgeClassName}
+              formError={formError ? renderErrorMessage(formError) : null}
+              highlightReferenceRequirement={highlightReferenceRequirement}
+              isGeneratingReferences={isGeneratingReferences}
+              isPrimaryBusy={isCreating}
+              nameInputId="product-name-input"
+              namePlaceholder="Enter product name"
+              nameValue={productName}
+              onCancel={onClose}
+              onGenerateReferences={handleGenerateReferences}
+              onNameChange={setProductName}
+              onPrimaryClear={() => setFrontalImage(null)}
+              onPrimaryTrigger={() => frontalInputRef.current?.click()}
+              onReferenceAdd={referenceImages.length < 3 ? () => referenceInputRef.current?.click() : undefined}
+              onReferenceRemove={removeReferenceImage}
+              onSubmit={handleSubmit}
+              primaryEmptyCopy="PNG or JPG, up to 8MB"
+              primaryEmptyTitle="Upload the frontal product image"
+              primaryHelpAriaLabel="Frontal image recommendation"
+              primaryHelpContent={(
+                <div className="rounded-lg border border-black/8 bg-[#fafaf9] px-3 py-2">
+                  <p className="text-[11px] leading-5 text-gray-600">
+                    Use a clear front-facing product shot on a clean background.
+                  </p>
                 </div>
               )}
-
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="product-name-input" className="assets-modal-label text-sm font-medium text-gray-700">
-                    Name
-                  </label>
-                  <input
-                    id="product-name-input"
-                    type="text"
-                    value={productName}
-                    onChange={(event) => setProductName(event.target.value)}
-                    className="assets-modal-input mt-2 w-full rounded-xl border border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm text-gray-900 transition-all focus:border-black focus:bg-white focus:outline-none focus:ring-0"
-                    placeholder="Enter product name"
-                    maxLength={60}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-5">
-                  <div className="space-y-3 h-full min-h-0 flex flex-col">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-gray-900">Frontal Image</p>
-                        <span className={`${fieldBadgeClassName} border-black/10 bg-black/[0.04] text-black/75`}>
-                          Required
-                        </span>
-                      </div>
-                    </div>
-
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => frontalInputRef.current?.click()}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          frontalInputRef.current?.click();
-                        }
-                      }}
-                      className={cn(
-                        'assets-modal-upload relative w-full aspect-[4/5] max-h-[560px] overflow-hidden rounded-2xl border-2 border-dashed transition',
-                        frontalImage
-                          ? 'border-gray-300 bg-[#F8F8F8]'
-                          : 'border-gray-300 bg-[#FAFAFA] hover:border-gray-400'
-                      )}
-                    >
-                      <div className="absolute left-3 top-3">
-                        <span className="assets-modal-chip rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-                          Frontal
-                        </span>
-                      </div>
-
-                      {frontalImage ? (
-                        <>
-                          <Image src={frontalImage.preview} alt="Frontal preview" fill className="object-cover" />
-                          <button
-                            type="button"
-                            className="assets-modal-chip-close absolute right-3 top-3 rounded-full bg-black/70 p-1.5 text-white hover:bg-black"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setFrontalImage(null);
-                            }}
-                            disabled={isCreating}
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </>
-                      ) : (
-                        <div className="assets-modal-upload-empty flex h-full flex-col items-center justify-center px-6 text-center text-sm text-gray-600">
-                          <Upload className="mb-3 h-7 w-7 text-gray-400" />
-                          <div className="w-full max-w-[300px]">
-                            <p className="assets-modal-upload-title text-base font-semibold text-gray-900 leading-6">
-                              Upload the frontal product image
-                            </p>
-                            <p className="assets-modal-helper mt-2 text-xs text-gray-500 leading-5">
-                              PNG or JPG, up to 8MB. Minimum size 300x300.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      <input
-                        ref={frontalInputRef}
-                        type="file"
-                        accept={getAcceptedImageFormats()}
-                        className="hidden"
-                        onChange={handleFrontalUpload}
-                        disabled={isCreating}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 h-full min-h-0 flex flex-col">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-1.5 leading-none">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-gray-900">Reference Images</p>
-                          <motion.span
-                            className={`${fieldBadgeClassName} ${highlightReferenceRequirement ? 'border-black/20 bg-black text-white shadow-[0_8px_24px_rgba(0,0,0,0.14)]' : 'border-gray-200 bg-gray-50 text-gray-600'}`}
-                            animate={highlightReferenceRequirement ? { scale: [1, 1.08, 1], x: [0, -3, 3, 0] } : { scale: 1, x: 0 }}
-                            transition={{ duration: 0.45, ease: 'easeInOut' }}
-                          >
-                            Min 1
-                          </motion.span>
-                        </div>
-                        <div className="relative group">
-                          <button
-                            type="button"
-                            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600"
-                            aria-label="Reference angle recommendation"
-                          >
-                            <CircleHelp className="h-4 w-4" />
-                          </button>
-                          <div className="pointer-events-none absolute right-0 top-6 z-20 w-72 rounded-xl border border-gray-200 bg-white p-3 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
-                            <p className="text-xs text-gray-700">
-                              Recommendation: upload one 45° front-angle shot and up to two extra detail shots for function or structure (such as back view or close-up).
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={handleGenerateReferences}
-                          disabled={!frontalImage || referenceImages.length >= 3 || isCreating || isUploading || isGeneratingReferences}
-                          className="assets-ai-generate-button inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
-                        >
-                          {isGeneratingReferences ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Sparkles className="h-3.5 w-3.5" />
-                          )}
-                          {isGeneratingReferences ? 'Generating…' : 'AI Generate'}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex-1 min-h-0">
-                      <ReferenceImageGrid
-                        items={referenceGridItems}
-                        isGenerating={isGeneratingReferences}
-                        onAdd={referenceImages.length < 3 ? () => referenceInputRef.current?.click() : undefined}
-                        onRemove={removeReferenceImage}
-                        removeDisabled={isCreating || isGeneratingReferences}
-                        slots={PRODUCT_REFERENCE_SLOTS}
-                      />
-                    </div>
-
-                    <input
-                      ref={referenceInputRef}
-                      type="file"
-                      accept={getAcceptedImageFormats()}
-                      className="hidden"
-                      onChange={handleReferenceUpload}
-                      disabled={isCreating || isGeneratingReferences}
-                    />
-
-                  </div>
-                </div>
-              </div>
-
-              <div className="assets-modal-actions flex flex-col gap-3 pt-2 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="assets-modal-secondary flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-50"
-                  disabled={isCreating}
-                >
-                  <X className="h-4 w-4" />
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!canSubmit}
-                  className="assets-modal-primary flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:opacity-40"
-                >
-                  {(isCreating || isUploading) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                  Save
-                </button>
-              </div>
-            </form>
+              primaryImage={frontalImage ? { src: frontalImage.preview, alt: 'Frontal preview' } : null}
+              primaryPreviewLabel="Frontal"
+              primaryTitle="Frontal Image"
+              referenceColumns={2}
+              referenceGenerateDisabled={referenceImages.length >= 3 || isCreating || isUploading || isGeneratingReferences}
+              referenceHelpAriaLabel="Reference angle recommendation"
+              referenceHelpContent={(
+                <p className="text-xs text-gray-700">
+                  Recommendation: upload one 45° front-angle shot and up to two extra detail shots for function or structure.
+                </p>
+              )}
+              referenceItems={referenceGridItems}
+              referenceRemoveDisabled={isCreating || isGeneratingReferences}
+              referenceSlots={PRODUCT_REFERENCE_SLOTS}
+              referenceTitle="Reference Images"
+              saveDisabled={!canSubmit}
+              saveBusy={isCreating || isUploading}
+            />
+            <input
+              ref={frontalInputRef}
+              type="file"
+              accept={getAcceptedImageFormats()}
+              className="hidden"
+              onChange={handleFrontalUpload}
+              disabled={isCreating}
+            />
+            <input
+              ref={referenceInputRef}
+              type="file"
+              accept={getAcceptedImageFormats()}
+              className="hidden"
+              onChange={handleReferenceUpload}
+              disabled={isCreating || isGeneratingReferences}
+            />
           </motion.div>
         </motion.div>
       )}

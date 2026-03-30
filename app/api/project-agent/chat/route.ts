@@ -89,6 +89,7 @@ import {
 } from '@/lib/project-agent/avatar-script-planning';
 import { signInternalUserRequest } from '@/lib/security/internal-request';
 import { buildTypedMentionToken } from '@/lib/prompt-mention-tokens';
+import { matchesAssetReference } from '@/lib/project-agent/asset-name-match';
 import {
   executeProjectAgentCanvasActions,
   normalizeProjectAgentPendingUiRequest,
@@ -1456,17 +1457,41 @@ const dedupeMessages = (messages: UIMessage[]) => {
 
 const MODEL_CONTEXT_WINDOW_MESSAGES = 48;
 
-const normalizeCanvasAssetNeedle = (value: string) => value
-  .toLowerCase()
-  .replace(/[^a-z0-9]+/g, ' ')
-  .replace(/\s+/g, ' ')
-  .trim();
+const VIDEO_CONTEXT_PHRASES = [
+  'same video',
+  'same reference video',
+  'same video context',
+  'using the same video',
+  'with the same video',
+  'with that same video',
+  'that same video',
+  'this video',
+  'that video',
+];
 
-const includesNormalizedAssetName = (haystack: string, needle: string) => {
-  const normalizedHaystack = normalizeCanvasAssetNeedle(haystack);
-  const normalizedNeedle = normalizeCanvasAssetNeedle(needle);
-  if (!normalizedHaystack || !normalizedNeedle) return false;
-  return normalizedHaystack.includes(normalizedNeedle);
+const PRODUCT_CONTEXT_PHRASES = [
+  'same product',
+  'the same product',
+  'with the same product',
+  'keep the same product',
+  'this product',
+  'that product',
+];
+
+const AVATAR_CONTEXT_PHRASES = [
+  'same avatar',
+  'the same avatar',
+  'same person',
+  'the same person',
+  'this avatar',
+  'that avatar',
+  'this person',
+  'that person',
+];
+
+const hasContextPhrase = (text: string, phrases: string[]) => {
+  const normalized = ` ${text.trim().toLowerCase()} `;
+  return phrases.some((phrase) => normalized.includes(` ${phrase} `));
 };
 
 const mergeAvatarOptions = (userAvatars: AvatarOption[]) => {
@@ -1727,8 +1752,21 @@ export async function POST(request: Request) {
       const workflowIntent = detectDirectCanvasWorkflowIntent(rawTurnText);
       if (!workflowIntent) return null;
 
-      const normalizedTurnText = normalizeCanvasAssetNeedle(rawTurnText);
-      if (!normalizedTurnText) return null;
+      const latestCanvasNodes = [...latestCanvas.nodes].reverse();
+      const getOnlyCanvasAsset = (assetType: ProjectAgentAssetNodeType) => {
+        const matchingNodes = latestCanvas.nodes.filter((node) => node.type === assetType && node.asset);
+        return matchingNodes.length === 1 ? matchingNodes[0]?.asset ?? null : null;
+      };
+      const findLatestCanvasAsset = (assetType: ProjectAgentAssetNodeType) => (
+        latestCanvasNodes.find((node) => node.type === assetType && node.asset)
+      );
+      const findNamedCanvasAsset = (assetType: ProjectAgentAssetNodeType) => (
+        latestCanvasNodes.find((node) => (
+          node.type === assetType &&
+          Boolean(node.asset?.name) &&
+          matchesAssetReference(rawTurnText, node.asset?.name || '')
+        ))
+      );
 
       const { data: productRows, error: productRowsError } = await supabase
         .from('user_products')
@@ -1785,7 +1823,18 @@ export async function POST(request: Request) {
         return null;
       }
 
-      const referenceVideos = (creatorSources ?? []).flatMap((source) => {
+      const { data: competitorAds, error: competitorAdsError } = await supabase
+        .from('competitor_ads')
+        .select('id, competitor_name, video_duration_seconds, language')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (competitorAdsError) {
+        console.error('[Project Agent] Failed to load competitor ads for direct canvas matching:', competitorAdsError);
+        return null;
+      }
+
+      const creatorReferenceVideos = (creatorSources ?? []).flatMap((source) => {
         const sourceName = typeof source.source_name === 'string' ? source.source_name : null;
         const sourceVideos = Array.isArray(source.creator_source_videos)
           ? source.creator_source_videos
@@ -1797,6 +1846,7 @@ export async function POST(request: Request) {
             ? video.description
             : sourceName,
           sourceName,
+          sourceType: 'creator' as const,
           videoUrl: typeof video.video_url === 'string' ? video.video_url : null,
           videoCdnUrl: typeof video.video_cdn_url === 'string' ? video.video_cdn_url : null,
           coverUrl: typeof video.cover_url === 'string' ? video.cover_url : null,
@@ -1805,11 +1855,28 @@ export async function POST(request: Request) {
         }));
       });
 
-      const matchedAvatar = mergedAvatars.find((avatar) => includesNormalizedAssetName(rawTurnText, avatar.avatar_name));
-      const matchedProductRow = (productRows ?? []).find((product) => includesNormalizedAssetName(rawTurnText, product.product_name));
+      const competitorReferenceVideos = (competitorAds ?? []).map((ad) => ({
+        id: String(ad.id),
+        description: typeof ad.competitor_name === 'string' && ad.competitor_name.trim().length > 0
+          ? ad.competitor_name
+          : 'Competitor video',
+        sourceName: typeof ad.competitor_name === 'string' ? ad.competitor_name : null,
+        videoUrl: null,
+        videoCdnUrl: null,
+        coverUrl: null,
+        durationSeconds: typeof ad.video_duration_seconds === 'number' ? ad.video_duration_seconds : null,
+        analysisLanguage: typeof ad.language === 'string' ? ad.language : null,
+        sourceType: 'competitor_ad' as const,
+      }));
+
+      const referenceVideos = [...creatorReferenceVideos, ...competitorReferenceVideos];
+
+      const matchedAvatar = mergedAvatars.find((avatar) => matchesAssetReference(rawTurnText, avatar.avatar_name));
+      const matchedSystemAvatar = SYSTEM_AVATARS.find((avatar) => matchesAssetReference(rawTurnText, avatar.avatar_name));
+      const matchedProductRow = (productRows ?? []).find((product) => matchesAssetReference(rawTurnText, product.product_name));
       const matchedReferenceVideo = referenceVideos.find((video) => (
-        (typeof video.description === 'string' && includesNormalizedAssetName(rawTurnText, video.description))
-        || (typeof video.sourceName === 'string' && includesNormalizedAssetName(rawTurnText, video.sourceName))
+        (typeof video.description === 'string' && matchesAssetReference(rawTurnText, video.description))
+        || (typeof video.sourceName === 'string' && matchesAssetReference(rawTurnText, video.sourceName))
       ));
 
       const matchedProduct = matchedProductRow
@@ -1835,6 +1902,12 @@ export async function POST(request: Request) {
             name: matchedAvatar.avatar_name,
             imageUrl: matchedAvatar.photo_url,
           }
+        : matchedSystemAvatar
+          ? {
+              id: matchedSystemAvatar.id,
+              name: matchedSystemAvatar.avatar_name,
+              imageUrl: matchedSystemAvatar.photo_url,
+            }
         : null;
 
       const referenceVideoAsset = matchedReferenceVideo
@@ -1843,30 +1916,46 @@ export async function POST(request: Request) {
             name: matchedReferenceVideo.description || 'Reference video',
             imageUrl: matchedReferenceVideo.coverUrl,
             durationSeconds: matchedReferenceVideo.durationSeconds,
-            sourceType: 'creator' as const,
+            sourceType: matchedReferenceVideo.sourceType ?? 'creator' as const,
             videoUrl: matchedReferenceVideo.videoUrl,
             videoCdnUrl: matchedReferenceVideo.videoCdnUrl,
             analysisLanguage: matchedReferenceVideo.analysisLanguage,
           }
         : null;
 
+      const existingVideoAssetNode = findNamedCanvasAsset('video') || (
+        hasContextPhrase(rawTurnText, VIDEO_CONTEXT_PHRASES) ? findLatestCanvasAsset('video') : undefined
+      );
+      const existingProductAssetNode = findNamedCanvasAsset('product') || (
+        hasContextPhrase(rawTurnText, PRODUCT_CONTEXT_PHRASES) ? findLatestCanvasAsset('product') : undefined
+      );
+      const existingAvatarAssetNode = findNamedCanvasAsset('avatar') || (
+        hasContextPhrase(rawTurnText, AVATAR_CONTEXT_PHRASES) ? findLatestCanvasAsset('avatar') : undefined
+      );
+
+      const resolvedProductAsset = matchedProduct || existingProductAssetNode?.asset || null;
+      const resolvedAvatarAsset = avatarAsset || existingAvatarAssetNode?.asset || getOnlyCanvasAsset('avatar') || null;
+      const resolvedReferenceVideoAsset = referenceVideoAsset || existingVideoAssetNode?.asset || getOnlyCanvasAsset('video') || null;
+      const fallbackProductAsset = existingProductAssetNode?.asset || getOnlyCanvasAsset('product') || null;
+      const resolvedProductAssetWithCanvasFallback = resolvedProductAsset || fallbackProductAsset;
+
       const actions: ProjectAgentCanvasAction[] = [];
       const mutations: ProjectAgentCanvasMutation[] = [];
 
-      if (workflowIntent === 'avatar_ads' && avatarAsset) {
+      if (workflowIntent === 'avatar_ads' && resolvedAvatarAsset) {
         mutations.push(
           {
             type: 'add_asset_node',
             alias: 'avatarAsset',
             assetType: 'avatar',
-            asset: avatarAsset,
+            asset: resolvedAvatarAsset,
             reuseExisting: true,
           },
           {
             type: 'add_text_node',
             alias: 'scriptAsset',
-            content: matchedProduct
-              ? `Introduce ${matchedProduct.name} in a short premium style.`
+            content: resolvedProductAssetWithCanvasFallback
+              ? `Introduce ${resolvedProductAssetWithCanvasFallback.name} in a short premium style.`
               : 'Create a concise premium avatar ad script.',
           },
           {
@@ -1890,12 +1979,12 @@ export async function POST(request: Request) {
           },
         );
 
-        if (matchedProduct) {
+        if (resolvedProductAssetWithCanvasFallback) {
           mutations.splice(1, 0, {
             type: 'add_asset_node',
             alias: 'productAsset',
             assetType: 'product',
-            asset: matchedProduct,
+            asset: resolvedProductAssetWithCanvasFallback,
             reuseExisting: true,
           });
           mutations.push({
@@ -1907,13 +1996,13 @@ export async function POST(request: Request) {
         }
       }
 
-      if (workflowIntent === 'video_clone' && referenceVideoAsset && (matchedProduct || avatarAsset)) {
+      if (workflowIntent === 'video_clone' && resolvedReferenceVideoAsset && (resolvedProductAssetWithCanvasFallback || resolvedAvatarAsset)) {
         mutations.push(
           {
             type: 'add_asset_node',
             alias: 'videoAsset',
             assetType: 'video',
-            asset: referenceVideoAsset,
+            asset: resolvedReferenceVideoAsset,
             reuseExisting: true,
           },
           {
@@ -1931,12 +2020,12 @@ export async function POST(request: Request) {
           },
         );
 
-        if (matchedProduct) {
+        if (resolvedProductAssetWithCanvasFallback) {
           mutations.splice(1, 0, {
             type: 'add_asset_node',
             alias: 'productAsset',
             assetType: 'product',
-            asset: matchedProduct,
+            asset: resolvedProductAssetWithCanvasFallback,
             reuseExisting: true,
           });
           mutations.push({
@@ -1945,12 +2034,12 @@ export async function POST(request: Request) {
             target: { kind: 'alias', alias: 'featureNode' },
             targetHandle: 'product',
           });
-        } else if (avatarAsset) {
+        } else if (resolvedAvatarAsset) {
           mutations.splice(1, 0, {
             type: 'add_asset_node',
             alias: 'avatarAsset',
             assetType: 'avatar',
-            asset: avatarAsset,
+            asset: resolvedAvatarAsset,
             reuseExisting: true,
           });
           mutations.push({
@@ -1962,20 +2051,20 @@ export async function POST(request: Request) {
         }
       }
 
-      if (workflowIntent === 'motion_clone' && referenceVideoAsset && avatarAsset) {
+      if (workflowIntent === 'motion_clone' && resolvedReferenceVideoAsset && resolvedAvatarAsset) {
         mutations.push(
           {
             type: 'add_asset_node',
             alias: 'videoAsset',
             assetType: 'video',
-            asset: referenceVideoAsset,
+            asset: resolvedReferenceVideoAsset,
             reuseExisting: true,
           },
           {
             type: 'add_asset_node',
             alias: 'avatarAsset',
             assetType: 'avatar',
-            asset: avatarAsset,
+            asset: resolvedAvatarAsset,
             reuseExisting: true,
           },
           {
@@ -1999,12 +2088,12 @@ export async function POST(request: Request) {
           },
         );
 
-        if (matchedProduct) {
+        if (resolvedProductAssetWithCanvasFallback) {
           mutations.splice(2, 0, {
             type: 'add_asset_node',
             alias: 'productAsset',
             assetType: 'product',
-            asset: matchedProduct,
+            asset: resolvedProductAssetWithCanvasFallback,
             reuseExisting: true,
           });
           mutations.push({
@@ -2029,15 +2118,266 @@ export async function POST(request: Request) {
       const nextState = mergeState(sessionState, {
         canvas: nextCanvasResult.canvas,
         pendingUiRequest: nextCanvasResult.pendingUiRequest,
+        intent: workflowIntent === 'video_clone'
+          ? 'competitor_ugc_replication'
+          : workflowIntent,
       });
 
       let replyText = 'I updated the canvas.';
-      if (workflowIntent === 'avatar_ads' && avatarAsset) {
-        replyText = `I added an Avatar Ads workflow to the canvas with ${avatarAsset.name}${matchedProduct ? ` and ${matchedProduct.name}` : ''}.`;
-      } else if (workflowIntent === 'motion_clone' && avatarAsset && referenceVideoAsset) {
-        replyText = `I added a Motion Clone workflow to the canvas with ${avatarAsset.name}, ${referenceVideoAsset.name}${matchedProduct ? `, and ${matchedProduct.name}` : ''}.`;
-      } else if (workflowIntent === 'video_clone' && referenceVideoAsset) {
-        replyText = `I added a Video Clone workflow to the canvas with ${referenceVideoAsset.name}${matchedProduct ? ` and ${matchedProduct.name}` : avatarAsset ? ` and ${avatarAsset.name}` : ''}.`;
+      if (workflowIntent === 'avatar_ads' && resolvedAvatarAsset) {
+        replyText = `I added an Avatar Ads workflow to the canvas with ${resolvedAvatarAsset.name}${resolvedProductAssetWithCanvasFallback ? ` and ${resolvedProductAssetWithCanvasFallback.name}` : ''}.`;
+      } else if (workflowIntent === 'motion_clone' && resolvedAvatarAsset && resolvedReferenceVideoAsset) {
+        replyText = `I added a Motion Clone workflow to the canvas with ${resolvedAvatarAsset.name}, ${resolvedReferenceVideoAsset.name}${resolvedProductAssetWithCanvasFallback ? `, and ${resolvedProductAssetWithCanvasFallback.name}` : ''}.`;
+      } else if (workflowIntent === 'video_clone' && resolvedReferenceVideoAsset) {
+        replyText = `I added a Video Clone workflow to the canvas with ${resolvedReferenceVideoAsset.name}${resolvedProductAssetWithCanvasFallback ? ` and ${resolvedProductAssetWithCanvasFallback.name}` : resolvedAvatarAsset ? ` and ${resolvedAvatarAsset.name}` : ''}.`;
+      }
+
+      return {
+        replyText,
+        actions,
+        nextState,
+      };
+    };
+
+    const resolveSameContextCanvasWorkflowPlan = (): {
+      replyText: string;
+      actions: ProjectAgentCanvasAction[];
+      nextState: SessionState;
+    } | null => {
+      const rawTurnText = messageText(normalizedIncomingMessage);
+      const workflowIntent = detectDirectCanvasWorkflowIntent(rawTurnText);
+      if (!workflowIntent) return null;
+
+      const latestCanvasNodes = [...latestCanvas.nodes].reverse();
+      const getOnlyCanvasAsset = (assetType: ProjectAgentAssetNodeType) => {
+        const matchingNodes = latestCanvas.nodes.filter((node) => node.type === assetType && node.asset);
+        return matchingNodes.length === 1 ? matchingNodes[0]?.asset ?? null : null;
+      };
+      const findLatestCanvasAsset = (assetType: ProjectAgentAssetNodeType) => (
+        latestCanvasNodes.find((node) => node.type === assetType && node.asset)
+      );
+      const findNamedCanvasAsset = (assetType: ProjectAgentAssetNodeType) => (
+        latestCanvasNodes.find((node) => (
+          node.type === assetType &&
+          Boolean(node.asset?.name) &&
+          matchesAssetReference(rawTurnText, node.asset?.name || '')
+        ))
+      );
+
+      const resolvedVideoAsset = (
+        findNamedCanvasAsset('video')?.asset
+        || (hasContextPhrase(rawTurnText, VIDEO_CONTEXT_PHRASES) ? findLatestCanvasAsset('video')?.asset : null)
+        || getOnlyCanvasAsset('video')
+      );
+      const resolvedProductAsset = (
+        findNamedCanvasAsset('product')?.asset
+        || (hasContextPhrase(rawTurnText, PRODUCT_CONTEXT_PHRASES) ? findLatestCanvasAsset('product')?.asset : null)
+        || getOnlyCanvasAsset('product')
+      );
+      const resolvedAvatarAsset = (
+        findNamedCanvasAsset('avatar')?.asset
+        || (() => {
+          const systemAvatar = SYSTEM_AVATARS.find((avatar) => matchesAssetReference(rawTurnText, avatar.avatar_name));
+          if (!systemAvatar) return null;
+          return {
+            id: systemAvatar.id,
+            name: systemAvatar.avatar_name,
+            imageUrl: systemAvatar.photo_url,
+          };
+        })()
+        || (hasContextPhrase(rawTurnText, AVATAR_CONTEXT_PHRASES) ? findLatestCanvasAsset('avatar')?.asset : null)
+        || getOnlyCanvasAsset('avatar')
+      );
+      const resolvedProductAssetWithCanvasFallback = resolvedProductAsset || null;
+
+      const mutations: ProjectAgentCanvasMutation[] = [];
+
+      if (workflowIntent === 'video_clone' && resolvedVideoAsset && (resolvedProductAsset || resolvedAvatarAsset)) {
+        mutations.push(
+          {
+            type: 'add_asset_node',
+            alias: 'videoAsset',
+            assetType: 'video',
+            asset: resolvedVideoAsset,
+            reuseExisting: true,
+          },
+          {
+            type: 'add_feature_node',
+            alias: 'featureNode',
+            featureType: 'video_clone',
+            reuseExisting: true,
+            select: true,
+          },
+          {
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'videoAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'video',
+          },
+        );
+
+        if (resolvedProductAssetWithCanvasFallback) {
+          mutations.splice(1, 0, {
+            type: 'add_asset_node',
+            alias: 'productAsset',
+            assetType: 'product',
+            asset: resolvedProductAssetWithCanvasFallback,
+            reuseExisting: true,
+          });
+          mutations.push({
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'productAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'product',
+          });
+        } else if (resolvedAvatarAsset) {
+          mutations.splice(1, 0, {
+            type: 'add_asset_node',
+            alias: 'avatarAsset',
+            assetType: 'avatar',
+            asset: resolvedAvatarAsset,
+            reuseExisting: true,
+          });
+          mutations.push({
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'avatarAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'avatar',
+          });
+        }
+      }
+
+      if (workflowIntent === 'motion_clone' && resolvedVideoAsset && resolvedAvatarAsset) {
+        mutations.push(
+          {
+            type: 'add_asset_node',
+            alias: 'videoAsset',
+            assetType: 'video',
+            asset: resolvedVideoAsset,
+            reuseExisting: true,
+          },
+          {
+            type: 'add_asset_node',
+            alias: 'avatarAsset',
+            assetType: 'avatar',
+            asset: resolvedAvatarAsset,
+            reuseExisting: true,
+          },
+          {
+            type: 'add_feature_node',
+            alias: 'featureNode',
+            featureType: 'motion_clone',
+            reuseExisting: true,
+            select: true,
+          },
+          {
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'videoAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'video',
+          },
+          {
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'avatarAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'avatar',
+          },
+        );
+
+        if (resolvedProductAssetWithCanvasFallback) {
+          mutations.splice(2, 0, {
+            type: 'add_asset_node',
+            alias: 'productAsset',
+            assetType: 'product',
+            asset: resolvedProductAssetWithCanvasFallback,
+            reuseExisting: true,
+          });
+          mutations.push({
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'productAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'product',
+          });
+        }
+      }
+
+      if (workflowIntent === 'avatar_ads' && resolvedAvatarAsset) {
+        mutations.push(
+          {
+            type: 'add_asset_node',
+            alias: 'avatarAsset',
+            assetType: 'avatar',
+            asset: resolvedAvatarAsset,
+            reuseExisting: true,
+          },
+          {
+            type: 'add_text_node',
+            alias: 'scriptAsset',
+            content: resolvedProductAssetWithCanvasFallback
+              ? `Introduce ${resolvedProductAssetWithCanvasFallback.name} in a short premium style.`
+              : 'Create a concise premium avatar ad script.',
+          },
+          {
+            type: 'add_feature_node',
+            alias: 'featureNode',
+            featureType: 'avatar_ads',
+            reuseExisting: true,
+            select: true,
+          },
+          {
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'avatarAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'avatar',
+          },
+          {
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'scriptAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'text',
+          },
+        );
+
+        if (resolvedProductAssetWithCanvasFallback) {
+          mutations.splice(1, 0, {
+            type: 'add_asset_node',
+            alias: 'productAsset',
+            assetType: 'product',
+            asset: resolvedProductAssetWithCanvasFallback,
+            reuseExisting: true,
+          });
+          mutations.push({
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'productAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'product',
+          });
+        }
+      }
+
+      if (mutations.length === 0) return null;
+
+      const actions = [
+        ...mutations.map((mutation) => ({ kind: 'canvas_mutation' as const, mutation })),
+        { kind: 'canvas_mutation' as const, mutation: { type: 'format_layout' as const } },
+      ];
+      const nextCanvasResult = executeProjectAgentCanvasActions({
+        canvas: latestCanvas,
+        actions,
+      });
+      const nextState = mergeState(sessionState, {
+        canvas: nextCanvasResult.canvas,
+        pendingUiRequest: nextCanvasResult.pendingUiRequest,
+        intent: workflowIntent === 'video_clone' ? 'competitor_ugc_replication' : workflowIntent,
+      });
+
+      let replyText = 'I updated the canvas.';
+      if (workflowIntent === 'motion_clone' && resolvedAvatarAsset && resolvedVideoAsset) {
+        replyText = `I added a Motion Clone workflow to the canvas with ${resolvedAvatarAsset.name}, ${resolvedVideoAsset.name}${resolvedProductAssetWithCanvasFallback ? `, and ${resolvedProductAssetWithCanvasFallback.name}` : ''}.`;
+      } else if (workflowIntent === 'avatar_ads' && resolvedAvatarAsset) {
+        replyText = `I added an Avatar Ads workflow to the canvas with ${resolvedAvatarAsset.name}${resolvedProductAssetWithCanvasFallback ? ` and ${resolvedProductAssetWithCanvasFallback.name}` : ''}.`;
+      } else if (workflowIntent === 'video_clone' && resolvedVideoAsset) {
+        replyText = `I added a Video Clone workflow to the canvas with ${resolvedVideoAsset.name}${resolvedProductAssetWithCanvasFallback ? ` and ${resolvedProductAssetWithCanvasFallback.name}` : resolvedAvatarAsset ? ` and ${resolvedAvatarAsset.name}` : ''}.`;
       }
 
       return {
@@ -2092,6 +2432,19 @@ export async function POST(request: Request) {
         conversationMessages,
         statePatch && typeof statePatch === 'object' ? sessionState : undefined
       );
+    }
+
+    const sameContextCanvasWorkflowPlan = resolveSameContextCanvasWorkflowPlan();
+    if (sameContextCanvasWorkflowPlan) {
+      return sendDirectCanvasActionReply({
+        replyText: sameContextCanvasWorkflowPlan.replyText,
+        toolName: 'planCanvasEdit',
+        output: {
+          success: true,
+          actions: sameContextCanvasWorkflowPlan.actions,
+        },
+        nextState: sameContextCanvasWorkflowPlan.nextState,
+      });
     }
 
     const directNamedCanvasWorkflowPlan = await resolveNamedCanvasWorkflowPlan();
@@ -2159,6 +2512,14 @@ export async function POST(request: Request) {
     }
 
     if (plannedCanvasCommand?.type === 'safe_edit') {
+      const nextCanvasResult = executeProjectAgentCanvasActions({
+        canvas: latestCanvas,
+        actions: plannedCanvasCommand.actions,
+      });
+      const nextState = mergeState(sessionState, {
+        canvas: nextCanvasResult.canvas,
+        pendingUiRequest: nextCanvasResult.pendingUiRequest,
+      });
       return sendDirectCanvasActionReply({
         replyText: plannedCanvasCommand.reply,
         toolName: 'planCanvasEdit',
@@ -2166,6 +2527,7 @@ export async function POST(request: Request) {
           success: true,
           actions: plannedCanvasCommand.actions,
         },
+        nextState,
       });
     }
 

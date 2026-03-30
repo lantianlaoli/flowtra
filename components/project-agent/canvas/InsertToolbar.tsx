@@ -27,9 +27,9 @@ type InsertToolbarProps = {
 };
 
 const draggableButtonClass =
-  'inline-flex w-fit max-w-full items-center gap-3 overflow-hidden rounded-[12px] border border-[#cfcfcb] bg-white px-3 py-2.5 text-left text-sm font-medium text-[#171717] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f3f3f1] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)]';
+  'project-agent-insert-item inline-flex w-fit max-w-full items-center gap-3 overflow-hidden rounded-[12px] border border-[#cfcfcb] bg-white px-3 py-2.5 text-left text-sm font-medium text-[#171717] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f3f3f1] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)]';
 const actionButtonClass =
-  'inline-flex w-fit max-w-full items-center gap-3 overflow-hidden rounded-[12px] border border-dashed border-[#cfcfcb] bg-[#fcfcfb] px-3 py-2.5 text-left text-sm font-medium text-[#171717] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.75),0_10px_18px_rgba(0,0,0,0.04)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f3f3f1] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)]';
+  'project-agent-insert-upload inline-flex w-fit max-w-full items-center gap-3 overflow-hidden rounded-[12px] border border-dashed border-[#cfcfcb] bg-[#fcfcfb] px-3 py-2.5 text-left text-sm font-medium text-[#171717] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.75),0_10px_18px_rgba(0,0,0,0.04)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f3f3f1] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)]';
 
 const setCustomDragPreview = (event: React.DragEvent<HTMLElement>, label: string) => {
   const preview = document.createElement('div');
@@ -151,7 +151,7 @@ const AssetList = ({
     <div className="flex flex-col items-start">
       <div className="flex max-h-[min(52vh,340px)] w-full flex-col items-start gap-2 overflow-y-auto pr-1">
         {items.length === 0 ? (
-          <p className="rounded-[14px] border border-dashed border-[#d4d4d4] bg-[#fafafa] px-3 py-3 text-xs text-[#737373]">
+          <p className="project-agent-insert-empty rounded-[14px] border border-dashed border-[#d4d4d4] bg-[#fafafa] px-3 py-3 text-xs text-[#737373]">
             No {type} assets yet.
           </p>
         ) : (
@@ -177,7 +177,7 @@ const AssetList = ({
         )}
       </div>
       {hasQuickUpload && onQuickUploadRequest ? (
-        <div className="sticky bottom-0 mt-2 w-full border-t border-[#d9d9d6] bg-[#f1f1ef] pt-2">
+        <div className="project-agent-insert-footer sticky bottom-0 mt-2 w-full border-t border-[#d9d9d6] bg-[#f1f1ef] pt-2">
           <QuickUploadTile assetType={type as 'avatar' | 'product'} onClick={() => onQuickUploadRequest(type as 'avatar' | 'product')} />
         </div>
       ) : null}
@@ -280,11 +280,11 @@ export default function InsertToolbar({
   return (
     <div
       ref={toolbarRef}
-      className="pointer-events-auto relative max-w-full rounded-[20px] border border-[#cdcdca] bg-[#f1f1ef] p-2 shadow-[0_14px_30px_rgba(0,0,0,0.08)] backdrop-blur"
+      className="project-agent-insert-toolbar pointer-events-auto relative max-w-full rounded-[20px] border border-[#cdcdca] bg-[#f1f1ef] p-2 shadow-[0_14px_30px_rgba(0,0,0,0.08)] backdrop-blur"
     >
       {openKey ? (
         <div
-          className="absolute bottom-[calc(100%+10px)] z-20 inline-flex w-fit max-w-[360px] rounded-[16px] border border-[#cdcdca] bg-[#f1f1ef] p-2 shadow-[0_16px_36px_rgba(0,0,0,0.10)]"
+          className="project-agent-insert-dropdown absolute bottom-[calc(100%+10px)] z-20 inline-flex w-fit max-w-[360px] rounded-[16px] border border-[#cdcdca] bg-[#f1f1ef] p-2 shadow-[0_16px_36px_rgba(0,0,0,0.10)]"
           style={{ left: dropdownOffset, width: 'fit-content' }}
         >
           {renderDropdownContent()}
@@ -306,9 +306,9 @@ export default function InsertToolbar({
               ref={(element) => {
                 triggerRefs.current[entry.key] = element;
               }}
-              className={`flex h-11 min-w-0 items-center gap-1.5 rounded-[12px] border px-3 py-2 text-sm font-semibold transition-all duration-150 max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0 ${
+              className={`project-agent-insert-trigger flex h-11 min-w-0 items-center gap-1.5 rounded-[12px] border px-3 py-2 text-sm font-semibold transition-all duration-150 max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0 ${
                 open
-                  ? 'border-[#111111] bg-[#111111] text-white shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_3px_0_rgba(20,20,20,0.95),0_12px_20px_rgba(0,0,0,0.16)] hover:-translate-y-[1px] hover:bg-[#1a1a1a] hover:shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_5px_0_rgba(20,20,20,0.95),0_16px_24px_rgba(0,0,0,0.18)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.06)_inset,0_1px_0_rgba(20,20,20,0.9),0_8px_12px_rgba(0,0,0,0.14)]'
+                  ? 'project-agent-insert-trigger--active border-[#111111] bg-[#111111] text-white shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_3px_0_rgba(20,20,20,0.95),0_12px_20px_rgba(0,0,0,0.16)] hover:-translate-y-[1px] hover:bg-[#1a1a1a] hover:shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_5px_0_rgba(20,20,20,0.95),0_16px_24px_rgba(0,0,0,0.18)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.06)_inset,0_1px_0_rgba(20,20,20,0.9),0_8px_12px_rgba(0,0,0,0.14)]'
                   : 'border-[#cfcfcb] bg-white text-[#2a2a2a] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f6f6f4] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)]'
               }`}
               onClick={() => setOpenKey(open ? null : entry.key)}
@@ -326,7 +326,7 @@ export default function InsertToolbar({
 
         {/* Text node — directly draggable, no dropdown */}
         <div
-          className="flex h-11 shrink cursor-grab items-center gap-1.5 overflow-hidden rounded-[12px] border border-[#cfcfcb] bg-white px-3 py-2 text-sm font-semibold text-[#2a2a2a] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f6f6f4] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:cursor-grabbing active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)] max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0"
+          className="project-agent-insert-trigger project-agent-insert-text-trigger flex h-11 shrink cursor-grab items-center gap-1.5 overflow-hidden rounded-[12px] border border-[#cfcfcb] bg-white px-3 py-2 text-sm font-semibold text-[#2a2a2a] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f6f6f4] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:cursor-grabbing active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)] max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0"
           draggable
           onDragStart={(event) => {
             event.dataTransfer.effectAllowed = 'copy';
