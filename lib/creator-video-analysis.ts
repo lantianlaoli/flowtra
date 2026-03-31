@@ -428,12 +428,12 @@ const analyzeCreatorVideoByUrl = async (input: {
     throw new Error('OPENROUTER_API_KEY is not configured.');
   }
 
-  // Required (no fallback by design): uploader flow must use a dedicated video-analysis model.
-  const model = process.env.OPENROUTER_ANALYSIS_VIDEO_MODEL;
+  // Required: video analysis model (fallback to OPENROUTER_MODEL)
+  const model = process.env.OPENROUTER_ANALYSIS_VIDEO_MODEL || process.env.OPENROUTER_MODEL;
   if (!model) {
-    throw new Error('OPENROUTER_ANALYSIS_VIDEO_MODEL is not configured.');
+    throw new Error('OPENROUTER_MODEL is not configured.');
   }
-  const providerIgnore = (process.env.OPENROUTER_ANALYSIS_VIDEO_IGNORE_PROVIDERS || '')
+  const providerIgnore = (process.env.OPENROUTER_ANALYSIS_VIDEO_IGNORE_PROVIDERS || process.env.OPENROUTER_MODEL_IGNORE_PROVIDERS || '')
     .split(',')
     .map(value => value.trim())
     .filter(Boolean);

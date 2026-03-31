@@ -10,8 +10,8 @@ import { __test__ as creatorVideoAnalysisTestUtils } from '../lib/creator-video-
 
 const videoUrl = process.argv[2]?.trim();
 const sourceName = process.argv[3]?.trim() || 'OpenRouter timing test';
-const model = process.env.OPENROUTER_ANALYSIS_VIDEO_MODEL;
-const ignoreProviders = (process.env.OPENROUTER_ANALYSIS_VIDEO_IGNORE_PROVIDERS || '')
+const model = process.env.OPENROUTER_ANALYSIS_VIDEO_MODEL || process.env.OPENROUTER_MODEL;
+const ignoreProviders = (process.env.OPENROUTER_ANALYSIS_VIDEO_IGNORE_PROVIDERS || process.env.OPENROUTER_MODEL_IGNORE_PROVIDERS || '')
   .split(',')
   .map(value => value.trim())
   .filter(Boolean);
@@ -28,7 +28,7 @@ if (!process.env.OPENROUTER_API_KEY) {
 }
 
 if (!model) {
-  console.error('Missing OPENROUTER_ANALYSIS_VIDEO_MODEL in environment.');
+  console.error('Missing OPENROUTER_MODEL (or OPENROUTER_ANALYSIS_VIDEO_MODEL) in environment.');
   process.exit(1);
 }
 
