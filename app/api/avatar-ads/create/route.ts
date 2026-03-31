@@ -15,7 +15,7 @@ import { captureServerEvent } from '@/lib/analytics/server';
 import { verifyInternalUserRequest } from '@/lib/security/internal-request';
 
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
-const AVATAR_ADS_PERSISTED_IMAGE_MODEL = 'nano_banana_pro' as const;
+const AVATAR_ADS_PERSISTED_IMAGE_MODEL = 'nano-banana-2' as const;
 
 export async function POST(request: NextRequest) {
   try {
