@@ -37,6 +37,7 @@ export default function VideoDurationSelector({
   recommendedDuration // NEW
 }: VideoDurationSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const portalRef = useRef<HTMLDivElement>(null);
@@ -109,6 +110,11 @@ export default function VideoDurationSelector({
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Set mounted state to prevent hydration issues with portal
+  useEffect(() => {
+    setMounted(true);
   }, []);
 
   // Track button position for portal dropdown
@@ -205,7 +211,7 @@ export default function VideoDurationSelector({
         </button>
 
         {/* Dropdown Options */}
-        {typeof document !== 'undefined' && createPortal(
+        {mounted && typeof document !== 'undefined' && createPortal(
           <AnimatePresence>
             {isOpen && dropdownPosition && (
               <motion.div

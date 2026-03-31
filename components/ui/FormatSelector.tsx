@@ -61,10 +61,16 @@ export default function FormatSelector({
   disabled = false
 }: FormatSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
+
+  // Set mounted state to prevent hydration issues with portal
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const formatOptions = outputMode === 'image' ? IMAGE_FORMATS : VIDEO_FORMATS;
 
@@ -143,7 +149,7 @@ export default function FormatSelector({
         </button>
 
         {/* Dropdown Options - Portal to body */}
-        {isOpen && !disabled && buttonRect && typeof window !== 'undefined' && createPortal(
+        {mounted && isOpen && !disabled && buttonRect && typeof window !== 'undefined' && createPortal(
           <AnimatePresence>
             <motion.div
               ref={optionsRef}

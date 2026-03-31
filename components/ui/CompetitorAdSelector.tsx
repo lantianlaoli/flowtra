@@ -25,9 +25,15 @@ export default function CompetitorAdSelector({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [expandedAdId, setExpandedAdId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
+
+  // Set mounted state to prevent hydration issues with portal
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Detect mobile on mount and window resize
   useEffect(() => {
@@ -205,7 +211,7 @@ export default function CompetitorAdSelector({
       </button>
 
       {/* Expandable Content - Render via Portal */}
-      {isExpanded && buttonRect && typeof window !== 'undefined' && createPortal(
+      {mounted && isExpanded && buttonRect && typeof window !== 'undefined' && createPortal(
         <div
           ref={contentRef}
           style={{

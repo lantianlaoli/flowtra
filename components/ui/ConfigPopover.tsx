@@ -106,6 +106,7 @@ export default function ConfigPopover({
   photoOutputFormatOptions = ['png', 'jpg'],
 }: ConfigPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -129,6 +130,11 @@ export default function ConfigPopover({
     // Safari fallback
     mediaQuery.addListener(updateMatch);
     return () => mediaQuery.removeListener(updateMatch);
+  }, []);
+
+  // Set mounted state to prevent hydration issues with portal
+  useEffect(() => {
+    setMounted(true);
   }, []);
 
   // Close popover when clicking outside
@@ -333,7 +339,7 @@ export default function ConfigPopover({
       </button>
 
       {/* Popover */}
-      {isOpen && buttonRect && typeof window !== 'undefined' && createPortal(
+      {mounted && isOpen && buttonRect && typeof window !== 'undefined' && createPortal(
         <AnimatePresence>
           <>
             {isMobile && (
