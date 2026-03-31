@@ -537,7 +537,7 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
   ];
 
   const data = await sendOpenRouterChat({
-    model: 'google/gemini-2.5-flash',
+    model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
     messages,
     response_format: { type: 'json_object' },
     max_tokens: 2000,
