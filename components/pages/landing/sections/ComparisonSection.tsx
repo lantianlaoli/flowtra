@@ -1,6 +1,9 @@
 import { BadgeDollarSign, Check, FolderKanban, Layers3 } from "lucide-react";
+import { getPackageModelDurationRows } from "@/lib/constants";
 
 export default function ComparisonSection() {
+  const basicModelDurations = getPackageModelDurationRows("basic");
+
   return (
     <section className="landing-section-surface bg-white py-14 md:py-20 lg:py-24">
       <div className="text-center mb-10 md:mb-16 px-4">
@@ -55,13 +58,18 @@ export default function ComparisonSection() {
                       "Avatar Ads",
                       "Clone viral videos",
                       "Motion Clone",
-                      "26.2 minutes of video",
                       "10+ languages",
                       "Latest video models",
                     ].map((item) => (
                       <li key={item} className="flex items-center gap-2">
                         <Check className="w-4 h-4 text-black flex-shrink-0" />
                         <span>{item}</span>
+                      </li>
+                    ))}
+                    {basicModelDurations.map((item) => (
+                      <li key={item.model} className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-black flex-shrink-0" />
+                        <span>{item.label}: {item.durationLabel}</span>
                       </li>
                     ))}
                     <li className="flex items-center gap-2">
@@ -126,13 +134,18 @@ export default function ComparisonSection() {
                     "Avatar Ads",
                     "Clone viral videos",
                     "Motion Clone",
-                    "26.2 minutes of video",
                     "10+ languages",
                     "Latest video models",
                   ].map((item) => (
                     <li key={item} className="flex items-center gap-2">
                       <Check className="w-4 h-4 text-black flex-shrink-0" />
                       <span>{item}</span>
+                    </li>
+                  ))}
+                  {basicModelDurations.map((item) => (
+                    <li key={item.model} className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-black flex-shrink-0" />
+                      <span>{item.label}: {item.durationLabel}</span>
                     </li>
                   ))}
                   <li className="flex items-center gap-2">

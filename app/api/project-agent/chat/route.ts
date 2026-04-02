@@ -1724,21 +1724,31 @@ export async function POST(request: Request) {
 
     const latestCanvas = sessionState.canvas ?? normalizeCanvasState(null);
 
+    const includesNegatedWorkflowPhrase = (text: string, phrase: string) => (
+      new RegExp(`\\b(?:do not|don't|dont|avoid|without|keep|no)\\b[\\s\\S]{0,48}${phrase.replace(/\s+/g, '\\s+')}`, 'i').test(text)
+    );
+
     const detectDirectCanvasWorkflowIntent = (text: string): 'avatar_ads' | 'motion_clone' | 'video_clone' | null => {
       const normalized = ` ${text.trim().toLowerCase()} `;
       if (!normalized.trim()) return null;
-      if (normalized.includes(' motion clone ')) return 'motion_clone';
+      if (normalized.includes(' motion clone ') && !includesNegatedWorkflowPhrase(normalized, 'motion clone')) return 'motion_clone';
       if (
-        normalized.includes(' avatar ads ') ||
-        normalized.includes(' avatar ad ') ||
-        normalized.includes(' character ads ') ||
-        normalized.includes(' character ad ')
+        (
+          normalized.includes(' avatar ads ') ||
+          normalized.includes(' avatar ad ') ||
+          normalized.includes(' character ads ') ||
+          normalized.includes(' character ad ')
+        ) &&
+        !includesNegatedWorkflowPhrase(normalized, 'avatar ads')
       ) return 'avatar_ads';
       if (
-        normalized.includes(' video clone ') ||
-        normalized.includes(' clone workflow ') ||
-        normalized.includes(' clone flow ') ||
-        normalized.includes(' ugc clone ')
+        (
+          normalized.includes(' video clone ') ||
+          normalized.includes(' clone workflow ') ||
+          normalized.includes(' clone flow ') ||
+          normalized.includes(' ugc clone ')
+        ) &&
+        !includesNegatedWorkflowPhrase(normalized, 'video clone')
       ) return 'video_clone';
       return null;
     };
@@ -2434,19 +2444,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const sameContextCanvasWorkflowPlan = resolveSameContextCanvasWorkflowPlan();
-    if (sameContextCanvasWorkflowPlan) {
-      return sendDirectCanvasActionReply({
-        replyText: sameContextCanvasWorkflowPlan.replyText,
-        toolName: 'planCanvasEdit',
-        output: {
-          success: true,
-          actions: sameContextCanvasWorkflowPlan.actions,
-        },
-        nextState: sameContextCanvasWorkflowPlan.nextState,
-      });
-    }
-
     const directNamedCanvasWorkflowPlan = await resolveNamedCanvasWorkflowPlan();
     if (directNamedCanvasWorkflowPlan) {
       return sendDirectCanvasActionReply({
@@ -2457,6 +2454,23 @@ export async function POST(request: Request) {
           actions: directNamedCanvasWorkflowPlan.actions,
         },
         nextState: directNamedCanvasWorkflowPlan.nextState,
+      });
+    }
+
+    // Prefer the richer named-asset resolver first because it can combine
+    // explicit asset mentions with "same video/product/avatar" canvas fallback.
+    // The same-context planner remains a lightweight fallback when no database-
+    // backed asset resolution path matches.
+    const sameContextCanvasWorkflowPlan = resolveSameContextCanvasWorkflowPlan();
+    if (sameContextCanvasWorkflowPlan) {
+      return sendDirectCanvasActionReply({
+        replyText: sameContextCanvasWorkflowPlan.replyText,
+        toolName: 'planCanvasEdit',
+        output: {
+          success: true,
+          actions: sameContextCanvasWorkflowPlan.actions,
+        },
+        nextState: sameContextCanvasWorkflowPlan.nextState,
       });
     }
 

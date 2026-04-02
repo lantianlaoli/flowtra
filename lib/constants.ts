@@ -311,6 +311,48 @@ export function getVideoModelDisplayName(model: VideoModel): string {
   return VIDEO_MODEL_DISPLAY_NAMES[model];
 }
 
+export const LANDING_PRICING_VIDEO_MODELS: readonly VideoModel[] = [
+  'veo3_fast',
+  'veo3',
+  'seedance_1_5_pro',
+  'kling_3'
+] as const;
+
+export function getApproxVideoMinutesFromCredits(
+  credits: number,
+  model: VideoModel
+): number {
+  if (!Number.isFinite(credits) || credits <= 0) {
+    return 0;
+  }
+
+  if (model === 'kling_3') {
+    return credits / GENERATION_COSTS.kling_3 / 60;
+  }
+
+  return (credits / GENERATION_COSTS[model]) * DEFAULT_SEGMENT_DURATION_SECONDS / 60;
+}
+
+export function formatApproxVideoMinutesFromCredits(
+  credits: number,
+  model: VideoModel
+): string {
+  return `≈ ${getApproxVideoMinutesFromCredits(credits, model).toFixed(1)} min`;
+}
+
+export function getPackageModelDurationRows(
+  packageName: keyof typeof PACKAGES,
+  models: readonly VideoModel[] = LANDING_PRICING_VIDEO_MODELS
+): { model: VideoModel; label: string; durationLabel: string }[] {
+  const credits = PACKAGES[packageName].credits;
+
+  return models.map((model) => ({
+    model,
+    label: getVideoModelDisplayName(model),
+    durationLabel: formatApproxVideoMinutesFromCredits(credits, model)
+  }));
+}
+
 export function getDefaultCloneVideoQuality(model: VideoModel): CloneVideoQuality {
   if (model === 'seedance_1_5_pro') {
     return '720p';

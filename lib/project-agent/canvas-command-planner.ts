@@ -96,15 +96,18 @@ const buildConfirmationPlan = (
 });
 
 const includesAny = (text: string, phrases: string[]) => phrases.some((phrase) => text.includes(phrase));
+const includesNegatedPhrase = (text: string, phrase: string) => (
+  new RegExp(`\\b(?:do not|don't|dont|avoid|without|keep|no)\\b[\\s\\S]{0,48}${phrase.replace(/\s+/g, '\\s+')}`, 'i').test(text)
+);
 
 const VIDEO_CONTEXT_PHRASES = ['same video', 'same reference video', 'same video context', 'using the same video', 'with the same video', 'with that same video', 'that same video', 'this video', 'that video'];
 const PRODUCT_CONTEXT_PHRASES = ['same product', 'the same product', 'with the same product', 'keep the same product', 'this product', 'that product'];
 const AVATAR_CONTEXT_PHRASES = ['same avatar', 'the same avatar', 'same person', 'the same person', 'this avatar', 'that avatar', 'this person', 'that person'];
 
 const getFeatureIntent = (text: string): ProjectAgentFeatureNodeType | null => {
-  if (includesAny(text, ['motion clone'])) return 'motion_clone';
-  if (includesAny(text, ['avatar ads', 'avatar ad', 'character ads', 'character ad'])) return 'avatar_ads';
-  if (includesAny(text, ['video clone', 'ugc clone', 'clone node', 'clone workflow', 'clone flow'])) return 'video_clone';
+  if (includesAny(text, ['motion clone']) && !includesNegatedPhrase(text, 'motion clone')) return 'motion_clone';
+  if (includesAny(text, ['avatar ads', 'avatar ad', 'character ads', 'character ad']) && !includesNegatedPhrase(text, 'avatar ads')) return 'avatar_ads';
+  if (includesAny(text, ['video clone', 'ugc clone', 'clone node', 'clone workflow', 'clone flow']) && !includesNegatedPhrase(text, 'video clone')) return 'video_clone';
   return null;
 };
 
@@ -128,6 +131,13 @@ export const planProjectAgentCanvasCommand = (
     return {
       type: 'inspect_only',
       reply: `The canvas has ${summary.nodeCount} nodes and ${summary.edgeCount} edges. Selected: ${summary.selectedSummary}.`,
+    };
+  }
+
+  if (includesAny(text, [' keep both workflows separate ', ' do not convert either one into motion clone ', ' do not convert either workflow into motion clone '])) {
+    return {
+      type: 'inspect_only',
+      reply: 'I kept the current workflows unchanged.',
     };
   }
 
