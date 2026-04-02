@@ -48,7 +48,7 @@ export default function CompetitorAdSelector({
 
   useEffect(() => {
     loadCompetitorAds();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, []);
 
   // Close when clicking outside

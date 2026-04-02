@@ -1,6 +1,7 @@
 import { PricingButton } from "@/components/pages/landing/PricingButton";
 import { Check, Zap, TrendingUp, Crown } from "lucide-react";
 import Link from "next/link";
+import { getPackageModelDurationRows } from "@/lib/constants";
 
 type PlanFeatureItem = {
   label: string;
@@ -15,7 +16,6 @@ const planFeatureItems: Record<"lite" | "basic" | "pro", PlanFeatureItem[]> = {
     { label: "Avatar Ads" },
     { label: "Clone viral videos" },
     { label: "Motion Clone" },
-    { label: "12.8 minutes of video", bold: true },
     { label: "10+ languages" },
     { label: "Latest video models" },
     { label: "TikTok publishing support" },
@@ -26,7 +26,6 @@ const planFeatureItems: Record<"lite" | "basic" | "pro", PlanFeatureItem[]> = {
     { label: "Avatar Ads" },
     { label: "Clone viral videos" },
     { label: "Motion Clone" },
-    { label: "26.2 minutes of video", bold: true },
     { label: "10+ languages" },
     { label: "Latest video models" },
     { label: "TikTok publishing support" },
@@ -37,7 +36,6 @@ const planFeatureItems: Record<"lite" | "basic" | "pro", PlanFeatureItem[]> = {
     { label: "Avatar Ads" },
     { label: "Clone viral videos" },
     { label: "Motion Clone" },
-    { label: "44.0 minutes of video", bold: true },
     { label: "10+ languages" },
     { label: "Latest video models" },
     { label: "TikTok publishing support" },
@@ -60,6 +58,9 @@ export default function PricingSection({
   const litePricing = LITE_PRICE;
   const basicPricing = BASIC_PRICE;
   const proPricing = PRO_PRICE;
+  const liteModelDurations = getPackageModelDurationRows("lite");
+  const basicModelDurations = getPackageModelDurationRows("basic");
+  const proModelDurations = getPackageModelDurationRows("pro");
 
   return (
     <section id="pricing" className="py-14 md:py-20">
@@ -187,6 +188,17 @@ export default function PricingSection({
                 </span>
               </li>
             ))}
+            {liteModelDurations.map((item) => (
+              <li
+                key={item.model}
+                className="flex items-center gap-3 text-[14px] text-[#666666]"
+              >
+                <Check className="w-4 h-4 text-black flex-shrink-0" />
+                <span className="font-semibold text-black">
+                  {item.label}: {item.durationLabel}
+                </span>
+              </li>
+            ))}
           </ul>
 
           <PricingButton packageName="lite" />
@@ -254,6 +266,17 @@ export default function PricingSection({
                 </span>
               </li>
             ))}
+            {basicModelDurations.map((item) => (
+              <li
+                key={item.model}
+                className="flex items-center gap-3 text-[14px] text-[#666666]"
+              >
+                <Check className="w-4 h-4 text-black flex-shrink-0" />
+                <span className="font-semibold text-black">
+                  {item.label}: {item.durationLabel}
+                </span>
+              </li>
+            ))}
           </ul>
 
           <PricingButton packageName="basic" />
@@ -312,6 +335,17 @@ export default function PricingSection({
                       {badge}
                     </span>
                   ))}
+                </span>
+              </li>
+            ))}
+            {proModelDurations.map((item) => (
+              <li
+                key={item.model}
+                className="flex items-center gap-3 text-[14px] text-[#666666]"
+              >
+                <Check className="w-4 h-4 text-black flex-shrink-0" />
+                <span className="font-semibold text-black">
+                  {item.label}: {item.durationLabel}
                 </span>
               </li>
             ))}

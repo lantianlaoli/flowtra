@@ -4,12 +4,17 @@ import Link from 'next/link';
 import { ArrowRight, Mail, MessageCircle } from 'lucide-react';
 import type { VideoAnalysisResult } from '@/hooks/useVideoAnalysis';
 import { FeatureInterestReward } from '@/components/lead/FeatureInterestReward';
+import { getPackageModelDurationRows } from '@/lib/constants';
 
 interface CTASectionProps {
   result: VideoAnalysisResult;
 }
 
 export function CTASection({ result }: CTASectionProps) {
+  const liteModelDurations = getPackageModelDurationRows('lite');
+  const pricingSummary = liteModelDurations
+    .map((item) => `${item.label} ${item.durationLabel}`)
+    .join(' • ');
   const handleStartCloning = () => {
     // Save analysis to sessionStorage for pre-selection in dashboard
     if (result) {
@@ -43,7 +48,7 @@ export function CTASection({ result }: CTASectionProps) {
           </Link>
 
           <p className="text-sm text-gray-500 mt-4">
-            Starting at $29/month • 1,930 credits ≈ 12.8 minutes of UGC video
+            Starting at $29/month • 1,930 credits • {pricingSummary}
           </p>
         </div>
       </div>
