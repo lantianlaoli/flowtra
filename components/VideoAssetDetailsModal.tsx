@@ -10,10 +10,10 @@ import {
   Clock,
   Languages,
   Film,
-  Tag,
   Trash2,
   Upload,
   AlertTriangle,
+  Save,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/contexts/ToastContext";
@@ -37,6 +37,8 @@ interface VideoAsset {
   analysis_language?: string | null;
   source_type?: "creator" | "competitor_ad";
   competitor_ad_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 interface VideoAssetDetailsModalProps {
@@ -71,6 +73,8 @@ export default function VideoAssetDetailsModal({
   const [currentVideo, setCurrentVideo] = useState<VideoAsset | null>(video);
   const [isUploadingFirstFrame, setIsUploadingFirstFrame] = useState(false);
   const [firstFrameUploadError, setFirstFrameUploadError] = useState<string | null>(null);
+  const [editableVideoName, setEditableVideoName] = useState("");
+  const [isSavingVideoName, setIsSavingVideoName] = useState(false);
   const firstFrameInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -162,7 +166,18 @@ export default function VideoAssetDetailsModal({
     );
   }, [analysisName, currentVideo]);
 
+  useEffect(() => {
+    setEditableVideoName(overviewName === "—" ? "" : overviewName);
+  }, [overviewName, currentVideo?.id]);
+
   const isDeletingCurrentVideo = Boolean(currentVideo?.id && deletingVideoIds.has(currentVideo.id));
+  const trimmedEditableVideoName = editableVideoName.trim();
+  const canSaveVideoName = Boolean(
+    currentVideo &&
+    trimmedEditableVideoName &&
+    trimmedEditableVideoName !== overviewName &&
+    !isSavingVideoName,
+  );
 
   const handleUseForClone = async () => {
     if (!currentVideo?.analysis_result || !currentVideo) {
@@ -250,6 +265,69 @@ export default function VideoAssetDetailsModal({
     }
   };
 
+  const handleSaveVideoName = async () => {
+    if (!currentVideo) return;
+
+    const nextName = trimmedEditableVideoName;
+    if (!nextName) {
+      showError("Video name is required.");
+      return;
+    }
+
+    if (nextName.length > 120) {
+      showError("Video name must be 120 characters or fewer.");
+      return;
+    }
+
+    const isCompetitorAd =
+      currentVideo.source_type === "competitor_ad" || Boolean(currentVideo.competitor_ad_id);
+    const endpoint = isCompetitorAd
+      ? `/api/competitor-ads/${currentVideo.id}`
+      : `/api/creator-videos/${currentVideo.id}`;
+    const payload = isCompetitorAd
+      ? { competitor_name: nextName }
+      : { description: nextName };
+
+    setIsSavingVideoName(true);
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to update video name.");
+      }
+
+      const nextVideo = isCompetitorAd
+        ? {
+            ...currentVideo,
+            description: data.competitorAd?.competitor_name ?? nextName,
+            analysis_language: data.competitorAd?.language ?? currentVideo.analysis_language,
+            analysis_result: data.competitorAd?.analysis_result ?? currentVideo.analysis_result,
+            duration_seconds: data.competitorAd?.video_duration_seconds ?? currentVideo.duration_seconds,
+            updated_at: data.competitorAd?.updated_at ?? currentVideo.updated_at,
+          }
+        : {
+            ...currentVideo,
+            ...data.video,
+          };
+
+      setCurrentVideo(nextVideo);
+      onVideoUpdated?.(nextVideo);
+      showSuccess("Video name updated.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to update video name.";
+      showError(message);
+    } finally {
+      setIsSavingVideoName(false);
+    }
+  };
+
   const handleUploadFirstFrame = async (file: File | null) => {
     if (!file || !currentVideo?.id) return;
 
@@ -326,9 +404,6 @@ export default function VideoAssetDetailsModal({
                 <h3 className="assets-modal-title text-lg font-semibold text-gray-900">
                   Video Details
                 </h3>
-                <p className="assets-modal-subtitle text-sm text-gray-500">
-                  {displayName}
-                </p>
               </div>
               <button
                 onClick={onClose}
@@ -417,6 +492,46 @@ export default function VideoAssetDetailsModal({
                 style={{ height: `${previewHeight}px` }}
               >
                 <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">
+                      Video Name
+                    </p>
+                    <span className="text-xs text-gray-400">
+                      {trimmedEditableVideoName.length}/120
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={editableVideoName}
+                      onChange={(event) => setEditableVideoName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && canSaveVideoName) {
+                          event.preventDefault();
+                          void handleSaveVideoName();
+                        }
+                      }}
+                      maxLength={120}
+                      placeholder={displayName}
+                      className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition-colors focus:border-black"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveVideoName()}
+                      disabled={!canSaveVideoName}
+                      className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-black bg-black px-3 text-sm font-medium text-white transition-colors hover:bg-gray-900 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                    >
+                      {isSavingVideoName ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      Save
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
                   <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">
                     Overview
                   </p>
@@ -436,12 +551,6 @@ export default function VideoAssetDetailsModal({
                     <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1">
                       <Film className="h-4 w-4 shrink-0 text-gray-400" />
                       <span className="font-medium text-gray-800">{getAnalysisShotCount(currentVideo.analysis_result || null) || "—"}</span>
-                    </div>
-                    <div className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1">
-                      <Tag className="h-4 w-4 shrink-0 text-gray-400" />
-                      <span className="truncate font-medium text-gray-800">
-                        {overviewName}
-                      </span>
                     </div>
                   </div>
                 </div>
