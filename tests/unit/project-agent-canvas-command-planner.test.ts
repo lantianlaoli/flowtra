@@ -92,3 +92,15 @@ test('planner reuses the single video and product on canvas when adding a motion
   assert.ok(mutations.some((mutation) => mutation.type === 'add_asset_node' && mutation.assetType === 'avatar'));
   assert.ok(mutations.some((mutation) => mutation.type === 'add_feature_node' && mutation.featureType === 'motion_clone'));
 });
+
+test('planner treats explicit "do not convert into motion clone" as a no-op guardrail', () => {
+  const plan = planProjectAgentCanvasCommand(
+    'Keep both workflows separate and do not convert either one into motion clone.',
+    DEFAULT_PROJECT_AGENT_CANVAS_STATE,
+  );
+
+  assert.ok(plan);
+  assert.equal(plan?.type, 'inspect_only');
+  if (plan?.type !== 'inspect_only') return;
+  assert.equal(plan.reply, 'I kept the current workflows unchanged.');
+});
