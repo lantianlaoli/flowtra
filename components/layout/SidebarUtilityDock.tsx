@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { MouseEvent } from 'react';
 import { Home, Moon, Sun, User } from 'lucide-react';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface SidebarUtilityDockProps {
   isDarkMode: boolean;
@@ -86,11 +87,13 @@ export default function SidebarUtilityDock({
   onNavigate,
   accountHref,
 }: SidebarUtilityDockProps) {
+  const utilityMessages = useI18n().messages.dashboard.utilityDock;
+
   return (
     <div className="flex items-center justify-center gap-1.5 bg-transparent p-0">
       <UtilityAction
         icon={User}
-        label="Account"
+        label={utilityMessages.account}
         href={accountHref}
         onNavigateTo={onNavigateTo}
         onNavigate={onNavigate}
@@ -98,13 +101,13 @@ export default function SidebarUtilityDock({
 
       <UtilityAction
         icon={isDarkMode ? Sun : Moon}
-        label={isDarkMode ? 'Light Mode' : 'Dark Mode'}
+        label={isDarkMode ? utilityMessages.lightMode : utilityMessages.darkMode}
         onClick={onToggleDarkMode}
       />
 
       <UtilityAction
         icon={Home}
-        label="Back to Landing"
+        label={utilityMessages.backToLanding}
         href="/"
         onNavigateTo={onNavigateTo}
         onNavigate={onNavigate}

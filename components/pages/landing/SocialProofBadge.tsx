@@ -2,8 +2,12 @@
 
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
+import { useI18n } from '@/providers/I18nProvider'
+import { formatLocaleNumber } from '@/lib/i18n/site'
 
 export function SocialProofBadge() {
+  const { locale, messages } = useI18n()
+  const heroMessages = messages.landing.hero
   const [count, setCount] = useState<number | null>(null)
 
   useEffect(() => {
@@ -40,8 +44,10 @@ export function SocialProofBadge() {
     return null
   }
 
+  const localizedCount = formatLocaleNumber(locale, count)
+
   return (
-    <div className="pt-3" aria-label="Social proof">
+    <div className="pt-3" aria-label={heroMessages.socialProofLabel}>
       <div
         className="inline-flex w-full sm:w-auto items-center gap-3 rounded-xl px-4 py-2
                    bg-[#F7F7F7] border border-[#E5E5E5] transition-colors"
@@ -66,11 +72,11 @@ export function SocialProofBadge() {
         </div>
         <span
           className="text-xs sm:text-sm font-semibold text-black whitespace-normal sm:whitespace-nowrap leading-relaxed"
-          title={`${count.toLocaleString('en-US')} small business owners trust Flowtra`}
+          title={`${localizedCount} ${heroMessages.socialProofTitle}`}
         >
-          {'Trusted by '}
-          <span className="font-bold tabular-nums">{count.toLocaleString('en-US')}</span>
-          {' small business owners'}
+          {locale === 'zh' ? '已有 ' : 'Trusted by '}
+          <span className="font-bold tabular-nums">{localizedCount}</span>
+          {locale === 'zh' ? ` ${heroMessages.socialProofSuffix}` : ` ${heroMessages.socialProofSuffix}`}
         </span>
       </div>
     </div>

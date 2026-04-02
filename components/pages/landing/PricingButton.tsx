@@ -5,6 +5,7 @@ import { SignInButton, useUser } from '@clerk/nextjs';
 import { handleCreemCheckout } from '@/lib/payment';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { trackEvent } from '@/lib/analytics/client';
+import { useI18n } from '@/providers/I18nProvider';
 
 type PackageName = 'lite' | 'basic' | 'pro';
 
@@ -13,6 +14,8 @@ interface PricingButtonProps {
 }
 
 export function PricingButton({ packageName }: PricingButtonProps) {
+  const { messages } = useI18n();
+  const buttonMessages = messages.landing.pricing.buttons;
   const { isLoaded, user } = useUser();
   const [isProcessing, setIsProcessing] = useState(false);
   const [subscribedTier, setSubscribedTier] = useState<string | null>(null);
@@ -57,7 +60,7 @@ export function PricingButton({ packageName }: PricingButtonProps) {
         disabled
         className="landing-press-button landing-press-button--wide text-[15px] font-semibold"
       >
-        Loading...
+        {buttonMessages.loading}
       </button>
     );
   }
@@ -76,7 +79,7 @@ export function PricingButton({ packageName }: PricingButtonProps) {
             });
           }}
         >
-          Get Started
+          {buttonMessages.getStarted}
         </button>
       </SignInButton>
     );
@@ -89,7 +92,7 @@ export function PricingButton({ packageName }: PricingButtonProps) {
         disabled
         className="landing-press-button landing-press-button--success landing-press-button--wide text-[15px] font-semibold"
       >
-        Already Subscribed
+        {buttonMessages.alreadySubscribed}
       </button>
     );
   }
@@ -103,7 +106,7 @@ export function PricingButton({ packageName }: PricingButtonProps) {
     const email = user.emailAddresses?.[0]?.emailAddress;
 
     if (!email) {
-      alert('Email address is required for purchase. Please check your account settings.');
+      alert(buttonMessages.emailRequired);
       return;
     }
 
@@ -111,11 +114,7 @@ export function PricingButton({ packageName }: PricingButtonProps) {
     if (subscribedTier) {
       const currentTier = subscribedTier.charAt(0).toUpperCase() + subscribedTier.slice(1);
       const newTier = packageName.charAt(0).toUpperCase() + packageName.slice(1);
-      const confirmed = confirm(
-        `You are currently subscribed to the ${currentTier} plan. ` +
-        `This will create a new ${newTier} subscription. ` +
-        `Please cancel your existing subscription in your account settings first.`
-      );
+      const confirmed = confirm(buttonMessages.planChangeConfirm(currentTier, newTier));
       if (!confirmed) {
         return;
       }
@@ -140,11 +139,11 @@ export function PricingButton({ packageName }: PricingButtonProps) {
         userEmail: email,
         isSubscription: true,
         onLoading: (loading) => setIsProcessing(loading),
-        onError: (error) => alert(`Purchase failed: ${error}`),
+        onError: (error) => alert(`${buttonMessages.purchaseFailed}${error}`),
       });
     } catch (error) {
       console.error('Unexpected error during checkout:', error);
-      alert('An unexpected error occurred. Please try again.');
+      alert(buttonMessages.unexpectedError);
       setIsProcessing(false);
     }
   };
@@ -155,7 +154,7 @@ export function PricingButton({ packageName }: PricingButtonProps) {
       disabled={isProcessing}
       className={purchaseButtonClass}
     >
-      {isProcessing ? 'Processing...' : subscribedTier ? 'Change Plan' : 'Get Started'}
+      {isProcessing ? buttonMessages.processing : subscribedTier ? buttonMessages.changePlan : buttonMessages.getStarted}
     </button>
   );
 }

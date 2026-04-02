@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { CalendarIcon, ClockIcon } from '@heroicons/react/24/outline';
 import type { ArticlePreview } from '@/lib/article-utils';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface ArticlesPreviewResponse {
   success: boolean;
@@ -12,6 +13,8 @@ interface ArticlesPreviewResponse {
 }
 
 export default function BlogPreview() {
+  const { locale, messages } = useI18n();
+  const blogMessages = messages.landing.blogPreview;
   const [articles, setArticles] = useState<ArticlePreview[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,7 +26,7 @@ export default function BlogPreview() {
           cache: 'no-store',
         });
         if (!response.ok) {
-          throw new Error('Failed to fetch article previews');
+          throw new Error(blogMessages.fetchFailed);
         }
         const data = (await response.json()) as ArticlesPreviewResponse;
         if (!mounted) return;
@@ -35,21 +38,21 @@ export default function BlogPreview() {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [blogMessages.fetchFailed]);
 
   return (
     <section id="blog" className="landing-section-surface py-14 md:py-16 scroll-mt-24">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4 mb-8">
           <div>
-            <h2 className="text-[32px] md:text-[40px] font-bold tracking-tight text-black">From the Blog</h2>
-            <p className="text-[#666666] text-base md:text-lg mt-2">Latest tips and case studies about AI ads</p>
+            <h2 className="text-[32px] md:text-[40px] font-bold tracking-tight text-black">{blogMessages.title}</h2>
+            <p className="text-[#666666] text-base md:text-lg mt-2">{blogMessages.description}</p>
           </div>
           <Link
             href="/blog"
             className="landing-press-button landing-press-button--secondary landing-press-button--compact whitespace-nowrap text-[14px] font-semibold"
           >
-            View all
+            {blogMessages.viewAll}
           </Link>
         </div>
 
@@ -81,14 +84,14 @@ export default function BlogPreview() {
                     />
                   ) : (
                     <div className="h-44 bg-[#F7F7F7] flex items-center justify-center">
-                      <span className="text-[#666666] text-sm">No Image</span>
+                      <span className="text-[#666666] text-sm">{blogMessages.noImage}</span>
                     </div>
                   )}
                   <div className="p-5 sm:p-6 flex flex-col flex-1">
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#666666] mb-2">
                       <div className="flex items-center gap-1">
                         <CalendarIcon className="w-4 h-4" />
-                        {publishDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        {publishDate.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                       </div>
                       <div className="flex items-center gap-1">
                         <ClockIcon className="w-4 h-4" />
@@ -104,7 +107,7 @@ export default function BlogPreview() {
                         href={`/blog/${article.slug}`}
                         className="landing-press-button landing-press-button--secondary landing-press-button--compact text-[14px] font-semibold"
                       >
-                        Read More
+                        {blogMessages.readMore}
                       </Link>
                     </div>
                   </div>

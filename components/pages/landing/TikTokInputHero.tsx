@@ -7,6 +7,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { Link as LinkIcon, ArrowRight, HelpCircle } from 'lucide-react';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { trackEvent } from '@/lib/analytics/client';
+import { useI18n } from '@/providers/I18nProvider';
 
 const TikTokAnalysisModal = dynamic(
   () => import('@/components/showcase/TikTokAnalysisModal').then((mod) => mod.TikTokAnalysisModal),
@@ -14,6 +15,8 @@ const TikTokAnalysisModal = dynamic(
 );
 
 export default function TikTokInputHero() {
+  const { messages } = useI18n();
+  const tiktokInputMessages = messages.landing.hero.tiktokInput;
   const { isSignedIn } = useUser();
   const { showError } = useToast();
   const [tiktokUrl, setTiktokUrl] = useState('');
@@ -37,7 +40,7 @@ export default function TikTokInputHero() {
     }
     const isValid = isValidTikTokUrl(url);
     if (!isValid) {
-      setValidationError('Please enter a valid TikTok video URL');
+      setValidationError(tiktokInputMessages.invalidUrl);
     } else {
       setValidationError(null);
     }
@@ -57,14 +60,14 @@ export default function TikTokInputHero() {
         surface: 'hero_tiktok_input',
         cta_name: 'analyze_tiktok_unauthenticated',
       });
-      showError('Sign in to analyze TikTok videos.');
+      showError(tiktokInputMessages.signInRequired);
       window.location.href = '/sign-up?redirect_url=/';
       return;
     }
 
     // Validate TikTok URL
     if (!tiktokUrl || !validateUrl(tiktokUrl)) {
-      showError('Please enter a valid TikTok video URL');
+      showError(tiktokInputMessages.invalidUrl);
       return;
     }
 
@@ -95,7 +98,7 @@ export default function TikTokInputHero() {
             </div>
             <input
               type="url"
-              placeholder="Paste TikTok URL..."
+              placeholder={tiktokInputMessages.placeholder}
               value={tiktokUrl}
               onChange={handleUrlChange}
               className={`h-14 w-full bg-transparent pl-10 pr-11 text-base font-medium placeholder:text-gray-400 focus:outline-none ${
@@ -113,14 +116,15 @@ export default function TikTokInputHero() {
             {/* Help Tooltip */}
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 group">
               <HelpCircle className="w-6 h-6 sm:w-5 sm:h-5 text-gray-400 cursor-help hover:text-gray-600 transition-colors" />
-              <div className="absolute bottom-full right-0 mb-2 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 leading-relaxed">
-                <p className="font-semibold mb-1">How to get a video URL:</p>
+                <div className="absolute bottom-full right-0 mb-2 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 leading-relaxed">
+                <p className="font-semibold mb-1">{tiktokInputMessages.helpTitle}</p>
                 <ol className="list-decimal pl-4 space-y-1 text-gray-300">
-                  <li>Find a video on TikTok web</li>
-                  <li>Copy the URL from browser address bar</li>
+                  {tiktokInputMessages.helpSteps.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
                 </ol>
                 <p className="mt-2 text-gray-300">
-                  TikTok Shop product links are not supported (e.g. <span className="font-medium">vm.tiktok.com/...</span>).
+                  {tiktokInputMessages.helpNote}
                 </p>
                 <div className="absolute bottom-[-6px] right-4 w-3 h-3 bg-gray-900 rotate-45"></div>
               </div>
@@ -130,9 +134,9 @@ export default function TikTokInputHero() {
             onClick={handleAnalyzeTikTok}
             disabled={!isUrlValid}
             className="landing-press-button h-14 w-full flex-shrink-0 px-6 text-[15px] font-semibold sm:w-auto"
-            aria-label="Analyze TikTok Video"
+            aria-label={tiktokInputMessages.analyzeAriaLabel}
           >
-            <span className="font-semibold">Analyze</span>
+            <span className="font-semibold">{tiktokInputMessages.analyze}</span>
             <ArrowRight className="w-5 h-5" />
           </button>
         </div>

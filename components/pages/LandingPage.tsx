@@ -12,7 +12,7 @@ import ModelPricingSection from '@/components/pages/landing/sections/ModelPricin
 import PricingSection from '@/components/pages/landing/sections/PricingSection';
 
 const FAQ = dynamic(() => import('@/components/sections/FAQ'), {
-  loading: () => <div className="py-12 flex justify-center"><div className="text-gray-400">Loading...</div></div>
+  loading: () => <div className="py-12" aria-hidden="true" />
 });
 const BlogPreview = dynamic(() => import('@/components/sections/BlogPreview'), {
   loading: () => (

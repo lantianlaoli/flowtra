@@ -1,6 +1,9 @@
+'use client';
+
 import Link from "next/link";
 import { UserPlus, Copy, ArrowRight, Check, RefreshCw, Bot } from "lucide-react";
 import { LazyVideoPlayer } from "@/components/pages/landing/LazyVideoPlayer";
+import { useI18n } from "@/providers/I18nProvider";
 
 type FeatureSectionProps = {
   title: string;
@@ -23,6 +26,9 @@ function FeatureSection({
   mediaFirst = false,
   isNew = false,
 }: FeatureSectionProps) {
+  const { messages } = useI18n();
+  const featureMessages = messages.landing.features;
+
   return (
     <article className="grid items-center gap-10 border-t border-[#E8E8E8] py-10 first:border-t-0 first:pt-0 md:gap-16 md:py-14 lg:grid-cols-2 lg:py-16">
       <div
@@ -43,7 +49,7 @@ function FeatureSection({
               <h3 className="text-[24px] font-bold text-black">{title}</h3>
               {isNew ? (
                 <span className="inline-flex items-center rounded-full bg-black px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white">
-                  New
+                  {featureMessages.newBadge}
                 </span>
               ) : null}
             </div>
@@ -68,7 +74,7 @@ function FeatureSection({
             href={href}
             className="landing-press-button landing-press-button--secondary landing-press-button--compact mt-2 text-[14px] font-semibold"
           >
-            Learn More
+            {featureMessages.learnMore}
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
@@ -86,38 +92,35 @@ function FeatureSection({
 }
 
 export default function FeaturesSection() {
+  const { messages } = useI18n();
+  const featureMessages = messages.landing.features;
+
   return (
     <section className="py-12 md:py-16 lg:py-24">
       <div className="text-center max-w-3xl mx-auto mb-10 md:mb-16 px-4">
         <h2 className="text-[32px] md:text-[40px] font-bold text-black mb-4 tracking-tight">
-          Explore Our Features
+          {featureMessages.title}
         </h2>
 
         <p className="text-base md:text-lg text-[#666666]">
-          Powerful AI tools to transform your product images into professional
-          marketing content
+          {featureMessages.description}
         </p>
       </div>
 
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-14 md:gap-24">
           <FeatureSection
-            title="AI Agent"
-            description="Build clone workflows in canvas mode with drag-and-drop assets, quick node linking, and support for video clone, motion clone, and talking-head generation."
-            href="/features/ai-agent"
+            title={featureMessages.items[0].title}
+            description={featureMessages.items[0].description}
+            href={featureMessages.items[0].href}
             icon={Bot}
-            isNew
-            bullets={[
-              "Drag people, products, and videos into one canvas",
-              "Connect functions fast with clear visual links",
-              "Run video clone, motion clone, and talking-head flows from one workspace",
-              "Keep asset swaps visible instead of buried in long prompt threads",
-            ]}
+            bullets={featureMessages.items[0].bullets}
+            isNew={featureMessages.items[0].isNew}
             media={
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 max-w-lg mx-auto">
                 <div className="space-y-4">
                   <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#F7F7F7] border border-[#E5E5E5] rounded-full text-[12px] font-bold uppercase tracking-wider text-black">
-                    Reference Video
+                    {featureMessages.items[0].mediaLabels[0]}
                   </div>
 
                   <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
@@ -134,7 +137,7 @@ export default function FeaturesSection() {
 
                 <div className="space-y-4">
                   <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-black text-white rounded-full text-[12px] font-bold uppercase tracking-wider">
-                    Agent Result
+                    {featureMessages.items[0].mediaLabels[1]}
                   </div>
 
                   <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
@@ -153,22 +156,17 @@ export default function FeaturesSection() {
           />
 
           <FeatureSection
-            title="Viral Clone"
-            description="Clone top-performing viral videos with AI. Clone proven creative structures in minutes."
-            href="/features/viral-clone"
+            title={featureMessages.items[1].title}
+            description={featureMessages.items[1].description}
+            href={featureMessages.items[1].href}
             icon={Copy}
             mediaFirst
-            bullets={[
-              "Max 60 seconds",
-              "Supports custom editing",
-              "Replace your products, people, or pets",
-              "Supports English, Spanish, and 10+ languages",
-            ]}
+            bullets={featureMessages.items[1].bullets}
             media={
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 max-w-lg mx-auto">
                 <div className="space-y-4">
                   <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#F7F7F7] border border-[#E5E5E5] rounded-full text-[12px] font-bold uppercase tracking-wider text-black">
-                    Viral Video
+                    {featureMessages.items[1].mediaLabels[0]}
                   </div>
 
                   <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
@@ -185,7 +183,7 @@ export default function FeaturesSection() {
 
                 <div className="space-y-4">
                   <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-black text-white rounded-full text-[12px] font-bold uppercase tracking-wider">
-                    Clone
+                    {featureMessages.items[1].mediaLabels[1]}
                   </div>
 
                   <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
@@ -204,17 +202,11 @@ export default function FeaturesSection() {
           />
 
           <FeatureSection
-            title="Avatar Ads"
-            description="Create avatar-driven video advertisements with realistic AI characters powered by Google Veo3."
-            href="/features/avatar-ads"
+            title={featureMessages.items[2].title}
+            description={featureMessages.items[2].description}
+            href={featureMessages.items[2].href}
             icon={UserPlus}
-            bullets={[
-              "$0.3 per 8 seconds",
-              "Supports English, Spanish, and 10+ languages",
-              "Generate up to 80 seconds",
-              "Supports custom scripts",
-              "Unlimited character uploads",
-            ]}
+            bullets={featureMessages.items[2].bullets}
             media={
               <div className="landing-feature-media relative mx-auto aspect-[9/16] max-w-[320px] overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
                 <LazyVideoPlayer
@@ -230,22 +222,17 @@ export default function FeaturesSection() {
           />
 
           <FeatureSection
-            title="Motion Clone"
-            description="Clone viral ads in seconds. Enter a creator&apos;s name and swap person and product while preserving the exact movements."
-            href="/features/motion-clone"
+            title={featureMessages.items[3].title}
+            description={featureMessages.items[3].description}
+            href={featureMessages.items[3].href}
             icon={RefreshCw}
             mediaFirst
-            bullets={[
-              "One-click creator search",
-              "Motion preservation technology",
-              "Smart first frame editing",
-              "Higher success rate with visual preview",
-            ]}
+            bullets={featureMessages.items[3].bullets}
             media={
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 max-w-lg mx-auto">
                 <div className="space-y-4">
                   <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#F7F7F7] border border-[#E5E5E5] rounded-full text-[12px] font-bold uppercase tracking-wider text-black">
-                    Original Creator
+                    {featureMessages.items[3].mediaLabels[0]}
                   </div>
 
                   <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
@@ -262,7 +249,7 @@ export default function FeaturesSection() {
 
                 <div className="space-y-4">
                   <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-black text-white rounded-full text-[12px] font-bold uppercase tracking-wider">
-                    Motion Clone
+                    {featureMessages.items[3].mediaLabels[1]}
                   </div>
 
                   <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">

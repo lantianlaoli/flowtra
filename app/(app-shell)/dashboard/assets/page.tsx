@@ -5,14 +5,16 @@ import { useCredits } from '@/contexts/CreditsContext';
 import Sidebar from '@/components/layout/Sidebar';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import AssetsManager from '@/components/AssetsManager';
-import { Boxes } from 'lucide-react';
+import { useI18n } from '@/providers/I18nProvider';
 
 export default function AssetsPage() {
+  const { messages } = useI18n();
+  const assetsMessages = messages.dashboard.assets;
   const { user, isLoaded } = useUser();
   const { credits: userCredits } = useCredits();
 
   if (!isLoaded) {
-    return <div className="flex">Loading...</div>;
+    return <div className="flex">{messages.common.loading}</div>;
   }
 
   return (
@@ -28,10 +30,10 @@ export default function AssetsPage() {
           {/* Header - Minimalist with generous spacing */}
           <div className="mb-16">
             <h1 className="text-5xl md:text-6xl font-bold text-foreground tracking-tight mb-3">
-              Assets
+              {assetsMessages.title}
             </h1>
             <p className="text-base text-muted-foreground">
-              Manage your products, avatars, and videos in one unified place
+              {assetsMessages.description}
             </p>
           </div>
 

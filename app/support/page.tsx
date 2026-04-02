@@ -4,65 +4,68 @@ import Link from 'next/link';
 import { ArrowUpRight, Mail, ArrowLeft } from 'lucide-react';
 import { FaXTwitter, FaLinkedin, FaTiktok, FaThreads, FaInstagram, FaDiscord, FaYoutube } from 'react-icons/fa6';
 import Header from '@/components/layout/Header';
+import { useI18n } from '@/providers/I18nProvider';
 
 export default function SupportPage() {
+  const { messages } = useI18n();
+  const supportMessages = messages.support;
   const contactLinks = [
     {
       name: 'TikTok',
       url: process.env.NEXT_PUBLIC_TIKTOK || 'https://www.tiktok.com/@laolilantian',
       icon: FaTiktok,
-      description: 'Fastest reply channel - usually within 24 hours.',
-      cta: 'Send DM',
+      description: supportMessages.links.tiktok.description,
+      cta: supportMessages.links.tiktok.cta,
       priority: true
     },
     {
       name: 'Discord Community',
       url: process.env.NEXT_PUBLIC_DISCORD || 'https://discord.gg/gStwqdpRzt',
       icon: FaDiscord,
-      description: 'Join our community for real-time help and discussions.',
-      cta: 'Join Discord'
+      description: supportMessages.links.discord.description,
+      cta: supportMessages.links.discord.cta
     },
     {
       name: 'YouTube',
       url: process.env.NEXT_PUBLIC_YOUTUBE || 'https://www.youtube.com/@liantianlaoli',
       icon: FaYoutube,
-      description: 'Tutorials, feature updates, and AI video tips.',
-      cta: 'Watch Tutorials'
+      description: supportMessages.links.youtube.description,
+      cta: supportMessages.links.youtube.cta
     },
     {
       name: 'Email Support',
       url: `mailto:${process.env.NEXT_PUBLIC_EMAIL || 'lantianlaoli@gmail.com'}`,
       icon: Mail,
-      description: 'For detailed inquiries and account support.',
-      cta: 'Send Email'
+      description: supportMessages.links.email.description,
+      cta: supportMessages.links.email.cta
     },
     {
       name: 'X (Twitter)',
       url: process.env.NEXT_PUBLIC_X || 'https://x.com/lantianlaoli',
       icon: FaXTwitter,
-      description: 'Quick updates and product news.',
-      cta: 'Follow'
+      description: supportMessages.links.x.description,
+      cta: supportMessages.links.x.cta
     },
     {
       name: 'Instagram',
       url: process.env.NEXT_PUBLIC_INSTAGRAM || 'https://www.instagram.com/lantianlaoli/',
       icon: FaInstagram,
-      description: 'Visual content and behind the scenes.',
-      cta: 'View Profile'
+      description: supportMessages.links.instagram.description,
+      cta: supportMessages.links.instagram.cta
     },
     {
       name: 'LinkedIn',
       url: process.env.NEXT_PUBLIC_LINKEDIN ? `https://${process.env.NEXT_PUBLIC_LINKEDIN}` : 'https://www.linkedin.com/in/laoli-lantian-5ab8632bb',
       icon: FaLinkedin,
-      description: 'Business partnerships and professional inquiries.',
-      cta: 'Connect'
+      description: supportMessages.links.linkedin.description,
+      cta: supportMessages.links.linkedin.cta
     },
     {
       name: 'Threads',
       url: process.env.NEXT_PUBLIC_THREADS || 'https://www.threads.com/@lantianlaoli',
       icon: FaThreads,
-      description: 'Community discussions and casual feedback.',
-      cta: 'Join Thread'
+      description: supportMessages.links.threads.description,
+      cta: supportMessages.links.threads.cta
     }
   ];
 
@@ -77,16 +80,16 @@ export default function SupportPage() {
           className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-black transition-colors mb-8"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Home
+          {supportMessages.backToHome}
         </Link>
 
         {/* Header Section */}
         <div className="mb-12">
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-black mb-4">
-            Support & Contact
+            {supportMessages.title}
           </h1>
           <p className="text-lg text-[#666666] max-w-2xl">
-            We&apos;re here to help. Choose the best channel to reach us. TikTok is our fastest way to respond.
+            {supportMessages.description}
           </p>
         </div>
 
@@ -107,7 +110,7 @@ export default function SupportPage() {
                 </div>
                 {link.priority && (
                   <span className="px-2 py-1 bg-black text-white text-[10px] font-bold uppercase tracking-wider rounded-full">
-                    Priority
+                    {supportMessages.priority}
                   </span>
                 )}
               </div>
@@ -135,32 +138,14 @@ export default function SupportPage() {
 
         {/* FAQ Section */}
         <div className="bg-[#F7F7F7] border border-[#E5E5E5] rounded-xl p-8">
-          <h2 className="text-2xl font-semibold text-black mb-6">Common Questions</h2>
+          <h2 className="text-2xl font-semibold text-black mb-6">{supportMessages.commonQuestions}</h2>
           <div className="space-y-4">
-            <div>
-              <h3 className="font-medium text-black mb-2">How do I get started?</h3>
-              <p className="text-[#666666]">
-                Click &quot;Get Started&quot; to sign up, select a plan that fits your needs, and start creating AI-powered videos immediately.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-medium text-black mb-2">What payment methods do you accept?</h3>
-              <p className="text-[#666666]">
-                We accept all major credit cards, PayPal, and various other payment methods through our secure payment processor.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-medium text-black mb-2">Can I upgrade or downgrade my plan?</h3>
-              <p className="text-[#666666]">
-                We offer one-time purchase plans. You can purchase additional credits at any time to fit your needs.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-medium text-black mb-2">What is your refund policy?</h3>
-              <p className="text-[#666666]">
-                If you encounter issues with your purchase or are not satisfied, please contact us via TikTok or email within 7 days for assistance.
-              </p>
-            </div>
+            {supportMessages.questions.map((item) => (
+              <div key={item.question}>
+                <h3 className="font-medium text-black mb-2">{item.question}</h3>
+                <p className="text-[#666666]">{item.answer}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>

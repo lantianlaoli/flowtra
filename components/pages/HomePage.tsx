@@ -25,8 +25,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import FlowtraLoading from "@/components/ui/FlowtraLoading";
+import { useI18n } from "@/providers/I18nProvider";
 
 export default function HomePage() {
+  const { messages } = useI18n();
+  const homeMessages = messages.dashboard.home;
   const { user, isLoaded } = useUser();
   const { credits, creditsData } = useCredits();
   const [stats, setStats] = useState({
@@ -93,10 +96,10 @@ export default function HomePage() {
           {/* Header Section - Minimalist with generous spacing */}
           <div className="mb-8">
             <h1 className="text-5xl md:text-6xl font-bold text-foreground tracking-tight mb-3">
-              Hello, {getUserName()}
+              {homeMessages.greetingPrefix}, {getUserName()}
             </h1>
             <p className="text-base text-muted-foreground">
-              Your creative dashboard at a glance
+              {homeMessages.subtitle}
             </p>
           </div>
 
@@ -112,7 +115,7 @@ export default function HomePage() {
                     {stats.totalVideos}
                   </div>
                   <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Total Videos
+                    {homeMessages.stats.totalVideos}
                   </div>
                 </div>
               </div>
@@ -128,7 +131,7 @@ export default function HomePage() {
                     {stats.thisMonth}
                   </div>
                   <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    This Month
+                    {homeMessages.stats.thisMonth}
                   </div>
                 </div>
               </div>
@@ -144,7 +147,7 @@ export default function HomePage() {
                     {stats.creditsUsed}
                   </div>
                   <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Credits Used
+                    {homeMessages.stats.creditsUsed}
                   </div>
                 </div>
               </div>
@@ -160,7 +163,7 @@ export default function HomePage() {
                     {stats.hoursSaved}
                   </div>
                   <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Hours Saved
+                    {homeMessages.stats.hoursSaved}
                   </div>
                 </div>
               </div>
@@ -205,6 +208,8 @@ function isVideoLikeUrl(url?: string) {
 }
 
 function DiscoverSection() {
+  const { messages } = useI18n();
+  const discoverMessages = messages.dashboard.home.discover;
   const [filter, setFilter] = useState<DiscoverType>("all");
   const [items, setItems] = useState<DiscoverItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -285,7 +290,7 @@ function DiscoverSection() {
                 <Compass className="w-5 h-5 text-foreground" />
               </div>
               <h2 className="text-2xl font-semibold text-foreground">
-                Discover
+                {discoverMessages.title}
               </h2>
             </div>
             {/* Tabs right */}
@@ -295,28 +300,28 @@ function DiscoverSection() {
                 className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md px-3 py-1.5 text-sm font-medium transition-all gap-2"
               >
                 <LayoutGrid className="w-4 h-4" />
-                All
+                {discoverMessages.all}
               </TabsTrigger>
               <TabsTrigger
                 value="competitor-ugc-replication"
                 className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md px-3 py-1.5 text-sm font-medium transition-all gap-2"
               >
                 <Copy className="w-4 h-4" />
-                Viral Clone
+                {discoverMessages.viralClone}
               </TabsTrigger>
               <TabsTrigger
                 value="character"
                 className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md px-3 py-1.5 text-sm font-medium transition-all gap-2"
               >
                 <User className="w-4 h-4" />
-                Character
+                {discoverMessages.character}
               </TabsTrigger>
               <TabsTrigger
                 value="motion-clone"
                 className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md px-3 py-1.5 text-sm font-medium transition-all gap-2"
               >
                 <RefreshCw className="w-4 h-4" />
-                Motion Clone
+                {discoverMessages.motionClone}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -337,17 +342,16 @@ function DiscoverSection() {
         )}
         {!loading && error && (
           <div className="text-center text-sm text-muted-foreground py-12">
-            Failed to load content
+            {discoverMessages.failedToLoad}
           </div>
         )}
         {!loading && !error && filtered.length === 0 ? (
           <div className="py-12 text-center">
             <p className="text-lg font-semibold text-foreground">
-              No recent discover content
+              {discoverMessages.emptyTitle}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
-              Older temporary KIE media has expired. New completed projects will
-              appear here automatically.
+              {discoverMessages.emptyDescription}
             </p>
           </div>
         ) : (

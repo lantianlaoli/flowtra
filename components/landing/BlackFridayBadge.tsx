@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Ticket, Copy, Check } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
+import { useI18n } from '@/providers/I18nProvider'
 
 interface TimeLeft {
   days: number
@@ -12,6 +13,8 @@ interface TimeLeft {
 }
 
 export default function BlackFridayBadge() {
+  const { messages } = useI18n()
+  const badgeMessages = messages.landing.hero.badges
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null)
   const [isExpired, setIsExpired] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
@@ -56,7 +59,7 @@ export default function BlackFridayBadge() {
     try {
       await navigator.clipboard.writeText(DISCOUNT_CODE)
       setIsCopied(true)
-      showSuccess('Discount code copied!', 2000)
+      showSuccess(badgeMessages.discountCopied, 2000)
 
       // Reset copied state after 2 seconds
       setTimeout(() => {
@@ -71,7 +74,7 @@ export default function BlackFridayBadge() {
       }, 500)
     } catch {
       // Fallback: just show message and scroll
-      showSuccess('Code: ' + DISCOUNT_CODE, 3000)
+      showSuccess(badgeMessages.codePrefix + DISCOUNT_CODE, 3000)
       document.getElementById('pricing')?.scrollIntoView({
         behavior: 'smooth',
       })
@@ -99,14 +102,14 @@ export default function BlackFridayBadge() {
       {/* Icon and Label */}
       <div className="flex items-center gap-1.5">
         <Ticket className="w-4 h-4 text-[#787774]" />
-        <span className="text-[#37352f] font-medium">Black Friday</span>
+        <span className="text-[#37352f] font-medium">{badgeMessages.blackFriday}</span>
       </div>
 
       {/* Separator */}
       <div className="text-[#d9d9d7]">·</div>
 
       {/* Discount Rate */}
-      <span className="font-semibold text-[#37352f]">20% OFF</span>
+      <span className="font-semibold text-[#37352f]">{badgeMessages.off}</span>
 
       {/* Separator */}
       <div className="text-[#d9d9d7]">·</div>
@@ -119,12 +122,12 @@ export default function BlackFridayBadge() {
         {isCopied ? (
           <>
             <Check className="w-3.5 h-3.5" />
-            <span className="text-xs font-medium">Copied!</span>
+            <span className="text-xs font-medium">{badgeMessages.copied}</span>
           </>
         ) : (
           <>
             <Copy className="w-3.5 h-3.5" />
-            <span className="text-xs font-medium">Copy</span>
+            <span className="text-xs font-medium">{badgeMessages.copy}</span>
           </>
         )}
       </button>
@@ -134,7 +137,7 @@ export default function BlackFridayBadge() {
 
       {/* Countdown */}
       <div className="flex items-center gap-1.5">
-        <span className="text-[#787774] text-xs">Ends</span>
+        <span className="text-[#787774] text-xs">{badgeMessages.ends}</span>
         <span className="font-medium text-[#37352f] tabular-nums text-xs">{getTimeDisplay()}</span>
       </div>
     </div>

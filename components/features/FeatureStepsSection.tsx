@@ -7,6 +7,7 @@ type FeatureStep = {
 };
 
 type FeatureStepsSectionProps = {
+  eyebrow?: string;
   title: string;
   description?: string;
   steps: FeatureStep[];
@@ -22,6 +23,7 @@ type FeatureStepsSectionProps = {
 };
 
 export default function FeatureStepsSection({
+  eyebrow = 'How It Works',
   title,
   description,
   steps,
@@ -35,7 +37,7 @@ export default function FeatureStepsSection({
         <div className="space-y-8">
           <div>
             <p className="text-[12px] font-bold uppercase tracking-[0.18em] text-[#666666]">
-              How It Works
+              {eyebrow}
             </p>
             <h2 className="mt-3 text-[30px] font-bold tracking-[-0.02em] text-black md:text-[40px]">
               {title}

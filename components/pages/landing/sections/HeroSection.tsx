@@ -1,3 +1,5 @@
+'use client';
+
 import Image from "next/image";
 import type { ReactNode } from "react";
 import {
@@ -15,6 +17,7 @@ import TikTokInputHero from "@/components/pages/landing/TikTokInputHero";
 import { LazyVideoPlayer } from "@/components/pages/landing/LazyVideoPlayer";
 import BlackFridayBadge from "@/components/landing/BlackFridayBadge";
 import { SocialProofBadge } from "@/components/pages/landing/SocialProofBadge";
+import { useI18n } from "@/providers/I18nProvider";
 
 const SITE_ASSET_BASE_URL =
   "https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets";
@@ -44,6 +47,9 @@ function LiveModelBadge({
 }
 
 export default function HeroSection() {
+  const { messages } = useI18n();
+  const heroMessages = messages.landing.hero;
+
   return (
     <section
       id="hero"
@@ -56,54 +62,38 @@ export default function HeroSection() {
           <BlackFridayBadge />
           <LiveModelBadge
             icon={<Kling className="w-3.5 h-3.5 text-[#37352f]" />}
-            label="Kling 3.0 is live"
+            label={heroMessages.badges.klingLive}
           />
           <LiveModelBadge
             icon={<Kling className="w-3.5 h-3.5 text-[#37352f]" />}
-            label="Kling 3.0 Motion Control is live"
+            label={heroMessages.badges.klingMotionLive}
           />
           <LiveModelBadge
             icon={<Google className="w-3.5 h-3.5 text-[#37352f]" />}
-            label="Nano Banana 2 is live"
+            label={heroMessages.badges.nanoBananaLive}
           />
         </div>
 
         <h1 className="text-[34px] sm:text-5xl lg:text-6xl font-bold text-black leading-[1.08] tracking-[-0.02em]">
-          Turn{" "}
+          {heroMessages.title.split(heroMessages.titleHighlight)[0]}
           <span className="underline decoration-[#E5E5E5] underline-offset-8">
-            Viral Videos
+            {heroMessages.titleHighlight}
           </span>{" "}
-          Into Your Own
+          {heroMessages.title.split(heroMessages.titleHighlight)[1]}
         </h1>
 
         <p className="text-base sm:text-xl text-[#666666] leading-relaxed max-w-lg">
-          For TikTok dropshipping, small businesses, and local stores.
+          {heroMessages.description}
         </p>
 
         {/* Selling points */}
         <div className="mt-4 space-y-3 text-[#666666] text-[15px] sm:text-[16px]">
-          <div className="flex items-start gap-2">
-            <Check className="w-4 h-4 text-black mt-0.5 shrink-0" />
-            <span>Clone viral TikTok UGC in minutes</span>
-          </div>
-
-          <div className="flex items-start gap-2">
-            <Check className="w-4 h-4 text-black mt-0.5 shrink-0" />
-            <span>Swap people, products, or pets with your own</span>
-          </div>
-
-          <div className="flex items-start gap-2">
-            <Check className="w-4 h-4 text-black mt-0.5 shrink-0" />
-            <span>
-              Videos from $2.25 per minute (150x cheaper than hiring UGC
-              creators)
-            </span>
-          </div>
-
-          <div className="flex items-start gap-2">
-            <Check className="w-4 h-4 text-black mt-0.5 shrink-0" />
-            <span>Supports English, Spanish, and over 10 other languages</span>
-          </div>
+          {heroMessages.bullets.map((item) => (
+            <div key={item} className="flex items-start gap-2">
+              <Check className="w-4 h-4 text-black mt-0.5 shrink-0" />
+              <span>{item}</span>
+            </div>
+          ))}
         </div>
 
         {/* CTA Buttons */}
@@ -115,10 +105,10 @@ export default function HeroSection() {
             target="_blank"
             rel="noopener noreferrer"
             className="landing-press-button landing-press-button--discord h-14 w-full text-lg font-semibold sm:w-auto"
-            title="Join our Discord community"
+            title={heroMessages.discordTitle}
           >
             <SiDiscord className="w-5 h-5" />
-            <span className="whitespace-nowrap">Join</span>
+            <span className="whitespace-nowrap">{heroMessages.discordJoin}</span>
           </a>
         </div>
 
@@ -133,7 +123,7 @@ export default function HeroSection() {
             <div className="flex items-center gap-2">
               <div className="bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider flex items-center gap-1">
                 <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-                Viral Video
+                {heroMessages.referenceVideo}
               </div>
             </div>
             <div className="relative aspect-[9/16] bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.05)] border border-[#E5E5E5]">
@@ -141,7 +131,7 @@ export default function HeroSection() {
                 wrapperClassName="w-full h-full"
                 className="w-full h-full object-cover"
                 src={`${SITE_ASSET_BASE_URL}/landing/clone_reference.mp4`}
-                ariaLabel="Competitor viral video reference"
+                ariaLabel={heroMessages.competitorVideoAriaLabel}
                 analyticsName="hero_reference_video"
                 autoPlay
                 loop
@@ -178,9 +168,9 @@ export default function HeroSection() {
 
               <div className="absolute bottom-2 left-2 flex items-center gap-1 text-white">
                 <Eye className="w-3 h-3 drop-shadow-md" />
-                <span className="text-[10px] font-bold drop-shadow-md">
-                  8.5M Views
-                </span>
+                  <span className="text-[10px] font-bold drop-shadow-md">
+                    8.5M {heroMessages.views}
+                  </span>
               </div>
             </div>
           </div>
@@ -190,7 +180,7 @@ export default function HeroSection() {
             <div className="flex items-center gap-2">
               <div className="bg-black text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-white fill-white" />
-                Clone Result
+                {heroMessages.cloneResult}
               </div>
             </div>
             <div className="relative aspect-[9/16] bg-[#F1F1F1] rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.1)] border-2 border-black">
@@ -198,7 +188,7 @@ export default function HeroSection() {
                 wrapperClassName="w-full h-full"
                 className="w-full h-full object-cover"
                 src={`${SITE_ASSET_BASE_URL}/landing/clone_result.mp4`}
-                ariaLabel="AI Generated result video"
+                ariaLabel={heroMessages.resultVideoAriaLabel}
                 analyticsName="hero_result_video"
                 autoPlay
                 loop

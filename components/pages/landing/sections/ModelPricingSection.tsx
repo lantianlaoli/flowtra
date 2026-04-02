@@ -1,7 +1,12 @@
+'use client';
+
 import { Google, ByteDance, Kling } from '@lobehub/icons';
 import { BadgeDollarSign, Boxes, Coins, ScanLine } from 'lucide-react';
+import { useI18n } from '@/providers/I18nProvider';
 
 export default function ModelPricingSection() {
+  const { messages } = useI18n();
+  const pricingMessages = messages.landing.modelPricing;
   // Credit to USD conversion rate
   const CREDIT_TO_USD = 0.015; // $0.015 per credit
 
@@ -50,7 +55,7 @@ export default function ModelPricingSection() {
       name: 'Kling 3.0 Motion Control',
       description: 'Motion-control generation priced at the latest Standard and Pro API rates',
       icon: Kling,
-      badge: 'New',
+      badge: pricingMessages.newBadge,
       durationRange: '3-30s',
       billingType: 'generation' as const,
       pricingOptions: [
@@ -62,7 +67,7 @@ export default function ModelPricingSection() {
       name: 'Kling 3.0',
       description: 'Clone video generation with audio enabled, matched to the latest API pricing',
       icon: Kling,
-      badge: 'New',
+      badge: pricingMessages.newBadge,
       durationRange: '3-60s',
       billingType: 'generation' as const,
       pricingOptions: [
@@ -112,9 +117,9 @@ export default function ModelPricingSection() {
       className="landing-model-pricing-section landing-section-surface scroll-mt-24 px-4 py-14 md:px-6 md:py-24"
     >
       <div className="mb-10 md:mb-14 text-center">
-        <h2 className="mb-4 text-[32px] font-bold tracking-tight text-black md:text-[40px]">Price details</h2>
+        <h2 className="mb-4 text-[32px] font-bold tracking-tight text-black md:text-[40px]">{pricingMessages.title}</h2>
         <p className="text-base md:text-lg text-[#666666] max-w-2xl mx-auto">
-          Transparent pricing for all models. Choose the right model for your needs.
+          {pricingMessages.description}
         </p>
       </div>
 
@@ -132,25 +137,25 @@ export default function ModelPricingSection() {
               <th className="landing-pricing-head-cell px-8 py-6 text-left text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
                 <span className="landing-pricing-head-label inline-flex items-center gap-2">
                   <Boxes className="landing-pricing-head-icon h-4 w-4 text-[#555555]" />
-                  <span>Model</span>
+                  <span>{pricingMessages.model}</span>
                 </span>
               </th>
               <th className="landing-pricing-head-cell border-l border-[#E7E7E7] px-8 py-6 text-left text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
                 <span className="landing-pricing-head-label inline-flex items-center gap-2">
                   <ScanLine className="landing-pricing-head-icon h-4 w-4 text-[#555555]" />
-                  <span>Resolution</span>
+                  <span>{pricingMessages.resolution}</span>
                 </span>
               </th>
               <th className="landing-pricing-head-cell border-l border-[#E7E7E7] px-8 py-6 text-left text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
                 <span className="landing-pricing-head-label inline-flex items-center gap-2">
                   <Coins className="landing-pricing-head-icon h-4 w-4 text-[#555555]" />
-                  <span>Credits / Sec</span>
+                  <span>{pricingMessages.creditsPerSecond}</span>
                 </span>
               </th>
               <th className="landing-pricing-head-cell border-l border-[#E7E7E7] px-8 py-6 text-left text-[12px] font-bold uppercase tracking-[0.18em] text-[#111111] lg:px-9">
                 <span className="landing-pricing-head-label inline-flex items-center gap-2">
                   <BadgeDollarSign className="landing-pricing-head-icon h-4 w-4 text-[#555555]" />
-                  <span>Generation Cost / Sec</span>
+                  <span>{pricingMessages.generationCostPerSecond}</span>
                 </span>
               </th>
             </tr>
@@ -204,14 +209,14 @@ export default function ModelPricingSection() {
                     {/* Credits / Sec */}
                     <td className="border-l border-[#E7E7E7] px-8 py-6 align-middle lg:px-9 lg:py-6">
                       <div className="text-[17px] font-bold tracking-tight text-black">
-                        {isComingSoon ? 'Coming soon' : (isFree ? 'Free' : formatCreditsPerSecond(option.credits))}
+                        {isComingSoon ? pricingMessages.comingSoon : (isFree ? pricingMessages.free : formatCreditsPerSecond(option.credits))}
                       </div>
                     </td>
 
                     {/* Generation Cost */}
                     <td className="border-l border-[#E7E7E7] px-8 py-6 align-middle lg:px-9 lg:py-6">
                       <div className="text-[17px] font-bold tracking-tight text-black">
-                        {isComingSoon ? 'Coming soon' : (isFree ? 'Free' : formatUsdPerSecond(option.credits))}
+                        {isComingSoon ? pricingMessages.comingSoon : (isFree ? pricingMessages.free : formatUsdPerSecond(option.credits))}
                       </div>
                     </td>
                   </tr>
@@ -257,31 +262,31 @@ export default function ModelPricingSection() {
                     <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                       <div>
                         <span className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#666666]">
-                          Credits / Sec
+                          {pricingMessages.creditsPerSecond}
                         </span>
                         <div className="mt-1 text-[18px] font-bold tracking-tight text-black">
                           {option.comingSoon
-                            ? 'Coming soon'
+                            ? pricingMessages.comingSoon
                             : option.credits === 0
-                            ? 'Free'
+                            ? pricingMessages.free
                             : formatCreditsPerSecond(option.credits)}
                         </div>
                       </div>
                       <div className="text-right">
                         <span className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#666666]">
-                          Generation Cost / Sec
+                          {pricingMessages.generationCostPerSecond}
                         </span>
                         <div className="mt-1 text-[18px] font-bold tracking-tight text-black">
                           {option.comingSoon
-                            ? 'Coming soon'
+                            ? pricingMessages.comingSoon
                             : option.credits === 0
-                            ? 'Free'
+                            ? pricingMessages.free
                             : formatUsdPerSecond(option.credits)}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center justify-between border-t border-[#E9E9E9] pt-3 text-xs text-[#666666]">
-                      <span className="font-medium uppercase tracking-[0.1em]">Resolution</span>
+                      <span className="font-medium uppercase tracking-[0.1em]">{pricingMessages.resolution}</span>
                       <div className="flex flex-wrap justify-end gap-1">
                         <span className="text-[18px] font-bold tracking-tight text-black uppercase">
                           {option.resolution}

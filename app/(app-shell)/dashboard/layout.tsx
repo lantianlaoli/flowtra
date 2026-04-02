@@ -4,6 +4,7 @@ import { useUser } from '@clerk/nextjs'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import FlowtraLoading from '@/components/ui/FlowtraLoading'
+import { applyDashboardTheme, getPreferredDashboardTheme } from '@/lib/theme'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoaded } = useUser()
@@ -15,17 +16,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (typeof window === 'undefined') return
     document.documentElement.classList.remove('dark')
     document.body.classList.remove('dark')
-    const stored = window.localStorage.getItem('flowtra-dashboard-dark')
-    const enabled = stored === null ? true : stored === 'true'
+    const enabled = getPreferredDashboardTheme()
     setIsDarkMode(enabled)
-    document.documentElement.classList.toggle('dashboard-theme', enabled)
-    document.body.classList.toggle('dashboard-theme', enabled)
+    applyDashboardTheme(enabled)
   }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    document.documentElement.classList.toggle('dashboard-theme', isDarkMode)
-    document.body.classList.toggle('dashboard-theme', isDarkMode)
+    applyDashboardTheme(isDarkMode)
   }, [isDarkMode])
 
   useEffect(() => {

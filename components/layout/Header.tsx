@@ -18,22 +18,12 @@ import {
   Calculator,
   Sparkles,
   LayoutDashboard,
-  Moon,
-  Sun,
   type LucideIcon,
 } from "lucide-react";
-
-type ViewTransitionCapableDocument = Document & {
-  startViewTransition?: (update: () => void | Promise<void>) => {
-    ready: Promise<void>;
-    finished: Promise<void>;
-    updateCallbackDone: Promise<void>;
-  };
-};
+import { useI18n } from "@/providers/I18nProvider";
 
 interface HeaderProps {
   showAuthButtons?: boolean;
-  showThemeToggle?: boolean;
 }
 
 type HeaderNavItem = {
@@ -43,55 +33,17 @@ type HeaderNavItem = {
   isNew?: boolean;
 };
 
-const featureItems: HeaderNavItem[] = [
-  {
-    href: "/features/ai-agent",
-    title: "AI Agent",
-    icon: Bot,
-    isNew: true,
-  },
-  {
-    href: "/features/avatar-ads",
-    title: "Avatar Ads",
-    icon: UserCircle,
-  },
-  {
-    href: "/features/viral-clone",
-    title: "Viral Clone",
-    icon: Copy,
-  },
-  {
-    href: "/features/motion-clone",
-    title: "Motion Clone",
-    icon: RefreshCw,
-  },
-];
-
-const toolItems: HeaderNavItem[] = [
-  {
-    href: "/tools/upload-assets",
-    title: "Upload Assets to URL",
-    icon: Upload,
-  },
-  {
-    href: "/tools/roas-calculator",
-    title: "ROAS Calculator",
-    icon: Calculator,
-  },
-  {
-    href: "/tools/ai-angle-generator",
-    title: "AI Multi-Angle Photo",
-    icon: Sparkles,
-  },
-];
+const FEATURE_ICONS: LucideIcon[] = [Bot, UserCircle, Copy, RefreshCw];
+const TOOL_ICONS: LucideIcon[] = [Upload, Calculator, Sparkles];
 
 function HeaderMenuItem({
   href,
   title,
   icon: Icon,
   isNew = false,
+  badgeLabel = "New",
   onClick,
-}: HeaderNavItem & { onClick?: () => void }) {
+}: HeaderNavItem & { onClick?: () => void; badgeLabel?: string }) {
   return (
     <Link
       href={href}
@@ -106,7 +58,7 @@ function HeaderMenuItem({
           <div className="landing-dropdown-item__title">{title}</div>
           {isNew ? (
             <span className="landing-dropdown-item__badge">
-              New
+              {badgeLabel}
             </span>
           ) : null}
         </div>
@@ -117,11 +69,21 @@ function HeaderMenuItem({
 
 export default function Header({
   showAuthButtons = true,
-  showThemeToggle = true,
 }: HeaderProps) {
+  const { messages } = useI18n();
+  const headerMessages = messages.landing.header;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [compact, setCompact] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  const featureItems: HeaderNavItem[] = headerMessages.featureItems.map((item, index) => ({
+    ...item,
+    icon: FEATURE_ICONS[index] ?? Bot,
+  }));
+
+  const toolItems: HeaderNavItem[] = headerMessages.toolItems.map((item, index) => ({
+    ...item,
+    icon: TOOL_ICONS[index] ?? Sparkles,
+  }));
 
   const navButtonClass =
     "landing-press-button landing-press-button--secondary landing-press-button--compact landing-nav-button text-[14px] font-medium";
@@ -131,85 +93,11 @@ export default function Header({
       const y = window.scrollY || document.documentElement.scrollTop;
       setCompact(y > 10);
     };
+
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem("flowtra-dashboard-dark");
-    const enabled = stored === null ? true : stored === "true";
-    setIsDarkMode(enabled);
-    document.documentElement.classList.toggle("dashboard-theme", enabled);
-    document.body.classList.toggle("dashboard-theme", enabled);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    document.documentElement.classList.toggle("dashboard-theme", isDarkMode);
-    document.body.classList.toggle("dashboard-theme", isDarkMode);
-    window.localStorage.setItem(
-      "flowtra-dashboard-dark",
-      isDarkMode.toString(),
-    );
-    window.dispatchEvent(
-      new CustomEvent("flowtra-dashboard-theme-change", { detail: isDarkMode }),
-    );
-  }, [isDarkMode]);
-
-  const toggleDarkMode = (trigger?: HTMLElement) => {
-    const nextValue = !isDarkMode;
-    const applyTheme = () => {
-      setIsDarkMode(nextValue);
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("flowtra-dashboard-dark", String(nextValue));
-        document.documentElement.classList.toggle("dashboard-theme", nextValue);
-        document.body.classList.toggle("dashboard-theme", nextValue);
-        window.dispatchEvent(
-          new CustomEvent("flowtra-dashboard-theme-change", { detail: nextValue }),
-        );
-      }
-    };
-
-    if (typeof window !== "undefined") {
-      const transitionDocument = document as ViewTransitionCapableDocument;
-      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-      if (!prefersReducedMotion && transitionDocument.startViewTransition && trigger) {
-        const rect = trigger.getBoundingClientRect();
-        const x = rect.left + rect.width / 2;
-        const y = rect.top + rect.height / 2;
-        const endRadius = Math.hypot(
-          Math.max(x, window.innerWidth - x),
-          Math.max(y, window.innerHeight - y),
-        );
-
-        const transition = transitionDocument.startViewTransition(() => {
-          applyTheme();
-        });
-
-        transition.ready.then(() => {
-          document.documentElement.animate(
-            {
-              clipPath: [
-                `circle(0px at ${x}px ${y}px)`,
-                `circle(${endRadius}px at ${x}px ${y}px)`,
-              ],
-            },
-            {
-              duration: 700,
-              easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-              pseudoElement: "::view-transition-new(root)",
-            },
-          );
-        }).catch(() => {});
-        return;
-      }
-    }
-
-    applyTheme();
-  };
 
   return (
     <header
@@ -242,25 +130,28 @@ export default function Header({
         <div className="ml-auto flex items-center gap-3 sm:gap-4 lg:gap-6">
           <nav
             className="hidden md:flex items-center gap-2"
-            aria-label="Main navigation"
+            aria-label={headerMessages.mainNavLabel}
           >
-            {/* Features Dropdown */}
             <div className="relative group">
               <button className={`${navButtonClass} gap-1`}>
-                Features
+                {headerMessages.features}
                 <ChevronDownIcon className="w-3.5 h-3.5" />
               </button>
               <div className="landing-floating-panel absolute left-1/2 top-full z-50 mt-4 min-w-[15.5rem] w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-[22px] border border-[#E5E5E5] bg-white p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.12)] invisible opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
                 <div className="flex flex-col gap-2 py-2">
                   {featureItems.map((item) => (
-                    <HeaderMenuItem key={item.href} {...item} />
+                    <HeaderMenuItem
+                      key={item.href}
+                      {...item}
+                      badgeLabel={messages.landing.features.newBadge}
+                    />
                   ))}
                 </div>
               </div>
             </div>
             <div className="relative group">
               <button className={`${navButtonClass} gap-1`}>
-                Tools
+                {headerMessages.tools}
                 <ChevronDownIcon className="w-3.5 h-3.5" />
               </button>
               <div className="landing-floating-panel absolute left-1/2 top-full z-50 mt-4 min-w-[15.5rem] w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-[22px] border border-[#E5E5E5] bg-white p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.12)] invisible opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
@@ -271,23 +162,14 @@ export default function Header({
                 </div>
               </div>
             </div>
-            <Link
-              href="/#pricing"
-              className={navButtonClass}
-            >
-              Pricing
+            <Link href="/#pricing" className={navButtonClass}>
+              {headerMessages.pricing}
             </Link>
-            <Link
-              href="/#blog"
-              className={navButtonClass}
-            >
-              Blog
+            <Link href="/#blog" className={navButtonClass}>
+              {headerMessages.blog}
             </Link>
-            <Link
-              href="/#faq"
-              className={navButtonClass}
-            >
-              FAQ
+            <Link href="/#faq" className={navButtonClass}>
+              {headerMessages.faq}
             </Link>
           </nav>
 
@@ -298,18 +180,16 @@ export default function Header({
                 className="landing-press-button landing-press-button--compact inline-flex items-center justify-center text-[14px] font-medium"
               >
                 <LayoutDashboard className="w-4 h-4" />
-                Dashboard
+                {headerMessages.dashboard}
               </Link>
             </SignedIn>
-            {showAuthButtons && (
+            {showAuthButtons ? (
               <>
                 <SignedOut>
                   <SignInButton mode="modal" forceRedirectUrl="/dashboard">
                     <button className="landing-press-button landing-press-button--compact inline-flex items-center justify-center px-3 text-[12px] font-medium sm:px-5 sm:text-[14px]">
-                      <span className="hidden sm:inline">
-                        Sign up · Get 100 free credits
-                      </span>
-                      <span className="sm:hidden">Get 100 Credits</span>
+                      <span className="hidden sm:inline">{headerMessages.signUpDesktop}</span>
+                      <span className="sm:hidden">{headerMessages.signUpMobile}</span>
                     </button>
                   </SignInButton>
                 </SignedOut>
@@ -317,13 +197,13 @@ export default function Header({
                   <UserButton afterSignOutUrl="/" />
                 </SignedIn>
               </>
-            )}
+            ) : null}
 
-            {/* Mobile menu button */}
             <button
               type="button"
               className="rounded-[16px] p-2 text-black transition-colors hover:bg-white md:hidden"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              onClick={() => setMobileMenuOpen((current) => !current)}
+              aria-label={headerMessages.mobileMenuLabel}
             >
               {mobileMenuOpen ? (
                 <XMarkIcon className="w-6 h-6" />
@@ -331,28 +211,10 @@ export default function Header({
                 <Bars3Icon className="w-6 h-6" />
               )}
             </button>
-
-            {showThemeToggle && (
-              <button
-                type="button"
-                onClick={(event) => toggleDarkMode(event.currentTarget)}
-                aria-label="Toggle light and dark mode"
-                className={`landing-theme-toggle landing-press-button landing-press-button--secondary landing-press-button--compact h-12 w-12 px-0 ${
-                  isDarkMode ? "text-[#F3F7FD]" : "text-[#333333]"
-                }`}
-              >
-                {isDarkMode ? (
-                  <Sun className="h-[22px] w-[22px] shrink-0" strokeWidth={2.5} />
-                ) : (
-                  <Moon className="h-[22px] w-[22px] shrink-0" strokeWidth={2.5} />
-                )}
-              </button>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Mobile menu - Simplified */}
       <div
         className={`absolute left-0 top-full w-full px-3 sm:px-5 lg:px-6 transition-all duration-300 md:hidden ${
           mobileMenuOpen ? "visible opacity-100" : "invisible opacity-0"
@@ -363,11 +225,12 @@ export default function Header({
             <HeaderMenuItem
               key={item.href}
               {...item}
+              badgeLabel={messages.landing.features.newBadge}
               onClick={() => setMobileMenuOpen(false)}
             />
           ))}
-          <div className="text-[12px] font-medium text-[#666666] uppercase tracking-[0.2em]">
-            Tools
+          <div className="text-[12px] font-medium uppercase tracking-[0.2em] text-[#666666]">
+            {headerMessages.tools}
           </div>
           {toolItems.map((item) => (
             <HeaderMenuItem
@@ -381,14 +244,21 @@ export default function Header({
             className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
             onClick={() => setMobileMenuOpen(false)}
           >
-            Pricing
+            {headerMessages.pricing}
           </Link>
           <Link
             href="/#blog"
             className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
             onClick={() => setMobileMenuOpen(false)}
           >
-            Blog
+            {headerMessages.blog}
+          </Link>
+          <Link
+            href="/#faq"
+            className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            {headerMessages.faq}
           </Link>
         </div>
       </div>

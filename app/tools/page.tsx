@@ -1,40 +1,34 @@
+"use client";
+
 import Link from "next/link";
 import { Calculator, Sparkles, Upload } from "lucide-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-
-const tools = [
-  {
-    href: "/tools/upload-assets",
-    title: "Upload Assets to URL",
-    description: "Upload image or video files and generate a temporary download URL.",
-    icon: Upload,
-  },
-  {
-    href: "/tools/roas-calculator",
-    title: "ROAS Calculator",
-    description: "Calculate ROAS, net profit, margin, and conversion-level ad performance.",
-    icon: Calculator,
-  },
-  {
-    href: "/tools/ai-angle-generator",
-    title: "AI Multi-Angle Photo",
-    description: "Upload one frontal photo and generate 3 additional viewing angles.",
-    icon: Sparkles,
-  },
-];
+import { useI18n } from "@/providers/I18nProvider";
 
 export default function ToolsPage() {
+  const { messages } = useI18n();
+  const toolsMessages = messages.tools.index;
+  const tools = toolsMessages.items.map((item) => ({
+    ...item,
+    icon:
+      item.href === "/tools/upload-assets"
+        ? Upload
+        : item.href === "/tools/roas-calculator"
+          ? Calculator
+          : Sparkles,
+  }));
+
   return (
     <>
       <Header />
       <main className="bg-white">
         <section className="mx-auto max-w-[980px] px-4 sm:px-6 py-14 md:py-20">
           <div className="space-y-4">
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#666666]">Tools</p>
-            <h1 className="text-3xl sm:text-5xl font-semibold text-black tracking-tight">Marketing Utilities</h1>
+            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#666666]">{toolsMessages.eyebrow}</p>
+            <h1 className="text-3xl sm:text-5xl font-semibold text-black tracking-tight">{toolsMessages.title}</h1>
             <p className="max-w-2xl text-base text-[#666666]">
-              Fast tools for campaign operations and performance analysis.
+              {toolsMessages.description}
             </p>
           </div>
 
@@ -51,7 +45,7 @@ export default function ToolsPage() {
                 <h2 className="mt-5 text-xl font-semibold text-black">{title}</h2>
                 <p className="mt-2 text-sm text-[#666666]">{description}</p>
                 <span className="mt-5 inline-flex text-sm font-medium text-black group-hover:underline">
-                  Open tool
+                  {toolsMessages.openTool}
                 </span>
               </Link>
             ))}

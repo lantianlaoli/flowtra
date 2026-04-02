@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useUser } from '@clerk/nextjs';
+import { useI18n } from '@/providers/I18nProvider';
 
 type FeatureSignupCTAProps = {
   title?: string;
@@ -12,12 +13,15 @@ export function FeatureSignupCTA({
   title = 'Start creating with Flowtra',
   description = 'Create your account and start your first workflow in minutes.',
 }: FeatureSignupCTAProps) {
+  const { locale, messages } = useI18n();
   const { isLoaded, user } = useUser();
 
   const href = user ? '/dashboard' : '/sign-up';
-  const label = user ? 'Open Dashboard' : 'Create Free Account';
+  const resolvedLabel = user
+    ? (locale === 'zh' ? '打开控制台' : 'Open Dashboard')
+    : (locale === 'zh' ? '创建免费账户' : 'Create Free Account');
   const helperText = user
-    ? 'Open your dashboard and continue creating.'
+    ? (locale === 'zh' ? '打开你的控制台并继续创作。' : 'Open your dashboard and continue creating.')
     : description;
 
   return (
@@ -25,7 +29,7 @@ export function FeatureSignupCTA({
       <div className="mx-auto max-w-4xl rounded-[28px] border border-[#E5E5E5] bg-[#FAFAFA] px-6 py-10 text-center md:px-10 md:py-12">
         {!user ? (
           <p className="text-[12px] font-bold uppercase tracking-[0.18em] text-[#666666]">
-            100 Free Credits Included
+            {locale === 'zh' ? '包含 100 免费积分' : '100 Free Credits Included'}
           </p>
         ) : null}
         <h2 className="text-[30px] font-bold tracking-[-0.02em] text-black md:text-[40px]">
@@ -40,11 +44,11 @@ export function FeatureSignupCTA({
               href={href}
               className="landing-press-button text-[15px] font-semibold"
             >
-              {label}
+              {resolvedLabel}
             </Link>
           ) : (
             <div className="landing-press-button text-[15px] font-semibold opacity-60">
-              Loading...
+              {messages.common.loading}
             </div>
           )}
         </div>

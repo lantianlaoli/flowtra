@@ -8,6 +8,7 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Check, Copy, Download, Loader2, Sparkles, Upload } from "lucide-react";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
+import { useI18n } from "@/providers/I18nProvider";
 
 type GenerationStatus = "idle" | "uploading" | "generating" | "success" | "error";
 
@@ -45,24 +46,6 @@ const VERCEL_FUNCTION_BODY_LIMIT_BYTES = 4.5 * 1024 * 1024;
 const REQUEST_SIZE_BUFFER_BYTES = 350 * 1024;
 const MAX_CLIENT_UPLOAD_SIZE_MB = 2.6;
 const MAX_CLIENT_UPLOAD_DIMENSION = 2048;
-const ANGLE_SLOTS: AngleSlot[] = [
-  {
-    key: "front_left_45",
-    label: "45° Front Left",
-    description: "Camera positioned at the subject's front-left, with the left side more visible than the right.",
-  },
-  {
-    key: "front_right_45",
-    label: "45° Front Right",
-    description: "Camera positioned at the subject's front-right, with the right side more visible than the left.",
-  },
-  {
-    key: "back_view",
-    label: "Back View",
-    description: "Completes the rear view while preserving the same finish, palette, and overall image atmosphere.",
-  },
-];
-
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -98,6 +81,8 @@ function AngleSkeletonCard({ label, description }: AngleSlot) {
 }
 
 export default function AiAngleGeneratorPage() {
+  const { messages } = useI18n();
+  const toolMessages = messages.tools.aiAngleGenerator;
   const imageInputId = "tool-angle-image-upload";
   const primaryButtonClass =
     "landing-press-button landing-press-button--compact text-sm font-medium";
@@ -114,15 +99,16 @@ export default function AiAngleGeneratorPage() {
   const isBusy = status === "uploading" || status === "generating";
 
   const helperText = useMemo(() => {
-    if (status === "uploading") return "Optimizing, validating, and uploading your image...";
-    if (status === "generating") return "Generating 3 angle photos while preserving the original style. This can take up to 2 minutes.";
+    if (status === "uploading") return toolMessages.uploadingHelper;
+    if (status === "generating") return toolMessages.generatingHelper;
     return null;
-  }, [status]);
+  }, [status, toolMessages.generatingHelper, toolMessages.uploadingHelper]);
 
   const generatedImagesByKey = useMemo(
     () => new Map(generatedImages.map((item) => [item.key, item])),
     [generatedImages]
   );
+  const angleSlots = toolMessages.angleSlots;
 
   const getSourceAspect = (width: number, height: number): SourceAspect => {
     if (height > width) return "portrait";
@@ -332,10 +318,10 @@ export default function AiAngleGeneratorPage() {
       <main className="bg-white">
         <section className="mx-auto max-w-[1040px] px-4 sm:px-6 py-14 md:py-20 space-y-8 sm:space-y-10">
           <div className="space-y-4">
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#666666]">Tools</p>
-            <h1 className="text-3xl sm:text-5xl font-semibold text-black tracking-tight">AI Multi-Angle Photo</h1>
+            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#666666]">{toolMessages.eyebrow}</p>
+            <h1 className="text-3xl sm:text-5xl font-semibold text-black tracking-tight">{toolMessages.title}</h1>
             <p className="max-w-2xl text-base text-[#666666]">
-              Upload one frontal photo to generate 3 additional viewing angles. Supports products, people, and pets.
+              {toolMessages.description}
             </p>
           </div>
 
@@ -346,15 +332,15 @@ export default function AiAngleGeneratorPage() {
                   <Sparkles className="h-5 w-5 text-black" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-black">Generate 3 additional angles</h2>
+                  <h2 className="text-lg font-semibold text-black">{toolMessages.cardTitle}</h2>
                   <p className="text-sm text-[#666666] mt-1">
-                    Upload a JPG or PNG frontal image (minimum 300x300). Large images are automatically optimized before upload to avoid production payload limits.
+                    {toolMessages.cardDescription}
                   </p>
                 </div>
               </div>
 
               <div className="flex flex-col gap-3">
-                <span className="text-sm font-medium text-black">Select frontal image</span>
+                <span className="text-sm font-medium text-black">{toolMessages.selectImage}</span>
                 <input
                   id={imageInputId}
                   type="file"
@@ -368,18 +354,18 @@ export default function AiAngleGeneratorPage() {
                   className={`${secondaryButtonClass} w-fit ${isBusy ? "pointer-events-none opacity-60" : ""}`}
                 >
                   <Upload className="h-4 w-4" />
-                  <span>{isBusy ? "Processing..." : "Choose Image"}</span>
+                  <span>{isBusy ? messages.common.processing : toolMessages.chooseImage}</span>
                 </label>
                 <input
                   readOnly
                   value={selectedFileName ?? ""}
-                  placeholder="No image selected"
+                  placeholder={toolMessages.noImageSelected}
                   className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none"
                 />
               </div>
 
               {selectedFileName && (
-                <p className="text-xs text-[#666666]">Selected file: {selectedFileName}</p>
+                <p className="text-xs text-[#666666]">{toolMessages.selectedFile}: {selectedFileName}</p>
               )}
 
               {helperText && (
@@ -403,7 +389,7 @@ export default function AiAngleGeneratorPage() {
                       href="/sign-in?redirect_url=/tools/ai-angle-generator"
                       className={`${secondaryButtonClass} mt-3 w-fit`}
                     >
-                      Sign in and try again
+                      {toolMessages.signInAndRetry}
                     </Link>
                   )}
                 </div>
@@ -414,9 +400,9 @@ export default function AiAngleGeneratorPage() {
           {frontalPreview && (
             <section className="space-y-4">
               <div className="space-y-1">
-                <h3 className="text-2xl font-semibold text-black tracking-tight">Photo set</h3>
+                <h3 className="text-2xl font-semibold text-black tracking-tight">{toolMessages.photoSetTitle}</h3>
                 <p className="text-sm text-[#666666]">
-                  The generated angles stay locked to your reference image style instead of switching to a new rendering look.
+                  {toolMessages.photoSetDescription}
                 </p>
               </div>
               <div className="grid items-start gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -431,13 +417,13 @@ export default function AiAngleGeneratorPage() {
                       unoptimized
                     />
                   </div>
-                  <h4 className="mt-3 text-sm font-semibold text-black">Frontal Input</h4>
+                  <h4 className="mt-3 text-sm font-semibold text-black">{toolMessages.selectImage}</h4>
                   <p className="mt-1 text-xs leading-5 text-[#666666]">
-                    This image acts as the style anchor for all generated viewing angles.
+                    {toolMessages.styleAnchorDescription}
                   </p>
                 </article>
 
-                {ANGLE_SLOTS.map((slot) => {
+                {angleSlots.map((slot) => {
                   const image = generatedImagesByKey.get(slot.key);
 
                   if (!image) {
@@ -470,7 +456,7 @@ export default function AiAngleGeneratorPage() {
                           className={`${primaryButtonClass} w-full justify-center gap-2 text-xs`}
                         >
                           {copiedTaskId === image.taskId ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                          <span>{copiedTaskId === image.taskId ? "Copied" : "Copy URL"}</span>
+                          <span>{copiedTaskId === image.taskId ? toolMessages.copied : toolMessages.copyUrl}</span>
                         </button>
 
                         <a
@@ -481,7 +467,7 @@ export default function AiAngleGeneratorPage() {
                           className={`${secondaryButtonClass} w-full justify-center gap-2 text-xs`}
                         >
                           <Download className="h-3.5 w-3.5" />
-                          <span>Download</span>
+                          <span>{toolMessages.download}</span>
                         </a>
                       </div>
                     </article>

@@ -18,7 +18,9 @@ import {
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import CreditsDisplay from '@/components/ui/CreditsDisplay';
 import SidebarUtilityDock from '@/components/layout/SidebarUtilityDock';
+import { applyDashboardTheme, DASHBOARD_THEME_STORAGE_KEY, getPreferredDashboardTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
+import { useI18n } from '@/providers/I18nProvider';
 
 type ViewTransitionCapableDocument = Document & {
   startViewTransition?: (update: () => void | Promise<void>) => {
@@ -42,16 +44,6 @@ interface SidebarProps {
   onTriggerOnboarding?: () => void;
 }
 
-const primaryNavigation = [
-  { name: 'Home', href: '/dashboard', icon: Home },
-  { name: 'Agent', href: '/dashboard/agent', icon: MessageCircle },
-  { name: 'Video Clone', href: '/dashboard/competitor-ugc-replication', icon: Sparkles },
-  { name: 'Avatar Ads', href: '/dashboard/avatar-ads', icon: Video },
-  { name: 'Motion Clone', href: '/dashboard/motion-clone', icon: Shuffle },
-  { name: 'My Ads', href: '/dashboard/my-ads', icon: Play },
-  { name: 'Assets', href: '/dashboard/assets', icon: Boxes },
-];
-
 const sidebarNavButtonBase =
   'sidebar-nav-button relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-[20px] border px-2.5 py-3 text-sm font-medium transition-all duration-150';
 
@@ -62,19 +54,28 @@ const sidebarNavButtonActive =
   'sidebar-nav-button--active border-[#111111] bg-[#111111] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_0_rgba(22,22,22,0.98),0_14px_24px_rgba(0,0,0,0.12)] hover:translate-y-[2px] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_2px_0_rgba(22,22,22,0.98),0_10px_18px_rgba(0,0,0,0.1)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_0_rgba(22,22,22,0.98),0_7px_14px_rgba(0,0,0,0.09)]';
 
 export default function Sidebar({ credits, creditsData }: SidebarProps) {
+  const sidebarMessages = useI18n().messages.dashboard.sidebar;
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const desktopSidebarRef = useRef<HTMLDivElement | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    const stored = window.localStorage.getItem('flowtra-dashboard-dark');
-    return stored === null ? true : stored === 'true';
+    if (typeof window === 'undefined') return false;
+    return getPreferredDashboardTheme();
   });
 
   const displayCredits = creditsData?.credits_remaining ?? credits;
   const subscriptionCredits = creditsData?.subscription_credits ?? 0;
   const purchasedCredits = creditsData?.purchased_credits ?? 0;
+  const primaryNavigation = [
+    { name: sidebarMessages.home, href: '/dashboard', icon: Home },
+    { name: sidebarMessages.agent, href: '/dashboard/agent', icon: MessageCircle },
+    { name: sidebarMessages.viralClone, href: '/dashboard/competitor-ugc-replication', icon: Sparkles },
+    { name: sidebarMessages.avatarAds, href: '/dashboard/avatar-ads', icon: Video },
+    { name: sidebarMessages.motionClone, href: '/dashboard/motion-clone', icon: Shuffle },
+    { name: sidebarMessages.myAds, href: '/dashboard/my-ads', icon: Play },
+    { name: sidebarMessages.assets, href: '/dashboard/assets', icon: Boxes },
+  ];
 
   const navigateTo = (href: string, onNavigate?: () => void) => {
     onNavigate?.();
@@ -87,9 +88,8 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
     const applyTheme = () => {
       setIsDarkMode(nextValue);
       if (typeof window !== 'undefined') {
-        window.localStorage.setItem('flowtra-dashboard-dark', String(nextValue));
-        document.documentElement.classList.toggle('dashboard-theme', nextValue);
-        document.body.classList.toggle('dashboard-theme', nextValue);
+        window.localStorage.setItem(DASHBOARD_THEME_STORAGE_KEY, String(nextValue));
+        applyDashboardTheme(nextValue);
         window.dispatchEvent(new CustomEvent('flowtra-dashboard-theme-change', { detail: nextValue }));
       }
     };
@@ -173,7 +173,10 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
 
   const renderPrimaryNavigation = (onNavigate?: () => void) => (
     <LayoutGroup id="floating-sidebar-nav">
-      <nav className="inline-flex w-fit max-w-full flex-col gap-0.5">
+      <nav
+        className="inline-flex w-fit max-w-full flex-col gap-0.5"
+        aria-label={sidebarMessages.navigation}
+      >
         {primaryNavigation.map((item) => {
           const isActive = pathname === item.href;
 
@@ -265,10 +268,10 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
         type="button"
         className="sidebar-mobile-trigger fixed left-4 top-4 z-40 flex items-center gap-2 rounded-[20px] border border-[#E0E0E0] bg-white px-4 py-2.5 text-sm font-medium text-[#111111] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] md:hidden"
         onClick={() => setMobileOpen(true)}
-        aria-label="Open menu"
+        aria-label={sidebarMessages.openMenu}
       >
         <Menu className="h-4 w-4" />
-        <span>Menu</span>
+        <span>{sidebarMessages.menu}</span>
       </button>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>

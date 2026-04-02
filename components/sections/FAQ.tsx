@@ -3,41 +3,11 @@
 import { useState } from 'react';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
 import FAQSchema from '@/components/seo/FAQSchema';
-
-interface FAQItem {
-  question: string;
-  answer: string;
-}
-
-const faqData: FAQItem[] = [
-  {
-    question: 'What is Flowtra, and how does it help TikTok dropshippers?',
-    answer:
-      'Flowtra helps TikTok dropshippers turn product photos and viral references into scroll‑stopping UGC ads in minutes. Use Viral Clone, Avatar Ads, or Motion Clone to ship new creatives fast without a full production team.'
-  },
-  {
-    question: 'I’m not a video editor. Can I still use Flowtra?',
-    answer:
-      'Yes. Flowtra is built for non‑editors. Upload your product image or a viral reference, pick a style, and click “Generate.”'
-  },
-  {
-    question: 'How does pricing work?',
-    answer:
-      'Flowtra uses monthly subscriptions with credits. Credits are deducted when you generate videos. Image generation is free, so you can test looks before spending credits.'
-  },
-  {
-    question: 'Can I clone viral TikTok ads for my products?',
-    answer:
-      'Yes. Viral Clone lets you upload a viral TikTok video and recreate the structure with your product, so you can launch new ads fast.'
-  },
-  {
-    question: 'Can I use the videos commercially?',
-    answer:
-      'Yes. Everything you generate is yours to use for ads, product pages, and paid campaigns. No watermarks or extra licensing fees.'
-  }
-];
+import { useI18n } from '@/providers/I18nProvider';
 
 export default function FAQ() {
+  const { messages } = useI18n();
+  const faqMessages = messages.landing.faq;
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const toggleItem = (index: number) => {
@@ -46,19 +16,19 @@ export default function FAQ() {
 
   return (
     <section id="faq" className="landing-section-surface py-14 md:py-24 scroll-mt-24 bg-white">
-      <FAQSchema faqData={faqData} />
+      <FAQSchema faqData={faqMessages.items} />
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10 md:mb-16">
           <h2 className="text-[32px] md:text-[40px] font-bold text-black mb-4 tracking-tight">
-            Frequently Asked Questions
+            {faqMessages.title}
           </h2>
           <p className="text-base md:text-lg text-[#666666] max-w-2xl mx-auto">
-            Answers for TikTok dropshippers using Flowtra to launch viral UGC ads fast
+            {faqMessages.description}
           </p>
         </div>
 
         <div className="landing-faq-shell mx-auto flex max-w-3xl flex-col gap-3 rounded-[30px] border border-[#E5E5E5] bg-white p-3 sm:p-4">
-          {faqData.map((item, index) => (
+          {faqMessages.items.map((item, index) => (
             <div
               key={index}
               className={`landing-faq-item-card rounded-[24px] border border-[#E5E5E5] px-4 py-3 transition-all duration-300 sm:px-5 ${

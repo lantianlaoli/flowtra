@@ -1,10 +1,20 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from '@clerk/nextjs';
+import { cookies } from 'next/headers';
+import { headers } from 'next/headers';
 import { DeferredAnalytics } from '@/components/analytics/DeferredAnalytics';
 import { CookieConsentManager } from '@/components/consent/CookieConsentManager';
+import FloatingPreferences from '@/components/layout/FloatingPreferences';
 import { CookieConsentProvider } from '@/providers/cookie-consent';
+import { I18nProvider } from '@/providers/I18nProvider';
 import { ToastProvider } from '@/contexts/ToastContext';
+import {
+  getDocumentLang,
+  resolveInitialSiteLocale,
+  SITE_LOCALE_COOKIE_KEY,
+} from '@/lib/i18n/site';
 import { DEFAULT_SOCIAL_IMAGE_PATH } from '@/lib/social-image';
+import { DASHBOARD_THEME_STORAGE_KEY } from '@/lib/theme';
 import "@fontsource/plus-jakarta-sans/400.css";
 import "@fontsource/plus-jakarta-sans/500.css";
 import "@fontsource/plus-jakarta-sans/600.css";
@@ -117,11 +127,36 @@ export const metadata: Metadata = {
   category: 'technology',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const headerStore = await headers();
+  const initialLocale = resolveInitialSiteLocale({
+    cookieLocale: cookieStore.get(SITE_LOCALE_COOKIE_KEY)?.value,
+    countryCode: headerStore.get('x-vercel-ip-country'),
+  });
+  const themeBootstrapScript = `
+    (() => {
+      try {
+        const stored = window.localStorage.getItem('${DASHBOARD_THEME_STORAGE_KEY}');
+        const enabled = stored === 'true'
+          ? true
+          : stored === 'false'
+            ? false
+            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.classList.toggle('dashboard-theme', enabled);
+        const applyToBody = () => document.body?.classList.toggle('dashboard-theme', enabled);
+        applyToBody();
+        if (!document.body) {
+          window.addEventListener('DOMContentLoaded', applyToBody, { once: true });
+        }
+      } catch {}
+    })();
+  `;
+
   return (
     <ClerkProvider
       signUpForceRedirectUrl="/select-plan"
@@ -129,7 +164,7 @@ export default function RootLayout({
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
     >
-      <html lang="en" suppressHydrationWarning={true}>
+      <html lang={getDocumentLang(initialLocale)} suppressHydrationWarning={true}>
         <head>
           <meta name="google-site-verification" content="s9LILAiVY8VS08_NWNu9kW3hdlnlQgDMa-Hy1y1Ly3A" />
           <meta name="theme-color" content="#ffffff" />
@@ -138,6 +173,7 @@ export default function RootLayout({
           <link rel="shortcut icon" href="/favicon.ico" />
           <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
           <link rel="manifest" href="/site.webmanifest" />
+          <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{
@@ -226,13 +262,16 @@ export default function RootLayout({
           />
         </head>
         <body className="font-sans antialiased">
-          <CookieConsentProvider>
-            <ToastProvider>
-              {children}
-            </ToastProvider>
-            <CookieConsentManager />
-            <DeferredAnalytics />
-          </CookieConsentProvider>
+          <I18nProvider initialLocale={initialLocale}>
+            <CookieConsentProvider>
+              <ToastProvider>
+                <FloatingPreferences />
+                {children}
+              </ToastProvider>
+              <CookieConsentManager />
+              <DeferredAnalytics />
+            </CookieConsentProvider>
+          </I18nProvider>
         </body>
       </html>
     </ClerkProvider>

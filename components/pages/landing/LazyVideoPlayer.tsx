@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import type VideoPlayerComponent from '@/components/ui/VideoPlayer';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { trackEvent } from '@/lib/analytics/client';
+import { useI18n } from '@/providers/I18nProvider';
 
 type VideoPlayerProps = ComponentProps<typeof VideoPlayerComponent>;
 
@@ -30,6 +31,7 @@ export function LazyVideoPlayer({
   analyticsSurface = 'landing_page',
   ...videoProps
 }: LazyVideoPlayerProps) {
+  const { messages } = useI18n();
   const [shouldRender, setShouldRender] = useState(eager);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const trackedPlaybackRef = useRef(false);
@@ -79,7 +81,7 @@ export function LazyVideoPlayer({
       ) : (
         placeholder ?? (
           <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs text-gray-500">
-            Loading preview…
+            {messages.common.loadingPreview}
           </div>
         )
       )}

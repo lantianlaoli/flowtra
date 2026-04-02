@@ -1,15 +1,13 @@
+'use client';
+
 import Link from 'next/link';
 import Image from 'next/image';
 import { getSocialMediaLinks } from '@/lib/social-links';
-
-const footerFeatures = [
-  { href: '/features/ai-agent', label: 'AI Agent', isNew: true },
-  { href: '/features/avatar-ads', label: 'Avatar Ads' },
-  { href: '/features/viral-clone', label: 'Viral Clone' },
-  { href: '/features/motion-clone', label: 'Motion Clone' },
-];
+import { useI18n } from '@/providers/I18nProvider';
 
 export default function Footer() {
+  const { messages } = useI18n();
+  const footerMessages = messages.landing.footer;
   const socialLinks = getSocialMediaLinks();
   const currentYear = new Date().getFullYear();
 
@@ -22,7 +20,7 @@ export default function Footer() {
               aria-labelledby="footer-about"
               className="landing-footer-card rounded-[26px] border border-[#E5E5E5] bg-white p-5"
             >
-              <h2 id="footer-about" className="sr-only">About Flowtra</h2>
+              <h2 id="footer-about" className="sr-only">{footerMessages.aboutTitle}</h2>
               <Link href="/" className="mb-3 flex items-center gap-2">
                 <Image
                   src="/logo.svg"
@@ -33,10 +31,10 @@ export default function Footer() {
                 />
               </Link>
               <p className="mb-5 max-w-[240px] text-[13px] leading-[1.55] text-[#666666]">
-                AI ads for Shopify, dropshipping, content creator, and local stores.
+                {footerMessages.description}
               </p>
               <p className="text-[11px] uppercase tracking-[0.14em] text-[#666666]">
-                &copy; {currentYear} Flowtra. All rights reserved.
+                &copy; {currentYear} Flowtra. {footerMessages.rightsReserved}
               </p>
             </section>
 
@@ -44,9 +42,9 @@ export default function Footer() {
               aria-labelledby="footer-features"
               className="landing-footer-card rounded-[26px] border border-[#E5E5E5] bg-white p-5"
             >
-              <h3 id="footer-features" className="mb-3 text-[13px] font-bold uppercase tracking-wider text-black">Features</h3>
+              <h3 id="footer-features" className="mb-3 text-[13px] font-bold uppercase tracking-wider text-black">{footerMessages.features}</h3>
               <ul className="space-y-3">
-              {footerFeatures.map((feature) => (
+              {footerMessages.featureItems.map((feature) => (
                 <li key={feature.href}>
                   <Link
                     href={feature.href}
@@ -59,7 +57,7 @@ export default function Footer() {
                     <span>{feature.label}</span>
                     {feature.isNew ? (
                       <span className="inline-flex items-center rounded-full border border-black bg-black px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-white transition-transform duration-200 group-hover:-translate-y-0.5">
-                        New
+                        {footerMessages.newBadge}
                       </span>
                     ) : null}
                   </Link>
@@ -72,11 +70,11 @@ export default function Footer() {
               aria-labelledby="footer-resources"
               className="landing-footer-card rounded-[26px] border border-[#E5E5E5] bg-white p-5"
             >
-              <h3 id="footer-resources" className="mb-3 text-[13px] font-bold uppercase tracking-wider text-black">Resources</h3>
+              <h3 id="footer-resources" className="mb-3 text-[13px] font-bold uppercase tracking-wider text-black">{footerMessages.resources}</h3>
               <ul className="space-y-3">
               <li>
                 <Link href="/blog" className="text-[13px] leading-5 text-[#666666] transition-colors hover:text-black">
-                  Blog
+                  {footerMessages.blog}
                 </Link>
               </li>
               </ul>
@@ -86,23 +84,15 @@ export default function Footer() {
               aria-labelledby="footer-tools"
               className="landing-footer-card rounded-[26px] border border-[#E5E5E5] bg-white p-5"
             >
-              <h3 id="footer-tools" className="mb-3 text-[13px] font-bold uppercase tracking-wider text-black">Tools</h3>
+              <h3 id="footer-tools" className="mb-3 text-[13px] font-bold uppercase tracking-wider text-black">{footerMessages.tools}</h3>
               <ul className="space-y-3">
-              <li>
-                <Link href="/tools/upload-assets" className="text-[13px] leading-5 text-[#666666] transition-colors hover:text-black">
-                  Upload Assets to URL
-                </Link>
-              </li>
-              <li>
-                <Link href="/tools/roas-calculator" className="text-[13px] leading-5 text-[#666666] transition-colors hover:text-black">
-                  ROAS Calculator
-                </Link>
-              </li>
-              <li>
-                <Link href="/tools/ai-angle-generator" className="text-[13px] leading-5 text-[#666666] transition-colors hover:text-black">
-                  AI Multi-Angle Photo
-                </Link>
-              </li>
+              {footerMessages.toolItems.map((item) => (
+                <li key={item.href}>
+                  <Link href={item.href} className="text-[13px] leading-5 text-[#666666] transition-colors hover:text-black">
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
               </ul>
             </nav>
 
@@ -110,7 +100,7 @@ export default function Footer() {
               aria-labelledby="footer-social-proof"
               className="landing-footer-card rounded-[26px] border border-[#E5E5E5] bg-white p-5"
             >
-              <h3 id="footer-social-proof" className="mb-3 text-[13px] font-bold uppercase tracking-wider text-black">Social Proof</h3>
+              <h3 id="footer-social-proof" className="mb-3 text-[13px] font-bold uppercase tracking-wider text-black">{footerMessages.socialProof}</h3>
               <ul className="space-y-3">
               <li>
                 <a
@@ -143,7 +133,7 @@ export default function Footer() {
               aria-labelledby="footer-contact"
               className="landing-footer-card rounded-[26px] border border-[#E5E5E5] bg-white p-5"
             >
-              <h3 id="footer-contact" className="mb-3 text-[13px] font-bold uppercase tracking-wider text-black">Contact</h3>
+              <h3 id="footer-contact" className="mb-3 text-[13px] font-bold uppercase tracking-wider text-black">{footerMessages.contact}</h3>
               <ul className="space-y-3">
               {socialLinks.map((link) => (
                 <li key={link.label}>
@@ -159,16 +149,16 @@ export default function Footer() {
               aria-labelledby="footer-legal"
               className="landing-footer-card rounded-[26px] border border-[#E5E5E5] bg-white p-5"
             >
-              <h3 id="footer-legal" className="mb-3 text-[13px] font-bold uppercase tracking-wider text-black">Legal</h3>
+              <h3 id="footer-legal" className="mb-3 text-[13px] font-bold uppercase tracking-wider text-black">{footerMessages.legal}</h3>
               <ul className="space-y-3">
               <li>
                 <Link href="/terms" className="text-[13px] leading-5 text-[#666666] transition-colors hover:text-black">
-                  Terms of Use
+                  {footerMessages.terms}
                 </Link>
               </li>
               <li>
                 <Link href="/privacy" className="text-[13px] leading-5 text-[#666666] transition-colors hover:text-black">
-                  Privacy Policy
+                  {footerMessages.privacy}
                 </Link>
               </li>
               </ul>

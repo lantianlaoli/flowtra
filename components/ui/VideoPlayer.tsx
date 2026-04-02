@@ -3,6 +3,7 @@
 import { useRef, useState, forwardRef } from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
 import { useVideoAudio } from '@/hooks/useVideoAudio';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface VideoPlayerProps {
   src: string;
@@ -30,6 +31,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
   }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [hasError, setHasError] = useState(false);
+    const { locale, messages } = useI18n();
 
     // Use the passed ref or our internal ref
     const currentRef = (ref as React.RefObject<HTMLVideoElement>) || videoRef;
@@ -54,7 +56,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
       >
         {hasError ? (
           <div className="flex h-full w-full items-center justify-center bg-[#F3F3F3] px-4 text-center text-sm font-medium text-[#666666]">
-            Preview unavailable
+            {messages.common.previewUnavailable}
           </div>
         ) : null}
         <video
@@ -66,7 +68,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
           playsInline={playsInline}
           preload="metadata"
           controls={showControls}
-          aria-label={ariaLabel || "Product demonstration video"}
+          aria-label={ariaLabel || messages.common.productDemoVideo}
           onError={(e) => {
             setHasError(true);
             console.warn('Video error:', e);
@@ -89,12 +91,12 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
             <track
               kind="captions"
               src={captionsUrl}
-              srcLang="en"
-              label="English captions"
+              srcLang={locale === 'zh' ? 'zh-CN' : 'en'}
+              label={locale === 'zh' ? '中文字幕' : 'English captions'}
               default
             />
           )}
-          Your browser does not support the video tag.
+          {messages.common.browserVideoUnsupported}
         </video>
         {!hasError && !showControls ? (
           <button
@@ -105,14 +107,20 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
               handleToggleAudio();
             }}
             className="absolute right-3 top-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/65 px-3 py-2 text-xs font-medium text-white shadow-[0_10px_24px_rgba(0,0,0,0.2)] backdrop-blur-sm transition-colors hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-white/60"
-            aria-label={audioEnabled ? 'Mute video audio' : 'Enable video audio'}
+            aria-label={audioEnabled ? messages.common.muteVideoAudio : messages.common.enableVideoAudio}
           >
             {audioEnabled ? (
               <Volume2 className="h-3.5 w-3.5 shrink-0" />
             ) : (
               <VolumeX className="h-3.5 w-3.5 shrink-0" />
             )}
-            <span>{audioEnabled ? 'Sound on' : needsClickToEnable ? 'Tap for sound' : 'Sound off'}</span>
+            <span>
+              {audioEnabled
+                ? messages.common.soundOn
+                : needsClickToEnable
+                  ? messages.common.tapForSound
+                  : messages.common.soundOff}
+            </span>
           </button>
         ) : null}
       </div>
