@@ -1,10 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import { AlertCircle, Check, CircleHelp, Loader2, Package, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { UserProduct, UserProductPhoto } from '@/lib/supabase';
+import { useSupabaseBrowserClient } from '@/lib/supabase/client';
+import { waitForAiReferenceAngleJobs } from '@/lib/ai-reference-angle-jobs-client';
+import type { AiReferenceAngleCreateJobResponse } from '@/lib/ai-reference-angle-jobs';
 import { cn } from '@/lib/utils';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 import ReferenceImageGrid, { PRODUCT_REFERENCE_SLOTS } from './ReferenceImageGrid';
@@ -30,6 +33,7 @@ export default function EditProductModal({
   onDeletePhoto,
   isDeleting = false
 }: EditProductModalProps) {
+  const supabase = useSupabaseBrowserClient();
   const fieldBadgeClassName = 'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]';
   const [productName, setProductName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +43,40 @@ export default function EditProductModal({
 
   const frontalInputRef = useRef<HTMLInputElement | null>(null);
   const referenceInputRef = useRef<HTMLInputElement | null>(null);
+  const resumedGenerationKeyRef = useRef<string | null>(null);
+
+  const photos = product?.user_product_photos || [];
+  const frontalPhoto = photos.find((photo) => photo.photo_role === 'frontal')
+    || photos.find((photo) => photo.is_primary)
+    || photos[0]
+    || null;
+  const referencePhotos = photos.filter((photo) => photo.id !== frontalPhoto?.id);
+  const generationStorageKey = product && frontalPhoto?.photo_url
+    ? `edit-product-ai-angle-jobs:${product.id}:${frontalPhoto.photo_url}`
+    : null;
+  const productId = product?.id ?? null;
+
+  const readStoredJobIds = useCallback(() => {
+    if (!generationStorageKey || typeof window === 'undefined') return [];
+
+    try {
+      const raw = window.sessionStorage.getItem(generationStorageKey);
+      const parsed = raw ? JSON.parse(raw) : null;
+      return Array.isArray(parsed?.jobIds) ? (parsed.jobIds as string[]) : [];
+    } catch {
+      return [];
+    }
+  }, [generationStorageKey]);
+
+  const persistJobIds = (jobIds: string[]) => {
+    if (!generationStorageKey || typeof window === 'undefined') return;
+    window.sessionStorage.setItem(generationStorageKey, JSON.stringify({ jobIds }));
+  };
+
+  const clearPersistedJobIds = useCallback(() => {
+    if (!generationStorageKey || typeof window === 'undefined') return;
+    window.sessionStorage.removeItem(generationStorageKey);
+  }, [generationStorageKey]);
 
   useEffect(() => {
     if (isOpen && product) {
@@ -60,15 +98,6 @@ export default function EditProductModal({
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, isSaving, isUploadingPhotos, isGeneratingReferences, onClose]);
-
-  if (!product) return null;
-
-  const photos = product.user_product_photos || [];
-  const frontalPhoto = photos.find((photo) => photo.photo_role === 'frontal')
-    || photos.find((photo) => photo.is_primary)
-    || photos[0]
-    || null;
-  const referencePhotos = photos.filter((photo) => photo.id !== frontalPhoto?.id);
 
   const renderErrorMessage = (message: string) => {
     if (!message.includes(IMAGE_CONVERSION_LINK)) {
@@ -117,7 +146,7 @@ export default function EditProductModal({
 
   const handleFrontalUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !productId) return;
 
     try {
       setError(null);
@@ -125,10 +154,10 @@ export default function EditProductModal({
       await validateAndLoadImage(file);
 
       if (frontalPhoto) {
-        await onDeletePhoto(product.id, frontalPhoto.id);
+        await onDeletePhoto(productId, frontalPhoto.id);
       }
 
-      await onPhotoUpload(product.id, file, 'frontal');
+      await onPhotoUpload(productId, file, 'frontal');
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Failed to upload frontal image.');
     } finally {
@@ -139,7 +168,7 @@ export default function EditProductModal({
 
   const handleReferenceUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !productId) return;
 
     if (referencePhotos.length >= 3) {
       setError('You can upload up to 3 reference images.');
@@ -151,7 +180,7 @@ export default function EditProductModal({
       setError(null);
       setIsUploadingPhotos(true);
       await validateAndLoadImage(file);
-      await onPhotoUpload(product.id, file, 'reference');
+      await onPhotoUpload(productId, file, 'reference');
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Failed to upload reference image.');
     } finally {
@@ -161,18 +190,17 @@ export default function EditProductModal({
   };
 
   const handleDeletePhoto = async (photoId: string) => {
+    if (!productId) return;
     try {
       setError(null);
       setIsUploadingPhotos(true);
-      await onDeletePhoto(product.id, photoId);
+      await onDeletePhoto(productId, photoId);
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : 'Failed to delete photo.');
     } finally {
       setIsUploadingPhotos(false);
     }
   };
-
-  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const convertImageUrlToDataUrl = async (imageUrl: string): Promise<string> => {
     const response = await fetch(imageUrl);
@@ -190,7 +218,7 @@ export default function EditProductModal({
     });
   };
 
-  const buildFileFromUrl = async (imageUrl: string, fileName: string): Promise<File> => {
+  const buildFileFromUrl = useCallback(async (imageUrl: string, fileName: string): Promise<File> => {
     const response = await fetch(imageUrl);
     if (!response.ok) {
       throw new Error('Failed to download generated reference image.');
@@ -200,7 +228,57 @@ export default function EditProductModal({
     const file = new File([blob], fileName, { type: blob.type || 'image/png' });
     await validateAndLoadImage(file);
     return file;
-  };
+  }, []);
+
+  const resolveGeneratedReferences = useCallback(async (jobIds: string[]) => {
+    if (!productId) return;
+
+    setIsGeneratingReferences(true);
+    setError(null);
+
+    try {
+      const resolvedJobs = await waitForAiReferenceAngleJobs({
+        supabase,
+        jobIds
+      });
+
+      setIsUploadingPhotos(true);
+      for (let index = 0; index < jobIds.length; index += 1) {
+        const resolvedJob = resolvedJobs.find((job) => job.id === jobIds[index]);
+        const imageUrl = resolvedJob?.result_image_url;
+        if (!imageUrl) {
+          throw new Error('AI generated image URL is missing.');
+        }
+
+        const referenceFile = await buildFileFromUrl(imageUrl, `product-reference-angle-${index + 1}.png`);
+        await onPhotoUpload(productId, referenceFile, 'reference');
+      }
+
+      clearPersistedJobIds();
+    } catch (generateError) {
+      const message = generateError instanceof Error ? generateError.message : 'Failed to generate AI references.';
+      if (!message.includes('still in progress')) {
+        clearPersistedJobIds();
+      }
+      setError(message);
+    } finally {
+      setIsGeneratingReferences(false);
+      setIsUploadingPhotos(false);
+    }
+  }, [buildFileFromUrl, clearPersistedJobIds, onPhotoUpload, productId, supabase]);
+
+  useEffect(() => {
+    if (!isOpen || !generationStorageKey) return;
+
+    const storedJobIds = readStoredJobIds();
+    if (!storedJobIds.length) return;
+    if (resumedGenerationKeyRef.current === generationStorageKey) return;
+
+    resumedGenerationKeyRef.current = generationStorageKey;
+    void resolveGeneratedReferences(storedJobIds);
+  }, [generationStorageKey, isOpen, readStoredJobIds, resolveGeneratedReferences]);
+
+  if (!product) return null;
 
   const handleGenerateReferences = async () => {
     if (!frontalPhoto?.photo_url) {
@@ -232,67 +310,17 @@ export default function EditProductModal({
       });
 
       const createPayload = await createResponse.json().catch(() => ({}));
-      if (!createResponse.ok || !Array.isArray(createPayload?.tasks) || createPayload.tasks.length !== missingCount) {
+      if (!createResponse.ok || !Array.isArray(createPayload?.jobs) || createPayload.jobs.length !== missingCount) {
         throw new Error(createPayload?.error || 'Failed to start AI reference generation.');
       }
 
-      const tasks = createPayload.tasks as Array<{ taskId: string }>;
-      let resolvedStatuses: Array<{
-        taskId: string;
-        status: 'pending' | 'success' | 'failed';
-        imageUrl?: string | null;
-        failMsg?: string | null;
-      }> = [];
-
-      for (let attempt = 0; attempt < 45; attempt += 1) {
-        const params = new URLSearchParams();
-        tasks.forEach((task) => params.append('taskId', task.taskId));
-
-        const statusResponse = await fetch(`/api/assets/ai-reference-angles?${params.toString()}`, {
-          method: 'GET'
-        });
-
-        const statusPayload = await statusResponse.json().catch(() => ({}));
-        if (!statusResponse.ok || !Array.isArray(statusPayload?.statuses)) {
-          throw new Error(statusPayload?.error || 'Failed to check AI generation progress.');
-        }
-
-        resolvedStatuses = statusPayload.statuses;
-        const allFinished = resolvedStatuses.every(
-          (item) => item.status === 'success' || item.status === 'failed'
-        );
-
-        if (allFinished) {
-          break;
-        }
-
-        await wait(2500);
-      }
-
-      if (!resolvedStatuses.length || resolvedStatuses.some((item) => item.status !== 'success')) {
-        const failedTask = resolvedStatuses.find((item) => item.status === 'failed');
-        throw new Error(failedTask?.failMsg || 'AI reference generation timed out. Please try again.');
-      }
-
-      const orderedStatuses = tasks
-        .map((task) => resolvedStatuses.find((item) => item.taskId === task.taskId))
-        .filter(Boolean) as Array<{ imageUrl?: string | null }>;
-
-      setIsUploadingPhotos(true);
-      for (let index = 0; index < orderedStatuses.length; index += 1) {
-        const imageUrl = orderedStatuses[index].imageUrl;
-        if (!imageUrl) {
-          throw new Error('AI generated image URL is missing.');
-        }
-
-        const referenceFile = await buildFileFromUrl(imageUrl, `product-reference-angle-${index + 1}.png`);
-        await onPhotoUpload(product.id, referenceFile, 'reference');
-      }
+      const jobs = createPayload.jobs as AiReferenceAngleCreateJobResponse[];
+      const jobIds = jobs.map((job) => job.id);
+      persistJobIds(jobIds);
+      resumedGenerationKeyRef.current = generationStorageKey;
+      await resolveGeneratedReferences(jobIds);
     } catch (generateError) {
       setError(generateError instanceof Error ? generateError.message : 'Failed to generate AI references.');
-    } finally {
-      setIsGeneratingReferences(false);
-      setIsUploadingPhotos(false);
     }
   };
 
