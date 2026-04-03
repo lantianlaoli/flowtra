@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import imageCompression from "browser-image-compression";
@@ -8,24 +8,14 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Check, Copy, Download, Loader2, Sparkles, Upload } from "lucide-react";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
+import { useSupabaseBrowserClient } from "@/lib/supabase/client";
+import { waitForAiReferenceAngleJobs } from "@/lib/ai-reference-angle-jobs-client";
+import type { AiReferenceAngleCreateJobResponse } from "@/lib/ai-reference-angle-jobs";
 
 type GenerationStatus = "idle" | "uploading" | "generating" | "success" | "error";
 
-type CreateTaskResponse = {
-  taskId: string;
-  key: string;
-  label: string;
-};
-
-type TaskStatus = {
-  taskId: string;
-  status: "pending" | "success" | "failed";
-  imageUrl?: string | null;
-  failMsg?: string | null;
-};
-
 type GeneratedImage = {
-  taskId: string;
+  jobId: string;
   label: string;
   key: string;
   imageUrl: string;
@@ -39,12 +29,11 @@ type AngleSlot = {
   description: string;
 };
 
-const POLL_MAX_ATTEMPTS = 45;
-const POLL_INTERVAL_MS = 2500;
 const VERCEL_FUNCTION_BODY_LIMIT_BYTES = 4.5 * 1024 * 1024;
 const REQUEST_SIZE_BUFFER_BYTES = 350 * 1024;
 const MAX_CLIENT_UPLOAD_SIZE_MB = 2.6;
 const MAX_CLIENT_UPLOAD_DIMENSION = 2048;
+const RECOVERY_STORAGE_KEY = "ai-angle-generator-jobs";
 const ANGLE_SLOTS: AngleSlot[] = [
   {
     key: "front_left_45",
@@ -62,10 +51,6 @@ const ANGLE_SLOTS: AngleSlot[] = [
     description: "Completes the rear view while preserving the same finish, palette, and overall image atmosphere.",
   },
 ];
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function estimateDataUrlRequestSize(fileSize: number, mimeType: string) {
   const dataUrlPrefixLength = `data:${mimeType || "image/jpeg"};base64,`.length;
@@ -98,6 +83,7 @@ function AngleSkeletonCard({ label, description }: AngleSlot) {
 }
 
 export default function AiAngleGeneratorPage() {
+  const supabase = useSupabaseBrowserClient();
   const imageInputId = "tool-angle-image-upload";
   const primaryButtonClass =
     "landing-press-button landing-press-button--compact text-sm font-medium";
@@ -198,6 +184,91 @@ export default function AiAngleGeneratorPage() {
     };
   };
 
+  const persistRecoveryState = (jobs: AiReferenceAngleCreateJobResponse[], fileName: string | null) => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem(
+      RECOVERY_STORAGE_KEY,
+      JSON.stringify({
+        jobs,
+        fileName,
+      })
+    );
+  };
+
+  const clearRecoveryState = useCallback(() => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.removeItem(RECOVERY_STORAGE_KEY);
+  }, []);
+
+  const buildGeneratedImages = useCallback((
+    jobs: AiReferenceAngleCreateJobResponse[],
+    resolvedJobs: Array<{ id: string; result_image_url: string | null; status: string }>
+  ) =>
+    jobs.reduce<GeneratedImage[]>((accumulator, job) => {
+      const resolvedJob = resolvedJobs.find((item) => item.id === job.id);
+      if (!resolvedJob?.result_image_url || resolvedJob.status !== "completed") {
+        return accumulator;
+      }
+
+      accumulator.push({
+        jobId: job.id,
+        label: job.presetLabel,
+        key: job.presetKey,
+        imageUrl: resolvedJob.result_image_url,
+      });
+      return accumulator;
+    }, []), []);
+
+  const resolveGeneration = useCallback(async (jobs: AiReferenceAngleCreateJobResponse[], fileName: string | null) => {
+    setStatus("generating");
+    setError(null);
+    setSelectedFileName(fileName);
+
+    try {
+      const resolvedJobs = await waitForAiReferenceAngleJobs({
+        supabase,
+        jobIds: jobs.map((job) => job.id),
+        onJobsUpdated: (updatedJobs) => {
+          setGeneratedImages(buildGeneratedImages(jobs, updatedJobs));
+        },
+      });
+
+      const images = buildGeneratedImages(jobs, resolvedJobs);
+      if (images.length !== jobs.length) {
+        throw new Error("Generated image URL is missing.");
+      }
+
+      setGeneratedImages(images);
+      setStatus("success");
+      clearRecoveryState();
+    } catch (generationError) {
+      const message =
+        generationError instanceof Error
+          ? generationError.message
+          : "Failed to generate AI angle images.";
+      if (!message.includes("still in progress")) {
+        clearRecoveryState();
+      }
+      setError(message);
+      setStatus("error");
+    }
+  }, [buildGeneratedImages, clearRecoveryState, supabase]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const raw = window.sessionStorage.getItem(RECOVERY_STORAGE_KEY);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as { jobs?: AiReferenceAngleCreateJobResponse[]; fileName?: string | null };
+      if (!Array.isArray(parsed.jobs) || !parsed.jobs.length) return;
+      void resolveGeneration(parsed.jobs, parsed.fileName ?? null);
+    } catch {
+      clearRecoveryState();
+    }
+  }, [clearRecoveryState, resolveGeneration]);
+
   const handleCopyUrl = async (taskId: string, imageUrl: string) => {
     try {
       await navigator.clipboard.writeText(imageUrl);
@@ -206,40 +277,6 @@ export default function AiAngleGeneratorPage() {
     } catch {
       setError("Failed to copy URL. Please copy it manually.");
     }
-  };
-
-  const pollStatuses = async (tasks: CreateTaskResponse[]) => {
-    let latestStatuses: TaskStatus[] = [];
-
-    for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt += 1) {
-      const params = new URLSearchParams();
-      tasks.forEach((task) => params.append("taskId", task.taskId));
-
-      const response = await fetch(`/api/assets/ai-reference-angles?${params.toString()}`, {
-        method: "GET",
-      });
-
-      const payload = await response.json().catch(() => ({}));
-
-      if (response.status === 401) {
-        throw new Error("Please sign in to use this tool.");
-      }
-
-      if (!response.ok || !Array.isArray(payload?.statuses)) {
-        throw new Error(payload?.error || "Failed to check generation progress.");
-      }
-
-      latestStatuses = payload.statuses as TaskStatus[];
-      const allFinished = latestStatuses.every((item) => item.status === "success" || item.status === "failed");
-
-      if (allFinished) {
-        return latestStatuses;
-      }
-
-      await sleep(POLL_INTERVAL_MS);
-    }
-
-    return latestStatuses;
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -282,41 +319,13 @@ export default function AiAngleGeneratorPage() {
         throw new Error(createPayload?.error || "Daily limit reached. You can use this tool once per day.");
       }
 
-      if (!createResponse.ok || !Array.isArray(createPayload?.tasks) || createPayload.tasks.length !== 3) {
+      if (!createResponse.ok || !Array.isArray(createPayload?.jobs) || createPayload.jobs.length !== 3) {
         throw new Error(createPayload?.error || "Failed to start AI generation.");
       }
 
-      const tasks = createPayload.tasks as CreateTaskResponse[];
-      const statuses = await pollStatuses(tasks);
-
-      if (!statuses.length) {
-        throw new Error("Generation timed out. Please try again.");
-      }
-
-      const failed = statuses.find((item) => item.status === "failed");
-      if (failed) {
-        throw new Error(failed.failMsg || "One generation task failed. Please try again.");
-      }
-
-      if (statuses.some((item) => item.status !== "success")) {
-        throw new Error("Generation timed out. Please try again.");
-      }
-
-      const orderedImages = tasks.map((task) => {
-        const statusItem = statuses.find((item) => item.taskId === task.taskId);
-        if (!statusItem?.imageUrl) {
-          throw new Error("Generated image URL is missing.");
-        }
-        return {
-          taskId: task.taskId,
-          key: task.key,
-          label: task.label,
-          imageUrl: statusItem.imageUrl,
-        };
-      });
-
-      setGeneratedImages(orderedImages);
-      setStatus("success");
+      const jobs = createPayload.jobs as AiReferenceAngleCreateJobResponse[];
+      persistRecoveryState(jobs, file.name);
+      await resolveGeneration(jobs, file.name);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to generate angle photos.";
       setError(message);
@@ -448,7 +457,7 @@ export default function AiAngleGeneratorPage() {
 
                   return (
                     <article
-                      key={image.taskId}
+                      key={image.jobId}
                       className="rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-[0_20px_45px_rgba(0,0,0,0.08)]"
                     >
                       <div className="overflow-hidden rounded-xl border border-[#E5E5E5] bg-[#F7F7F7]">
@@ -466,11 +475,11 @@ export default function AiAngleGeneratorPage() {
                       <div className="mt-4 flex w-full flex-col gap-2">
                         <button
                           type="button"
-                          onClick={() => handleCopyUrl(image.taskId, image.imageUrl)}
+                          onClick={() => handleCopyUrl(image.jobId, image.imageUrl)}
                           className={`${primaryButtonClass} w-full justify-center gap-2 text-xs`}
                         >
-                          {copiedTaskId === image.taskId ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                          <span>{copiedTaskId === image.taskId ? "Copied" : "Copy URL"}</span>
+                          {copiedTaskId === image.jobId ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          <span>{copiedTaskId === image.jobId ? "Copied" : "Copy URL"}</span>
                         </button>
 
                         <a

@@ -2,15 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import type { AiReferenceAngleAssetType, AiReferenceAngleJobStatus } from '@/lib/ai-reference-angle-jobs';
 
 const KIE_UPLOAD_ENDPOINT = 'https://kieai.redpandaai.co/api/file-base64-upload';
 const KIE_CREATE_TASK_ENDPOINT = 'https://api.kie.ai/api/v1/jobs/createTask';
-const KIE_RECORD_INFO_ENDPOINT = 'https://api.kie.ai/api/v1/jobs/recordInfo';
 const AI_REFERENCE_MODEL = 'nano-banana-2';
 const AI_REFERENCE_RESOLUTION = '1K';
 const AI_REFERENCE_OUTPUT_FORMAT = 'png';
 
-type AssetType = 'product' | 'avatar' | 'universal';
 type SourceAspect = 'portrait' | 'square' | 'landscape';
 
 type AnglePreset = {
@@ -37,7 +36,7 @@ const CAMERA_LEFT_DEFINITION =
 const CAMERA_RIGHT_DEFINITION =
   'The camera is positioned 45 degrees to the subject front-right. The generated image must clearly show more of the subject right side than the left side. Do not return a near-frontal view, and do not mirror the opposite angle.';
 
-const ANGLE_PRESETS: Record<AssetType, AnglePreset[]> = {
+const ANGLE_PRESETS: Record<AiReferenceAngleAssetType, AnglePreset[]> = {
   product: [
     {
       key: 'front_left_45',
@@ -113,7 +112,7 @@ function getUniversalImageSize(sourceAspect?: SourceAspect): '9:16' | '1:1' {
   return sourceAspect === 'portrait' ? '9:16' : '1:1';
 }
 
-function getAspectRatio(assetType: AssetType, sourceAspect?: SourceAspect): '9:16' | '1:1' {
+function getAspectRatio(assetType: AiReferenceAngleAssetType, sourceAspect?: SourceAspect): '9:16' | '1:1' {
   if (assetType === 'avatar') return '9:16';
   if (assetType === 'product') return '1:1';
   return getUniversalImageSize(sourceAspect);
@@ -124,32 +123,6 @@ function getImageExtensionFromDataUrl(dataUrl: string): string {
   if (!match) return 'png';
   const ext = match[1].toLowerCase();
   return ext === 'jpg' ? 'jpeg' : ext;
-}
-
-function parseResultUrl(taskData: Record<string, unknown>): string | null {
-  const resultJsonRaw = taskData.resultJson;
-  if (typeof resultJsonRaw === 'string') {
-    try {
-      const parsed = JSON.parse(resultJsonRaw) as { resultUrls?: string[] };
-      if (Array.isArray(parsed.resultUrls) && parsed.resultUrls[0]) {
-        return parsed.resultUrls[0];
-      }
-    } catch {
-      // ignore parse errors and continue fallback parsing
-    }
-  }
-
-  const responseObj = taskData.response as { resultUrls?: string[] } | undefined;
-  if (Array.isArray(responseObj?.resultUrls) && responseObj.resultUrls[0]) {
-    return responseObj.resultUrls[0];
-  }
-
-  const flatResultUrls = taskData.resultUrls as string[] | undefined;
-  if (Array.isArray(flatResultUrls) && flatResultUrls[0]) {
-    return flatResultUrls[0];
-  }
-
-  return null;
 }
 
 export async function POST(request: NextRequest) {
@@ -163,9 +136,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'KIE API key not configured' }, { status: 500 });
     }
 
-    // Daily usage limit: 1 use per account per calendar day (UTC)
-    const today = new Date().toISOString().slice(0, 10);
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+    if (!siteUrl) {
+      return NextResponse.json({
+        error: 'Webhook URL not configured. Please contact support.',
+        details: 'NEXT_PUBLIC_SITE_URL environment variable is required for AI reference angle generation.'
+      }, { status: 500 });
+    }
+
+    // Schema verified via Supabase MCP (2026-04-03):
+    // tool_daily_usage columns: user_id, tool_key, usage_date, count.
+    // ai_reference_angle_jobs columns: id, user_id, asset_type, source_image_url, preset_key, preset_label,
+    // kie_task_id, status, result_image_url, error_message, webhook_received_at, created_at, updated_at.
     const supabase = getSupabaseAdmin();
+
+    const today = new Date().toISOString().slice(0, 10);
     const { data: usageRow } = await supabase
       .from('tool_daily_usage')
       .select('count')
@@ -219,8 +204,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'assetType must be avatar, product, or universal' }, { status: 400 });
     }
 
-    const extension = getImageExtensionFromDataUrl(imageDataUrl);
+    if (maxGeneratableCount <= 0) {
+      return NextResponse.json({ error: 'Reference images are already full (3/3).' }, { status: 400 });
+    }
 
+    const extension = getImageExtensionFromDataUrl(imageDataUrl);
     const uploadResponse = await fetchWithRetry(KIE_UPLOAD_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -246,58 +234,78 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: uploadResult?.msg || 'Source image upload failed' }, { status: 500 });
     }
 
-    if (maxGeneratableCount <= 0) {
-      return NextResponse.json({ error: 'Reference images are already full (3/3).' }, { status: 400 });
+    const presets = ANGLE_PRESETS[assetType].slice(existingReferenceCount, existingReferenceCount + count);
+    const callBackUrl = `${siteUrl}/api/assets/ai-reference-angles/webhooks`;
+    const jobsPayload: Array<{
+      user_id: string;
+      asset_type: AiReferenceAngleAssetType;
+      source_image_url: string;
+      preset_key: string;
+      preset_label: string;
+      kie_task_id: string;
+      status: AiReferenceAngleJobStatus;
+    }> = [];
+
+    for (const preset of presets) {
+      const aspectRatio = getAspectRatio(assetType, sourceAspect);
+      const createTaskResponse = await fetchWithRetry(KIE_CREATE_TASK_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.KIE_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: AI_REFERENCE_MODEL,
+          callBackUrl,
+          input: {
+            prompt: preset.prompt,
+            image_input: [sourceImageUrl],
+            aspect_ratio: aspectRatio,
+            resolution: AI_REFERENCE_RESOLUTION,
+            output_format: AI_REFERENCE_OUTPUT_FORMAT
+          }
+        })
+      }, 3, 30000);
+
+      if (!createTaskResponse.ok) {
+        const taskError = await createTaskResponse.text();
+        throw new Error(`Failed to create ${preset.label} task: ${taskError}`);
+      }
+
+      const taskResult = await createTaskResponse.json();
+      const taskId = taskResult?.data?.taskId as string | undefined;
+      if (taskResult?.code !== 200 || !taskId) {
+        throw new Error(taskResult?.msg || `Failed to create ${preset.label} task`);
+      }
+
+      jobsPayload.push({
+        user_id: userId,
+        asset_type: assetType,
+        source_image_url: sourceImageUrl,
+        preset_key: preset.key,
+        preset_label: preset.label,
+        kie_task_id: taskId,
+        status: 'processing'
+      });
     }
 
-    const presets = ANGLE_PRESETS[assetType].slice(
-      existingReferenceCount,
-      existingReferenceCount + count
-    );
-    const tasks = await Promise.all(
-      presets.map(async (preset) => {
-        const aspectRatio = getAspectRatio(assetType, sourceAspect);
-        const createTaskResponse = await fetchWithRetry(KIE_CREATE_TASK_ENDPOINT, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${process.env.KIE_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: AI_REFERENCE_MODEL,
-            input: {
-              prompt: preset.prompt,
-              image_input: [sourceImageUrl],
-              aspect_ratio: aspectRatio,
-              resolution: AI_REFERENCE_RESOLUTION,
-              output_format: AI_REFERENCE_OUTPUT_FORMAT
-            }
-          })
-        }, 3, 30000);
+    const { data: insertedJobs, error: insertError } = await supabase
+      .from('ai_reference_angle_jobs')
+      .insert(jobsPayload)
+      .select('id, preset_key, preset_label, status');
 
-        if (!createTaskResponse.ok) {
-          const taskError = await createTaskResponse.text();
-          throw new Error(`Failed to create ${preset.label} task: ${taskError}`);
-        }
-
-        const taskResult = await createTaskResponse.json();
-        const taskId = taskResult?.data?.taskId as string | undefined;
-
-        if (taskResult?.code !== 200 || !taskId) {
-          throw new Error(taskResult?.msg || `Failed to create ${preset.label} task`);
-        }
-
-        return {
-          key: preset.key,
-          label: preset.label,
-          taskId
-        };
-      })
-    );
+    if (insertError || !insertedJobs) {
+      throw new Error(insertError?.message || 'Failed to persist AI reference angle jobs.');
+    }
 
     return NextResponse.json({
       success: true,
-      tasks,
+      jobs: insertedJobs.map((job) => ({
+        id: job.id as string,
+        presetKey: job.preset_key as string,
+        presetLabel: job.preset_label as string,
+        status: job.status as AiReferenceAngleJobStatus
+      })),
       sourceImageUrl
     });
   } catch (error) {
@@ -316,57 +324,46 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!process.env.KIE_API_KEY) {
-      return NextResponse.json({ error: 'KIE API key not configured' }, { status: 500 });
-    }
-
     const { searchParams } = new URL(request.url);
-    const taskIds = searchParams.getAll('taskId').filter(Boolean);
-
-    if (!taskIds.length) {
-      return NextResponse.json({ error: 'At least one taskId is required' }, { status: 400 });
+    const jobIds = searchParams.getAll('jobId').filter(Boolean);
+    if (!jobIds.length) {
+      return NextResponse.json({ error: 'At least one jobId is required' }, { status: 400 });
     }
 
-    const statuses = await Promise.all(
-      taskIds.map(async (taskId) => {
-        const response = await fetchWithRetry(`${KIE_RECORD_INFO_ENDPOINT}?taskId=${encodeURIComponent(taskId)}`, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${process.env.KIE_API_KEY}`
-          }
-        }, 3, 15000);
+    // Schema verified via Supabase MCP (2026-04-03):
+    // ai_reference_angle_jobs columns: id, user_id, asset_type, source_image_url, preset_key, preset_label,
+    // kie_task_id, status, result_image_url, error_message, webhook_received_at, created_at, updated_at.
+    const supabase = getSupabaseAdmin();
+    const { data: jobs, error } = await supabase
+      .from('ai_reference_angle_jobs')
+      .select([
+        'id',
+        'user_id',
+        'asset_type',
+        'source_image_url',
+        'preset_key',
+        'preset_label',
+        'kie_task_id',
+        'status',
+        'result_image_url',
+        'error_message',
+        'webhook_received_at',
+        'created_at',
+        'updated_at'
+      ].join(','))
+      .eq('user_id', userId)
+      .in('id', jobIds);
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Failed to query task ${taskId}: ${errorText}`);
-        }
+    if (error) {
+      throw new Error(error.message);
+    }
 
-        const payload = await response.json();
-        if (payload?.code !== 200 || !payload?.data) {
-          throw new Error(payload?.msg || `Failed to query task ${taskId}`);
-        }
+    const jobsList = ((jobs ?? []) as unknown) as Array<Record<string, unknown> & { id: string }>;
+    const orderedJobs = jobIds
+      .map((jobId) => jobsList.find((job) => job.id === jobId))
+      .filter(Boolean);
 
-        const taskData = payload.data as Record<string, unknown>;
-        const rawState = typeof taskData.state === 'string' ? taskData.state.toLowerCase() : 'unknown';
-        const imageUrl = rawState === 'success' ? parseResultUrl(taskData) : null;
-
-        let status: 'pending' | 'success' | 'failed' = 'pending';
-        if (rawState === 'success') {
-          status = imageUrl ? 'success' : 'pending';
-        } else if (rawState === 'fail' || rawState === 'failed') {
-          status = 'failed';
-        }
-
-        return {
-          taskId,
-          status,
-          imageUrl,
-          failMsg: typeof taskData.failMsg === 'string' ? taskData.failMsg : null
-        };
-      })
-    );
-
-    return NextResponse.json({ success: true, statuses });
+    return NextResponse.json({ success: true, jobs: orderedJobs });
   } catch (error) {
     console.error('[ai-reference-angles] GET error:', error);
     return NextResponse.json(

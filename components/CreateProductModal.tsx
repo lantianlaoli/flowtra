@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Package, X } from 'lucide-react';
 import { UserProduct, UserProductPhoto } from '@/lib/supabase';
+import { useSupabaseBrowserClient } from '@/lib/supabase/client';
+import { waitForAiReferenceAngleJobs } from '@/lib/ai-reference-angle-jobs-client';
+import type { AiReferenceAngleCreateJobResponse } from '@/lib/ai-reference-angle-jobs';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 import { PRODUCT_REFERENCE_SLOTS } from './ReferenceImageGrid';
 import AssetCreationFields from './AssetCreationFields';
@@ -24,6 +27,7 @@ export default function CreateProductModal({
   onClose,
   onProductCreated
 }: CreateProductModalProps) {
+  const supabase = useSupabaseBrowserClient();
   const fieldBadgeClassName = 'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]';
   const [productName, setProductName] = useState('');
   const [frontalImage, setFrontalImage] = useState<PreviewFile | null>(null);
@@ -138,8 +142,6 @@ export default function CreateProductModal({
     setReferenceImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
   const buildPreviewFileFromUrl = async (imageUrl: string, fileName: string): Promise<PreviewFile> => {
     const response = await fetch(imageUrl);
     if (!response.ok) {
@@ -180,50 +182,20 @@ export default function CreateProductModal({
       });
 
       const createPayload = await createResponse.json().catch(() => ({}));
-      if (!createResponse.ok || !Array.isArray(createPayload?.tasks) || createPayload.tasks.length !== missingCount) {
+      if (!createResponse.ok || !Array.isArray(createPayload?.jobs) || createPayload.jobs.length !== missingCount) {
         throw new Error(createPayload?.error || 'Failed to start AI reference generation.');
       }
 
-      const tasks = createPayload.tasks as Array<{ taskId: string; key: string }>;
-      let resolvedStatuses: Array<{ taskId: string; status: 'pending' | 'success' | 'failed'; imageUrl?: string | null; failMsg?: string | null }> = [];
-
-      for (let attempt = 0; attempt < 45; attempt += 1) {
-        const params = new URLSearchParams();
-        tasks.forEach((task) => params.append('taskId', task.taskId));
-
-        const statusResponse = await fetch(`/api/assets/ai-reference-angles?${params.toString()}`, {
-          method: 'GET'
-        });
-
-        const statusPayload = await statusResponse.json().catch(() => ({}));
-        if (!statusResponse.ok || !Array.isArray(statusPayload?.statuses)) {
-          throw new Error(statusPayload?.error || 'Failed to check AI generation progress.');
-        }
-
-        resolvedStatuses = statusPayload.statuses;
-        const allFinished = resolvedStatuses.every(
-          (item) => item.status === 'success' || item.status === 'failed'
-        );
-
-        if (allFinished) {
-          break;
-        }
-
-        await wait(2500);
-      }
-
-      if (!resolvedStatuses.length || resolvedStatuses.some((item) => item.status !== 'success')) {
-        const failedTask = resolvedStatuses.find((item) => item.status === 'failed');
-        throw new Error(failedTask?.failMsg || 'AI reference generation timed out. Please try again.');
-      }
-
-      const orderedStatuses = tasks
-        .map((task) => resolvedStatuses.find((item) => item.taskId === task.taskId))
-        .filter(Boolean) as Array<{ taskId: string; status: 'success'; imageUrl?: string | null; key?: string }>;
+      const jobs = createPayload.jobs as AiReferenceAngleCreateJobResponse[];
+      const resolvedJobs = await waitForAiReferenceAngleJobs({
+        supabase,
+        jobIds: jobs.map((job) => job.id)
+      });
 
       const generatedReferences: PreviewFile[] = [];
-      for (let index = 0; index < orderedStatuses.length; index += 1) {
-        const imageUrl = orderedStatuses[index].imageUrl;
+      for (let index = 0; index < jobs.length; index += 1) {
+        const resolvedJob = resolvedJobs.find((job) => job.id === jobs[index].id);
+        const imageUrl = resolvedJob?.result_image_url;
         if (!imageUrl) {
           throw new Error('AI generated image URL is missing.');
         }

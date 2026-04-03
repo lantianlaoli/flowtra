@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import { AlertCircle, Check, CircleHelp, Loader2, Sparkles, Trash2, Upload, UserCircle, X } from 'lucide-react';
@@ -9,6 +9,9 @@ import {
   normalizeAvatarPhotoSet,
   type UserAvatar
 } from '@/lib/supabase';
+import { useSupabaseBrowserClient } from '@/lib/supabase/client';
+import { waitForAiReferenceAngleJobs } from '@/lib/ai-reference-angle-jobs-client';
+import type { AiReferenceAngleCreateJobResponse } from '@/lib/ai-reference-angle-jobs';
 import { cn } from '@/lib/utils';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 
@@ -31,6 +34,7 @@ export default function EditAvatarModal({
   onDelete,
   isDeleting = false
 }: EditAvatarModalProps) {
+  const supabase = useSupabaseBrowserClient();
   const fieldBadgeClassName = 'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]';
   const [avatarName, setAvatarName] = useState('');
   const [currentAvatar, setCurrentAvatar] = useState<UserAvatar | null>(null);
@@ -41,6 +45,7 @@ export default function EditAvatarModal({
 
   const primaryInputRef = useRef<HTMLInputElement | null>(null);
   const referenceInputRef = useRef<HTMLInputElement | null>(null);
+  const resumedGenerationKeyRef = useRef<string | null>(null);
 
   const photoSet: AvatarPhotoSet | null = useMemo(() => {
     if (!currentAvatar) return null;
@@ -50,6 +55,32 @@ export default function EditAvatarModal({
       currentAvatar.file_name
     );
   }, [currentAvatar]);
+
+  const generationStorageKey = currentAvatar && photoSet?.primary.photo_url
+    ? `edit-avatar-ai-angle-jobs:${currentAvatar.id}:${photoSet.primary.photo_url}`
+    : null;
+
+  const readStoredJobIds = useCallback(() => {
+    if (!generationStorageKey || typeof window === 'undefined') return [];
+
+    try {
+      const raw = window.sessionStorage.getItem(generationStorageKey);
+      const parsed = raw ? JSON.parse(raw) : null;
+      return Array.isArray(parsed?.jobIds) ? (parsed.jobIds as string[]) : [];
+    } catch {
+      return [];
+    }
+  }, [generationStorageKey]);
+
+  const persistJobIds = (jobIds: string[]) => {
+    if (!generationStorageKey || typeof window === 'undefined') return;
+    window.sessionStorage.setItem(generationStorageKey, JSON.stringify({ jobIds }));
+  };
+
+  const clearPersistedJobIds = useCallback(() => {
+    if (!generationStorageKey || typeof window === 'undefined') return;
+    window.sessionStorage.removeItem(generationStorageKey);
+  }, [generationStorageKey]);
 
   useEffect(() => {
     if (isOpen && avatar) {
@@ -94,7 +125,7 @@ export default function EditAvatarModal({
     );
   };
 
-  const runAvatarAction = async ({
+  const runAvatarAction = useCallback(async ({
     action,
     file,
     referenceIndex,
@@ -157,7 +188,7 @@ export default function EditAvatarModal({
         setIsSaving(false);
       }
     }
-  };
+  }, [currentAvatar, onAvatarUpdated]);
 
   const validateImageFile = async (file: File) => {
     const validationResult = validateImageFormat(file);
@@ -225,8 +256,6 @@ export default function EditAvatarModal({
     }
   };
 
-  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
   const convertImageUrlToDataUrl = async (imageUrl: string): Promise<string> => {
     const response = await fetch(imageUrl);
     if (!response.ok) {
@@ -243,7 +272,7 @@ export default function EditAvatarModal({
     });
   };
 
-  const buildFileFromUrl = async (imageUrl: string, fileName: string): Promise<File> => {
+  const buildFileFromUrl = useCallback(async (imageUrl: string, fileName: string): Promise<File> => {
     const response = await fetch(imageUrl);
     if (!response.ok) {
       throw new Error('Failed to download generated reference image.');
@@ -253,7 +282,51 @@ export default function EditAvatarModal({
     const file = new File([blob], fileName, { type: blob.type || 'image/png' });
     await validateImageFile(file);
     return file;
-  };
+  }, []);
+
+  const resolveGeneratedReferences = useCallback(async (jobIds: string[]) => {
+    setIsGeneratingReferences(true);
+    setError(null);
+
+    try {
+      const resolvedJobs = await waitForAiReferenceAngleJobs({
+        supabase,
+        jobIds
+      });
+
+      for (let index = 0; index < jobIds.length; index += 1) {
+        const resolvedJob = resolvedJobs.find((job) => job.id === jobIds[index]);
+        const imageUrl = resolvedJob?.result_image_url;
+        if (!imageUrl) {
+          throw new Error('AI generated image URL is missing.');
+        }
+
+        const referenceFile = await buildFileFromUrl(imageUrl, `avatar-reference-angle-${index + 1}.png`);
+        await runAvatarAction({ action: 'add_reference', file: referenceFile });
+      }
+
+      clearPersistedJobIds();
+    } catch (generationError) {
+      const message = generationError instanceof Error ? generationError.message : 'Failed to generate AI references.';
+      if (!message.includes('still in progress')) {
+        clearPersistedJobIds();
+      }
+      setError(message);
+    } finally {
+      setIsGeneratingReferences(false);
+    }
+  }, [buildFileFromUrl, clearPersistedJobIds, runAvatarAction, supabase]);
+
+  useEffect(() => {
+    if (!isOpen || !generationStorageKey) return;
+
+    const storedJobIds = readStoredJobIds();
+    if (!storedJobIds.length) return;
+    if (resumedGenerationKeyRef.current === generationStorageKey) return;
+
+    resumedGenerationKeyRef.current = generationStorageKey;
+    void resolveGeneratedReferences(storedJobIds);
+  }, [generationStorageKey, isOpen, readStoredJobIds, resolveGeneratedReferences]);
 
   const handleGenerateReferences = async () => {
     if (!photoSet?.primary?.photo_url) {
@@ -285,64 +358,17 @@ export default function EditAvatarModal({
       });
 
       const createPayload = await createResponse.json().catch(() => ({}));
-      if (!createResponse.ok || !Array.isArray(createPayload?.tasks) || createPayload.tasks.length !== missingCount) {
+      if (!createResponse.ok || !Array.isArray(createPayload?.jobs) || createPayload.jobs.length !== missingCount) {
         throw new Error(createPayload?.error || 'Failed to start AI reference generation.');
       }
 
-      const tasks = createPayload.tasks as Array<{ taskId: string }>;
-      let resolvedStatuses: Array<{
-        taskId: string;
-        status: 'pending' | 'success' | 'failed';
-        imageUrl?: string | null;
-        failMsg?: string | null;
-      }> = [];
-
-      for (let attempt = 0; attempt < 45; attempt += 1) {
-        const params = new URLSearchParams();
-        tasks.forEach((task) => params.append('taskId', task.taskId));
-
-        const statusResponse = await fetch(`/api/assets/ai-reference-angles?${params.toString()}`, {
-          method: 'GET'
-        });
-
-        const statusPayload = await statusResponse.json().catch(() => ({}));
-        if (!statusResponse.ok || !Array.isArray(statusPayload?.statuses)) {
-          throw new Error(statusPayload?.error || 'Failed to check AI generation progress.');
-        }
-
-        resolvedStatuses = statusPayload.statuses;
-        const allFinished = resolvedStatuses.every(
-          (item) => item.status === 'success' || item.status === 'failed'
-        );
-
-        if (allFinished) {
-          break;
-        }
-
-        await wait(2500);
-      }
-
-      if (!resolvedStatuses.length || resolvedStatuses.some((item) => item.status !== 'success')) {
-        const failedTask = resolvedStatuses.find((item) => item.status === 'failed');
-        throw new Error(failedTask?.failMsg || 'AI reference generation timed out. Please try again.');
-      }
-
-      const orderedStatuses = tasks
-        .map((task) => resolvedStatuses.find((item) => item.taskId === task.taskId))
-        .filter(Boolean) as Array<{ imageUrl?: string | null }>;
-
-      for (let index = 0; index < orderedStatuses.length; index += 1) {
-        const imageUrl = orderedStatuses[index].imageUrl;
-        if (!imageUrl) {
-          throw new Error('AI generated image URL is missing.');
-        }
-        const referenceFile = await buildFileFromUrl(imageUrl, `avatar-reference-angle-${index + 1}.png`);
-        await runAvatarAction({ action: 'add_reference', file: referenceFile });
-      }
+      const jobs = createPayload.jobs as AiReferenceAngleCreateJobResponse[];
+      const jobIds = jobs.map((job) => job.id);
+      persistJobIds(jobIds);
+      resumedGenerationKeyRef.current = generationStorageKey;
+      await resolveGeneratedReferences(jobIds);
     } catch (generateError) {
       setError(generateError instanceof Error ? generateError.message : 'Failed to generate AI references.');
-    } finally {
-      setIsGeneratingReferences(false);
     }
   };
 
