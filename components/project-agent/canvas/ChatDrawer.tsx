@@ -2,6 +2,7 @@
 
 import { FormEvent } from 'react';
 import type { UIMessage } from '@ai-sdk/react';
+import { getProjectAgentVisibleMessageText } from '@/lib/project-agent/message-parts';
 
 type HistoryItem = {
   sessionId: string;
@@ -25,13 +26,7 @@ type ChatDrawerProps = {
 };
 
 const getMessageText = (message: UIMessage) => {
-  if (Array.isArray(message.parts)) {
-    return message.parts
-      .map((part) => ('text' in part && typeof part.text === 'string' ? part.text : ''))
-      .join('')
-      .trim();
-  }
-  return '';
+  return getProjectAgentVisibleMessageText(message).trim();
 };
 
 export default function ChatDrawer({

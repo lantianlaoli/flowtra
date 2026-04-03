@@ -24,25 +24,25 @@
   - `red lapel pin`
   - `diet-1`
 - Videos:
-  - `Three toddlers and a small dog`
-  - `Amsterdam Canal Sunset With Cufflinks`
-  - `Magnesium supplement scam warning`
+  - `Decorations 1`
+  - `Health Supplements 1`
+  - `Health Supplements 2`
 
 ## Scenario 1: Reuse One Video Across Video Clone and Motion Clone
 
 ### Conversation
 
-1. `Build a video clone workflow for red lapel pin using Three toddlers and a small dog as the reference video.`
+1. `Build a video clone workflow for red lapel pin using Decorations 1 as the reference video.`
 2. `Now use the same video to add a motion clone workflow for Default Female and keep the red lapel pin in the canvas.`
 3. `Clean up the canvas but keep both workflows.`
 
 ### Observed Result
 
 - Turn 1 passed:
-  - The canvas created a `video` node for `Three toddlers and a small dog`
+  - The canvas created a `video` node for `Decorations 1`
   - The canvas created a `product` node for `red lapel pin`
   - The canvas created a `video_clone` feature node
-  - The assistant replied: `I added a Video Clone workflow to the canvas with Three toddlers and a small dog and red lapel pin.`
+  - The assistant replied: `I added a Video Clone workflow to the canvas with Decorations 1 and red lapel pin.`
 - Turn 2 only partially worked:
   - The canvas added a `motion_clone` feature node
   - The assistant replied: `I added a Motion Clone node to the canvas.`
@@ -65,17 +65,17 @@ The agent reused the session and added a second feature node around the same vid
 
 ### Conversation
 
-1. `Use Amsterdam Canal Sunset With Cufflinks to build a video clone workflow for diet-1.`
+1. `Use Health Supplements 1 to build a video clone workflow for diet-1.`
 2. `Using the same video context, also add an avatar ads workflow where Default Male sells diet-1.`
 3. `Keep both workflows separate and do not convert either one into motion clone.`
 
 ### Observed Result
 
 - Turn 1 passed:
-  - The canvas created a `video` node for `Amsterdam Canal Sunset With Cufflinks`
+  - The canvas created a `video` node for `Health Supplements 1`
   - The canvas created a `product` node for `diet-1`
   - The canvas created a `video_clone` node
-  - The assistant replied: `I added a Video Clone workflow to the canvas with Amsterdam Canal Sunset With Cufflinks and diet-1.`
+  - The assistant replied: `I added a Video Clone workflow to the canvas with Health Supplements 1 and diet-1.`
 - Turn 2 passed:
   - The canvas preserved the original video clone graph
   - The canvas added an `avatar` node for `Default Male`
@@ -95,7 +95,7 @@ The agent reused the session and added a second feature node around the same vid
 
 ### Conversation
 
-1. `Use Magnesium supplement scam warning as the reference video and create a video clone workflow for red lapel pin.`
+1. `Use Health Supplements 2 as the reference video and create a video clone workflow for red lapel pin.`
 2. `With that same video, add a motion clone workflow for Default Founder and the same product.`
 3. `With the same video context, add an avatar ads workflow for Default Female introducing red lapel pin.`
 4. `Format the canvas so all three workflows stay readable.`
@@ -142,10 +142,10 @@ The strongest path right now is:
 The weaker paths are:
 
 - Adding `motion_clone` as a second workflow while expecting the agent to automatically carry over and re-bind all supporting assets
-- Using `Magnesium supplement scam warning` as the anchor video while stacking three different workflow types in one conversation
+- Using `Health Supplements 2` as the anchor video while stacking three different workflow types in one conversation
 
 ## Suggested Follow-up Debug Focus
 
-1. Compare why `Amsterdam Canal Sunset With Cufflinks` materializes as a full asset-backed `video_clone` workflow while `Magnesium supplement scam warning` falls back to feature-only node creation.
+1. Compare why `Health Supplements 1` materializes as a full asset-backed `video_clone` workflow while `Health Supplements 2` falls back to feature-only node creation.
 2. Inspect why follow-up `motion_clone` creation in a shared-video conversation adds only the feature node instead of also adding or reusing the expected avatar and product nodes.
 3. Add a deterministic planner path for "same video context" follow-ups so later turns can bind to an already resolved video node instead of falling back to generic feature creation.

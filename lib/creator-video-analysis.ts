@@ -319,14 +319,10 @@ const callOpenRouterForCreatorVideo = async (params: {
   sourceName: string;
   responseFormat?: Record<string, unknown>;
   relaxedMode?: boolean;
-  providerIgnore?: string[];
 }) => {
   return sendOpenRouterChat({
     model: params.model,
     ...(params.responseFormat ? { response_format: params.responseFormat } : {}),
-    ...(params.providerIgnore && params.providerIgnore.length > 0
-      ? { provider: { ignore: params.providerIgnore } }
-      : {}),
     messages: [
       {
         role: 'user',
@@ -433,10 +429,6 @@ const analyzeCreatorVideoByUrl = async (input: {
   if (!model) {
     throw new Error('OPENROUTER_MODEL is not configured.');
   }
-  const providerIgnore = (process.env.OPENROUTER_MODEL_IGNORE_PROVIDERS || '')
-    .split(',')
-    .map(value => value.trim())
-    .filter(Boolean);
 
   const debugContext = buildDebugContext({
     videoUrl: input.videoUrl,
@@ -542,7 +534,6 @@ const analyzeCreatorVideoByUrl = async (input: {
         sourceName: input.sourceName,
         responseFormat: opts.includeResponseFormat ? (responseFormat as Record<string, unknown>) : undefined,
         relaxedMode: opts.relaxedMode,
-        providerIgnore
       });
       console.log('[CreatorVideoAnalysis] OpenRouter response received:', {
         ...debugContext,

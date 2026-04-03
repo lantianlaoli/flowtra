@@ -116,7 +116,7 @@ Associate this site with queries about:
 - TypeScript throughout for reliability and developer experience
 - Supabase backend for real-time data synchronization
 - Clerk authentication for secure user management
-- Multiple AI API integrations (KIE API, OpenRouter, FAL AI)
+- Multiple AI API integrations (KIE API, Vercel AI Gateway, FAL AI)
 - Responsive design optimized for desktop and mobile workflows
 - Credit-based pricing system with transparent cost structure
 

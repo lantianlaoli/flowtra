@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Link, Upload, Loader2, ArrowLeft, Info, Sparkles, Shuffle, RotateCcw, Type, Languages } from 'lucide-react';
-import { SiTiktok, SiInstagram, SiYoutube, SiFacebook } from 'react-icons/si';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { X, Link, Upload, Loader2, ArrowLeft, Info, Sparkles, Shuffle, RotateCcw, Type, Languages, Film, Clock, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import VideoPlayer from '@/components/ui/VideoPlayer';
 import CompetitorShotsEditor from '@/components/CompetitorShotsEditor';
+import VideoPlayer from '@/components/ui/VideoPlayer';
 import { parseShotsFromAnalysis } from '@/lib/competitor-shot-form';
+import { getAnalysisShotCount, normalizeAnalysisToV2 } from '@/lib/video-analysis-schema';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface PreviewVideo {
@@ -252,7 +252,6 @@ export default function VideoImportModal({
   const processingShots = useMemo(() => {
     return parseShotsFromAnalysis(processingVideo?.analysis_result || null);
   }, [processingVideo?.analysis_result]);
-
   const isAnalysisPending = step === 'processing' &&
     processingVideo?.analysis_status !== 'failed' &&
     !processingVideo?.analysis_result;
@@ -332,6 +331,36 @@ export default function VideoImportModal({
     processingVideo?.id &&
     (!requiresFirstFrameForMotionClone || hasFirstFrameImage)
   );
+  const previewWidth = 324;
+  const previewHeight = 576;
+  const previewCardClassName = 'flex-none overflow-hidden rounded-xl';
+  const processingDisplayDurationSeconds = useMemo(() => {
+    const normalizedAnalysis = normalizeAnalysisToV2(processingVideo?.analysis_result || null);
+    const analysisDuration = normalizedAnalysis?.video_duration_seconds;
+    const summedShotDuration = processingShots.reduce(
+      (sum, shot) => sum + (Number(shot.duration_seconds) || 0),
+      0,
+    );
+
+    if (typeof analysisDuration === 'number' && analysisDuration > 0) {
+      return analysisDuration;
+    }
+
+    if (summedShotDuration > 0) {
+      return summedShotDuration;
+    }
+
+    return processingVideo?.duration_seconds || null;
+  }, [processingShots, processingVideo?.analysis_result, processingVideo?.duration_seconds]);
+  const processingShotCount = useMemo(() => {
+    return getAnalysisShotCount(processingVideo?.analysis_result || null) || 0;
+  }, [processingVideo?.analysis_result]);
+  const canSaveVideoName = Boolean(
+    processingVideo?.id &&
+    videoName.trim() &&
+    videoName.trim() !== (processingVideo?.description || '').trim() &&
+    !isSavingVideoName
+  );
 
   const analysisName = useMemo(() => {
     return deriveAnalysisDisplayName(processingVideo?.analysis_result);
@@ -342,6 +371,51 @@ export default function VideoImportModal({
     processingVideo?.description?.trim() &&
     !isDefaultImportName(processingVideo.description)
   );
+
+  const handleSaveVideoName = useCallback(async (nameOverride?: string) => {
+    if (!processingVideo?.id) {
+      return;
+    }
+
+    const trimmedName = (nameOverride ?? videoName).trim();
+    if (!trimmedName) {
+      setError('Name is required.');
+      return;
+    }
+
+    if (trimmedName === (processingVideo.description || '').trim()) {
+      return;
+    }
+
+    setIsSavingVideoName(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/creator-videos/${processingVideo.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: trimmedName })
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiErrorMessage(response, 'Failed to update video name.'));
+      }
+
+      const data = await response.json() as { video?: ImportedVideo };
+      if (!data.video) {
+        throw new Error('Failed to update video name.');
+      }
+
+      previousVideoDescriptionRef.current = (data.video.description || trimmedName).trim();
+      setProcessingVideo(prev => prev ? { ...prev, description: data.video?.description || trimmedName } : prev);
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Failed to update video name.';
+      setError(message);
+      onError?.(message);
+    } finally {
+      setIsSavingVideoName(false);
+    }
+  }, [onError, processingVideo, videoName]);
 
   useEffect(() => {
     const nextName = hasMeaningfulVideoDescription
@@ -364,7 +438,7 @@ export default function VideoImportModal({
     }
 
     previousVideoDescriptionRef.current = currentDescription;
-  }, [analysisName, hasMeaningfulVideoDescription, processingVideo?.description, processingVideo?.id]);
+  }, [analysisName, hasMeaningfulVideoDescription, processingVideo?.description, processingVideo?.id, videoName]);
 
   useEffect(() => {
     if (!processingVideo?.id) return;
@@ -394,7 +468,7 @@ export default function VideoImportModal({
         videoNameAutoSaveTimerRef.current = null;
       }
     };
-  }, [processingVideo?.description, processingVideo?.id, videoName]);
+  }, [handleSaveVideoName, processingVideo?.description, processingVideo?.id, videoName]);
 
   const handleBackToChoose = () => {
     setStep('choose');
@@ -674,51 +748,6 @@ export default function VideoImportModal({
     router.push(`/dashboard/motion-clone?videoId=${processingVideo?.id}`);
   };
 
-  const handleSaveVideoName = async (nameOverride?: string) => {
-    if (!processingVideo?.id) {
-      return;
-    }
-
-    const trimmedName = (nameOverride ?? videoName).trim();
-    if (!trimmedName) {
-      setError('Name is required.');
-      return;
-    }
-
-    if (trimmedName === (processingVideo.description || '').trim()) {
-      return;
-    }
-
-    setIsSavingVideoName(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`/api/creator-videos/${processingVideo.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: trimmedName })
-      });
-
-      if (!response.ok) {
-        throw new Error(await readApiErrorMessage(response, 'Failed to update video name.'));
-      }
-
-      const data = await response.json() as { video?: ImportedVideo };
-      if (!data.video) {
-        throw new Error('Failed to update video name.');
-      }
-
-      previousVideoDescriptionRef.current = (data.video.description || trimmedName).trim();
-      setProcessingVideo(prev => prev ? { ...prev, description: data.video?.description || trimmedName } : prev);
-    } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : 'Failed to update video name.';
-      setError(message);
-      onError?.(message);
-    } finally {
-      setIsSavingVideoName(false);
-    }
-  };
-
   const handleRetryAnalysis = async () => {
     if (!processingVideo?.id) {
       return;
@@ -826,13 +855,12 @@ export default function VideoImportModal({
           >
             <div className="assets-modal-header flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div className="flex items-center gap-3">
-                <div className="assets-modal-icon w-9 h-9 bg-black rounded-lg flex items-center justify-center gap-0.5">
-                  <SiTiktok className="w-3 h-3 text-white" />
-                  <SiInstagram className="w-3 h-3 text-white" />
+                <div className="assets-modal-icon flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white shadow-sm">
+                  <Upload className="h-4 w-4" />
                 </div>
                 <div>
                   <h3 className="assets-modal-title text-lg font-semibold text-gray-900">Import Videos</h3>
-                  <p className="assets-modal-subtitle text-sm text-gray-600">TikTok, Instagram, YouTube & Facebook. Videos are stored in your library.</p>
+                  <p className="assets-modal-subtitle text-sm text-gray-600">Import from a link or local file. Videos are saved to your library.</p>
                 </div>
               </div>
               <button
@@ -846,26 +874,44 @@ export default function VideoImportModal({
 
             {step === 'choose' && (
               <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
-                <div className="assets-video-import-options grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid w-full grid-cols-1 gap-5 md:grid-cols-2">
                   <button
                     onClick={() => setStep('link')}
-                    className="assets-video-import-option group border border-gray-200 rounded-xl p-5 text-left hover:border-black hover:shadow-sm transition-colors"
+                    className="assets-video-import-option group flex aspect-[4/3] flex-col justify-between rounded-2xl border border-gray-200 bg-white p-6 text-left transition-all hover:-translate-y-0.5 hover:border-black hover:shadow-[0_16px_40px_rgba(0,0,0,0.06)]"
                   >
-                    <div className="assets-video-import-option-icon w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4 group-hover:bg-black group-hover:text-white transition-colors">
-                      <Link className="w-4 h-4" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-gray-200 bg-gray-50 text-gray-900 transition-colors group-hover:border-black group-hover:bg-black group-hover:text-white">
+                      <Link className="h-5 w-5" />
                     </div>
-                    <h4 className="assets-video-import-option-title text-sm font-semibold text-gray-900 mb-1">Paste Link</h4>
-                    <p className="assets-video-import-option-copy text-xs text-gray-500">Paste a TikTok, Instagram, YouTube, or Facebook video URL.</p>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <h4 className="assets-video-import-option-title text-xl font-semibold tracking-tight text-gray-900">Paste Link</h4>
+                        <span className="rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-gray-500">
+                          Social URL
+                        </span>
+                      </div>
+                      <p className="assets-video-import-option-copy max-w-[26ch] text-sm leading-6 text-gray-600">
+                        Paste a TikTok, Instagram, YouTube, or Facebook video link and import it directly.
+                      </p>
+                    </div>
                   </button>
                   <button
                     onClick={() => setStep('upload')}
-                    className="assets-video-import-option group border border-gray-200 rounded-xl p-5 text-left hover:border-black hover:shadow-sm transition-colors"
+                    className="assets-video-import-option group flex aspect-[4/3] flex-col justify-between rounded-2xl border border-gray-200 bg-white p-6 text-left transition-all hover:-translate-y-0.5 hover:border-black hover:shadow-[0_16px_40px_rgba(0,0,0,0.06)]"
                   >
-                    <div className="assets-video-import-option-icon w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-4 group-hover:bg-black group-hover:text-white transition-colors">
-                      <Upload className="w-4 h-4" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-gray-200 bg-gray-50 text-gray-900 transition-colors group-hover:border-black group-hover:bg-black group-hover:text-white">
+                      <Upload className="h-5 w-5" />
                     </div>
-                    <h4 className="assets-video-import-option-title text-sm font-semibold text-gray-900 mb-1">Upload File</h4>
-                    <p className="assets-video-import-option-copy text-xs text-gray-500">Upload a downloaded MP4 or MOV file from your device.</p>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <h4 className="assets-video-import-option-title text-xl font-semibold tracking-tight text-gray-900">Upload File</h4>
+                        <span className="rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-gray-500">
+                          MP4 / MOV
+                        </span>
+                      </div>
+                      <p className="assets-video-import-option-copy max-w-[26ch] text-sm leading-6 text-gray-600">
+                        Upload a local video file and run the same import and analysis flow in one step.
+                      </p>
+                    </div>
                   </button>
                 </div>
               </div>
@@ -1071,174 +1117,234 @@ export default function VideoImportModal({
             )}
 
             {step === 'processing' && (
-              <div className="assets-modal-body grid min-h-0 flex-1 grid-cols-1 items-end gap-6 overflow-y-auto p-6 lg:grid-cols-[max-content_minmax(0,1fr)]">
-                <div className={`min-h-0 min-w-0 overflow-hidden ${requiresFirstFrameForMotionClone ? 'flex items-end gap-4' : 'flex items-end justify-center'}`}>
-                  {requiresFirstFrameForMotionClone && (
-                    <label className="assets-video-import-preview flex min-w-0 min-h-0 border-2 border-dashed border-gray-300 bg-white transition-colors hover:border-gray-500 cursor-pointer flex-none overflow-hidden rounded-xl" style={{ width: '324px', height: '576px' }}>
-                      <div className="flex h-full w-full items-center justify-center overflow-hidden px-5 text-center">
-                        {processingVideo?.cover_url ? (
-                          <img
-                            src={processingVideo.cover_url}
-                            alt="Uploaded first frame"
-                            className="w-full h-full object-cover"
+              <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6">
+                <div className="grid min-h-0 grid-cols-1 items-start gap-6 lg:grid-cols-[max-content_minmax(0,1fr)] lg:items-end">
+                  <div className={`min-h-0 min-w-0 overflow-hidden ${requiresFirstFrameForMotionClone ? 'flex items-end gap-4' : 'flex items-end justify-center'}`}>
+                    {requiresFirstFrameForMotionClone ? (
+                      <label
+                        className={`flex min-w-0 min-h-0 cursor-pointer border-2 border-dashed border-gray-300 bg-white transition-colors hover:border-gray-500 ${previewCardClassName}`}
+                        style={{ width: `${previewWidth}px`, height: `${previewHeight}px` }}
+                      >
+                        <div className="flex h-full w-full items-center justify-center overflow-hidden px-5 text-center">
+                          {processingVideo?.cover_url ? (
+                            <img
+                              src={processingVideo.cover_url}
+                              alt="First frame"
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center gap-3">
+                              <Upload className="w-5 h-5 text-gray-500" />
+                              {isFirstFrameUploading ? (
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <span>Uploading first frame...</span>
+                                </div>
+                              ) : (
+                                <>
+                                  <p className="text-sm font-medium text-gray-800">First Frame</p>
+                                  <p className="text-xs text-gray-500">Click to upload</p>
+                                </>
+                              )}
+                              {firstFrameUploadError ? (
+                                <p className="max-w-[220px] text-xs text-red-500">{firstFrameUploadError}</p>
+                              ) : null}
+                            </div>
+                          )}
+                          <span className="sr-only">Upload first frame</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={isFirstFrameUploading}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0] || null;
+                              void handleUploadFirstFrame(file);
+                              event.currentTarget.value = '';
+                            }}
+                          />
+                        </div>
+                      </label>
+                    ) : null}
+
+                    <div className="min-h-0 flex items-stretch justify-center">
+                      <div
+                        className={`bg-black/95 ${previewCardClassName}`}
+                        style={{ width: `${previewWidth}px`, height: `${previewHeight}px` }}
+                      >
+                        {processingVideo?.video_cdn_url ? (
+                          <VideoPlayer
+                            src={processingVideo.video_cdn_url}
+                            className="h-full w-full object-contain"
+                            showControls
                           />
                         ) : (
-                          <div className="flex flex-col items-center justify-center gap-3">
-                            <Upload className="w-5 h-5 text-gray-500" />
-                            {isFirstFrameUploading ? (
-                              <p className="text-sm text-gray-600">Uploading first frame...</p>
-                            ) : (
-                              <>
-                                <p className="text-sm font-medium text-gray-800">First Frame</p>
-                                <p className="text-xs text-gray-500">Optional, required for Motion Clone</p>
-                              </>
-                            )}
+                          <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_48%)] px-8 text-center text-gray-300">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-white/5">
+                              <Loader2 className="h-5 w-5 animate-spin" />
+                            </div>
+                            <div className="space-y-2">
+                              <p className="text-base font-medium text-white/90">Preparing video preview</p>
+                              <p className="text-sm leading-6 text-gray-400">The uploaded video will appear here as soon as it finishes processing.</p>
+                            </div>
                           </div>
                         )}
-                        <span className="sr-only">Upload first frame</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={isFirstFrameUploading}
-                          onChange={(event) => {
-                            const file = event.target.files?.[0] || null;
-                            void handleUploadFirstFrame(file);
-                            event.currentTarget.value = '';
-                          }}
-                        />
                       </div>
-                    </label>
-                  )}
-                  <div className="min-h-0 flex items-stretch justify-center">
-                    <div className="assets-video-import-preview bg-black/95 flex-none overflow-hidden rounded-xl" style={{ width: '324px', height: '576px' }}>
-                      {processingVideo?.video_cdn_url ? (
-                        <VideoPlayer
-                          src={processingVideo.video_cdn_url}
-                          className="w-full h-full object-contain"
-                          showControls
-                        />
-                      ) : (
-                        <div className="assets-video-import-preview-empty flex h-full w-full flex-col items-center justify-center text-gray-300 text-sm gap-2">
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                          Preparing video preview...
-                        </div>
-                      )}
                     </div>
                   </div>
-                </div>
-                <div className="assets-video-import-panel min-h-0 flex flex-col gap-4 self-end" style={{ height: '576px' }}>
-                  <div className="rounded-2xl border border-[#D9D9D9] bg-[#F7F7F7] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-                    <div className="flex items-center justify-between gap-3">
-                      <label htmlFor="import-video-name" className="assets-video-import-label inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[#7A7A7A]">
-                        <Type className="h-3.5 w-3.5 text-[#9A9A9A]" />
-                        <span>Name</span>
-                      </label>
-                      {isSavingVideoName && (
-                        <span className="text-[11px] font-medium text-[#8A8A8A]">Saving...</span>
-                      )}
-                    </div>
-                    <div className="mt-2">
-                      {isAnalysisPending && !hasGeneratedAnalysisName && !hasMeaningfulVideoDescription ? (
-                        <GlassLoadingField className="h-11 px-3.5 py-[0.8125rem]" />
-                      ) : (
+
+                  <div
+                    className="min-h-0 flex flex-col gap-4 self-end"
+                    style={{ height: `${previewHeight}px` }}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-500">
+                          Video Name
+                        </p>
+                        <span className="text-xs text-gray-400">
+                          {videoName.trim().length}/120
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
                         <input
                           id="import-video-name"
                           type="text"
                           value={videoName}
                           onChange={(event) => setVideoName(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' && canSaveVideoName) {
+                              event.preventDefault();
+                              void handleSaveVideoName();
+                            }
+                          }}
                           onBlur={() => {
-                            if (!isSavingVideoName && videoName.trim() && videoName.trim() !== (processingVideo?.description || '').trim()) {
-                              void handleSaveVideoName(videoName);
+                            if (canSaveVideoName) {
+                              void handleSaveVideoName();
                             }
                           }}
                           maxLength={120}
                           placeholder="AI is generating a title..."
-                          className="h-11 w-full rounded-xl border border-[#D2D2D2] bg-white px-3.5 text-sm text-[#111111] shadow-[0_1px_0_rgba(255,255,255,0.8)] transition-all placeholder:text-[#A3A3A3] focus:border-black focus:outline-none focus:ring-2 focus:ring-black/5"
+                          className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-black"
                           disabled={!processingVideo?.id}
                         />
-                      )}
-                    </div>
-                    <div className="mt-2">
-                      <div className="flex min-w-0 items-center justify-start gap-2 rounded-xl border border-[#D8D8D8] bg-white px-3 py-2 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
-                        <Languages className="h-3.5 w-3.5 shrink-0 text-[#9A9A9A]" />
-                        {isAnalysisPending ? (
-                          <GlassLoadingBar className="h-3.5 w-16 min-w-0" />
-                        ) : (
-                          <div className="min-w-0 truncate text-sm font-semibold text-[#111111]">
-                            {processingVideo?.analysis_language || '—'}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 flex flex-col gap-3 min-h-0">
-                    <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-[#D9D9D9] bg-[#F7F7F7] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-                      <p className="assets-video-import-label inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[#7A7A7A]">
-                        <Sparkles className="h-3.5 w-3.5 text-[#9A9A9A]" />
-                        <span>Structure Analysis</span>
-                      </p>
-                    {processingVideo?.analysis_status === 'failed' ? (
-                      <div className="assets-video-import-alert mt-3 rounded-xl border border-dashed border-red-200 bg-white p-4 text-sm text-red-600 space-y-3">
-                        <p>Analysis failed. Retry the analysis to continue.</p>
-                        {processingVideo.analysis_error && (
-                          <p className="text-xs text-red-500">{processingVideo.analysis_error}</p>
-                        )}
                         <button
                           type="button"
-                          onClick={() => void handleRetryAnalysis()}
-                          disabled={isRetryingAnalysis}
-                          className="assets-modal-secondary inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() => void handleSaveVideoName()}
+                          disabled={!canSaveVideoName}
+                          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-black bg-black px-3 text-sm font-medium text-white transition-colors hover:bg-gray-900 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
                         >
-                          {isRetryingAnalysis ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                          {isSavingVideoName ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            <RotateCcw className="w-4 h-4" />
+                            <Save className="h-4 w-4" />
                           )}
-                          {isRetryingAnalysis ? 'Retrying...' : 'Retry Analysis'}
+                          Save
                         </button>
                       </div>
-                    ) : processingVideo?.analysis_result ? (
-                      <>
-                        <div className="assets-video-import-shots mt-2.5 flex-1 min-h-0 overflow-y-auto rounded-2xl border border-[#D8D8D8] bg-white p-4 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
-                          <CompetitorShotsEditor
-                            shots={processingShots}
-                            onShotsChange={() => {}}
-                            showSummary={false}
-                            readOnly
-                            hideHeader
-                            expandedMaxHeightClass="max-h-[260px] overflow-y-auto"
-                          />
-                        </div>
-                      </>
-                    ) : (
-                      <GlassWavePanel className="assets-video-import-alert mt-2.5 flex flex-1" />
-                    )}
                     </div>
-                  </div>
 
-                  <div className="assets-video-import-actions mt-auto flex flex-col gap-2">
-                    <button
-                      onClick={handleUseForClone}
-                      disabled={!canUseForClone}
-                      className="assets-modal-primary flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-black bg-gradient-to-b from-[#141414] to-black px-4 text-sm font-semibold text-white transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-45"
-                    >
-                      <span className="w-6 h-6 rounded-md border border-white/20 bg-white/10 flex items-center justify-center">
-                        <Sparkles className="w-3.5 h-3.5" />
-                      </span>
-                      Go to Clone Video
-                    </button>
-                    <button
-                      onClick={handleUseInMotionClone}
-                      disabled={!canUseForMotionClone || isFirstFrameUploading}
-                      className="assets-modal-primary flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-black bg-gradient-to-b from-[#101010] to-black px-4 text-sm font-semibold text-white transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-45"
-                    >
-                      <span className="w-6 h-6 rounded-md border border-white/20 bg-white/10 flex items-center justify-center">
-                        <Shuffle className="w-3.5 h-3.5" />
-                      </span>
-                      Go to Motion Clone
-                    </button>
+                    <div className="space-y-2">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">
+                        Overview
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
+                        <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1">
+                          <Clock className="h-4 w-4 shrink-0 text-gray-400" />
+                          <span className="font-medium text-gray-800">
+                            {processingDisplayDurationSeconds ? `${processingDisplayDurationSeconds}s` : '—'}
+                          </span>
+                        </div>
+                        <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1">
+                          <Languages className="h-4 w-4 shrink-0 text-gray-400" />
+                          {isAnalysisPending ? (
+                            <GlassLoadingBar className="h-4 w-16" />
+                          ) : (
+                            <span className="font-medium text-gray-800">{processingVideo?.analysis_language || '—'}</span>
+                          )}
+                        </div>
+                        <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1">
+                          <Film className="h-4 w-4 shrink-0 text-gray-400" />
+                          <span className="font-medium text-gray-800">{processingShotCount || '—'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex min-h-0 flex-1 flex-col gap-2">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">
+                        Structure Analysis
+                      </p>
+                      {processingVideo?.analysis_status === 'failed' ? (
+                        <div className="rounded-lg border border-red-200 p-4 text-sm text-red-700 space-y-3">
+                          <p>Analysis failed. Retry to regenerate the structure.</p>
+                          {processingVideo.analysis_error ? (
+                            <p className="text-xs text-red-500">{processingVideo.analysis_error}</p>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => void handleRetryAnalysis()}
+                            disabled={isRetryingAnalysis}
+                            className="inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-red-200 bg-white px-3.5 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isRetryingAnalysis ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                            {isRetryingAnalysis ? 'Retrying...' : 'Retry Analysis'}
+                          </button>
+                        </div>
+                      ) : processingVideo?.analysis_result ? (
+                        <div className="min-h-0 flex-1">
+                          <div className="h-full overflow-y-auto pr-1">
+                            <CompetitorShotsEditor
+                              shots={processingShots}
+                              onShotsChange={() => {}}
+                              showSummary={false}
+                              readOnly
+                              hideHeader
+                              expandedMaxHeightClass="max-h-none"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="min-h-0 flex-1 rounded-lg border border-dashed border-gray-200 p-4">
+                          <GlassWavePanel className="h-full rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#FCFCFC,#F4F4F4)] shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
+                            <div className="flex h-full flex-col justify-center gap-3 px-4 py-4">
+                              {Array.from({ length: 4 }).map((_, index) => (
+                                <div key={index} className="rounded-xl border border-white/80 bg-white/90 px-4 py-3 shadow-[0_6px_18px_rgba(15,23,42,0.04)]">
+                                  <div className="flex items-center gap-3">
+                                    <div className="h-8 w-8 rounded-full border border-gray-200 bg-gray-100" />
+                                    <GlassLoadingBar className="h-3.5 w-24" />
+                                  </div>
+                                  <GlassLoadingBar className="mt-3 h-3.5 w-full" />
+                                  <GlassLoadingBar className="mt-2 h-3.5 w-4/5" />
+                                </div>
+                              ))}
+                            </div>
+                          </GlassWavePanel>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-auto flex flex-col gap-2 pt-2">
+                      <button
+                        onClick={handleUseForClone}
+                        disabled={!canUseForClone}
+                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#0f0f0f] bg-[#0f0f0f] px-3 py-2.5 text-sm text-white transition-all duration-200 hover:bg-[#1d1d1d] disabled:cursor-not-allowed disabled:border-[#cfcfca] disabled:bg-[#e9e9e6] disabled:text-[#6f6f6a]"
+                      >
+                        <span className="font-medium flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-white/80" />
+                          Go to Clone Video
+                        </span>
+                      </button>
+                      <button
+                        onClick={handleUseInMotionClone}
+                        disabled={!canUseForMotionClone || isFirstFrameUploading}
+                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-black bg-black px-3 py-2.5 text-sm text-white transition-all duration-200 hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span className="font-medium flex items-center gap-2">
+                          <Shuffle className="w-4 h-4 text-white/90" />
+                          Go to Motion Clone
+                        </span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

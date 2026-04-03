@@ -12,12 +12,12 @@
 ## Shared Notes
 
 - The test account exposes these visible assets in the agent picker:
-  - Avatars: `Default Male`, `Default Female`, `Default Founder`
-  - Products: `red lapel pin`, `diet-1`
-  - Videos:
-    - `Three toddlers and a small dog`
-    - `Amsterdam Canal Sunset With Cufflinks`
-    - `Magnesium supplement scam warning`
+- Avatars: `Default Male`, `Default Female`, `Default Founder`
+- Products: `red lapel pin`, `diet-1`
+- Videos:
+    - `Decorations 1`
+    - `Health Supplements 1`
+    - `Health Supplements 2`
 - `Diet Gatorade Trio Price Drop and Flash Sale` was mentioned by the assistant in an earlier broken run, but it is not part of the current visible `/api/assets` fixture, so it is not used in the final regression scenarios.
 - The pass criteria below do not depend on workflow execution. `Start` was not clicked in any scenario.
 
@@ -25,7 +25,7 @@
 
 ### Conversation
 
-1. `Build a video clone workflow for red lapel pin using Three toddlers and a small dog as the reference video.`
+1. `Build a video clone workflow for red lapel pin using Decorations 1 as the reference video.`
 2. `Keep it focused on the product and do not add any avatar workflow.`
 3. `If the canvas needs cleanup, only reorganize the current clone setup.`
 
@@ -33,7 +33,7 @@
 
 - Turn 1 created the expected canvas workflow immediately.
 - The canvas showed:
-  - one `video` node for `Three toddlers and a small dog`
+  - one `video` node for `Decorations 1`
   - one `product` node for `red lapel pin`
   - one `video_clone` feature node
 - The `video_clone` node reached a ready state in the UI.
@@ -71,7 +71,7 @@
 
 ### Conversation
 
-1. `Build a motion clone workflow using Default Female, red lapel pin, and Three toddlers and a small dog.`
+1. `Build a motion clone workflow using Default Female, red lapel pin, and Decorations 1.`
 2. `Keep the product in the workflow and do not turn this into avatar ads.`
 3. `Clean up and format the canvas.`
 
@@ -79,7 +79,7 @@
 
 - Turn 1 created the expected canvas workflow immediately.
 - The canvas showed:
-  - one `video` node for `Three toddlers and a small dog`
+  - one `video` node for `Decorations 1`
   - one `avatar` node for `Default Female`
   - one `product` node for `red lapel pin`
   - one `motion_clone` feature node

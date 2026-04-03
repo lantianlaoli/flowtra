@@ -44,9 +44,9 @@ The current QA account exposes these visible assets:
   - `red lapel pin`
   - `diet-1`
 - Videos:
-  - `Three toddlers and a small dog`
-  - `Amsterdam Canal Sunset With Cufflinks`
-  - `Magnesium supplement scam warning`
+  - `Decorations 1`
+  - `Health Supplements 1`
+  - `Health Supplements 2`
 
 Use these exact names in the prompts.
 
@@ -64,7 +64,7 @@ Before each scenario:
 ### Multi-turn Conversation
 
 Turn 1:
-`Build a video clone workflow for red lapel pin using Three toddlers and a small dog as the reference video.`
+`Build a video clone workflow for red lapel pin using Decorations 1 as the reference video.`
 
 Turn 2:
 `Now use the same video to add a motion clone workflow for Default Female and keep the red lapel pin in the canvas.`
@@ -75,7 +75,7 @@ Turn 3:
 ### Expected Canvas Reaction
 
 1. Turn 1 should create:
-   - one `video` node for `Three toddlers and a small dog`
+   - one `video` node for `Decorations 1`
    - one `product` node for `red lapel pin`
    - one `video_clone` feature node
 2. The named video should connect to the `video_clone` node through the expected input.
@@ -98,7 +98,7 @@ Turn 3:
 ### Multi-turn Conversation
 
 Turn 1:
-`Use Amsterdam Canal Sunset With Cufflinks to build a video clone workflow for diet-1.`
+`Use Health Supplements 1 to build a video clone workflow for diet-1.`
 
 Turn 2:
 `Using the same video context, also add an avatar ads workflow where Default Male sells diet-1.`
@@ -109,7 +109,7 @@ Turn 3:
 ### Expected Canvas Reaction
 
 1. Turn 1 should create:
-   - one `video` node for `Amsterdam Canal Sunset With Cufflinks`
+   - one `video` node for `Health Supplements 1`
    - one `product` node for `diet-1`
    - one `video_clone` feature node
 2. Turn 2 should add:
@@ -132,7 +132,7 @@ Turn 3:
 ### Multi-turn Conversation
 
 Turn 1:
-`Use Magnesium supplement scam warning as the reference video and create a video clone workflow for red lapel pin.`
+`Use Health Supplements 2 as the reference video and create a video clone workflow for red lapel pin.`
 
 Turn 2:
 `With that same video, add a motion clone workflow for Default Founder and the same product.`

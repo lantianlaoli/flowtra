@@ -44,9 +44,9 @@ The current QA account already exposes the following usable assets:
   - `red lapel pin`
   - `diet-1`
 - Videos:
-  - `Three toddlers and a small dog`
-  - `Amsterdam Canal Sunset With Cufflinks`
-  - `Magnesium supplement scam warning`
+  - `Decorations 1`
+  - `Health Supplements 1`
+  - `Health Supplements 2`
 
 Use these exact names in the conversation whenever a scenario needs a specific asset.
 
@@ -64,7 +64,7 @@ Before each scenario:
 ### Multi-turn Conversation
 
 Turn 1:
-`Build a video clone workflow for red lapel pin using Three toddlers and a small dog as the reference video.`
+`Build a video clone workflow for red lapel pin using Decorations 1 as the reference video.`
 
 Turn 2:
 `Keep it focused on the product and do not add any avatar workflow.`
@@ -129,7 +129,7 @@ Turn 3:
 ### Multi-turn Conversation
 
 Turn 1:
-`Build a motion clone workflow using Default Female, red lapel pin, and Three toddlers and a small dog.`
+`Build a motion clone workflow using Default Female, red lapel pin, and Decorations 1.`
 
 Turn 2:
 `Keep the product in the workflow and do not turn this into avatar ads.`
@@ -156,7 +156,7 @@ Turn 3:
 - The cleanup request clears the canvas.
 - The cleanup request creates a second motion clone workflow instead of reorganizing the existing one.
 - Nodes disappear or detach unexpectedly after the follow-up.
-- The assistant asks for asset clarification even though `Default Female`, `red lapel pin`, and `Three toddlers and a small dog` were already named.
+- The assistant asks for asset clarification even though `Default Female`, `red lapel pin`, and `Decorations 1` were already named.
 
 ## Pass Criteria
 
