@@ -168,6 +168,28 @@ export type ProjectAgentCanvasMutationExecutorResult = {
   createdAliases: Record<string, string>;
 };
 
+const isCanvasMutationAction = (
+  action: ProjectAgentCanvasAction | Record<string, unknown> | null | undefined
+): action is Extract<ProjectAgentCanvasAction, { kind: 'canvas_mutation' }> => {
+  if (!action || typeof action !== 'object') {
+    return false;
+  }
+
+  const record = action as { kind?: unknown; mutation?: { type?: unknown } };
+  return record.kind === 'canvas_mutation' && typeof record.mutation?.type === 'string';
+};
+
+const isCanvasUiAction = (
+  action: ProjectAgentCanvasAction | Record<string, unknown> | null | undefined
+): action is Extract<ProjectAgentCanvasAction, { kind: 'ui_action' }> => {
+  if (!action || typeof action !== 'object') {
+    return false;
+  }
+
+  const record = action as { kind?: unknown; action?: { type?: unknown } };
+  return record.kind === 'ui_action' && typeof record.action?.type === 'string';
+};
+
 type ProjectAgentCanvasMutationExecutorOptions = {
   canvas: ProjectAgentCanvasState;
   actions: ProjectAgentCanvasAction[];
@@ -445,7 +467,7 @@ export const executeProjectAgentCanvasActions = ({
   };
 
   actions.forEach((action) => {
-    if (action.kind === 'ui_action') {
+    if (isCanvasUiAction(action)) {
       if (action.action.type === 'open_asset_picker') {
         nextPendingUiRequest = action.action.request;
       } else if (action.action.type === 'request_confirmation') {
@@ -455,6 +477,10 @@ export const executeProjectAgentCanvasActions = ({
       } else if (action.action.type === 'set_status_note') {
         nextStatusNote = action.action.message;
       }
+      return;
+    }
+
+    if (!isCanvasMutationAction(action)) {
       return;
     }
 

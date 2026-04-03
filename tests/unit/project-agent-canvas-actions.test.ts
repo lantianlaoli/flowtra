@@ -152,3 +152,23 @@ test('canvas executor reuses existing asset node when requested', () => {
   assert.equal(second.canvas.nodes.length, 1);
   assert.equal(second.createdAliases.selectedVideoAgain, second.canvas.nodes[0]?.id);
 });
+
+test('canvas executor ignores malformed mutation actions instead of throwing', () => {
+  const result = executeProjectAgentCanvasActions({
+    canvas: DEFAULT_PROJECT_AGENT_CANVAS_STATE,
+    actions: [
+      {
+        kind: 'canvas_mutation',
+        mutation: {
+          type: 'add_feature_node',
+          featureType: 'video_clone',
+        },
+      },
+      { kind: 'canvas_mutation' } as unknown as ProjectAgentCanvasAction,
+      { kind: 'ui_action' } as unknown as ProjectAgentCanvasAction,
+    ],
+  });
+
+  assert.equal(result.canvas.nodes.length, 1);
+  assert.equal(result.canvas.nodes[0]?.type, 'video_clone');
+});

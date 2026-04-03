@@ -4,8 +4,9 @@
 
 This document defines three manual QA scenarios for `/dashboard/agent`.
 
-The scope is intentionally limited to **conversation -> canvas reaction**.
+The scope is intentionally limited to **conversation -> canvas reaction only**.
 Do **not** click `Start` and do **not** validate workflow execution, progress, or output videos.
+Execution must remain user-clicked from canvas feature nodes.
 
 Each scenario validates:
 

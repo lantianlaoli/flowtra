@@ -33,6 +33,10 @@ import {
   normalizeMotionCloneQuality,
   type CloneVideoQuality,
 } from "@/lib/constants";
+import {
+  buildMotionClonePreviewPrompt,
+  buildMotionCloneVideoPrompt,
+} from "@/lib/motion-clone-workflow";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { trackEvent } from "@/lib/analytics/client";
 
@@ -118,9 +122,11 @@ const DEFAULT_FEMALE_MENTION = buildMentionToken({
   type: "character",
   label: "Default Female",
 });
-const DEFAULT_IMAGE_PROMPT_TEMPLATE = `Replace the man in the reference video with ${DEFAULT_FEMALE_MENTION}. Keep the same framing, lighting, background, and overall look.`;
-const DEFAULT_VIDEO_PROMPT =
-  "Keep all elements the same as the reference video. Only swap the person and product.";
+const DEFAULT_IMAGE_PROMPT_TEMPLATE = buildMotionClonePreviewPrompt({
+  hasAvatar: true,
+  hasProduct: false,
+  avatarLabel: DEFAULT_FEMALE_MENTION,
+});
 const EDITABLE_MOTION_CLONE_STATUSES = [
   "pending",
   "preview_ready",
@@ -542,11 +548,27 @@ export default function MotionClonePage() {
     if (!avatarName && !productName) {
       return DEFAULT_IMAGE_PROMPT_TEMPLATE;
     }
-    const tokens = [];
-    if (avatarName) tokens.push(buildMentionToken({ type: "character", label: avatarName }));
-    if (productName) tokens.push(buildMentionToken({ type: "product", label: productName }));
-    return `Replace the subject in the reference video with ${tokens.join(" and ")}. Keep the same framing, lighting, background, and overall look.`;
+    const avatarToken = avatarName
+      ? buildMentionToken({ type: "character", label: avatarName })
+      : null;
+    const productToken = productName
+      ? buildMentionToken({ type: "product", label: productName })
+      : null;
+    return buildMotionClonePreviewPrompt({
+      hasAvatar: Boolean(avatarToken),
+      hasProduct: Boolean(productToken),
+      avatarLabel: avatarToken,
+      productLabel: productToken,
+    });
   };
+
+  const buildDefaultVideoPrompt = (
+    avatarName?: string | null,
+    productName?: string | null,
+  ) => buildMotionCloneVideoPrompt({
+    hasAvatar: Boolean(avatarName?.trim()),
+    hasProduct: Boolean(productName?.trim()),
+  });
 
   const isNewPendingProject = (project: MotionCloneProject) =>
     project.status === "pending" &&
@@ -578,7 +600,9 @@ export default function MotionClonePage() {
     const initialVideoPrompt = draft
       ? draft.videoPrompt
       : targetProject.video_prompt ||
-        (isNewPendingProject(targetProject) ? DEFAULT_VIDEO_PROMPT : "");
+        (isNewPendingProject(targetProject)
+          ? buildDefaultVideoPrompt(avatarName, productName)
+          : "");
 
     setEditPhotoPrompt(initialPhotoPrompt);
     setEditVideoPrompt(initialVideoPrompt);

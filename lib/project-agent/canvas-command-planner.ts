@@ -100,6 +100,81 @@ const includesNegatedPhrase = (text: string, phrase: string) => (
   new RegExp(`\\b(?:do not|don't|dont|avoid|without|keep|no)\\b[\\s\\S]{0,48}${phrase.replace(/\s+/g, '\\s+')}`, 'i').test(text)
 );
 
+const CANVAS_BUILD_VERBS = [
+  ' add ',
+  ' build ',
+  ' create ',
+  ' place ',
+  ' connect ',
+  ' wire ',
+  ' link ',
+  ' format ',
+  ' organize ',
+  ' arrange ',
+  ' clean up ',
+  ' tidy ',
+  ' select ',
+  ' pick ',
+  ' choose ',
+  ' open ',
+  ' inspect ',
+  ' show ',
+  ' update ',
+  ' edit ',
+  ' refine ',
+];
+
+const LAYOUT_COMMAND_PHRASES = [
+  ' format canvas',
+  ' format the canvas',
+  ' tidy canvas',
+  ' tidy the canvas',
+  ' organize canvas',
+  ' organize the canvas',
+  ' reorganize the canvas',
+  ' layout canvas',
+  ' arrange canvas',
+  ' arrange the canvas',
+  ' clean up canvas',
+  ' clean up the canvas',
+  ' clean up the layout',
+  ' tidy the layout',
+  ' organize the layout',
+  ' format the layout',
+  ' refine the current canvas',
+];
+
+const hasFeatureNodeOnCanvas = (canvas: ProjectAgentCanvasState) => (
+  canvas.nodes.some((node) => (
+    node.type === 'avatar_ads' ||
+    node.type === 'motion_clone' ||
+    node.type === 'video_clone'
+  ))
+);
+
+const isExecutionIntentCommand = (rawText: string, canvas: ProjectAgentCanvasState) => {
+  const normalized = ` ${rawText.trim().toLowerCase()} `;
+  if (!normalized.trim()) return false;
+  if (CANVAS_BUILD_VERBS.some((verb) => normalized.includes(verb))) return false;
+
+  const explicitExecution = (
+    /\b(go ahead|continue|proceed)\b/.test(normalized) ||
+    /\b(start|run)\b/.test(normalized) ||
+    (
+      /\bgenerate\b/.test(normalized) &&
+      !/\bgenerate\b[\s\w-]{0,24}\b(workflow|node|canvas)\b/.test(normalized) &&
+      (
+        hasFeatureNodeOnCanvas(canvas) ||
+        /\b(it|this|that|now|video|preview|cover|final video)\b/.test(normalized) ||
+        [' generate ', ' generate it '].includes(normalized)
+      )
+    )
+  );
+
+  if (!explicitExecution) return false;
+  return hasFeatureNodeOnCanvas(canvas) || !includesAny(normalized, [' clone a video ', ' set up video clone ']);
+};
+
 const VIDEO_CONTEXT_PHRASES = ['same video', 'same reference video', 'same video context', 'using the same video', 'with the same video', 'with that same video', 'that same video', 'this video', 'that video'];
 const PRODUCT_CONTEXT_PHRASES = ['same product', 'the same product', 'with the same product', 'keep the same product', 'this product', 'that product'];
 const AVATAR_CONTEXT_PHRASES = ['same avatar', 'the same avatar', 'same person', 'the same person', 'this avatar', 'that avatar', 'this person', 'that person'];
@@ -108,6 +183,7 @@ const getFeatureIntent = (text: string): ProjectAgentFeatureNodeType | null => {
   if (includesAny(text, ['motion clone']) && !includesNegatedPhrase(text, 'motion clone')) return 'motion_clone';
   if (includesAny(text, ['avatar ads', 'avatar ad', 'character ads', 'character ad']) && !includesNegatedPhrase(text, 'avatar ads')) return 'avatar_ads';
   if (includesAny(text, ['video clone', 'ugc clone', 'clone node', 'clone workflow', 'clone flow']) && !includesNegatedPhrase(text, 'video clone')) return 'video_clone';
+  if (/\bclone(?:d|s|ing)?\b/.test(text) && !includesNegatedPhrase(text, 'clone')) return 'video_clone';
   return null;
 };
 
@@ -126,6 +202,15 @@ export const planProjectAgentCanvasCommand = (
   const text = ` ${rawText.trim().toLowerCase()} `;
   if (!text.trim()) return null;
 
+  if (isExecutionIntentCommand(rawText, canvas)) {
+    return {
+      type: 'inspect_only',
+      reply: hasFeatureNodeOnCanvas(canvas)
+        ? 'I can build and arrange the canvas here, but I cannot start workflows from chat. Click Start on the feature node you want to run.'
+        : 'I can build and arrange the canvas here, but I cannot start workflows from chat. Add the feature node to the canvas first, then click Start on it when you are ready.',
+    };
+  }
+
   if (includesAny(text, [' what is on the canvas', ' inspect canvas', ' show canvas state', ' summarize canvas'])) {
     const summary = summarizeProjectAgentCanvas(canvas);
     return {
@@ -141,8 +226,18 @@ export const planProjectAgentCanvasCommand = (
     };
   }
 
-  if (includesAny(text, [' format canvas', ' format the canvas', ' tidy canvas', ' organize canvas', ' layout canvas', ' arrange canvas', ' clean up canvas', ' clean up the canvas', ' clean up and format the canvas'])) {
+  if (includesAny(text, LAYOUT_COMMAND_PHRASES)) {
     return buildSafeEditPlan('I reorganized the canvas layout.', [{ type: 'format_layout' }]);
+  }
+
+  if (
+    /\bdo not remove the product\b/i.test(text) ||
+    /\bdo not switch this (?:into|to) avatar ads\b/i.test(text)
+  ) {
+    return {
+      type: 'inspect_only',
+      reply: 'I kept the current workflow unchanged.',
+    };
   }
 
   if (includesAny(text, [' clear canvas', ' reset canvas', ' remove everything'])) {
