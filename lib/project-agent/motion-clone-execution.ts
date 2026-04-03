@@ -1,5 +1,9 @@
 import { analysisToLegacyFlatShots } from '@/lib/video-analysis-schema';
 import { buildTypedMentionToken } from '@/lib/prompt-mention-tokens';
+import {
+  buildMotionClonePreviewPrompt,
+  buildMotionCloneVideoPrompt,
+} from '@/lib/motion-clone-workflow';
 
 export type ProjectAgentMotionCloneSelection = {
   id: string;
@@ -209,23 +213,20 @@ export const buildMotionClonePromptDrafts = (options?: {
   const productName = options?.productName?.trim() || '';
   const avatarToken = avatarName ? buildTypedMentionToken({ type: 'character', label: avatarName }) : '';
   const productToken = productName ? buildTypedMentionToken({ type: 'product', label: productName }) : '';
-  const imageSwapInstructions = [
-    'Use image 1 as the base frame.',
-    avatarToken ? `Replace the on-screen person with ${avatarToken} from image 2.` : '',
-    productToken ? `Replace every visible product or bottle with ${productToken} from image 3.` : '',
-    'Keep the same pose, hand placement, framing, lighting, background, and camera perspective.',
-    'Do not keep the original person or original product.'
-  ].filter(Boolean).join(' ');
-
-  const videoSwapInstructions = [
-    'Use the swapped preview image as the appearance guide.',
+  const imagePrompt = buildMotionClonePreviewPrompt({
+    hasAvatar: Boolean(avatarToken),
+    hasProduct: Boolean(productToken),
+    avatarLabel: avatarToken || null,
+    productLabel: productToken || null,
+  });
+  const videoPrompt = [
+    buildMotionCloneVideoPrompt({
+      hasAvatar: Boolean(avatarToken),
+      hasProduct: Boolean(productToken),
+    }),
     avatarToken ? `The on-screen person should be ${avatarToken}.` : '',
     productToken ? `Every visible product or bottle should be ${productToken}.` : '',
-    'Do not change the background, lighting, framing, or scene composition.'
   ].filter(Boolean).join(' ');
-
-  const imagePrompt = imageSwapInstructions;
-  const videoPrompt = videoSwapInstructions;
 
   return {
     photoPrompt: imagePrompt,

@@ -1654,7 +1654,7 @@ export default function ProjectAgentPage() {
   }, [historyItems, historyQuery]);
 
   const awaitingAssistantTurn = isStreaming;
-  const chatInputPlaceholder = 'Tell the agent what to build next...';
+  const chatInputPlaceholder = 'Describe what to add, place, connect, or format on the canvas...';
 
   const scrollChatToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const container = chatScrollContainerRef.current;

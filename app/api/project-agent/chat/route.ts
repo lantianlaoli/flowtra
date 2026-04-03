@@ -572,10 +572,10 @@ const buildWorkflowFallbackReply = async (input: {
       'Never say you are building scene assignments or preparing drafts unless draftStatus is "generating" or "ready".',
       'If only avatars are selected and the user asks to continue, keep going, go ahead, or show the draft, do not ask for a product. Avatar-only replacement can continue as-is.',
       'When replacements are confirmed and draft/scene workspace is available, tell the user exactly what to do next:',
-      'review/edit scene prompts on the left, then say "start frame generation", then after frame review say "start video generation".',
-      'If generation is already running, summarize progress and the next valid command.',
-      `If scene videos are generating or partially ready, explicitly tell the user that once all scene videos are ready, the next chat command is "${MERGE_CONFIRMATION_TOKEN}" to create the final video.`,
-      `If all scene videos are ready, explicitly tell the user to reply "${MERGE_CONFIRMATION_TOKEN}" so you can create the final video.`,
+      'review/edit scene prompts on the left, then click the relevant feature node\'s "Start" button on the canvas when they are ready to run it.',
+      'If generation is already running, summarize progress and remind the user that execution was started from the canvas node.',
+      'If scene videos are generating or partially ready, do not instruct any chat command to create the final video.',
+      'If all scene videos are ready, tell the user to use the canvas node controls or My Ads, not chat commands, for any next execution step.',
       `If the final video is already created or being created, always add this guidance: ${getNextCloneCanonicalGuidance()}`
     ].join(' '),
     prompt: JSON.stringify({
@@ -947,7 +947,7 @@ Identity and brand voice (strict):
 Supported workflows:
 - avatar_ads (create spokesperson-style avatar videos)
 - competitor_ugc_replication (primary use case: clone viral videos with your product)
-- motion_clone (replace avatar and/or product inside an existing creator video and run the workflow end-to-end in chat)
+- motion_clone (replace avatar and/or product inside an existing creator video)
 
 Domain model (strict):
 - First-class user objects are ONLY: avatar and product.
@@ -971,7 +971,9 @@ Workflow rules:
 - Terminology rule (strict): never use "brand", "your brand", "branding", or "brand identity" in user-facing copy for this flow.
 - Terminology rule (strict): frame replacements as avatar/person and/or product based on user intent.
 - Terminology rule (strict): avoid technical words like "merge" in user-facing replies; use "create final video" or "finish video" instead.
-- UI guidance rule (strict): never tell the user to click "Export", "Rerun", or any removed clone controls. Clone execution commands must be chat-based.
+- UI guidance rule (strict): never tell the user to click "Export", "Rerun", or any removed clone controls.
+- Agent-mode boundary rule (strict): this chat may only build or edit the canvas. It must never start generation, confirm execution gates, create final videos, or advance workflow execution.
+- Agent-mode boundary rule (strict): if the user asks to start, continue, proceed, run, generate, confirm, or finish a workflow, reply briefly that chat cannot execute workflows and instruct them to click the feature node's "Start" button on the canvas.
 - Billing rule (strict): in project-agent clone flow, frame generation is free and must never be blocked for insufficient user credits. Video generation is the paid step; when video generation or scene-video regeneration starts, clearly state the exact credits required if the tool result includes that amount.
 - Tool result rule (strict): never claim an action has started, completed, or succeeded when the tool result says success=false.
 - Tool result rule (strict): if a clone video tool fails because credits are insufficient, explicitly say video generation did not start, then state the exact required credits and current credits from the tool result.
@@ -987,7 +989,7 @@ Workflow rules:
   - Step 3: if user says "you decide" or only gives product selling points, use draftAvatarAdsPrompts.
   - Step 4: if there is no product and no explicit script, ask one short follow-up about the topic or angle before drafting.
   - Step 5: once the draft workspace is ready, the right side only edits image prompt and script; Flowgen auto-splits the script into Kling 3.0 clips between 3 and 15 seconds each.
-  - Step 6: use chat commands only for start/restart actions.
+  - Step 6: when the draft is ready, tell the user to click the avatar ads node's "Start" button on the canvas to run it.
 - For avatar_ads, do not start cover generation until avatar is selected and a draft exists.
 - For avatar_ads, prefer these tools:
   - setCustomDialogue
@@ -999,12 +1001,10 @@ Workflow rules:
   - regenerateAvatarVideo
   - syncAvatarProjectStatus
 - For avatar_ads, never instruct the user to open the old inspector modal or leave the agent to continue.
-- For motion_clone, execute in chat with the existing motion clone APIs:
+- For motion_clone, use chat only to prepare the canvas:
   - Step 1: choose one eligible reference video.
   - Step 2: choose the replacement avatar first, then optionally choose a product.
-  - Step 3: once the current reference and replacement selections are confirmed in chat, create the project and move into the workspace using those existing selections.
-  - Step 4: start preview generation first when needed, or start video generation directly if a preview is already ready.
-  - Step 5: use syncMotionCloneStatus whenever you need the latest state.
+  - Step 3: once the current reference and replacement selections are represented on the canvas, tell the user to click the motion clone node's "Start" button.
 - For motion_clone, prefer these tools:
   - listMotionCloneReferenceVideos
   - selectMotionCloneReferenceVideo
@@ -1014,19 +1014,17 @@ Workflow rules:
   - startMotionClonePreviewGeneration
   - startMotionCloneVideoGeneration
   - syncMotionCloneStatus
-- For motion_clone, never say the user must leave the agent to continue.
+- For motion_clone, never imply that chat can execute the run.
 - For motion_clone, image generation is free and video generation is paid. If a video-generation tool returns insufficient credits, state that generation did not start and include required/current credits.
 - For motion_clone, selection priority rule (strict): if current state already contains a selected reference video and selected avatar/product from the left panel, treat those selections as authoritative user intent.
 - For motion_clone, continue rule (strict): if the current state already has the selected reference video plus a selected avatar, and the user says continue / set it up / create the project / use these selections, do not ask for names again. Create the motion clone project from the existing state and move into the workspace.
 - For motion_clone, never invent avatar option names. If you need to mention available avatars, either call listAvatars first or tell the user to choose from the avatars shown on the left.
 - For motion_clone, immediately after a reference video is selected, do not enumerate avatar names in prose. Just confirm the selected reference and direct the user to choose the replacement avatar from the left panel; product remains optional.
-- If the user picks competitor_ugc_replication, run the executable clone flow end-to-end in chat:
+- If the user picks competitor_ugc_replication, use chat only to build the clone canvas:
   - Step 1: choose reference video.
   - Step 2: collect replacement selections. Avatar and product are both optional individually, but at least one replacement is required before confirmation or draft generation.
   - Step 3: prepare and review the replacement draft workspace. If product replacement is selected, include deterministic scene assignments preview too.
-  - Step 4: wait for explicit replacement confirmation token "${REPLACEMENT_CONFIRMATION_TOKEN}".
-  - Step 5: after replacement confirmation, start frame generation and continue execution phases.
-  - Step 6: after all scene videos are ready, allow frame/video regeneration before creating the final video; final-video creation requires explicit chat confirmation token.
+  - Step 4: once the required replacement setup is represented on the canvas, tell the user to click the video clone node's "Start" button.
   - Keep replies progress-aware and concise at each phase.
 - For competitor_ugc_replication, the sequence must follow the existing manual flow:
   1) First ask user to select ONE reference video.
@@ -1054,30 +1052,25 @@ Workflow rules:
   21) Continue rule: if the user says done/selected/continue/next and state already has selections, do not ask for names again. Read back selected avatars/products + assignment summary, then proceed to draft generation.
   21.1) Only ask for an explicit avatar/product name when the user wants that replacement type and none is selected in current state.
   21.1.1) If only avatars are selected and the user says things like "yes, keep going", "go ahead", "continue", or asks to see the draft, treat that as valid avatar-only continuation and proceed without asking for a product.
-  21.2) Do not infer execution confirmation from vague wording like "continue" or "looks good". Execution confirmation is valid only when user sends "${REPLACEMENT_CONFIRMATION_TOKEN}" and confirmCloneSelections succeeds.
+  21.2) Do not infer execution confirmation from vague wording like "continue" or "looks good". In agent mode, chat cannot confirm execution; direct the user to click the relevant feature node's "Start" button instead.
   21.3) If there is no selected replacement avatar or product, explicitly say draft generation has not started yet and ask for at least one replacement next.
   22) Until selection confirmation is complete, do not call execution tools. Respond with concise guidance and expected next command.
   22.1) Never say product replacement is mandatory. Avatar-only or product-only replacement is allowed, but at least one replacement selection is required before draft generation can begin.
   22.2) Never say you are building scene assignments, preparing drafts, or moving to Step 3 unless cloneReplacementDraft.status is "generating" or "ready", or a relevant generation tool in this turn returned success=true.
   22.3) If the user has no products in Assets, explicitly tell them product replacement is optional and they can continue with avatar-only replacement or import a product if they want product replacement too.
   22.4) If only avatars are selected, summarize the selected avatars and treat that as a valid replacement set for draft preparation.
-  23) In confirmed state, guide the user to review/edit Scene and shot fields (subject, context/background, action, style, camera, composition, lighting, SFX, ambient noise, dialogue, timing), then tell them to send a chat command to start frame generation.
-  24) If cloneReplacementDraft.status is ready and cloneExecutionPhase is still idle, never tell the user to start video generation yet. At this stage, always guide them to start frame generation first.
-  25) Never instruct clicking any "confirm" control on the left panel. Replacement confirmation is chat-only via token "${REPLACEMENT_CONFIRMATION_TOKEN}". During clone execution phases, never instruct clicking removed buttons. Use command-style guidance.
-  26) If cloneReplacementDraft.status is ready and user asks to start generation, call startCloneGenerationFromDraft only after confirmation gate passes. If user asks to regenerate frames, call regenerateCloneFrames. If user asks to regenerate scene videos, call regenerateCloneVideos. If user asks to start video generation after frame review, call startCloneVideoGeneration.
-  25.1) For final-video requests in clone flow: first ask for confirmation token "${MERGE_CONFIRMATION_TOKEN}" and do not start final-video creation immediately. Only call mergeCloneVideos after the user sends the confirmation token.
-  26.1) If cloneExecutionPhase is "generating_videos", "reviewing_frames", or "awaiting_merge", always make the final step explicit: after all scene videos are ready, the user must send "${MERGE_CONFIRMATION_TOKEN}" in chat so you can create the final video.
-  26.2) If a single scene video is regenerated while others are already ready, explain that once the regenerated scene finishes and all scene videos look good, the next chat command is "${MERGE_CONFIRMATION_TOKEN}" to create the final video.
-  27) Download guidance rule: after final-video creation starts or when cloneExecutionPhase is "completed", explicitly tell the user to check "My Ads" to view/download the final video.
-  27.1) When final-video creation starts for a clone project, say it has started, ask the user to wait about 10-20 seconds, send them to "My Ads" for details/download, and add this exact guidance: "${getNextCloneCanonicalGuidance()}"
-  28) If user asks where to download the finished clone video, answer directly: "Please go to My Ads to view and download it." Then add: "${getNextCloneCanonicalGuidance()}"
+  23) In confirmed state, guide the user to review/edit Scene and shot fields (subject, context/background, action, style, camera, composition, lighting, SFX, ambient noise, dialogue, timing), then tell them to click the video clone node's "Start" button on the canvas when ready.
+  24) If cloneReplacementDraft.status is ready and cloneExecutionPhase is still idle, never tell the user to start video generation in chat. At this stage, direct them to click Start on the clone node.
+  25) Never instruct clicking any removed confirm/export/rerun control. In agent mode, the only execution trigger is the feature node's "Start" button on the canvas.
+  26) If the user asks to start generation, regenerate frames, regenerate scene videos, or create the final video from chat, do not execute it. Tell them chat cannot run that step and direct them to the feature node's "Start" button.
+  27) If user asks where to download the finished clone video, answer directly: "Please go to My Ads to view and download it."
   29) If matching is uncertain, present top likely candidates and ask a short clarification question; do not proceed to generation.
 - When user asks what workflows are available, always list ALL three:
   1) Avatar Ads
   2) Clone Viral Videos (Competitor UGC Replication)
   3) Motion Clone
 - Canvas editing workflow:
-  - Treat the right chat panel as the primary controller for the current canvas.
+  - Treat the right chat panel as a canvas-building assistant for the current canvas.
   - Use inspectCanvas before making non-trivial canvas edits when you need the latest node/edge context.
   - Use requestAssetSelection when the user wants an avatar, product, or video but has not specified which exact asset.
   - Use planCanvasEdit for safe direct canvas changes such as adding nodes, connecting nodes, updating text, updating feature config, formatting layout, and opening node details.
@@ -1718,6 +1711,61 @@ export async function POST(request: Request) {
     };
 
     const latestCanvas = sessionState.canvas ?? normalizeCanvasState(null);
+    const hasCanvasFeatureNode = latestCanvas.nodes.some((node) => (
+      node.type === 'avatar_ads' ||
+      node.type === 'motion_clone' ||
+      node.type === 'video_clone'
+    ));
+
+    const getBlockedExecutionReply = (rawText: string) => {
+      const normalized = ` ${rawText.trim().toLowerCase()} `;
+      if (!normalized.trim()) return null;
+
+      const buildVerbs = [
+        ' add ',
+        ' build ',
+        ' create ',
+        ' place ',
+        ' connect ',
+        ' wire ',
+        ' link ',
+        ' format ',
+        ' organize ',
+        ' arrange ',
+        ' clean up ',
+        ' tidy ',
+        ' select ',
+        ' pick ',
+        ' choose ',
+        ' open ',
+        ' inspect ',
+        ' show ',
+        ' update ',
+        ' edit ',
+        ' refine ',
+      ];
+      if (buildVerbs.some((verb) => normalized.includes(verb))) return null;
+
+      const isExecutionIntent = (
+        /\b(go ahead|continue|proceed)\b/.test(normalized) ||
+        /\b(start|run)\b/.test(normalized) ||
+        (
+          /\bgenerate\b/.test(normalized) &&
+          !/\bgenerate\b[\s\w-]{0,24}\b(workflow|node|canvas)\b/.test(normalized) &&
+          (
+            hasCanvasFeatureNode ||
+            /\b(it|this|that|now|video|preview|cover|final video)\b/.test(normalized) ||
+            [' generate ', ' generate it '].includes(normalized)
+          )
+        )
+      );
+
+      if (!isExecutionIntent) return null;
+
+      return hasCanvasFeatureNode
+        ? 'I can build and arrange the canvas here, but I cannot start workflows from chat. Click Start on the feature node you want to run.'
+        : 'I can build and arrange the canvas here, but I cannot start workflows from chat. Add the feature node to the canvas first, then click Start on it when you are ready.';
+    };
 
     const includesNegatedWorkflowPhrase = (text: string, phrase: string) => (
       new RegExp(`\\b(?:do not|don't|dont|avoid|without|keep|no)\\b[\\s\\S]{0,48}${phrase.replace(/\s+/g, '\\s+')}`, 'i').test(text)
@@ -1745,6 +1793,7 @@ export async function POST(request: Request) {
         ) &&
         !includesNegatedWorkflowPhrase(normalized, 'video clone')
       ) return 'video_clone';
+      if (/\bclone(?:d|s|ing)?\b/.test(normalized) && !includesNegatedWorkflowPhrase(normalized, 'clone')) return 'video_clone';
       return null;
     };
 
@@ -2439,6 +2488,11 @@ export async function POST(request: Request) {
       );
     }
 
+    const blockedExecutionReply = getBlockedExecutionReply(messageText(normalizedIncomingMessage));
+    if (blockedExecutionReply) {
+      return sendDirectAssistantReply(blockedExecutionReply);
+    }
+
     const directNamedCanvasWorkflowPlan = await resolveNamedCanvasWorkflowPlan();
     if (directNamedCanvasWorkflowPlan) {
       return sendDirectCanvasActionReply({
@@ -2973,7 +3027,7 @@ export async function POST(request: Request) {
       if (!isCloneSelectionConfirmed(sessionState, latestUserTurnText)) {
         return {
           ok: false as const,
-          message: `Replacement plan is not confirmed yet. Review scene assignments, then reply "${REPLACEMENT_CONFIRMATION_TOKEN}".`
+          message: 'Replacement plan is not confirmed yet. Review the scene assignments on the canvas, then click Start on the video clone node when you are ready.'
         };
       }
       return { ok: true as const };
@@ -4153,7 +4207,7 @@ export async function POST(request: Request) {
             if (!isReplacementConfirmationCommand(confirmationText)) {
               return {
                 success: false,
-                message: `Please confirm replacements by replying "${REPLACEMENT_CONFIRMATION_TOKEN}".`
+                message: 'Please review the replacements on the canvas, then click Start on the video clone node when you are ready.'
               };
             }
             const selectedAvatars = normalizeCloneSelections(
@@ -5910,7 +5964,7 @@ export async function POST(request: Request) {
               });
               return {
                 success: false,
-                message: `If all scene videos look good, reply "${MERGE_CONFIRMATION_TOKEN}" and I will create the final video for you.`
+                message: 'If all scene videos look good, use the canvas node controls or My Ads to finish the video. Chat cannot trigger that step.'
               };
             }
 
