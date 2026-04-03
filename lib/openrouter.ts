@@ -146,11 +146,9 @@ export function getOpenRouterClient(): OpenRouter {
 
 function isResponseValidationFailure(error: unknown): error is Error & { rawResponse?: Response } {
   if (!(error instanceof Error)) return false;
-  // Match both ResponseValidationError and SDKValidationError from @openrouter/sdk
   if (error.name === 'ResponseValidationError' || error.name === 'SDKValidationError') return true;
-  // Safely access message — it may be a getter-only property on some SDK error subclasses
   let msg = '';
-  try { msg = error.message; } catch { /* ignore getter errors */ }
+  try { msg = error.message; } catch {}
   return msg.includes('Response validation failed') || msg.includes('validation');
 }
 
@@ -300,9 +298,7 @@ function extractJsonObjectFromText(text: string): string | null {
   try {
     JSON.parse(candidate);
     return candidate;
-  } catch {
-    // Fall through to best-effort extraction.
-  }
+  } catch {}
 
   const firstBrace = candidate.indexOf('{');
   const lastBrace = candidate.lastIndexOf('}');

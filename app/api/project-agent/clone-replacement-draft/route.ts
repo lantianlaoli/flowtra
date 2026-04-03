@@ -28,6 +28,7 @@ import { normalizeProjectAgentKlingShots } from '@/lib/project-agent/kling-shot-
 import { KLING_MAX_MULTI_SHOT_ITEMS } from '@/lib/kling-shot-limits';
 import { injectMentionsInline, stripMentionTokens } from '@/lib/project-agent/clone-prompt-mentions';
 import { buildTypedMentionToken } from '@/lib/prompt-mention-tokens';
+import { sendAIGatewayChat } from '@/lib/ai-gateway';
 
 type ShotPrompt = ProjectAgentCloneShot;
 
@@ -277,7 +278,7 @@ const generateReplacementDraft = async (input: {
   avatarName?: string;
   productName?: string;
 }) => {
-  const modelName = process.env.OPENROUTER_MODEL || 'google/gemini-3-pro-preview';
+  const modelName = process.env.AI_GATEWAY_MODEL || 'google/gemini-3-pro-preview';
 
   const avatarToken = input.avatarName ? buildTypedMentionToken({ type: 'character', label: input.avatarName }) : null;
   const productToken = input.productName ? buildTypedMentionToken({ type: 'product', label: input.productName }) : null;
@@ -288,13 +289,7 @@ const generateReplacementDraft = async (input: {
     productName: input.productName
   };
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
+  const payload = await sendAIGatewayChat({
       model: modelName,
       response_format: {
         type: 'json_schema',
@@ -416,17 +411,10 @@ const generateReplacementDraft = async (input: {
           })
         }
       ]
-    })
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Draft generation failed: ${response.status} ${errorText}`);
-  }
-
-  const payload = await response.json() as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
+    }, {
+      maxRetries: 3,
+      timeoutMs: 60000
+    });
 
   const content = payload.choices?.[0]?.message?.content;
   if (!content || typeof content !== 'string') {
@@ -598,8 +586,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!process.env.OPENROUTER_API_KEY) {
-      return NextResponse.json({ error: 'OPENROUTER_API_KEY is not configured.' }, { status: 500 });
+    if (!process.env.AI_GATEWAY_API_KEY && !process.env.VERCEL_OIDC_TOKEN) {
+      return NextResponse.json({ error: 'AI_GATEWAY_API_KEY is not configured.' }, { status: 500 });
     }
 
     const body = await request.json() as {

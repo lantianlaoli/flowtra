@@ -43,7 +43,7 @@ export default function PrivacyPage() {
               We do not sell or rent your personal information to third parties. We may share your information in the following circumstances:
             </p>
             <ul className="list-disc list-inside text-gray-600 mb-4 space-y-2">
-              <li>With AI service providers (OpenRouter, Kie.ai) to process your content</li>
+              <li>With AI service providers (Vercel AI Gateway, Kie.ai) to process your content</li>
               <li>With payment processors to handle transactions</li>
               <li>When required by law or to protect our rights and safety</li>
               <li>In connection with a business transfer or acquisition</li>

@@ -245,7 +245,7 @@ opencode mcp logout github
 - **Authentication**: Clerk (user_id drives all data access)
 - **Database**: Supabase PostgreSQL (18 tables)
 - **Storage**: Supabase Storage (organized by workflow/user)
-- **AI Services**: KIE API (image/video), OpenRouter (Gemini), fal.ai (merge)
+- **AI Services**: KIE API (image/video), Vercel AI Gateway (LLM routing), fal.ai (merge)
 - **Realtime**: Supabase Realtime (PostgreSQL pub/sub)
 - **Package Manager**: pnpm (strict enforcement)
 
@@ -652,9 +652,10 @@ test("clone: 16s video generation", async ({ page }) => {
 ### AI Services
 
 - `KIE_API_KEY` - KIE API key for image/video generation
-- `OPENROUTER_API_KEY` - OpenRouter API key for Gemini
-- `OPENROUTER_ANALYSIS_VIDEO_MODEL` - Required model for creator video import analysis via OpenRouter `video_url` mode
-- `OPENROUTER_ANALYSIS_VIDEO_IGNORE_PROVIDERS` - Optional comma-separated provider slugs to skip for creator video analysis routing
+- `AI_GATEWAY_API_KEY` - Vercel AI Gateway API key for local development
+- `AI_GATEWAY_MODEL` - Default Vercel AI Gateway model for chat, prompt, and general image-analysis tasks
+- `OPENROUTER_API_KEY` - OpenRouter API key for creator video analysis only
+- `OPENROUTER_MODEL` - OpenRouter model for creator video analysis only
 - `FAL_KEY` - fal.ai API key for video merging
 
 ### Authentication

@@ -122,6 +122,34 @@ const compactParts = (parts: Array<string | null | undefined>) =>
 
 const joinAudioParts = (parts: Array<string | null | undefined>) => compactParts(parts).join(' | ');
 
+const synthesizeOpeningDescription = (parts: {
+  explicit?: string;
+  subject?: string;
+  action?: string;
+  environment?: string;
+  style?: string;
+  camera?: string;
+  composition?: string;
+  ambiance?: string;
+}): string => {
+  const explicit = toStringValue(parts.explicit);
+  if (explicit) {
+    return explicit;
+  }
+
+  const segments = compactParts([
+    parts.subject ? `Subject: ${parts.subject}.` : '',
+    parts.action ? `Action: ${parts.action}.` : '',
+    parts.environment ? `Environment: ${parts.environment}.` : '',
+    parts.style ? `Style: ${parts.style}.` : '',
+    parts.camera ? `Camera: ${parts.camera}.` : '',
+    parts.composition ? `Composition: ${parts.composition}.` : '',
+    parts.ambiance ? `Ambiance: ${parts.ambiance}.` : '',
+  ]);
+
+  return segments.join(' ');
+};
+
 const getShotTimingRecord = (shotRecord: JsonRecord): JsonRecord => {
   const timing = toRecord(shotRecord.timing);
   if (timing) {
@@ -244,6 +272,17 @@ const legacyShotToV2 = (shot: unknown, index: number): CanonicalShotV2 => {
   const ambiance = firstNonEmptyString(record.ambiance_colour_lighting, record.ambiance_color_lighting, record.lighting, environment, fallbackDescription);
   const ambientAudio = firstNonEmptyString(record.ambient, audioBed, explicitDialogue ? 'Speech-dominant production audio.' : '');
 
+  const openingDescription = synthesizeOpeningDescription({
+    explicit: toStringValue(record.first_frame_description) || fallbackDescription,
+    subject: toStringValue(record.subject ?? record.main_subject ?? record.hero_subject),
+    action,
+    environment,
+    style,
+    camera,
+    composition,
+    ambiance,
+  });
+
   return {
     shot_id: clampDuration(toNumberValue(record.shot_id ?? record.id, index + 1), index + 1),
     timing: {
@@ -252,10 +291,10 @@ const legacyShotToV2 = (shot: unknown, index: number): CanonicalShotV2 => {
       duration_seconds: clampDuration(durationRaw),
     },
     opening_frame: {
-      description: firstNonEmptyString(record.first_frame_description, fallbackDescription, action, environment),
+      description: openingDescription,
     },
     visual: {
-      subject: firstNonEmptyString(record.subject, record.main_subject, record.hero_subject, fallbackDescription),
+      subject: firstNonEmptyString(record.subject, record.main_subject, record.hero_subject, fallbackDescription, openingDescription),
       action,
       environment,
       style,
@@ -303,7 +342,16 @@ export const normalizeAnalysisToV2 = (
         const ambiance = firstNonEmptyString(visual.ambiance, shotRecord.ambiance, shotRecord.lighting, environment, openingFrame.description);
         const focusLensEffects = firstNonEmptyString(visual.focus_lens_effects, shotRecord.focus_lens_effects, shotRecord.lens_effects);
         const audioAmbient = firstNonEmptyString(audio.ambient, shotRecord.audio_summary, audio.sfx, action ? `Production audio around: ${action}` : '');
-        const openingDescription = firstNonEmptyString(openingFrame.description, action, environment, composition);
+        const openingDescription = synthesizeOpeningDescription({
+          explicit: toStringValue(openingFrame.description),
+          subject: toStringValue(visual.subject),
+          action,
+          environment,
+          style,
+          camera,
+          composition,
+          ambiance,
+        });
         const subject = firstNonEmptyString(visual.subject, shotRecord.subject, openingDescription);
 
         return {

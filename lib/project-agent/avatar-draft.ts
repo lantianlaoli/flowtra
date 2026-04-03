@@ -1,4 +1,4 @@
-import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
+import { extractAIGatewayTextContent, sendAIGatewayChat } from '@/lib/ai-gateway';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 import {
   buildAvatarGeneratedPrompts,
@@ -98,8 +98,8 @@ export async function draftProjectAgentAvatarPrompts(input: {
     });
   });
 
-  const response = await sendOpenRouterChat({
-    model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+  const response = await sendAIGatewayChat({
+    model: process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash',
     temperature: 0.4,
     max_tokens: 2200,
     response_format: {
@@ -135,7 +135,7 @@ export async function draftProjectAgentAvatarPrompts(input: {
     xTitle: 'Flowtra'
   });
 
-  const text = extractOpenRouterTextContent(response.choices?.[0]?.message?.content) || '';
+  const text = extractAIGatewayTextContent(response.choices?.[0]?.message?.content) || '';
   const parsed = parseJsonObject(text);
 
   const scenesRaw = Array.isArray(parsed?.scenes) ? parsed.scenes as Array<Record<string, unknown>> : [];

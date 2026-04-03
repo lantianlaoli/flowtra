@@ -15,7 +15,7 @@ import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { estimateDialogueDuration, generateDialogueLengthGuidance, validateSceneDurations } from '@/lib/dialogue-duration-estimator';
-import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
+import { extractAIGatewayTextContent, sendAIGatewayChat } from '@/lib/ai-gateway';
 import { MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
 import {
   buildAvatarGeneratedPrompts,
@@ -227,9 +227,9 @@ Provide a concise product name (max 80 characters).`;
     }
   ];
 
-  const requestedModel = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
+  const requestedModel = process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash';
 
-  const data = await sendOpenRouterChat({
+  const data = await sendAIGatewayChat({
     model: requestedModel,
     messages,
     max_tokens: 200,
@@ -241,7 +241,7 @@ Provide a concise product name (max 80 characters).`;
     xTitle: 'Flowtra'
   });
 
-  return extractOpenRouterTextContent(data.choices?.[0]?.message?.content) || 'Product name unavailable';
+  return extractAIGatewayTextContent(data.choices?.[0]?.message?.content) || 'Product name unavailable';
 }
 
 // Generate prompts without retry logic
@@ -536,8 +536,8 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
     }
   ];
 
-  const data = await sendOpenRouterChat({
-    model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+  const data = await sendAIGatewayChat({
+    model: process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash',
     messages,
     response_format: { type: 'json_object' },
     max_tokens: 2000,
@@ -548,7 +548,7 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
     httpReferer: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
     xTitle: 'Flowtra'
   });
-  const content = extractOpenRouterTextContent(data.choices?.[0]?.message?.content);
+  const content = extractAIGatewayTextContent(data.choices?.[0]?.message?.content);
 
   try {
     const parsed: {

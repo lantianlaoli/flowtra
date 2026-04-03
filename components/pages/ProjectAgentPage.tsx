@@ -18,6 +18,10 @@ import InsertToolbar from '@/components/project-agent/canvas/InsertToolbar';
 import NodeDetailsDialog from '@/components/project-agent/canvas/NodeDetailsDialog';
 import { useCredits } from '@/contexts/CreditsContext';
 import { toProjectAgentVideoAssets } from '@/lib/project-agent/canvas-assets';
+import {
+  getProjectAgentVisibleMessageText,
+  parseProjectAgentMessageParts,
+} from '@/lib/project-agent/message-parts';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import {
   DEFAULT_PROJECT_AGENT_CANVAS_STATE,
@@ -121,20 +125,13 @@ const writeHistoryIds = (ids: string[]) => {
   window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(ids.slice(0, 20)));
 };
 
-const renderUIMessageText = (message: UIMessage) => {
-  if (!Array.isArray(message.parts)) return '';
-  return message.parts
-    .map((part) => ('text' in part && typeof part.text === 'string' ? part.text : ''))
-    .join('');
-};
-
 export const hasVisibleAssistantReplyAfterLatestUserTurn = (messages: UIMessage[]) => {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (message.role === 'assistant' && renderUIMessageText(message).trim().length > 0) {
+    if (message.role === 'assistant' && getProjectAgentVisibleMessageText(message).trim().length > 0) {
       return true;
     }
-    if (message.role === 'user' && renderUIMessageText(message).trim().length > 0) {
+    if (message.role === 'user' && getProjectAgentVisibleMessageText(message).trim().length > 0) {
       return false;
     }
   }
@@ -142,9 +139,9 @@ export const hasVisibleAssistantReplyAfterLatestUserTurn = (messages: UIMessage[
 };
 
 const buildHistoryTitle = (messages: UIMessage[]) => {
-  const firstUserMessage = messages.find((message) => message.role === 'user' && renderUIMessageText(message).trim().length > 0);
+  const firstUserMessage = messages.find((message) => message.role === 'user' && getProjectAgentVisibleMessageText(message).trim().length > 0);
   if (!firstUserMessage) return 'New canvas session';
-  return renderUIMessageText(firstUserMessage).trim().slice(0, 80);
+  return getProjectAgentVisibleMessageText(firstUserMessage).trim().slice(0, 80);
 };
 
 const toAvatarAssets = (payload: Record<string, unknown>) => {
@@ -1638,7 +1635,10 @@ export default function ProjectAgentPage() {
   }, [selectionStartPoint]);
 
   const displayMessages = useMemo(
-    () => messages.filter((message) => renderUIMessageText(message).trim().length > 0),
+    () => messages.filter((message) => {
+      const parsed = parseProjectAgentMessageParts(message);
+      return parsed.visibleText.trim().length > 0 || parsed.reasoningText.trim().length > 0;
+    }),
     [messages],
   );
 
@@ -1886,27 +1886,44 @@ export default function ProjectAgentPage() {
               <div ref={chatScrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
                 <div className="space-y-4">
                   {displayMessages.map((message) => {
-                    const messageText = renderUIMessageText(message).trim();
+                    const { visibleText, reasoningText } = parseProjectAgentMessageParts(message);
+                    const messageText = visibleText.trim();
+                    const reasoning = reasoningText.trim();
                     const isUserMessage = message.role === 'user';
+                    const shouldRenderBubble = isUserMessage || messageText.length > 0;
 
                     return (
                       <div key={message.id} className={isUserMessage ? 'ml-auto w-fit max-w-[94%]' : 'max-w-[94%]'}>
-                        <div
-                          className={`project-agent-chat-bubble rounded-[12px] px-4 py-3 text-sm ${
-                            isUserMessage
-                              ? 'project-agent-chat-bubble--user bg-[#0f0f0f] text-white leading-7'
-                              : 'project-agent-chat-bubble--assistant bg-[#efefed] text-[#1f1f1e] leading-6'
-                          }`}
-                        >
-                          {isUserMessage ? (
-                            messageText
-                          ) : (
-                            <MarkdownRenderer
-                              content={messageText}
-                              className="project-agent-markdown [&_h1]:!mt-0 [&_h2]:!mt-0 [&_h3]:!mt-0 [&_p:last-child]:!mb-0 [&_p]:!mb-3 [&_p]:!text-[#1f1f1e] [&_li]:!text-[#1f1f1e] [&_ol]:!mb-3 [&_ol]:!text-[#1f1f1e] [&_strong]:!text-[#111111] [&_ul]:!mb-3 [&_ul]:!text-[#1f1f1e]"
-                            />
-                          )}
-                        </div>
+                        {!isUserMessage && reasoning ? (
+                          <details className="mb-2 rounded-[12px] border border-[#d9d9d7] bg-[#f7f7f5] px-3 py-2 text-[#6c6c66]">
+                            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-medium marker:hidden">
+                              <span>Analyzed your request</span>
+                              <span className="text-[11px] text-[#9b9b98]">Show</span>
+                            </summary>
+                            <div className="mt-2 border-l border-[#d4d4d1] pl-3 text-sm italic leading-6 text-[#7a7a75]">
+                              {reasoning}
+                            </div>
+                          </details>
+                        ) : null}
+
+                        {shouldRenderBubble ? (
+                          <div
+                            className={`project-agent-chat-bubble rounded-[12px] px-4 py-3 text-sm ${
+                              isUserMessage
+                                ? 'project-agent-chat-bubble--user bg-[#0f0f0f] text-white leading-7'
+                                : 'project-agent-chat-bubble--assistant bg-[#efefed] text-[#1f1f1e] leading-6'
+                            }`}
+                          >
+                            {isUserMessage ? (
+                              messageText
+                            ) : (
+                              <MarkdownRenderer
+                                content={messageText}
+                                className="project-agent-markdown [&_h1]:!mt-0 [&_h2]:!mt-0 [&_h3]:!mt-0 [&_p:last-child]:!mb-0 [&_p]:!mb-3 [&_p]:!text-[#1f1f1e] [&_li]:!text-[#1f1f1e] [&_ol]:!mb-3 [&_ol]:!text-[#1f1f1e] [&_strong]:!text-[#111111] [&_ul]:!mb-3 [&_ul]:!text-[#1f1f1e]"
+                              />
+                            )}
+                          </div>
+                        ) : null}
                       </div>
                     );
                   })}

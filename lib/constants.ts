@@ -279,8 +279,8 @@ export const KIE_CREDIT_THRESHOLD = (() => {
 
 // ===== VERSION 2.0: UNIFIED GENERATION-TIME BILLING =====
 // Complete workflow cost breakdown:
-// - Image description: ~1-2 credits (OpenRouter API) - FREE for users
-// - Prompt generation: ~1-2 credits (OpenRouter API) - FREE for users
+// - Image description: ~1-2 credits (AI Gateway model call) - FREE for users
+// - Prompt generation: ~1-2 credits (AI Gateway model call) - FREE for users
 // - Cover generation: 0 credits (Nano Banana 2) - FREE
 // - Video generation: 20 credits (Veo3.1 fast, per 8s segment) or 150 credits (Veo3.1, per 8s segment)
 // - Video download: FREE (no credits charged)

@@ -1,6 +1,6 @@
 import { getSupabaseAdmin, type CompetitorUgcReplicationSegment, type SingleVideoProject } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
+import { extractAIGatewayTextContent, sendAIGatewayChat } from '@/lib/ai-gateway';
 import {
   GENERATION_COSTS,
   NON_AGENT_IMAGE_MODEL,
@@ -1876,7 +1876,7 @@ async function startAIWorkflow(
         console.log('✅ Using existing competitor analysis from database (cached)');
         console.log(`   - Competitor: ${competitorAdContext.competitor_name}`);
         console.log(`   - Language: ${competitorAdContext.language || 'not detected'}`);
-        console.log(`   - Skipping API call to OpenRouter (saving time & cost)`);
+        console.log('   - Skipping AI Gateway analysis call (saving time & cost)');
 
         competitorDescription = competitorAdContext.existing_analysis as Record<string, unknown>;
       } else {
@@ -2357,8 +2357,8 @@ export async function analyzeCompetitorAdWithLanguage(
     }
   };
 
-  const data = await sendOpenRouterChat({
-    model: options?.model || process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+  const data = await sendAIGatewayChat({
+    model: options?.model || process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash',
     response_format: responseFormat,
     messages: [
       {
@@ -2468,7 +2468,7 @@ EXAMPLE OUTPUT STRUCTURE:
 
   const apiResponse = data as { choices?: Array<{ message?: { content?: unknown } }> };
   const rawContent = apiResponse.choices?.[0]?.message?.content;
-  const normalizedContent = extractOpenRouterTextContent(rawContent);
+  const normalizedContent = extractAIGatewayTextContent(rawContent);
 
   if (!normalizedContent) {
     console.error('[analyzeCompetitorAdWithLanguage] Invalid API response structure:', data);
@@ -2699,7 +2699,7 @@ No other top-level keys or metadata.`;
 
   // Define JSON schema for Structured Outputs - IMPORTANT: This must return a SINGLE object
   const requestPayload = JSON.stringify({
-    model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+    model: process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash',
     response_format: responseFormat,
     messages: competitorDescription
       ? // === COMPETITOR REFERENCE MODE (Step 2) ===
@@ -2819,20 +2819,20 @@ ${strictSegmentFormat}`
     try {
       console.log(`[generateImageBasedPrompts] Attempt ${attempt}/${MAX_PROMPT_GENERATION_ATTEMPTS}`);
 
-      const data = await sendOpenRouterChat(JSON.parse(requestPayload) as Record<string, unknown>, {
+      const data = await sendAIGatewayChat(JSON.parse(requestPayload) as Record<string, unknown>, {
         maxRetries: 10,
         timeoutMs: 120000
       });
       const responseText = JSON.stringify(data);
-      console.log('✅ OpenRouter API response received:', {
+      console.log('✅ AI Gateway response received:', {
         responseLength: responseText.length,
         preview: responseText.substring(0, 200)
       });
 
       const apiResponse = data as { choices?: Array<{ message?: { content?: string } }> };
       if (!apiResponse.choices || !apiResponse.choices[0] || !apiResponse.choices[0].message || !apiResponse.choices[0].message.content) {
-        console.error('❌ OpenRouter response missing expected structure:', data);
-        throw new Error('OpenRouter response missing choices[0].message.content');
+        console.error('❌ AI Gateway response missing expected structure:', data);
+        throw new Error('AI Gateway response missing choices[0].message.content');
       }
 
       const content = apiResponse.choices[0].message.content;

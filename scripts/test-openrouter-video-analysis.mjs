@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-import { OpenRouter } from '@openrouter/sdk';
-
 /**
  * OpenRouter video_url analysis smoke test.
  *
@@ -10,19 +8,12 @@ import { OpenRouter } from '@openrouter/sdk';
  *
  * Required env:
  *   OPENROUTER_API_KEY
- *   OPENROUTER_ANALYSIS_VIDEO_MODEL
- *
- * Optional env:
- *   OPENROUTER_ANALYSIS_VIDEO_IGNORE_PROVIDERS="alibaba,deepinfra"
+ *   OPENROUTER_MODEL
  */
 
 const videoUrl = process.argv[2];
 const apiKey = process.env.OPENROUTER_API_KEY;
-const model = process.env.OPENROUTER_ANALYSIS_VIDEO_MODEL;
-const ignoreProviders = (process.env.OPENROUTER_ANALYSIS_VIDEO_IGNORE_PROVIDERS || '')
-  .split(',')
-  .map(v => v.trim())
-  .filter(Boolean);
+const model = process.env.OPENROUTER_MODEL;
 
 if (!videoUrl) {
   console.error('Missing video URL argument.');
@@ -36,7 +27,7 @@ if (!apiKey) {
 }
 
 if (!model) {
-  console.error('Missing OPENROUTER_ANALYSIS_VIDEO_MODEL.');
+  console.error('Missing OPENROUTER_MODEL.');
   process.exit(1);
 }
 
@@ -101,7 +92,6 @@ const responseFormat = {
 const body = {
   model,
   response_format: responseFormat,
-  ...(ignoreProviders.length > 0 ? { provider: { ignore: ignoreProviders } } : {}),
   messages: [
     {
       role: 'user',
@@ -120,8 +110,6 @@ const body = {
     }
   ]
 };
-
-const client = new OpenRouter({ apiKey });
 
 const summarize = (value, max = 600) => {
   const text = typeof value === 'string' ? value : JSON.stringify(value);
@@ -212,18 +200,16 @@ async function main() {
   console.log('[Test] Starting OpenRouter video analysis request');
   console.log('[Test] model:', model);
   console.log('[Test] videoUrl:', videoUrl);
-  if (ignoreProviders.length > 0) {
-    console.log('[Test] provider.ignore:', ignoreProviders.join(', '));
-  }
-
-  const json = await client.chat.send({
-    chatGenerationParams: body
-  }, {
-    timeoutMs: 90000,
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
     headers: {
+      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json'
-    }
+    },
+    body: JSON.stringify(body),
   });
+
+  const json = await response.json();
 
   console.log('[Test] response-object:', json.object);
   console.log('[Test] model:', json.model);

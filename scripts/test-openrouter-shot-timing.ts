@@ -11,10 +11,6 @@ import { __test__ as creatorVideoAnalysisTestUtils } from '../lib/creator-video-
 const videoUrl = process.argv[2]?.trim();
 const sourceName = process.argv[3]?.trim() || 'OpenRouter timing test';
 const model = process.env.OPENROUTER_MODEL;
-const ignoreProviders = (process.env.OPENROUTER_MODEL_IGNORE_PROVIDERS || '')
-  .split(',')
-  .map(value => value.trim())
-  .filter(Boolean);
 
 if (!videoUrl) {
   console.error('Missing video URL argument.');
@@ -163,14 +159,10 @@ const summarizeTimingHealth = (analysis: Record<string, unknown>) => {
 async function main() {
   console.log('[OpenRouter Timing Test] model:', model);
   console.log('[OpenRouter Timing Test] videoUrl:', videoUrl);
-  if (ignoreProviders.length > 0) {
-    console.log('[OpenRouter Timing Test] provider.ignore:', ignoreProviders.join(', '));
-  }
 
   const data = await sendOpenRouterChat({
     model,
     response_format: responseFormat as Record<string, unknown>,
-    ...(ignoreProviders.length > 0 ? { provider: { ignore: ignoreProviders } } : {}),
     messages: [
       {
         role: 'user',
@@ -220,7 +212,6 @@ async function main() {
       model,
       videoUrl,
       sourceName,
-      providerIgnore: ignoreProviders,
     },
     rawResponse: data,
     parsedAnalysis: parsedResult.parsed,

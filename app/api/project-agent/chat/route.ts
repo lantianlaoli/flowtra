@@ -6,12 +6,12 @@ import {
   createUIMessageStreamResponse,
   generateText,
   jsonSchema,
+  type LanguageModel,
   stepCountIs,
   streamText,
   tool,
   type UIMessage
 } from 'ai';
-import { createOpenAI } from '@ai-sdk/openai';
 import { getSupabaseAdmin, normalizeAvatarPhotoSet } from '@/lib/supabase';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 import {
@@ -110,12 +110,7 @@ import { planProjectAgentCanvasCommand } from '@/lib/project-agent/canvas-comman
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-const openrouter = createOpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY,
-  baseURL: 'https://openrouter.ai/api/v1'
-});
-
-const model = openrouter.chat(process.env.OPENROUTER_MODEL || 'bytedance-seed/seed-1.6-flash');
+const model = (process.env.AI_GATEWAY_MODEL || 'bytedance-seed/seed-1.6-flash') as LanguageModel;
 
 const emptySchema = jsonSchema({ type: 'object', properties: {}, required: [] });
 const CHINESE_SCENE_NUMERALS: Record<string, number> = {
@@ -461,7 +456,7 @@ const hasAvatarOnlyCloneSelection = (state: SessionState) => {
 const buildWorkflowFallbackReply = async (input: {
   latestUserTurnText: string;
   state: SessionState;
-  model: ReturnType<typeof openrouter.chat>;
+  model: LanguageModel;
 }) => {
   if (!shouldGenerateWorkflowFallback(input.latestUserTurnText, input.state)) {
     return null;
@@ -764,7 +759,7 @@ const tryParseJsonObject = (raw: string): Record<string, unknown> | null => {
 };
 
 const classifyToolIntent = async (input: {
-  model: ReturnType<typeof openrouter.chat>;
+  model: LanguageModel;
   latestUserTurnText: string;
   currentIntent?: SessionState['intent'];
   avatarHasCover: boolean;

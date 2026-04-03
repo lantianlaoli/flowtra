@@ -11,7 +11,6 @@
     "test:unit": "node --test --import tsx tests/unit/**/*.test.ts"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^3.0.39",
     "@ai-sdk/react": "^3.0.110",
     "@clerk/nextjs": "^6.39.0",
     "@fal-ai/client": "^1.9.4",
