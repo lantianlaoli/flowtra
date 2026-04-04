@@ -3,9 +3,10 @@ import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { runSupabaseQueryWithRetry } from '@/lib/supabase-retry';
 import { normalizeProjectAgentVideoModel, type ProjectAgentIntent } from '@/lib/project-agent/video-model';
-import { buildMotionClonePromptDrafts } from '@/lib/project-agent/motion-clone-execution';
+import { buildMotionClonePromptDrafts, type ProjectAgentMotionCloneExecution } from '@/lib/project-agent/motion-clone-execution';
 import { normalizeCanvasState } from '@/lib/project-agent/canvas-state';
 import { normalizeProjectAgentPendingUiRequest } from '@/lib/project-agent/canvas-actions';
+import { syncProjectAgentWorkflowCanvasState } from '@/lib/project-agent/workflow-canvas-sync';
 import { MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
 
 export const dynamic = 'force-dynamic';
@@ -70,9 +71,34 @@ const normalizeSessionPatchState = (state: Record<string, unknown>) => {
     }
   }
 
+  const normalizedCanvas = normalizeCanvasState(state.canvas);
+
   return {
     ...state,
-    canvas: normalizeCanvasState(state.canvas),
+    canvas: syncProjectAgentWorkflowCanvasState(normalizedCanvas, {
+      motionClone: motionClone as ProjectAgentMotionCloneExecution | null,
+      avatarSelection: state.avatarSelection as {
+        avatar?: { id: string; name: string; photoUrl?: string | null } | null;
+        product?: { id: string; name: string; photoUrl?: string | null } | null;
+      } | null,
+      avatar: state.avatar as { id: string; name: string; photoUrl?: string | null } | null,
+      product: state.product as { id: string; name: string; photoUrl?: string | null } | null,
+      avatarDraft: state.avatarDraft as { scriptSource?: string | null } | null,
+      cloneReferenceVideo: state.cloneReferenceVideo as {
+        id: string;
+        name?: string | null;
+        sourceType?: 'creator' | 'competitor_ad';
+        videoUrl?: string | null;
+        cdnUrl?: string | null;
+        analysisLanguage?: string | null;
+      } | null,
+      cloneReplacementDraft: state.cloneReplacementDraft as {
+        selectedAvatars?: Array<{ id: string; name: string; photoUrl?: string | null }> | null;
+        selectedAvatar?: { id: string; name: string; photoUrl?: string | null } | null;
+        selectedProducts?: Array<{ id: string; name: string; photoUrl?: string | null }> | null;
+        selectedProduct?: { id: string; name: string; photoUrl?: string | null } | null;
+      } | null,
+    }),
     pendingUiRequest: normalizeProjectAgentPendingUiRequest(state.pendingUiRequest),
     appliedCanvasActionCallIds: Array.isArray(state.appliedCanvasActionCallIds)
       ? state.appliedCanvasActionCallIds.filter((item): item is string => typeof item === 'string').slice(-200)
