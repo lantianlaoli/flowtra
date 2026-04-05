@@ -2438,32 +2438,65 @@ export async function POST(request: Request) {
       }
 
       if (!resolvedVideoAsset) {
-        if (semanticVideoNames.length > 0) {
-          return {
-            kind: 'assistant',
-            replyText: 'I could not confidently match the reference video for Motion Clone. Please name the creator video more precisely.',
-            nextState: mergeState(sessionState, {
-              language: nextLanguage,
-              canvasIntent: intent,
-            }),
-          };
-        }
-
+        // Place empty video + avatar nodes so the user sees the full workflow skeleton
+        const actions: ProjectAgentCanvasAction[] = [
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'add_asset_node',
+              alias: 'videoAsset',
+              assetType: 'video',
+              allowEmpty: true,
+            },
+          },
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'add_asset_node',
+              alias: 'avatarAsset',
+              assetType: 'avatar',
+              asset: resolvedAvatarAsset ?? undefined,
+              allowEmpty: !resolvedAvatarAsset,
+              reuseExisting: Boolean(resolvedAvatarAsset),
+            },
+          },
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'add_feature_node',
+              alias: 'featureNode',
+              featureType: 'motion_clone',
+              reuseExisting: true,
+              select: true,
+            },
+          },
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'connect_nodes',
+              source: { kind: 'alias', alias: 'videoAsset' },
+              target: { kind: 'alias', alias: 'featureNode' },
+              targetHandle: 'video',
+            },
+          },
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'connect_nodes',
+              source: { kind: 'alias', alias: 'avatarAsset' },
+              target: { kind: 'alias', alias: 'featureNode' },
+              targetHandle: 'avatar',
+            },
+          },
+          { kind: 'canvas_mutation', mutation: { type: 'format_layout' } },
+        ];
+        const replyText = semanticVideoNames.length > 0
+          ? `I placed the Motion Clone workflow on the canvas. I could not match "${semanticVideoNames[0]}" — click the video node to select your reference video.`
+          : "I placed the Motion Clone workflow on the canvas. Click the video node to select your reference video.";
         return {
           kind: 'canvas',
-          replyText: "I've placed a Motion Clone node on the canvas. Click on it to select your reference video and start.",
-          actions: [
-            {
-              kind: 'canvas_mutation',
-              mutation: {
-                type: 'add_feature_node',
-                alias: 'featureNode',
-                featureType: 'motion_clone',
-                reuseExisting: true,
-                select: true,
-              },
-            },
-          ] as ProjectAgentCanvasAction[],
+          replyText,
+          actions,
           nextState: mergeState(sessionState, {
             language: nextLanguage,
             canvasIntent: intent,
@@ -2472,11 +2505,65 @@ export async function POST(request: Request) {
       }
 
       if (!resolvedAvatarAsset) {
+        // Still place the video node (and product if present) so the user can
+        // see the workflow skeleton; only the avatar slot is left empty.
+        const partialMutations: ProjectAgentCanvasAction[] = [
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'add_asset_node',
+              alias: 'videoAsset',
+              assetType: 'video',
+              asset: resolvedVideoAsset,
+              reuseExisting: true,
+            },
+          },
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'add_asset_node',
+              alias: 'avatarAsset',
+              assetType: 'avatar',
+              allowEmpty: true,
+            },
+          },
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'add_feature_node',
+              alias: 'featureNode',
+              featureType: 'motion_clone',
+              reuseExisting: true,
+              select: true,
+            },
+          },
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'connect_nodes',
+              source: { kind: 'alias', alias: 'videoAsset' },
+              target: { kind: 'alias', alias: 'featureNode' },
+              targetHandle: 'video',
+            },
+          },
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'connect_nodes',
+              source: { kind: 'alias', alias: 'avatarAsset' },
+              target: { kind: 'alias', alias: 'featureNode' },
+              targetHandle: 'avatar',
+            },
+          },
+          { kind: 'canvas_mutation', mutation: { type: 'format_layout' } },
+        ];
+        const replyMsg = semanticAvatarNames.length > 0
+          ? `I placed the Motion Clone workflow on the canvas with ${resolvedVideoAsset.name}. I could not match the avatar — click the avatar node to select it.`
+          : `I placed the Motion Clone workflow on the canvas with ${resolvedVideoAsset.name}. Click the avatar node to choose your replacement avatar.`;
         return {
-          kind: 'assistant',
-          replyText: semanticAvatarNames.length > 0
-            ? 'I could not confidently match the replacement avatar for Motion Clone. Please name the avatar more precisely or choose it from the left panel.'
-            : 'Motion Clone needs a replacement avatar. Choose the avatar you want to swap in, then I will place the workflow on the canvas.',
+          kind: 'canvas',
+          replyText: replyMsg,
+          actions: partialMutations,
           nextState: mergeState(sessionState, {
             language: nextLanguage,
             canvasIntent: intent,
@@ -2764,51 +2851,93 @@ export async function POST(request: Request) {
           || getOnlyCanvasAsset('avatar');
 
       if (!resolvedVideoAsset) {
-        if (semanticVideoNames.length > 0) {
-          return {
-            kind: 'assistant',
-            replyText: 'I could not confidently match the reference video yet. Please name the video more precisely.',
-            nextState: mergeState(sessionState, {
-              language: nextLanguage,
-              canvasIntent: intent,
-            }),
-          };
-        }
-
+        // Place empty video node so the user sees the full workflow skeleton.
+        // Include any already-resolved product/avatar nodes with proper connections.
+        const actions: ProjectAgentCanvasAction[] = [
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'add_asset_node',
+              alias: 'videoAsset',
+              assetType: 'video',
+              allowEmpty: true,
+            },
+          },
+          ...(resolvedProductAsset ? [{
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'add_asset_node' as const,
+              alias: 'productAsset',
+              assetType: 'product' as const,
+              asset: resolvedProductAsset,
+              reuseExisting: true,
+            },
+          }] : semanticProductNames.length > 0 ? [{
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'add_asset_node' as const,
+              alias: 'productAsset',
+              assetType: 'product' as const,
+              allowEmpty: true,
+            },
+          }] : []),
+          ...(resolvedAvatarAsset ? [{
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'add_asset_node' as const,
+              alias: 'avatarAsset',
+              assetType: 'avatar' as const,
+              asset: resolvedAvatarAsset,
+              reuseExisting: true,
+            },
+          }] : []),
+          {
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'add_feature_node' as const,
+              alias: 'featureNode',
+              featureType: 'video_clone' as const,
+              reuseExisting: true,
+              select: true,
+            },
+          },
+          {
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'connect_nodes' as const,
+              source: { kind: 'alias' as const, alias: 'videoAsset' },
+              target: { kind: 'alias' as const, alias: 'featureNode' },
+              targetHandle: 'video' as const,
+            },
+          },
+          ...(resolvedProductAsset || semanticProductNames.length > 0 ? [{
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'connect_nodes' as const,
+              source: { kind: 'alias' as const, alias: 'productAsset' },
+              target: { kind: 'alias' as const, alias: 'featureNode' },
+              targetHandle: 'product' as const,
+            },
+          }] : []),
+          ...(resolvedAvatarAsset ? [{
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'connect_nodes' as const,
+              source: { kind: 'alias' as const, alias: 'avatarAsset' },
+              target: { kind: 'alias' as const, alias: 'featureNode' },
+              targetHandle: 'avatar' as const,
+            },
+          }] : []),
+          { kind: 'canvas_mutation' as const, mutation: { type: 'format_layout' as const } },
+        ];
+        const namedNotFound = semanticVideoNames.length > 0;
+        const replyText = namedNotFound
+          ? `I placed the Video Clone workflow on the canvas. I could not match "${semanticVideoNames[0]}" — click the video node to select your reference video.`
+          : "I placed the Video Clone workflow on the canvas. Click the video node to select your reference video.";
         return {
           kind: 'canvas',
-          replyText: "I've placed a Video Clone node on the canvas. Click on it to select your reference video and start.",
-          actions: [
-            ...(resolvedProductAsset ? [{
-              kind: 'canvas_mutation' as const,
-              mutation: {
-                type: 'add_asset_node' as const,
-                alias: 'productAsset',
-                assetType: 'product' as const,
-                asset: resolvedProductAsset,
-                reuseExisting: true,
-              },
-            }] : []),
-            {
-              kind: 'canvas_mutation' as const,
-              mutation: {
-                type: 'add_feature_node' as const,
-                alias: 'featureNode',
-                featureType: 'video_clone' as const,
-                reuseExisting: true,
-                select: true,
-              },
-            },
-            ...(resolvedProductAsset ? [{
-              kind: 'canvas_mutation' as const,
-              mutation: {
-                type: 'connect_nodes' as const,
-                source: { kind: 'alias', alias: 'productAsset' },
-                target: { kind: 'alias', alias: 'featureNode' },
-                targetHandle: 'product' as const,
-              },
-            }] : []),
-          ] as ProjectAgentCanvasAction[],
+          replyText,
+          actions,
           nextState: mergeState(sessionState, {
             language: nextLanguage,
             canvasIntent: intent,
@@ -3070,58 +3199,89 @@ export async function POST(request: Request) {
           : 'Create a concise premium avatar ad script.');
 
       if (!resolvedAvatarAsset) {
+        // Place empty avatar node so user sees the full workflow skeleton
+        const actions: ProjectAgentCanvasAction[] = [
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'add_asset_node',
+              alias: 'avatarAsset',
+              assetType: 'avatar',
+              allowEmpty: true,
+            },
+          },
+          ...(resolvedProductAsset ? [{
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'add_asset_node' as const,
+              alias: 'productAsset',
+              assetType: 'product' as const,
+              asset: resolvedProductAsset,
+              reuseExisting: true,
+            },
+          }] : semanticProductNames.length > 0 ? [{
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'add_asset_node' as const,
+              alias: 'productAsset',
+              assetType: 'product' as const,
+              allowEmpty: true,
+            },
+          }] : []),
+          {
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'add_text_node' as const,
+              alias: 'scriptAsset',
+              content: scriptContent,
+              reuseExisting: true,
+            },
+          },
+          {
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'add_feature_node' as const,
+              alias: 'featureNode',
+              featureType: 'avatar_ads' as const,
+              reuseExisting: true,
+              select: true,
+            },
+          },
+          {
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'connect_nodes' as const,
+              source: { kind: 'alias' as const, alias: 'avatarAsset' },
+              target: { kind: 'alias' as const, alias: 'featureNode' },
+              targetHandle: 'avatar' as const,
+            },
+          },
+          {
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'connect_nodes' as const,
+              source: { kind: 'alias' as const, alias: 'scriptAsset' },
+              target: { kind: 'alias' as const, alias: 'featureNode' },
+              targetHandle: 'text' as const,
+            },
+          },
+          ...(resolvedProductAsset || semanticProductNames.length > 0 ? [{
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'connect_nodes' as const,
+              source: { kind: 'alias' as const, alias: 'productAsset' },
+              target: { kind: 'alias' as const, alias: 'featureNode' },
+              targetHandle: 'product' as const,
+            },
+          }] : []),
+          { kind: 'canvas_mutation' as const, mutation: { type: 'format_layout' as const } },
+        ];
         return {
           kind: 'canvas',
-          replyText: "I've placed an Avatar Ads node on the canvas. Click on it to select your avatar and start.",
-          actions: [
-            ...(resolvedProductAsset ? [{
-              kind: 'canvas_mutation' as const,
-              mutation: {
-                type: 'add_asset_node' as const,
-                alias: 'productAsset',
-                assetType: 'product' as const,
-                asset: resolvedProductAsset,
-                reuseExisting: true,
-              },
-            }] : []),
-            {
-              kind: 'canvas_mutation' as const,
-              mutation: {
-                type: 'add_text_node' as const,
-                alias: 'scriptAsset',
-                content: scriptContent,
-                reuseExisting: true,
-              },
-            },
-            {
-              kind: 'canvas_mutation' as const,
-              mutation: {
-                type: 'add_feature_node' as const,
-                alias: 'featureNode',
-                featureType: 'avatar_ads' as const,
-                reuseExisting: true,
-                select: true,
-              },
-            },
-            {
-              kind: 'canvas_mutation' as const,
-              mutation: {
-                type: 'connect_nodes' as const,
-                source: { kind: 'alias', alias: 'scriptAsset' },
-                target: { kind: 'alias', alias: 'featureNode' },
-                targetHandle: 'text' as const,
-              },
-            },
-            ...(resolvedProductAsset ? [{
-              kind: 'canvas_mutation' as const,
-              mutation: {
-                type: 'connect_nodes' as const,
-                source: { kind: 'alias', alias: 'productAsset' },
-                target: { kind: 'alias', alias: 'featureNode' },
-                targetHandle: 'product' as const,
-              },
-            }] : []),
-          ] as ProjectAgentCanvasAction[],
+          replyText: semanticAvatarNames.length > 0
+            ? `I placed the Avatar Ads workflow on the canvas. I could not match the avatar — click the avatar node to select it.`
+            : "I placed the Avatar Ads workflow on the canvas. Click the avatar node to select your character.",
+          actions,
           nextState: mergeState(sessionState, {
             language: nextLanguage,
             canvasIntent: intent,
