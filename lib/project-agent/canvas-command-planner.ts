@@ -526,9 +526,9 @@ export const planProjectAgentCanvasCommand = (
     }
   }
 
-  if (featureType && includesAny(text, [' add ', ' create ', ' insert ', ' place ', ' build ', ' set up '])) {
+  if (featureType && featureType !== 'motion_clone' && includesAny(text, [' add ', ' create ', ' insert ', ' place ', ' build ', ' set up '])) {
     return buildSafeEditPlan(
-      `I added a ${featureType === 'avatar_ads' ? 'Avatar Ads' : featureType === 'motion_clone' ? 'Motion Clone' : 'Video Clone'} node to the canvas.`,
+      `I added a ${featureType === 'avatar_ads' ? 'Avatar Ads' : 'Video Clone'} node to the canvas.`,
       [
         {
           type: 'add_feature_node',

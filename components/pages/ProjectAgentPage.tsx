@@ -253,6 +253,7 @@ export default function ProjectAgentPage() {
   const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
   const persistenceTimeoutRef = useRef<number | null>(null);
   const dragMovedRef = useRef(false);
+  const previousAwaitingAssistantTurnRef = useRef(false);
   const statusFetchInFlightRef = useRef<Set<string>>(new Set());
   const subscriptionsRef = useRef<Map<string, RealtimeChannel>>(new Map());
   const supabaseRef = useRef(supabase);
@@ -1654,7 +1655,7 @@ export default function ProjectAgentPage() {
   }, [historyItems, historyQuery]);
 
   const awaitingAssistantTurn = isStreaming;
-  const chatInputPlaceholder = 'Describe what to add, place, connect, or format on the canvas...';
+  const chatInputPlaceholder = 'Edit the canvas...';
 
   const scrollChatToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const container = chatScrollContainerRef.current;
@@ -1666,32 +1667,28 @@ export default function ProjectAgentPage() {
   }, []);
 
   useEffect(() => {
-    if (displayMessages.length === 0 && !awaitingAssistantTurn) return;
+    const wasAwaitingAssistantTurn = previousAwaitingAssistantTurnRef.current;
+    previousAwaitingAssistantTurnRef.current = awaitingAssistantTurn;
+
+    if (!awaitingAssistantTurn || wasAwaitingAssistantTurn) {
+      return;
+    }
 
     let frameOne = 0;
     let frameTwo = 0;
-    let resizeObserver: ResizeObserver | null = null;
-
-    const syncToLatestReply = () => {
-      scrollChatToBottom('auto');
-    };
 
     frameOne = window.requestAnimationFrame(() => {
-      syncToLatestReply();
-      frameTwo = window.requestAnimationFrame(syncToLatestReply);
+      scrollChatToBottom('auto');
+      frameTwo = window.requestAnimationFrame(() => {
+        scrollChatToBottom('auto');
+      });
     });
-
-    if (chatScrollContainerRef.current) {
-      resizeObserver = new ResizeObserver(syncToLatestReply);
-      resizeObserver.observe(chatScrollContainerRef.current);
-    }
 
     return () => {
       window.cancelAnimationFrame(frameOne);
       window.cancelAnimationFrame(frameTwo);
-      resizeObserver?.disconnect();
     };
-  }, [awaitingAssistantTurn, displayMessages, scrollChatToBottom]);
+  }, [awaitingAssistantTurn, scrollChatToBottom]);
 
   const sidebarProps = useMemo(() => ({
     credits,

@@ -94,6 +94,16 @@ test('asset matching tolerates summarized video labels against longer source des
   );
 });
 
+test('asset matching preserves non-latin names for multilingual canvas requests', () => {
+  assert.equal(
+    matchesAssetReference(
+      '请使用口红演示视频来创建工作流',
+      '口红演示视频',
+    ),
+    true,
+  );
+});
+
 test('planner reuses the single video and product on canvas when adding a motion clone workflow', () => {
   const plan = planProjectAgentCanvasCommand(
     'Now use the same video to add a motion clone workflow for Default Female and keep the red lapel pin in the canvas.',
@@ -197,4 +207,26 @@ test('planner treats negative workflow constraints as a no-op guardrail', () => 
   assert.equal(plan?.type, 'inspect_only');
   if (plan?.type !== 'inspect_only') return;
   assert.equal(plan.reply, 'I kept the current workflow unchanged.');
+});
+
+test('planner does not create a partial motion clone workflow without an avatar', () => {
+  const plan = planProjectAgentCanvasCommand(
+    'Set up motion clone with Decorations 1.',
+    {
+      ...DEFAULT_PROJECT_AGENT_CANVAS_STATE,
+      nodes: [
+        {
+          id: 'video-1',
+          type: 'video',
+          label: 'Decorations 1',
+          asset: { id: 'video-1', name: 'Decorations 1' },
+          runtime: null,
+          x: 80,
+          y: 80,
+        },
+      ],
+    },
+  );
+
+  assert.equal(plan, null);
 });

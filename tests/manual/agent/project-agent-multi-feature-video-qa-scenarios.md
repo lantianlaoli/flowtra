@@ -65,6 +65,43 @@ Before each scenario:
 3. Confirm the chat input is enabled and the canvas is interactive.
 4. Do not click `Start`.
 
+## Strict Test Procedure
+
+Run every scenario with the same discipline:
+
+1. Start a new session and take an initial screenshot of the empty canvas.
+2. Submit exactly one user turn at a time.
+3. After every turn, wait for the assistant reply and the canvas mutation to settle.
+4. Capture:
+   - full-page screenshot
+   - browser console errors
+   - failed network requests
+   - visible node count and edge count
+5. Before moving to the next turn, verify:
+   - the expected feature node exists
+   - the expected assets are connected
+   - no duplicate asset node was introduced unless the scenario explicitly allows it
+6. If any turn fails, stop the scenario and log the failure instead of improvising a recovery prompt.
+
+## Evidence Template
+
+Record the following for every turn:
+
+- Scenario ID
+- Turn number
+- User message
+- Assistant reply
+- Visible nodes by type
+- Visible edges by target handle
+- Duplicate asset check
+- Unexpected feature node check
+- Console / network issues
+- Pass or fail
+
+## Five-Scenario Acceptance Gate
+
+The full pass is only valid if all five scenarios succeed in one QA run. Do not mark partial success.
+
 ## Scenario 1: Build One Complete Video Clone Graph
 
 ### Multi-turn Conversation

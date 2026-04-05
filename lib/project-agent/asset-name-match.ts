@@ -36,7 +36,7 @@ const ASSET_MATCH_STOPWORDS = new Set([
 
 export const normalizeAssetNeedle = (value: string) => value
   .toLowerCase()
-  .replace(/[^a-z0-9]+/g, ' ')
+  .replace(/[^\p{L}\p{N}]+/gu, ' ')
   .replace(/\s+/g, ' ')
   .trim();
 

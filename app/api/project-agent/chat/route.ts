@@ -74,6 +74,7 @@ import {
   type ProjectAgentMotionCloneReferenceVideo,
   type ProjectAgentMotionCloneSelection
 } from '@/lib/project-agent/motion-clone-execution';
+import { syncMotionCloneCanvasState } from '@/lib/project-agent/motion-clone-canvas';
 import {
   buildProjectAgentAvatarDraft,
   buildProjectAgentAvatarExecution,
@@ -96,6 +97,7 @@ import {
   summarizeProjectAgentCanvas,
   type ProjectAgentCanvasAction,
   type ProjectAgentCanvasMutation,
+  type ProjectAgentPendingAssetSelectionRequest,
   type ProjectAgentPendingConfirmationRequest,
   type ProjectAgentPendingUiRequest,
   type ProjectAgentSelectableAssetType,
@@ -105,6 +107,18 @@ import {
   type ProjectAgentAssetNodeType,
   type ProjectAgentCanvasState,
 } from '@/lib/project-agent/canvas-state';
+import {
+  refineCanvasIntent,
+  normalizeCanvasIntent,
+  normalizeCanvasReplyLanguage,
+  type CanvasIntent,
+  type CanvasIntentAssetRef,
+} from '@/lib/project-agent/canvas-intent';
+import {
+  resolveSemanticAvatarCandidate,
+  resolveSemanticNamedCandidate,
+} from '@/lib/project-agent/semantic-canvas-matching';
+import { safelyResolveSemanticCanvasStep } from '@/lib/project-agent/semantic-canvas-guards';
 import { planProjectAgentCanvasCommand } from '@/lib/project-agent/canvas-command-planner';
 
 export const dynamic = 'force-dynamic';
@@ -129,6 +143,7 @@ const CHINESE_SCENE_NUMERALS: Record<string, number> = {
 
 type SessionState = {
   canvas?: ProjectAgentCanvasState;
+  canvasIntent?: CanvasIntent | null;
   pendingUiRequest?: ProjectAgentPendingUiRequest | null;
   appliedCanvasActionCallIds?: string[];
   intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_clone';
@@ -220,6 +235,7 @@ type SessionState = {
 
 const DEFAULT_STATE: SessionState = {
   canvas: normalizeCanvasState(null),
+  canvasIntent: null,
   pendingUiRequest: null,
   appliedCanvasActionCallIds: [],
   intent: 'avatar_ads',
@@ -967,7 +983,8 @@ Workflow rules:
 - Every turn must end with a natural-language assistant reply to the user (never stay silent).
 - Never expose technical identifiers or internal fields in user-facing text (e.g. UUIDs, database ids, session ids, project ids, tool payload keys).
 - Style rule: avoid fixed/canned templates. Each reply must be generated from the current conversation context and latest state, with wording adapted to the specific user turn.
-- Language rule (strict): all user-facing replies and guidance must be in English only.
+- Language rule (strict): user-facing replies and guidance must mirror the session language when set. If the session language is unset, follow the user's latest language.
+- Language rule (strict): keep node labels, feature names, and fixed UI labels such as "Motion Clone", "Video Clone", "Avatar Ads", and "Start" in English.
 - Terminology rule (strict): never use "brand", "your brand", "branding", or "brand identity" in user-facing copy for this flow.
 - Terminology rule (strict): frame replacements as avatar/person and/or product based on user intent.
 - Terminology rule (strict): avoid technical words like "merge" in user-facing replies; use "create final video" or "finish video" instead.
@@ -1197,6 +1214,7 @@ const mergeState = (state: SessionState, patch: Partial<SessionState>) => {
 const buildFreshCloneState = (state: SessionState): SessionState => ({
   ...state,
   intent: 'competitor_ugc_replication',
+  canvasIntent: null,
   videoModel: 'kling_3',
   pendingUiRequest: null,
   cloneReferenceVideo: undefined,
@@ -1214,6 +1232,7 @@ const mapClonePhaseFromStatusPayload = mapClonePhaseFromPayload;
 const buildFreshAvatarState = (state: SessionState): SessionState => ({
   ...state,
   intent: 'avatar_ads',
+  canvasIntent: null,
   pendingUiRequest: null,
   step: 'collecting',
   avatarStage: 'avatar_asset_selection',
@@ -1241,6 +1260,7 @@ const buildFreshAvatarState = (state: SessionState): SessionState => ({
 const buildFreshMotionCloneState = (state: SessionState): SessionState => ({
   ...state,
   intent: 'motion_clone',
+  canvasIntent: null,
   pendingUiRequest: null,
   cloneReferenceVideo: undefined,
   cloneReplacementDraft: undefined,
@@ -1577,7 +1597,8 @@ export async function POST(request: Request) {
       normalizeUIMessage(storedMessage, `stored-${index}`)
     );
     const normalizedIncomingMessage = normalizeUIMessage(message, `user-${Date.now()}`);
-    const latestUserTurnText = messageText(normalizedIncomingMessage).toLowerCase();
+    const latestUserTurnRaw = messageText(normalizedIncomingMessage);
+    const latestUserTurnText = latestUserTurnRaw.toLowerCase();
     const conversationMessages = dedupeMessages([
       ...storedMessages,
       ...(
@@ -1651,10 +1672,32 @@ export async function POST(request: Request) {
     };
 
     const sendDirectAssistantReply = async (replyText: string, nextState?: SessionState) => {
+      const preferredLanguage = normalizeCanvasReplyLanguage(
+        nextState?.language ?? sessionState.language,
+        'en'
+      );
+      const localizedReplyText = preferredLanguage === 'en'
+        ? replyText
+        : await (async () => {
+            const { text } = await generateText({
+              model,
+              system: [
+                'You translate Flowtra assistant replies for the user.',
+                'Preserve product names, quoted asset names, and fixed UI labels such as Motion Clone, Video Clone, Avatar Ads, and Start in English.',
+                'Return only the translated reply text.',
+              ].join(' '),
+              prompt: [
+                `Target language: ${preferredLanguage}`,
+                `Original reply: ${replyText}`,
+                `User message: ${latestUserTurnRaw}`,
+              ].join('\n'),
+            });
+            return text.trim() || replyText;
+          })();
       const assistantMessage: UIMessage = {
         id: `assistant-direct-${Date.now().toString(36)}`,
         role: 'assistant',
-        parts: [{ type: 'text', text: replyText }]
+        parts: [{ type: 'text', text: localizedReplyText }]
       };
       const messagesToPersist = dedupeMessages([...conversationMessages, assistantMessage]);
       await persistMessagesOnly(messagesToPersist, nextState);
@@ -1662,7 +1705,7 @@ export async function POST(request: Request) {
       const stream = createUIMessageStream<UIMessage>({
         execute: ({ writer }) => {
           writer.write({ type: 'text-start', id: assistantMessage.id });
-          writer.write({ type: 'text-delta', id: assistantMessage.id, delta: replyText });
+          writer.write({ type: 'text-delta', id: assistantMessage.id, delta: localizedReplyText });
           writer.write({ type: 'text-end', id: assistantMessage.id });
         }
       });
@@ -1679,10 +1722,32 @@ export async function POST(request: Request) {
       };
       nextState?: SessionState;
     }) => {
+      const preferredLanguage = normalizeCanvasReplyLanguage(
+        input.nextState?.language ?? sessionState.language,
+        'en'
+      );
+      const localizedReplyText = preferredLanguage === 'en'
+        ? input.replyText
+        : await (async () => {
+            const { text } = await generateText({
+              model,
+              system: [
+                'You translate Flowtra canvas-planning replies for the user.',
+                'Preserve product names, quoted asset names, and fixed UI labels such as Motion Clone, Video Clone, Avatar Ads, and Start in English.',
+                'Return only the translated reply text.',
+              ].join(' '),
+              prompt: [
+                `Target language: ${preferredLanguage}`,
+                `Original reply: ${input.replyText}`,
+                `User message: ${latestUserTurnRaw}`,
+              ].join('\n'),
+            });
+            return text.trim() || input.replyText;
+          })();
       const assistantMessage: UIMessage = {
         id: `assistant-direct-${Date.now().toString(36)}`,
         role: 'assistant',
-        parts: [{ type: 'text', text: input.replyText }]
+        parts: [{ type: 'text', text: localizedReplyText }]
       };
       const messagesToPersist = dedupeMessages([...conversationMessages, assistantMessage]);
       await persistMessagesOnly(messagesToPersist, input.nextState);
@@ -1702,7 +1767,7 @@ export async function POST(request: Request) {
             output: input.output,
           });
           writer.write({ type: 'text-start', id: assistantMessage.id });
-          writer.write({ type: 'text-delta', id: assistantMessage.id, delta: input.replyText });
+          writer.write({ type: 'text-delta', id: assistantMessage.id, delta: localizedReplyText });
           writer.write({ type: 'text-end', id: assistantMessage.id });
         }
       });
@@ -1716,6 +1781,1307 @@ export async function POST(request: Request) {
       node.type === 'motion_clone' ||
       node.type === 'video_clone'
     ));
+
+    const shouldAttemptSemanticCanvasPlanning = (rawText: string) => {
+      const trimmed = rawText.trim();
+      if (!trimmed) return false;
+      if (sessionState.intent === 'motion_clone') return true;
+      if (/[^\x00-\x7F]/.test(trimmed)) return true;
+      if (/[""'`]/.test(trimmed)) return true;
+      return /\b(canvas|workflow|motion clone|video clone|avatar ads|clone|avatar|product|video|start|run|continue|set up|use)\b/i.test(trimmed);
+    };
+
+    const normalizeSemanticCanvasIntentFromModel = async (): Promise<CanvasIntent | null> => {
+      if (!shouldAttemptSemanticCanvasPlanning(latestUserTurnRaw)) return null;
+
+      return safelyResolveSemanticCanvasStep({
+        step: 'normalize_intent',
+        latestUserTurn: latestUserTurnRaw,
+        fn: async () => {
+          const { text } = await generateText({
+            model,
+            system: [
+              'You normalize Flowtra agent canvas requests into a language-neutral JSON intent.',
+              'Support any language.',
+              'Do not invent asset names.',
+              'Prefer workflow understanding over phrase matching.',
+              'If the user asks to start/run/continue execution, set operation to "execute_workflow" and executionMode to "execute".',
+              'If the user asks to build, create, set up, or place a workflow on the canvas, set operation to "build_workflow" and executionMode to "build_only".',
+              'Return JSON only with fields:',
+              '{"workflow":"motion_clone"|"video_clone"|"avatar_ads"|"unknown","operation":"build_workflow"|"execute_workflow"|"inspect_canvas"|"format_layout"|"delete_selection"|"clear_canvas"|"none","assetRefs":[{"type":"video"|"avatar"|"product"|"text","value":"string","mode":"named"|"current_context"}],"constraints":{"keepProduct":boolean,"keepAvatar":boolean,"removeProduct":boolean,"removeAvatar":boolean,"avoidWorkflow":"motion_clone"|"video_clone"|"avatar_ads"|"unknown"},"executionMode":"build_only"|"execute","replyLanguage":"language-code","nextRequiredSelection":"video"|"avatar"|"product"|"text"|null,"confidence":0..1}',
+            ].join(' '),
+            prompt: JSON.stringify({
+              latestUserTurn: latestUserTurnRaw,
+              currentIntent: sessionState.intent || 'unknown',
+              currentLanguage: sessionState.language || 'en',
+              canvas: summarizeProjectAgentCanvas(latestCanvas),
+              motionClone: {
+                referenceVideo: sessionState.motionClone?.referenceVideo?.description || null,
+                avatar: sessionState.motionClone?.selectedAvatar?.name || null,
+                product: sessionState.motionClone?.selectedProduct?.name || null,
+                stage: sessionState.motionClone?.stage || 'reference_selection',
+              },
+            }),
+          });
+
+          const parsed = tryParseJsonObject(text);
+          const intent = normalizeCanvasIntent({
+            raw: parsed,
+            rawUserRequest: latestUserTurnRaw,
+            fallbackLanguage: sessionState.language ?? 'en',
+          });
+
+          if (!intent || intent.confidence < 0.55) return null;
+          return refineCanvasIntent(intent);
+        },
+      });
+    };
+
+    const namedRefs = (intent: CanvasIntent, type: CanvasIntentAssetRef['type']) => (
+      intent.assetRefs
+        .filter((ref) => ref.type === type && ref.mode === 'named' && typeof ref.value === 'string' && ref.value.trim().length > 0)
+        .map((ref) => ref.value!.trim())
+    );
+    const hasCurrentContextRef = (intent: CanvasIntent, type: CanvasIntentAssetRef['type']) => (
+      intent.assetRefs.some((ref) => ref.type === type && ref.mode === 'current_context')
+    );
+
+    const getLatestCanvasAsset = (assetType: ProjectAgentAssetNodeType) => {
+      const latestCanvasNodes = [...latestCanvas.nodes].reverse();
+      return latestCanvasNodes.find((node) => node.type === assetType && node.asset)?.asset ?? null;
+    };
+
+    const getOnlyCanvasAsset = (assetType: ProjectAgentAssetNodeType) => {
+      const matchingNodes = latestCanvas.nodes.filter((node) => node.type === assetType && node.asset);
+      return matchingNodes.length === 1 ? matchingNodes[0]?.asset ?? null : null;
+    };
+
+    const loadSemanticAvatarAssets = async () => {
+      const avatarQuery = await supabase
+        .from('user_avatars')
+        .select('id, avatar_name, photo_url, file_name, photo_set_json')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      let avatarRows: AvatarRow[] = [];
+      if (avatarQuery.error) {
+        const fallbackAvatarQuery = await supabase
+          .from('user_avatars')
+          .select('id, avatar_name, photo_url')
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+
+        if (fallbackAvatarQuery.error) {
+          console.warn('[Project Agent] Semantic avatar fallback query failed:', fallbackAvatarQuery.error.message);
+        } else {
+          avatarRows = (fallbackAvatarQuery.data ?? []) as AvatarRow[];
+        }
+      } else {
+        avatarRows = (avatarQuery.data ?? []) as AvatarRow[];
+      }
+
+      const userAvatars = mergeAvatarOptions(
+        avatarRows.map((avatar) => ({
+          id: avatar.id,
+          avatar_name: avatar.avatar_name || 'Untitled avatar',
+          photo_url: resolveAvatarPrimaryPhotoUrl(avatar),
+        }))
+      ).map((avatar) => ({
+        id: avatar.id,
+        name: avatar.avatar_name,
+        imageUrl: avatar.photo_url,
+      }));
+
+      const systemAvatars = SYSTEM_AVATARS.map((avatar) => ({
+        id: avatar.id,
+        name: avatar.avatar_name,
+        imageUrl: avatar.photo_url,
+      }));
+
+      return { userAvatars, systemAvatars };
+    };
+
+    const loadSemanticProductAssets = async () => {
+      const { data: productRows, error: productRowsError } = await supabase
+        .from('user_products')
+        .select('id, product_name, user_product_photos(photo_url,is_primary)')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (productRowsError) {
+        console.error('[Project Agent] Failed to load products for semantic canvas matching:', productRowsError);
+        return [];
+      }
+
+      return (productRows ?? []).map((product) => ({
+        id: product.id,
+        name: product.product_name,
+        imageUrl: product.user_product_photos?.find((photo) => photo.is_primary)?.photo_url
+          || product.user_product_photos?.[0]?.photo_url
+          || null,
+        photos: Array.isArray(product.user_product_photos)
+          ? product.user_product_photos
+              .map((photo) => photo.photo_url)
+              .filter((photo): photo is string => typeof photo === 'string' && photo.trim().length > 0)
+          : [],
+      }));
+    };
+
+    const loadSemanticVideoCloneReferenceAssets = async () => {
+      const { data: creatorSources, error: creatorSourcesError } = await supabase
+        .from('creator_sources')
+        .select('id, source_name, creator_source_videos(id, video_url, video_cdn_url, cover_url, description, duration_seconds, analysis_language)')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (creatorSourcesError) {
+        console.error('[Project Agent] Failed to load creator sources for semantic canvas matching:', creatorSourcesError);
+        return [];
+      }
+
+      const { data: competitorAds, error: competitorAdsError } = await supabase
+        .from('competitor_ads')
+        .select('id, competitor_name, video_duration_seconds, language')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (competitorAdsError) {
+        console.error('[Project Agent] Failed to load competitor ads for semantic canvas matching:', competitorAdsError);
+        return [];
+      }
+
+      const creatorReferenceVideos = (creatorSources ?? []).flatMap((source) => {
+        const sourceName = typeof source.source_name === 'string' ? source.source_name : null;
+        const sourceVideos = Array.isArray(source.creator_source_videos)
+          ? source.creator_source_videos
+          : [];
+
+        return sourceVideos.map((video) => ({
+          id: String(video.id),
+          name: typeof video.description === 'string' && video.description.trim().length > 0
+            ? video.description
+            : sourceName || 'Reference video',
+          imageUrl: typeof video.cover_url === 'string' ? video.cover_url : null,
+          durationSeconds: typeof video.duration_seconds === 'number' ? video.duration_seconds : null,
+          sourceType: 'creator' as const,
+          videoUrl: typeof video.video_url === 'string' ? video.video_url : null,
+          videoCdnUrl: typeof video.video_cdn_url === 'string' ? video.video_cdn_url : null,
+          analysisLanguage: typeof video.analysis_language === 'string' ? video.analysis_language : null,
+          sourceName,
+        }));
+      });
+
+      const competitorReferenceVideos = (competitorAds ?? []).map((ad) => ({
+        id: String(ad.id),
+        name: typeof ad.competitor_name === 'string' && ad.competitor_name.trim().length > 0
+          ? ad.competitor_name
+          : 'Competitor video',
+        imageUrl: null,
+        durationSeconds: typeof ad.video_duration_seconds === 'number' ? ad.video_duration_seconds : null,
+        sourceType: 'competitor_ad' as const,
+        videoUrl: null,
+        videoCdnUrl: null,
+        analysisLanguage: typeof ad.language === 'string' ? ad.language : null,
+        sourceName: typeof ad.competitor_name === 'string' ? ad.competitor_name : null,
+      }));
+
+      return [...creatorReferenceVideos, ...competitorReferenceVideos];
+    };
+
+    const resolveSemanticMotionCloneWorkflowPlan = async (intent: CanvasIntent): Promise<{
+      kind: 'assistant' | 'canvas' | 'asset_selection';
+      replyText: string;
+      actions?: ProjectAgentCanvasAction[];
+      nextState?: SessionState;
+      request?: ProjectAgentPendingAssetSelectionRequest;
+    } | null> => {
+      if (intent.workflow !== 'motion_clone') return null;
+
+      const nextLanguage = intent.replyLanguage || sessionState.language || 'en';
+
+      if (intent.operation === 'execute_workflow' || intent.executionMode === 'execute') {
+        return {
+          kind: 'assistant',
+          replyText: hasCanvasFeatureNode
+            ? 'I can prepare the canvas here, but I cannot run the workflow from chat. Click Start on the Motion Clone node when you are ready.'
+            : 'I can prepare the canvas here, but I cannot run the workflow from chat. Add the Motion Clone workflow to the canvas first, then click Start on it when you are ready.',
+          nextState: mergeState(sessionState, {
+            language: nextLanguage,
+            canvasIntent: intent,
+          }),
+        };
+      }
+
+      if (intent.operation !== 'build_workflow') return null;
+
+      const namedRefs = (type: CanvasIntentAssetRef['type']) => (
+        intent.assetRefs
+          .filter((ref) => ref.type === type && ref.mode === 'named' && typeof ref.value === 'string' && ref.value.trim().length > 0)
+          .map((ref) => ref.value!.trim())
+      );
+      const currentContextRefs = (type: CanvasIntentAssetRef['type']) => (
+        intent.assetRefs.some((ref) => ref.type === type && ref.mode === 'current_context')
+      );
+
+      const { data: semanticMotionVideos, error: semanticMotionVideosError } = await supabase
+        .from('creator_source_videos')
+        .select('id, video_url, video_cdn_url, cover_url, description, duration_seconds, analysis_language, analysis_result')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (semanticMotionVideosError) {
+        console.error('[Project Agent] Failed to load semantic motion clone reference videos:', semanticMotionVideosError);
+        return null;
+      }
+
+      const referenceVideos = (semanticMotionVideos ?? []).map((video) => {
+        const analysisResult = (video.analysis_result && typeof video.analysis_result === 'object')
+          ? video.analysis_result as Record<string, unknown>
+          : null;
+        const referenceContext = inferMotionCloneReferenceContext(analysisResult);
+        return {
+          id: String(video.id),
+          name: typeof video.description === 'string' && video.description.trim().length > 0
+            ? video.description
+            : 'Reference video',
+          imageUrl: typeof video.cover_url === 'string' ? video.cover_url : null,
+          durationSeconds: typeof video.duration_seconds === 'number' ? video.duration_seconds : null,
+          sourceType: 'creator' as const,
+          videoUrl: typeof video.video_url === 'string' ? video.video_url : null,
+          videoCdnUrl: typeof video.video_cdn_url === 'string' ? video.video_cdn_url : null,
+          analysisLanguage: typeof video.analysis_language === 'string' ? video.analysis_language : null,
+          analysisSummary: referenceContext.summary,
+        };
+      });
+
+      const semanticVideoNames = namedRefs('video');
+      const semanticVideoMatch = resolveSemanticNamedCandidate({
+        names: semanticVideoNames,
+        candidates: referenceVideos,
+        getKey: (video) => video.id,
+        getLabels: (video) => [video.name],
+        matchesAssetReference,
+      });
+      if (semanticVideoMatch.ambiguous) {
+        return {
+          kind: 'assistant',
+          replyText: 'I found more than one creator video that could match your Motion Clone request. Please name the reference video more precisely.',
+          nextState: mergeState(sessionState, {
+            language: nextLanguage,
+            canvasIntent: intent,
+          }),
+        };
+      }
+      const resolvedVideoAsset = (
+        semanticVideoMatch.match
+      ) || (
+        currentContextRefs('video')
+          ? latestCanvas.nodes.find((node) => node.type === 'video' && node.asset)?.asset
+          : undefined
+      ) || (
+        sessionState.motionClone?.referenceVideo?.id
+          ? {
+              id: sessionState.motionClone.referenceVideo.id,
+              name: sessionState.motionClone.referenceVideo.description || 'Reference video',
+              imageUrl: sessionState.motionClone.referenceVideo.coverUrl || null,
+              durationSeconds: sessionState.motionClone.referenceVideo.durationSeconds ?? null,
+              sourceType: 'creator' as const,
+              videoUrl: sessionState.motionClone.referenceVideo.videoUrl || null,
+              videoCdnUrl: sessionState.motionClone.referenceVideo.videoCdnUrl || null,
+              analysisLanguage: sessionState.motionClone.referenceVideo.analysisLanguage || null,
+            }
+          : null
+      );
+
+      const mergedAvatars = mergeAvatarOptions(await (async () => {
+        const avatarQuery = await supabase
+          .from('user_avatars')
+          .select('id, avatar_name, photo_url, file_name, photo_set_json')
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+
+        if (avatarQuery.error) {
+          const fallbackAvatarQuery = await supabase
+            .from('user_avatars')
+            .select('id, avatar_name, photo_url')
+            .eq('user_id', userId)
+            .eq('is_active', true)
+            .order('created_at', { ascending: false });
+          if (fallbackAvatarQuery.error) return [] as AvatarOption[];
+          return (fallbackAvatarQuery.data ?? []) as AvatarOption[];
+        }
+
+        return ((avatarQuery.data ?? []) as AvatarRow[]).map((avatar) => ({
+          id: avatar.id,
+          avatar_name: avatar.avatar_name || 'Untitled avatar',
+          photo_url: resolveAvatarPrimaryPhotoUrl(avatar),
+        }));
+      })());
+
+      const semanticAvatarNames = namedRefs('avatar');
+      const semanticAvatarMatch = resolveSemanticAvatarCandidate({
+        names: semanticAvatarNames,
+        userCandidates: mergedAvatars.map((avatar) => ({
+          id: avatar.id,
+          name: avatar.avatar_name,
+          imageUrl: avatar.photo_url,
+        })),
+        systemCandidates: SYSTEM_AVATARS.map((avatar) => ({
+          id: avatar.id,
+          name: avatar.avatar_name,
+          imageUrl: avatar.photo_url,
+        })),
+        getKey: (avatar) => avatar.id,
+        getLabels: (avatar) => [avatar.name],
+        matchesAssetReference,
+      });
+      const resolvedAvatarAsset = semanticAvatarMatch.match
+        || (currentContextRefs('avatar')
+          ? latestCanvas.nodes.find((node) => node.type === 'avatar' && node.asset)?.asset || null
+          : sessionState.motionClone?.selectedAvatar
+            ? {
+                id: sessionState.motionClone.selectedAvatar.id,
+                name: sessionState.motionClone.selectedAvatar.name,
+                imageUrl: sessionState.motionClone.selectedAvatar.photoUrl || null,
+              }
+            : null);
+      if (semanticAvatarMatch.ambiguous) {
+        return {
+          kind: 'assistant',
+          replyText: 'I found more than one avatar that could match your Motion Clone request. Please name the avatar more precisely.',
+          nextState: mergeState(sessionState, {
+            language: nextLanguage,
+            canvasIntent: intent,
+          }),
+        };
+      }
+
+      const semanticProductNames = namedRefs('product');
+      let resolvedProductAsset: { id: string; name: string; imageUrl?: string | null; photos?: string[] } | null = null;
+      if (semanticProductNames.length > 0) {
+        const { data: productRows } = await supabase
+          .from('user_products')
+          .select('id, product_name, user_product_photos(photo_url,is_primary)')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+        const matchedProduct = (productRows ?? []).find((product) => (
+          semanticProductNames.some((name) => matchesAssetReference(name, product.product_name))
+        ));
+        if (matchedProduct) {
+          resolvedProductAsset = {
+            id: matchedProduct.id,
+            name: matchedProduct.product_name,
+            imageUrl: matchedProduct.user_product_photos?.find((photo) => photo.is_primary)?.photo_url
+              || matchedProduct.user_product_photos?.[0]?.photo_url
+              || null,
+            photos: Array.isArray(matchedProduct.user_product_photos)
+              ? matchedProduct.user_product_photos
+                  .map((photo) => photo.photo_url)
+                  .filter((photo): photo is string => typeof photo === 'string' && photo.trim().length > 0)
+              : [],
+          };
+        }
+      } else if (currentContextRefs('product')) {
+        resolvedProductAsset = latestCanvas.nodes.find((node) => node.type === 'product' && node.asset)?.asset || null;
+      } else if (intent.constraints.keepProduct && sessionState.motionClone?.selectedProduct) {
+        resolvedProductAsset = {
+          id: sessionState.motionClone.selectedProduct.id,
+          name: sessionState.motionClone.selectedProduct.name,
+          imageUrl: sessionState.motionClone.selectedProduct.photoUrl || null,
+        };
+      }
+
+      if (!resolvedVideoAsset) {
+        if (semanticVideoNames.length > 0) {
+          return {
+            kind: 'assistant',
+            replyText: 'I could not confidently match the reference video for Motion Clone. Please name the creator video more precisely.',
+            nextState: mergeState(sessionState, {
+              language: nextLanguage,
+              canvasIntent: intent,
+            }),
+          };
+        }
+
+        const request: ProjectAgentPendingAssetSelectionRequest = {
+          type: 'asset_selection',
+          assetType: 'video',
+          title: 'Select a video for Motion Clone',
+          instructions: 'Choose one reference video. I will place it on the canvas, create a Motion Clone node, and connect it automatically.',
+          nodeAlias: 'selectedVideo',
+          mutations: [
+            {
+              type: 'add_feature_node',
+              alias: 'featureNode',
+              featureType: 'motion_clone',
+              placement: {
+                kind: 'relative',
+                ref: { kind: 'alias', alias: 'selectedVideo' },
+                dx: 280,
+                dy: 0,
+              },
+              select: true,
+            },
+            {
+              type: 'connect_nodes',
+              source: { kind: 'alias', alias: 'selectedVideo' },
+              target: { kind: 'alias', alias: 'featureNode' },
+              targetHandle: 'video',
+            },
+            {
+              type: 'open_node_details',
+              target: { kind: 'alias', alias: 'featureNode' },
+            },
+          ],
+        };
+        return {
+          kind: 'asset_selection',
+          replyText: 'Choose the reference video below and I will place the Motion Clone workflow on the canvas.',
+          request,
+          nextState: mergeState(sessionState, {
+            language: nextLanguage,
+            canvasIntent: intent,
+            pendingUiRequest: request,
+          }),
+        };
+      }
+
+      if (!resolvedAvatarAsset) {
+        return {
+          kind: 'assistant',
+          replyText: semanticAvatarNames.length > 0
+            ? 'I could not confidently match the replacement avatar for Motion Clone. Please name the avatar more precisely or choose it from the left panel.'
+            : 'Motion Clone needs a replacement avatar. Choose the avatar you want to swap in, then I will place the workflow on the canvas.',
+          nextState: mergeState(sessionState, {
+            language: nextLanguage,
+            canvasIntent: intent,
+          }),
+        };
+      }
+
+      const mutations: ProjectAgentCanvasAction[] = [
+        {
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'add_asset_node',
+            alias: 'videoAsset',
+            assetType: 'video',
+            asset: resolvedVideoAsset,
+            reuseExisting: true,
+          },
+        },
+        {
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'add_feature_node',
+            alias: 'featureNode',
+            featureType: 'motion_clone',
+            reuseExisting: true,
+            select: true,
+          },
+        },
+        {
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'videoAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'video',
+          },
+        },
+      ];
+
+      if (resolvedAvatarAsset) {
+        mutations.splice(1, 0, {
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'add_asset_node',
+            alias: 'avatarAsset',
+            assetType: 'avatar',
+            asset: resolvedAvatarAsset,
+            reuseExisting: true,
+          },
+        });
+        mutations.push({
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'avatarAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'avatar',
+          },
+        });
+      }
+
+      if (resolvedProductAsset) {
+        const insertIndex = resolvedAvatarAsset ? 2 : 1;
+        mutations.splice(insertIndex, 0, {
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'add_asset_node',
+            alias: 'productAsset',
+            assetType: 'product',
+            asset: resolvedProductAsset,
+            reuseExisting: true,
+          },
+        });
+        mutations.push({
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'productAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'product',
+          },
+        });
+      }
+
+      mutations.push({
+        kind: 'canvas_mutation',
+        mutation: { type: 'format_layout' },
+      });
+
+      const nextCanvasResult = executeProjectAgentCanvasActions({
+        canvas: latestCanvas,
+        actions: mutations,
+      });
+
+      const nextMotionClone = buildMotionCloneExecutionUpdate(sessionState.motionClone, {
+        referenceVideo: {
+          id: resolvedVideoAsset.id,
+          description: resolvedVideoAsset.name,
+          videoUrl: resolvedVideoAsset.videoUrl || null,
+          videoCdnUrl: resolvedVideoAsset.videoCdnUrl || null,
+          coverUrl: resolvedVideoAsset.imageUrl || null,
+          durationSeconds: resolvedVideoAsset.durationSeconds ?? null,
+          analysisLanguage: resolvedVideoAsset.analysisLanguage || null,
+        },
+        selectedAvatar: resolvedAvatarAsset
+          ? {
+              id: resolvedAvatarAsset.id,
+              name: resolvedAvatarAsset.name,
+              photoUrl: resolvedAvatarAsset.imageUrl || null,
+            }
+          : undefined,
+        selectedProduct: resolvedProductAsset
+          ? {
+              id: resolvedProductAsset.id,
+              name: resolvedProductAsset.name,
+              photoUrl: resolvedProductAsset.imageUrl || null,
+            }
+          : intent.constraints.removeProduct
+            ? null
+            : undefined,
+      });
+
+      const nextState = mergeState(sessionState, {
+        intent: 'motion_clone',
+        language: nextLanguage,
+        canvasIntent: intent,
+        canvas: nextCanvasResult.canvas,
+        pendingUiRequest: nextCanvasResult.pendingUiRequest,
+        motionClone: nextMotionClone,
+      });
+
+      return {
+        kind: 'canvas',
+        replyText: `I added the Motion Clone workflow to the canvas with ${resolvedVideoAsset.name}${resolvedProductAsset ? `, ${resolvedAvatarAsset.name}, and ${resolvedProductAsset.name}` : ` and ${resolvedAvatarAsset.name}`}.`,
+        actions: mutations,
+        nextState,
+      };
+    };
+
+    const resolveSemanticVideoCloneWorkflowPlan = async (intent: CanvasIntent): Promise<{
+      kind: 'assistant' | 'canvas' | 'asset_selection';
+      replyText: string;
+      actions?: ProjectAgentCanvasAction[];
+      nextState?: SessionState;
+      request?: ProjectAgentPendingAssetSelectionRequest;
+    } | null> => {
+      if (intent.workflow !== 'video_clone') return null;
+
+      const nextLanguage = intent.replyLanguage || sessionState.language || 'en';
+      if (intent.operation === 'execute_workflow' || intent.executionMode === 'execute') {
+        return {
+          kind: 'assistant',
+          replyText: hasCanvasFeatureNode
+            ? 'I can prepare the canvas here, but I cannot run the workflow from chat. Click Start on the Video Clone node when you are ready.'
+            : 'I can prepare the canvas here, but I cannot run the workflow from chat. Add the Video Clone workflow to the canvas first, then click Start on it when you are ready.',
+          nextState: mergeState(sessionState, {
+            language: nextLanguage,
+            canvasIntent: intent,
+          }),
+        };
+      }
+
+      if (intent.operation !== 'build_workflow') return null;
+
+      const [referenceVideos, productAssets, { userAvatars, systemAvatars }] = await Promise.all([
+        loadSemanticVideoCloneReferenceAssets(),
+        loadSemanticProductAssets(),
+        loadSemanticAvatarAssets(),
+      ]);
+
+      const semanticVideoNames = namedRefs(intent, 'video');
+      const semanticProductNames = namedRefs(intent, 'product');
+      const semanticAvatarNames = namedRefs(intent, 'avatar');
+
+      const videoMatch = resolveSemanticNamedCandidate({
+        names: semanticVideoNames,
+        candidates: referenceVideos,
+        getKey: (video) => video.id,
+        getLabels: (video) => [video.name, video.sourceName],
+        matchesAssetReference,
+      });
+      const productMatch = resolveSemanticNamedCandidate({
+        names: semanticProductNames,
+        candidates: productAssets,
+        getKey: (product) => product.id,
+        getLabels: (product) => [product.name],
+        matchesAssetReference,
+      });
+      const avatarMatch = resolveSemanticAvatarCandidate({
+        names: semanticAvatarNames,
+        userCandidates: userAvatars,
+        systemCandidates: systemAvatars,
+        getKey: (avatar) => avatar.id,
+        getLabels: (avatar) => [avatar.name],
+        matchesAssetReference,
+      });
+
+      if (videoMatch.ambiguous) {
+        return {
+          kind: 'assistant',
+          replyText: 'I found more than one video that could match your request. Please name the reference video more precisely.',
+          nextState: mergeState(sessionState, {
+            language: nextLanguage,
+            canvasIntent: intent,
+          }),
+        };
+      }
+      if (productMatch.ambiguous) {
+        return {
+          kind: 'assistant',
+          replyText: 'I found more than one product that could match your request. Please name the product more precisely.',
+          nextState: mergeState(sessionState, {
+            language: nextLanguage,
+            canvasIntent: intent,
+          }),
+        };
+      }
+      if (avatarMatch.ambiguous) {
+        return {
+          kind: 'assistant',
+          replyText: 'I found more than one avatar that could match your request. Please name the avatar more precisely.',
+          nextState: mergeState(sessionState, {
+            language: nextLanguage,
+            canvasIntent: intent,
+          }),
+        };
+      }
+
+      const resolvedVideoAsset = videoMatch.match
+        || (hasCurrentContextRef(intent, 'video') ? getLatestCanvasAsset('video') : null)
+        || (
+          sessionState.cloneReferenceVideo?.id
+            ? {
+                id: sessionState.cloneReferenceVideo.id,
+                name: sessionState.cloneReferenceVideo.name?.trim() || 'Reference video',
+                imageUrl: null,
+                durationSeconds: null,
+                sourceType: sessionState.cloneReferenceVideo.sourceType || 'creator',
+                videoUrl: sessionState.cloneReferenceVideo.videoUrl || null,
+                videoCdnUrl: sessionState.cloneReferenceVideo.cdnUrl || null,
+                analysisLanguage: sessionState.cloneReferenceVideo.language || null,
+                sourceName: sessionState.cloneReferenceVideo.name?.trim() || null,
+              }
+            : null
+        )
+        || getOnlyCanvasAsset('video');
+
+      const resolvedProductAsset = intent.constraints.removeProduct
+        ? null
+        : productMatch.match
+          || (hasCurrentContextRef(intent, 'product') ? getLatestCanvasAsset('product') : null)
+          || (
+            intent.constraints.keepProduct
+              ? (
+                  sessionState.cloneReplacementDraft?.selectedProduct
+                    ? {
+                        id: sessionState.cloneReplacementDraft.selectedProduct.id,
+                        name: sessionState.cloneReplacementDraft.selectedProduct.name,
+                        imageUrl: sessionState.cloneReplacementDraft.selectedProduct.photoUrl || null,
+                        photos: sessionState.cloneReplacementDraft.selectedProduct.photoUrl ? [sessionState.cloneReplacementDraft.selectedProduct.photoUrl] : [],
+                      }
+                    : getOnlyCanvasAsset('product')
+                )
+              : getOnlyCanvasAsset('product')
+          )
+          || null;
+
+      const resolvedAvatarAsset = intent.constraints.removeAvatar
+        ? null
+        : avatarMatch.match
+          || (hasCurrentContextRef(intent, 'avatar') ? getLatestCanvasAsset('avatar') : null)
+          || (
+            intent.constraints.keepAvatar
+              ? (
+                  sessionState.cloneReplacementDraft?.selectedAvatar
+                    ? {
+                        id: sessionState.cloneReplacementDraft.selectedAvatar.id,
+                        name: sessionState.cloneReplacementDraft.selectedAvatar.name,
+                        imageUrl: sessionState.cloneReplacementDraft.selectedAvatar.photoUrl || null,
+                      }
+                    : getOnlyCanvasAsset('avatar')
+                )
+              : null
+          )
+          || getOnlyCanvasAsset('avatar');
+
+      if (!resolvedVideoAsset) {
+        if (semanticVideoNames.length > 0) {
+          return {
+            kind: 'assistant',
+            replyText: 'I could not confidently match the reference video yet. Please name the video more precisely.',
+            nextState: mergeState(sessionState, {
+              language: nextLanguage,
+              canvasIntent: intent,
+            }),
+          };
+        }
+
+        const request: ProjectAgentPendingAssetSelectionRequest = {
+          type: 'asset_selection',
+          assetType: 'video',
+          title: 'Select a video for Video Clone',
+          instructions: 'Choose one reference video. I will place it on the canvas, create a Video Clone node, and connect it automatically.',
+          nodeAlias: 'selectedVideo',
+          mutations: [
+            ...(resolvedProductAsset ? [{
+              type: 'add_asset_node' as const,
+              alias: 'productAsset',
+              assetType: 'product' as const,
+              asset: resolvedProductAsset,
+              reuseExisting: true,
+            }] : []),
+            ...(resolvedAvatarAsset && !resolvedProductAsset ? [{
+              type: 'add_asset_node' as const,
+              alias: 'avatarAsset',
+              assetType: 'avatar' as const,
+              asset: resolvedAvatarAsset,
+              reuseExisting: true,
+            }] : []),
+            {
+              type: 'add_feature_node',
+              alias: 'featureNode',
+              featureType: 'video_clone',
+              placement: {
+                kind: 'relative',
+                ref: { kind: 'alias', alias: 'selectedVideo' },
+                dx: 280,
+                dy: 0,
+              },
+              select: true,
+            },
+            {
+              type: 'connect_nodes',
+              source: { kind: 'alias', alias: 'selectedVideo' },
+              target: { kind: 'alias', alias: 'featureNode' },
+              targetHandle: 'video',
+            },
+            ...(resolvedProductAsset ? [{
+              type: 'connect_nodes' as const,
+              source: { kind: 'alias', alias: 'productAsset' },
+              target: { kind: 'alias', alias: 'featureNode' },
+              targetHandle: 'product' as const,
+            }] : []),
+            ...(!resolvedProductAsset && resolvedAvatarAsset ? [{
+              type: 'connect_nodes' as const,
+              source: { kind: 'alias', alias: 'avatarAsset' },
+              target: { kind: 'alias', alias: 'featureNode' },
+              targetHandle: 'avatar' as const,
+            }] : []),
+            {
+              type: 'open_node_details',
+              target: { kind: 'alias', alias: 'featureNode' },
+            },
+          ] as ProjectAgentCanvasMutation[],
+        };
+
+        return {
+          kind: 'asset_selection',
+          replyText: 'Choose the reference video below and I will place the Video Clone workflow on the canvas.',
+          request,
+          nextState: mergeState(sessionState, {
+            language: nextLanguage,
+            canvasIntent: intent,
+            pendingUiRequest: request,
+          }),
+        };
+      }
+
+      const mutations: ProjectAgentCanvasAction[] = [
+        {
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'add_asset_node',
+            alias: 'videoAsset',
+            assetType: 'video',
+            asset: resolvedVideoAsset,
+            reuseExisting: true,
+          },
+        },
+        {
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'add_feature_node',
+            alias: 'featureNode',
+            featureType: 'video_clone',
+            reuseExisting: true,
+            select: true,
+          },
+        },
+        {
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'videoAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'video',
+          },
+        },
+      ];
+
+      if (resolvedProductAsset) {
+        mutations.splice(1, 0, {
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'add_asset_node',
+            alias: 'productAsset',
+            assetType: 'product',
+            asset: resolvedProductAsset,
+            reuseExisting: true,
+          },
+        });
+        mutations.push({
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'productAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'product',
+          },
+        });
+      } else if (resolvedAvatarAsset) {
+        mutations.splice(1, 0, {
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'add_asset_node',
+            alias: 'avatarAsset',
+            assetType: 'avatar',
+            asset: resolvedAvatarAsset,
+            reuseExisting: true,
+          },
+        });
+        mutations.push({
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'avatarAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'avatar',
+          },
+        });
+      }
+
+      mutations.push({
+        kind: 'canvas_mutation',
+        mutation: { type: 'format_layout' },
+      });
+
+      const nextCanvasResult = executeProjectAgentCanvasActions({
+        canvas: latestCanvas,
+        actions: mutations,
+      });
+
+      const primaryAvatar = resolvedAvatarAsset
+        ? {
+            id: resolvedAvatarAsset.id,
+            name: resolvedAvatarAsset.name,
+            photoUrl: resolvedAvatarAsset.imageUrl || null,
+          }
+        : null;
+      const primaryProduct = resolvedProductAsset
+        ? {
+            id: resolvedProductAsset.id,
+            name: resolvedProductAsset.name,
+            photoUrl: resolvedProductAsset.imageUrl || null,
+          }
+        : null;
+
+      const nextState = mergeState(sessionState, {
+        intent: 'competitor_ugc_replication',
+        language: nextLanguage,
+        canvasIntent: intent,
+        canvas: nextCanvasResult.canvas,
+        pendingUiRequest: nextCanvasResult.pendingUiRequest,
+        cloneReferenceVideo: {
+          id: resolvedVideoAsset.id,
+          name: resolvedVideoAsset.name,
+          sourceType: resolvedVideoAsset.sourceType === 'competitor_ad' ? 'competitor_ad' : 'creator',
+          videoUrl: resolvedVideoAsset.videoUrl || null,
+          cdnUrl: resolvedVideoAsset.videoCdnUrl || null,
+          language: resolvedVideoAsset.analysisLanguage || null,
+        },
+        cloneReplacementDraft: {
+          ...(sessionState.cloneReplacementDraft || { status: 'idle', scenes: [] }),
+          selectedAvatars: primaryAvatar ? [primaryAvatar] : [],
+          selectedAvatar: primaryAvatar ?? undefined,
+          selectedProducts: primaryProduct ? [primaryProduct] : [],
+          selectedProduct: primaryProduct ?? undefined,
+        },
+      });
+
+      return {
+        kind: 'canvas',
+        replyText: `I added a Video Clone workflow to the canvas with ${resolvedVideoAsset.name}${resolvedProductAsset ? ` and ${resolvedProductAsset.name}` : resolvedAvatarAsset ? ` and ${resolvedAvatarAsset.name}` : ''}.`,
+        actions: mutations,
+        nextState,
+      };
+    };
+
+    const resolveSemanticAvatarAdsWorkflowPlan = async (intent: CanvasIntent): Promise<{
+      kind: 'assistant' | 'canvas' | 'asset_selection';
+      replyText: string;
+      actions?: ProjectAgentCanvasAction[];
+      nextState?: SessionState;
+      request?: ProjectAgentPendingAssetSelectionRequest;
+    } | null> => {
+      if (intent.workflow !== 'avatar_ads') return null;
+
+      const nextLanguage = intent.replyLanguage || sessionState.language || 'en';
+      if (intent.operation === 'execute_workflow' || intent.executionMode === 'execute') {
+        return {
+          kind: 'assistant',
+          replyText: hasCanvasFeatureNode
+            ? 'I can prepare the canvas here, but I cannot run the workflow from chat. Click Start on the Avatar Ads node when you are ready.'
+            : 'I can prepare the canvas here, but I cannot run the workflow from chat. Add the Avatar Ads workflow to the canvas first, then click Start on it when you are ready.',
+          nextState: mergeState(sessionState, {
+            language: nextLanguage,
+            canvasIntent: intent,
+          }),
+        };
+      }
+
+      if (intent.operation !== 'build_workflow') return null;
+
+      const [{ userAvatars, systemAvatars }, productAssets] = await Promise.all([
+        loadSemanticAvatarAssets(),
+        loadSemanticProductAssets(),
+      ]);
+
+      const semanticAvatarNames = namedRefs(intent, 'avatar');
+      const semanticProductNames = namedRefs(intent, 'product');
+      const semanticTextRefs = namedRefs(intent, 'text');
+
+      const avatarMatch = resolveSemanticAvatarCandidate({
+        names: semanticAvatarNames,
+        userCandidates: userAvatars,
+        systemCandidates: systemAvatars,
+        getKey: (avatar) => avatar.id,
+        getLabels: (avatar) => [avatar.name],
+        matchesAssetReference,
+      });
+      const productMatch = resolveSemanticNamedCandidate({
+        names: semanticProductNames,
+        candidates: productAssets,
+        getKey: (product) => product.id,
+        getLabels: (product) => [product.name],
+        matchesAssetReference,
+      });
+
+      if (avatarMatch.ambiguous) {
+        return {
+          kind: 'assistant',
+          replyText: 'I found more than one avatar that could match your request. Please name the avatar more precisely.',
+          nextState: mergeState(sessionState, {
+            language: nextLanguage,
+            canvasIntent: intent,
+          }),
+        };
+      }
+      if (productMatch.ambiguous) {
+        return {
+          kind: 'assistant',
+          replyText: 'I found more than one product that could match your request. Please name the product more precisely.',
+          nextState: mergeState(sessionState, {
+            language: nextLanguage,
+            canvasIntent: intent,
+          }),
+        };
+      }
+
+      const resolvedAvatarAsset = avatarMatch.match
+        || (hasCurrentContextRef(intent, 'avatar') ? getLatestCanvasAsset('avatar') : null)
+        || (
+          sessionState.avatarSelection?.avatar
+            ? {
+                id: sessionState.avatarSelection.avatar.id,
+                name: sessionState.avatarSelection.avatar.name,
+                imageUrl: sessionState.avatarSelection.avatar.photoUrl || null,
+              }
+            : sessionState.avatar
+              ? {
+                  id: sessionState.avatar.id,
+                  name: sessionState.avatar.name,
+                  imageUrl: sessionState.avatar.photoUrl || null,
+                }
+              : null
+        )
+        || getOnlyCanvasAsset('avatar');
+
+      const resolvedProductAsset = intent.constraints.removeProduct
+        ? null
+        : productMatch.match
+          || (hasCurrentContextRef(intent, 'product') ? getLatestCanvasAsset('product') : null)
+          || (
+            intent.constraints.keepProduct
+              ? (
+                  sessionState.avatarSelection?.product
+                    ? {
+                        id: sessionState.avatarSelection.product.id,
+                        name: sessionState.avatarSelection.product.name,
+                        imageUrl: sessionState.avatarSelection.product.photoUrl || null,
+                        photos: sessionState.avatarSelection.product.photoUrl ? [sessionState.avatarSelection.product.photoUrl] : [],
+                      }
+                    : sessionState.product
+                      ? {
+                          id: sessionState.product.id,
+                          name: sessionState.product.name,
+                          imageUrl: null,
+                          photos: [],
+                        }
+                      : getOnlyCanvasAsset('product')
+                )
+              : getOnlyCanvasAsset('product')
+          )
+          || null;
+
+      const scriptContent = semanticTextRefs[0]
+        || sessionState.avatarDraft?.scriptSource?.trim()
+        || (resolvedProductAsset
+          ? `Introduce ${resolvedProductAsset.name} in a short premium style.`
+          : 'Create a concise premium avatar ad script.');
+
+      if (!resolvedAvatarAsset) {
+        const request: ProjectAgentPendingAssetSelectionRequest = {
+          type: 'asset_selection',
+          assetType: 'avatar',
+          title: 'Select an avatar for Avatar Ads',
+          instructions: 'Choose one avatar. I will place it on the canvas, create an Avatar Ads node, and connect it automatically.',
+          nodeAlias: 'selectedAvatar',
+          mutations: [
+            ...(resolvedProductAsset ? [{
+              type: 'add_asset_node' as const,
+              alias: 'productAsset',
+              assetType: 'product' as const,
+              asset: resolvedProductAsset,
+              reuseExisting: true,
+            }] : []),
+            {
+              type: 'add_text_node',
+              alias: 'scriptAsset',
+              content: scriptContent,
+              reuseExisting: true,
+            },
+            {
+              type: 'add_feature_node',
+              alias: 'featureNode',
+              featureType: 'avatar_ads',
+              placement: {
+                kind: 'relative',
+                ref: { kind: 'alias', alias: 'selectedAvatar' },
+                dx: 280,
+                dy: 0,
+              },
+              select: true,
+            },
+            {
+              type: 'connect_nodes',
+              source: { kind: 'alias', alias: 'selectedAvatar' },
+              target: { kind: 'alias', alias: 'featureNode' },
+              targetHandle: 'avatar',
+            },
+            {
+              type: 'connect_nodes',
+              source: { kind: 'alias', alias: 'scriptAsset' },
+              target: { kind: 'alias', alias: 'featureNode' },
+              targetHandle: 'text',
+            },
+            ...(resolvedProductAsset ? [{
+              type: 'connect_nodes' as const,
+              source: { kind: 'alias', alias: 'productAsset' },
+              target: { kind: 'alias', alias: 'featureNode' },
+              targetHandle: 'product' as const,
+            }] : []),
+            {
+              type: 'open_node_details',
+              target: { kind: 'alias', alias: 'featureNode' },
+            },
+          ] as ProjectAgentCanvasMutation[],
+        };
+
+        return {
+          kind: 'asset_selection',
+          replyText: semanticAvatarNames.length > 0
+            ? 'I could not confidently match the avatar yet. Please choose it below so I can place the Avatar Ads workflow correctly.'
+            : 'Choose the avatar below and I will place the Avatar Ads workflow on the canvas.',
+          request,
+          nextState: mergeState(sessionState, {
+            language: nextLanguage,
+            canvasIntent: intent,
+            pendingUiRequest: request,
+          }),
+        };
+      }
+
+      const mutations: ProjectAgentCanvasAction[] = [
+        {
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'add_asset_node',
+            alias: 'avatarAsset',
+            assetType: 'avatar',
+            asset: resolvedAvatarAsset,
+            reuseExisting: true,
+          },
+        },
+        {
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'add_text_node',
+            alias: 'scriptAsset',
+            content: scriptContent,
+            reuseExisting: true,
+          },
+        },
+        {
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'add_feature_node',
+            alias: 'featureNode',
+            featureType: 'avatar_ads',
+            reuseExisting: true,
+            select: true,
+          },
+        },
+        {
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'avatarAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'avatar',
+          },
+        },
+        {
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'scriptAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'text',
+          },
+        },
+      ];
+
+      if (resolvedProductAsset) {
+        mutations.splice(1, 0, {
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'add_asset_node',
+            alias: 'productAsset',
+            assetType: 'product',
+            asset: resolvedProductAsset,
+            reuseExisting: true,
+          },
+        });
+        mutations.push({
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: 'productAsset' },
+            target: { kind: 'alias', alias: 'featureNode' },
+            targetHandle: 'product',
+          },
+        });
+      }
+
+      mutations.push({
+        kind: 'canvas_mutation',
+        mutation: { type: 'format_layout' },
+      });
+
+      const nextCanvasResult = executeProjectAgentCanvasActions({
+        canvas: latestCanvas,
+        actions: mutations,
+      });
+
+      const nextState = mergeState(sessionState, {
+        intent: 'avatar_ads',
+        language: nextLanguage,
+        canvasIntent: intent,
+        canvas: nextCanvasResult.canvas,
+        pendingUiRequest: nextCanvasResult.pendingUiRequest,
+        avatar: {
+          id: resolvedAvatarAsset.id,
+          name: resolvedAvatarAsset.name,
+          photoUrl: resolvedAvatarAsset.imageUrl || '',
+        },
+        product: resolvedProductAsset
+          ? {
+              id: resolvedProductAsset.id,
+              name: resolvedProductAsset.name,
+            }
+          : null,
+        avatarSelection: {
+          ...(syncAvatarSelectionFromState(sessionState) || {}),
+          avatar: {
+            id: resolvedAvatarAsset.id,
+            name: resolvedAvatarAsset.name,
+            photoUrl: resolvedAvatarAsset.imageUrl || '',
+          },
+          product: resolvedProductAsset
+            ? {
+                id: resolvedProductAsset.id,
+                name: resolvedProductAsset.name,
+                photoUrl: resolvedProductAsset.imageUrl || null,
+              }
+            : null,
+        },
+        avatarDraft: {
+          ...(sessionState.avatarDraft || {
+            status: 'ready',
+            scriptMode: 'agent_authored',
+            scriptSource: '',
+            imagePrompt: null,
+            scenes: [],
+          }),
+          status: 'ready',
+          scriptSource: scriptContent,
+        },
+      });
+
+      return {
+        kind: 'canvas',
+        replyText: `I added an Avatar Ads workflow to the canvas with ${resolvedAvatarAsset.name}${resolvedProductAsset ? ` and ${resolvedProductAsset.name}` : ''}.`,
+        actions: mutations,
+        nextState,
+      };
+    };
 
     const getBlockedExecutionReply = (rawText: string) => {
       const normalized = ` ${rawText.trim().toLowerCase()} `;
@@ -2493,6 +3859,91 @@ export async function POST(request: Request) {
       return sendDirectAssistantReply(blockedExecutionReply);
     }
 
+    const semanticCanvasIntent = await normalizeSemanticCanvasIntentFromModel();
+    if (semanticCanvasIntent) {
+      sessionState = mergeState(sessionState, {
+        language: semanticCanvasIntent.replyLanguage || sessionState.language,
+        canvasIntent: semanticCanvasIntent,
+      });
+    }
+    if (semanticCanvasIntent) {
+      const semanticResolvers: Array<{
+        step: string;
+        fn: () => Promise<{
+          kind: 'assistant' | 'canvas' | 'asset_selection';
+          replyText: string;
+          actions?: ProjectAgentCanvasAction[];
+          nextState?: SessionState;
+          request?: ProjectAgentPendingAssetSelectionRequest;
+        } | null>;
+      }> = [
+        {
+          step: 'video_clone',
+          fn: () => resolveSemanticVideoCloneWorkflowPlan(semanticCanvasIntent),
+        },
+        {
+          step: 'motion_clone',
+          fn: () => resolveSemanticMotionCloneWorkflowPlan(semanticCanvasIntent),
+        },
+        {
+          step: 'avatar_ads',
+          fn: () => resolveSemanticAvatarAdsWorkflowPlan(semanticCanvasIntent),
+        },
+      ];
+
+      let semanticCanvasPlan: {
+        kind: 'assistant' | 'canvas' | 'asset_selection';
+        replyText: string;
+        actions?: ProjectAgentCanvasAction[];
+        nextState?: SessionState;
+        request?: ProjectAgentPendingAssetSelectionRequest;
+      } | null = null;
+
+      for (const resolver of semanticResolvers) {
+        semanticCanvasPlan = await safelyResolveSemanticCanvasStep({
+          step: resolver.step,
+          latestUserTurn: latestUserTurnRaw,
+          workflow: semanticCanvasIntent.workflow,
+          fn: resolver.fn,
+        });
+        if (semanticCanvasPlan) break;
+      }
+      if (semanticCanvasPlan?.kind === 'assistant') {
+        return sendDirectAssistantReply(
+          semanticCanvasPlan.replyText,
+          semanticCanvasPlan.nextState,
+        );
+      }
+      if (semanticCanvasPlan?.kind === 'asset_selection' && semanticCanvasPlan.request) {
+        return sendDirectCanvasActionReply({
+          replyText: semanticCanvasPlan.replyText,
+          toolName: 'requestAssetSelection',
+          output: {
+            success: true,
+            actions: [{
+              kind: 'ui_action',
+              action: {
+                type: 'open_asset_picker',
+                request: semanticCanvasPlan.request,
+              },
+            }],
+          },
+          nextState: semanticCanvasPlan.nextState,
+        });
+      }
+      if (semanticCanvasPlan?.kind === 'canvas' && semanticCanvasPlan.actions) {
+        return sendDirectCanvasActionReply({
+          replyText: semanticCanvasPlan.replyText,
+          toolName: 'planCanvasEdit',
+          output: {
+            success: true,
+            actions: semanticCanvasPlan.actions,
+          },
+          nextState: semanticCanvasPlan.nextState,
+        });
+      }
+    }
+
     const directNamedCanvasWorkflowPlan = await resolveNamedCanvasWorkflowPlan();
     if (directNamedCanvasWorkflowPlan) {
       return sendDirectCanvasActionReply({
@@ -2772,9 +4223,11 @@ export async function POST(request: Request) {
         const nextMotionClone = buildMotionCloneExecutionUpdate(sessionState.motionClone, {
           stage: 'workspace'
         });
+        const nextCanvas = syncMotionCloneCanvasState(latestCanvas, nextMotionClone);
         await persistSession({
           intent: 'motion_clone',
-          motionClone: nextMotionClone
+          motionClone: nextMotionClone,
+          canvas: nextCanvas
         });
 
         const productLine = selectedProduct
@@ -2806,10 +4259,12 @@ export async function POST(request: Request) {
         status: payload.project.status as string | null,
         stage: 'workspace'
       });
+      const nextCanvas = syncMotionCloneCanvasState(latestCanvas, motionClone);
       await persistSession({
         intent: 'motion_clone',
         projectId: payload.project.id as string,
-        motionClone
+        motionClone,
+        canvas: nextCanvas
       });
 
       const productLine = selectedProduct
@@ -4943,6 +6398,7 @@ export async function POST(request: Request) {
               selectedProduct,
               error: null
             });
+            const nextCanvas = syncMotionCloneCanvasState(latestCanvas, nextMotionClone);
 
             await persistSession({
               avatar: selectedAvatar
@@ -4958,7 +6414,8 @@ export async function POST(request: Request) {
                     name: selectedProduct.name
                   }
                 : null,
-              motionClone: nextMotionClone
+              motionClone: nextMotionClone,
+              canvas: nextCanvas
             });
 
             return {
@@ -5007,9 +6464,11 @@ export async function POST(request: Request) {
               const motionClone = buildMotionCloneExecutionUpdate(sessionState.motionClone, {
                 stage: 'workspace'
               });
+              const nextCanvas = syncMotionCloneCanvasState(latestCanvas, motionClone);
               await persistSession({
                 intent: 'motion_clone',
-                motionClone
+                motionClone,
+                canvas: nextCanvas
               });
               return { success: true, projectId: sessionState.motionClone.projectId };
             }
@@ -5035,10 +6494,12 @@ export async function POST(request: Request) {
               status: payload.project.status as string | null,
               stage: 'workspace'
             });
+            const nextCanvas = syncMotionCloneCanvasState(latestCanvas, motionClone);
             await persistSession({
               intent: 'motion_clone',
               projectId: payload.project.id as string,
-              motionClone
+              motionClone,
+              canvas: nextCanvas
             });
             return { success: true, project: payload.project };
           }
