@@ -1934,7 +1934,7 @@ export default function ProjectAgentPage() {
                           tone="inherit"
                           className="project-agent-thinking-mark shrink-0"
                         />
-                        <span>thinking...</span>
+                        <span>{status === 'submitted' ? 'Analyzing...' : 'thinking...'}</span>
                       </div>
                     </div>
                   ) : null}

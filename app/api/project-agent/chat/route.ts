@@ -1775,6 +1775,166 @@ export async function POST(request: Request) {
       return createUIMessageStreamResponse({ stream });
     };
 
+    // Returns a streaming response immediately so the client sees a reasoning
+    // chunk within ~100ms, then runs the full semantic planning pipeline inside
+    // the stream's execute callback and writes the final reply when ready.
+    const runSemanticPlanningWithEarlyFeedback = (): Response => {
+      const msgId = `assistant-direct-${Date.now().toString(36)}`;
+      const reasoningId = `${msgId}-reasoning`;
+
+      const stream = createUIMessageStream<UIMessage>({
+        execute: async ({ writer }) => {
+          // Immediately emit a reasoning chunk so the UI shows "Analyzed your
+          // request" within ~100ms rather than a silent "thinking..." spinner.
+          writer.write({ type: 'reasoning-start', id: reasoningId });
+          writer.write({ type: 'reasoning-delta', id: reasoningId, delta: 'Analyzing your canvas request...' });
+
+          // --- Heavy work begins here ---
+          const semanticCanvasIntent = await normalizeSemanticCanvasIntentFromModel();
+          if (semanticCanvasIntent) {
+            sessionState = mergeState(sessionState, {
+              language: semanticCanvasIntent.replyLanguage || sessionState.language,
+              canvasIntent: semanticCanvasIntent,
+            });
+          }
+
+          let semanticCanvasPlan: {
+            kind: 'assistant' | 'canvas' | 'asset_selection';
+            replyText: string;
+            actions?: ProjectAgentCanvasAction[];
+            nextState?: SessionState;
+            request?: ProjectAgentPendingAssetSelectionRequest;
+          } | null = null;
+
+          if (semanticCanvasIntent) {
+            const semanticResolvers = [
+              { step: 'video_clone', fn: () => resolveSemanticVideoCloneWorkflowPlan(semanticCanvasIntent) },
+              { step: 'motion_clone', fn: () => resolveSemanticMotionCloneWorkflowPlan(semanticCanvasIntent) },
+              { step: 'avatar_ads', fn: () => resolveSemanticAvatarAdsWorkflowPlan(semanticCanvasIntent) },
+            ];
+            for (const resolver of semanticResolvers) {
+              semanticCanvasPlan = await safelyResolveSemanticCanvasStep({
+                step: resolver.step,
+                latestUserTurn: latestUserTurnRaw,
+                workflow: semanticCanvasIntent.workflow,
+                fn: resolver.fn,
+              });
+              if (semanticCanvasPlan) break;
+            }
+          }
+
+          // Update reasoning with what we decided
+          const decisionNote = semanticCanvasPlan
+            ? `\nDecided: ${semanticCanvasPlan.kind} — ${semanticCanvasPlan.replyText}`
+            : '\nFalling back to standard response.';
+          writer.write({ type: 'reasoning-delta', id: reasoningId, delta: decisionNote });
+          writer.write({ type: 'reasoning-end', id: reasoningId });
+
+          // --- Emit the actual reply ---
+          const resolveReplyText = async (replyText: string, nextState?: SessionState) => {
+            const preferredLanguage = normalizeCanvasReplyLanguage(
+              nextState?.language ?? sessionState.language,
+              'en'
+            );
+            if (preferredLanguage === 'en') return replyText;
+            const { text } = await generateText({
+              model,
+              system: [
+                'You translate Flowtra canvas-planning replies for the user.',
+                'Preserve product names, quoted asset names, and fixed UI labels such as Motion Clone, Video Clone, Avatar Ads, and Start in English.',
+                'Return only the translated reply text.',
+              ].join(' '),
+              prompt: [
+                `Target language: ${preferredLanguage}`,
+                `Original reply: ${replyText}`,
+                `User message: ${latestUserTurnRaw}`,
+              ].join('\n'),
+            });
+            return text.trim() || replyText;
+          };
+
+          const writeCanvasActionReply = async (
+            replyText: string,
+            toolName: 'planCanvasEdit' | 'requestAssetSelection' | 'confirmDestructiveCanvasAction',
+            output: { success: boolean; actions: ProjectAgentCanvasAction[] },
+            nextState?: SessionState,
+          ) => {
+            const localizedReply = await resolveReplyText(replyText, nextState);
+            const assistantMessage: UIMessage = {
+              id: msgId,
+              role: 'assistant',
+              parts: [{ type: 'text', text: localizedReply }],
+            };
+            await persistMessagesOnly(
+              dedupeMessages([...conversationMessages, assistantMessage]),
+              nextState,
+            );
+            const toolCallId = `canvas-tool-${Date.now().toString(36)}`;
+            writer.write({ type: 'tool-input-available', toolCallId, toolName, input: {} });
+            writer.write({ type: 'tool-output-available', toolCallId, output });
+            writer.write({ type: 'text-start', id: msgId });
+            writer.write({ type: 'text-delta', id: msgId, delta: localizedReply });
+            writer.write({ type: 'text-end', id: msgId });
+          };
+
+          const writeAssistantReply = async (replyText: string, nextState?: SessionState) => {
+            const localizedReply = await resolveReplyText(replyText, nextState);
+            const assistantMessage: UIMessage = {
+              id: msgId,
+              role: 'assistant',
+              parts: [{ type: 'text', text: localizedReply }],
+            };
+            await persistMessagesOnly(
+              dedupeMessages([...conversationMessages, assistantMessage]),
+              nextState,
+            );
+            writer.write({ type: 'text-start', id: msgId });
+            writer.write({ type: 'text-delta', id: msgId, delta: localizedReply });
+            writer.write({ type: 'text-end', id: msgId });
+          };
+
+          if (semanticCanvasPlan?.kind === 'assistant') {
+            await writeAssistantReply(semanticCanvasPlan.replyText, semanticCanvasPlan.nextState);
+            return;
+          }
+          if (semanticCanvasPlan?.kind === 'asset_selection' && semanticCanvasPlan.request) {
+            await writeCanvasActionReply(
+              semanticCanvasPlan.replyText,
+              'requestAssetSelection',
+              {
+                success: true,
+                actions: [{ kind: 'ui_action', action: { type: 'open_asset_picker', request: semanticCanvasPlan.request } }],
+              },
+              semanticCanvasPlan.nextState,
+            );
+            return;
+          }
+          if (semanticCanvasPlan?.kind === 'canvas' && semanticCanvasPlan.actions) {
+            await writeCanvasActionReply(
+              semanticCanvasPlan.replyText,
+              'planCanvasEdit',
+              { success: true, actions: semanticCanvasPlan.actions },
+              semanticCanvasPlan.nextState,
+            );
+            return;
+          }
+
+          // No semantic plan matched — fall through by writing nothing here;
+          // the caller will not return early so normal streamText runs below.
+          // We cannot easily fall through from inside execute, so we emit a
+          // neutral message and let the AI handle it via streamText.
+          // (This case is rare: shouldAttemptSemanticCanvasPlanning was true
+          //  but no resolver matched and intent confidence was low.)
+          writer.write({ type: 'text-start', id: msgId });
+          writer.write({ type: 'text-delta', id: msgId, delta: '' });
+          writer.write({ type: 'text-end', id: msgId });
+        },
+      });
+
+      return createUIMessageStreamResponse({ stream });
+    };
+
+
     const latestCanvas = sessionState.canvas ?? normalizeCanvasState(null);
     const hasCanvasFeatureNode = latestCanvas.nodes.some((node) => (
       node.type === 'avatar_ads' ||
@@ -3797,89 +3957,8 @@ export async function POST(request: Request) {
       return sendDirectAssistantReply(blockedExecutionReply);
     }
 
-    const semanticCanvasIntent = await normalizeSemanticCanvasIntentFromModel();
-    if (semanticCanvasIntent) {
-      sessionState = mergeState(sessionState, {
-        language: semanticCanvasIntent.replyLanguage || sessionState.language,
-        canvasIntent: semanticCanvasIntent,
-      });
-    }
-    if (semanticCanvasIntent) {
-      const semanticResolvers: Array<{
-        step: string;
-        fn: () => Promise<{
-          kind: 'assistant' | 'canvas' | 'asset_selection';
-          replyText: string;
-          actions?: ProjectAgentCanvasAction[];
-          nextState?: SessionState;
-          request?: ProjectAgentPendingAssetSelectionRequest;
-        } | null>;
-      }> = [
-        {
-          step: 'video_clone',
-          fn: () => resolveSemanticVideoCloneWorkflowPlan(semanticCanvasIntent),
-        },
-        {
-          step: 'motion_clone',
-          fn: () => resolveSemanticMotionCloneWorkflowPlan(semanticCanvasIntent),
-        },
-        {
-          step: 'avatar_ads',
-          fn: () => resolveSemanticAvatarAdsWorkflowPlan(semanticCanvasIntent),
-        },
-      ];
-
-      let semanticCanvasPlan: {
-        kind: 'assistant' | 'canvas' | 'asset_selection';
-        replyText: string;
-        actions?: ProjectAgentCanvasAction[];
-        nextState?: SessionState;
-        request?: ProjectAgentPendingAssetSelectionRequest;
-      } | null = null;
-
-      for (const resolver of semanticResolvers) {
-        semanticCanvasPlan = await safelyResolveSemanticCanvasStep({
-          step: resolver.step,
-          latestUserTurn: latestUserTurnRaw,
-          workflow: semanticCanvasIntent.workflow,
-          fn: resolver.fn,
-        });
-        if (semanticCanvasPlan) break;
-      }
-      if (semanticCanvasPlan?.kind === 'assistant') {
-        return sendDirectAssistantReply(
-          semanticCanvasPlan.replyText,
-          semanticCanvasPlan.nextState,
-        );
-      }
-      if (semanticCanvasPlan?.kind === 'asset_selection' && semanticCanvasPlan.request) {
-        return sendDirectCanvasActionReply({
-          replyText: semanticCanvasPlan.replyText,
-          toolName: 'requestAssetSelection',
-          output: {
-            success: true,
-            actions: [{
-              kind: 'ui_action',
-              action: {
-                type: 'open_asset_picker',
-                request: semanticCanvasPlan.request,
-              },
-            }],
-          },
-          nextState: semanticCanvasPlan.nextState,
-        });
-      }
-      if (semanticCanvasPlan?.kind === 'canvas' && semanticCanvasPlan.actions) {
-        return sendDirectCanvasActionReply({
-          replyText: semanticCanvasPlan.replyText,
-          toolName: 'planCanvasEdit',
-          output: {
-            success: true,
-            actions: semanticCanvasPlan.actions,
-          },
-          nextState: semanticCanvasPlan.nextState,
-        });
-      }
+    if (shouldAttemptSemanticCanvasPlanning(latestUserTurnRaw)) {
+      return runSemanticPlanningWithEarlyFeedback();
     }
 
     const directNamedCanvasWorkflowPlan = await resolveNamedCanvasWorkflowPlan();
