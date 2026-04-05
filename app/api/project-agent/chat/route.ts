@@ -1919,15 +1919,97 @@ export async function POST(request: Request) {
             return;
           }
 
-          // No semantic plan matched — fall through by writing nothing here;
-          // the caller will not return early so normal streamText runs below.
-          // We cannot easily fall through from inside execute, so we emit a
-          // neutral message and let the AI handle it via streamText.
-          // (This case is rare: shouldAttemptSemanticCanvasPlanning was true
-          //  but no resolver matched and intent confidence was low.)
-          writer.write({ type: 'text-start', id: msgId });
-          writer.write({ type: 'text-delta', id: msgId, delta: '' });
-          writer.write({ type: 'text-end', id: msgId });
+          // No semantic plan matched — run the remaining fallback planners
+          // (named-asset resolver, same-context resolver, keyword planner, LLM).
+          const directNamedCanvasWorkflowPlan = await resolveNamedCanvasWorkflowPlan();
+          if (directNamedCanvasWorkflowPlan) {
+            await writeCanvasActionReply(
+              directNamedCanvasWorkflowPlan.replyText,
+              'planCanvasEdit',
+              { success: true, actions: directNamedCanvasWorkflowPlan.actions },
+              directNamedCanvasWorkflowPlan.nextState,
+            );
+            return;
+          }
+
+          const sameContextCanvasWorkflowPlan = resolveSameContextCanvasWorkflowPlan();
+          if (sameContextCanvasWorkflowPlan) {
+            await writeCanvasActionReply(
+              sameContextCanvasWorkflowPlan.replyText,
+              'planCanvasEdit',
+              { success: true, actions: sameContextCanvasWorkflowPlan.actions },
+              sameContextCanvasWorkflowPlan.nextState,
+            );
+            return;
+          }
+
+          const plannedCanvasCommand = planProjectAgentCanvasCommand(
+            messageText(normalizedIncomingMessage),
+            latestCanvas,
+          );
+
+          if (plannedCanvasCommand?.type === 'asset_selection') {
+            const nextState = mergeState(sessionState, { pendingUiRequest: plannedCanvasCommand.request });
+            await writeCanvasActionReply(
+              plannedCanvasCommand.reply,
+              'requestAssetSelection',
+              {
+                success: true,
+                actions: [{ kind: 'ui_action', action: { type: 'open_asset_picker', request: plannedCanvasCommand.request } }],
+              },
+              nextState,
+            );
+            return;
+          }
+
+          if (plannedCanvasCommand?.type === 'confirmation') {
+            const nextState = mergeState(sessionState, { pendingUiRequest: plannedCanvasCommand.request });
+            await writeCanvasActionReply(
+              plannedCanvasCommand.reply,
+              'confirmDestructiveCanvasAction',
+              {
+                success: true,
+                actions: [{ kind: 'ui_action', action: { type: 'request_confirmation', request: plannedCanvasCommand.request } }],
+              },
+              nextState,
+            );
+            return;
+          }
+
+          if (plannedCanvasCommand?.type === 'safe_edit') {
+            const nextCanvasResult = executeProjectAgentCanvasActions({ canvas: latestCanvas, actions: plannedCanvasCommand.actions });
+            const nextState = mergeState(sessionState, {
+              canvas: nextCanvasResult.canvas,
+              pendingUiRequest: nextCanvasResult.pendingUiRequest,
+            });
+            await writeCanvasActionReply(
+              plannedCanvasCommand.reply,
+              'planCanvasEdit',
+              { success: true, actions: plannedCanvasCommand.actions },
+              nextState,
+            );
+            return;
+          }
+
+          if (plannedCanvasCommand?.type === 'inspect_only') {
+            await writeAssistantReply(plannedCanvasCommand.reply);
+            return;
+          }
+
+          if (nextCloneFollowupDecision === 'clarify-finished' || nextCloneFollowupDecision === 'clarify-in-progress') {
+            await writeAssistantReply(getNextCloneClarificationReply(nextCloneFollowupDecision));
+            return;
+          }
+
+          // Ultimate fallback: let the LLM respond naturally via streamText
+          writer.merge(
+            streamText({
+              model,
+              system: buildSystemPrompt(sessionState),
+              messages: modelMessages,
+              stopWhen: stepCountIs(5),
+            }).toUIMessageStream(),
+          );
         },
       });
 
@@ -1960,6 +2042,7 @@ export async function POST(request: Request) {
         fn: async () => {
           const { text } = await generateText({
             model,
+            maxRetries: 0,
             system: [
               'You normalize Flowtra agent canvas requests into a language-neutral JSON intent.',
               'Support any language.',
