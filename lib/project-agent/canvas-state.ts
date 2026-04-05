@@ -250,14 +250,14 @@ export const createProjectAgentAssetNode = (input: {
   type: ProjectAgentAssetNodeType;
   x: number;
   y: number;
-  asset: ProjectAgentCanvasAssetRef;
+  asset?: ProjectAgentCanvasAssetRef | null;
 }): ProjectAgentCanvasNode => ({
   id: createProjectAgentCanvasNodeId(input.type),
   type: input.type,
   x: input.x,
   y: input.y,
-  label: input.asset.name,
-  asset: input.asset,
+  label: input.asset?.name ?? input.type,
+  asset: input.asset ?? null,
   runtime: null,
 });
 

@@ -37,6 +37,18 @@ export const parseProjectAgentMessageParts = (message: UIMessage): ProjectAgentP
     }
   }
 
+  // If no native reasoning parts, extract <thinking>...</thinking> tags from text
+  if (reasoning.length === 0) {
+    const combinedVisible = visible.join('');
+    const thinkingMatch = combinedVisible.match(/^<thinking>([\s\S]*?)<\/thinking>\s*/);
+    if (thinkingMatch) {
+      return {
+        visibleText: combinedVisible.slice(thinkingMatch[0].length),
+        reasoningText: thinkingMatch[1].trim(),
+      };
+    }
+  }
+
   return {
     visibleText: visible.join(''),
     reasoningText: reasoning.join(''),

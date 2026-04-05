@@ -15,7 +15,7 @@ import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { estimateDialogueDuration, generateDialogueLengthGuidance, validateSceneDurations } from '@/lib/dialogue-duration-estimator';
-import { extractAIGatewayTextContent, sendAIGatewayChat } from '@/lib/ai-gateway';
+import { extractAIGatewayJsonContent, extractAIGatewayTextContent, sendAIGatewayChat } from '@/lib/ai-gateway';
 import { MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
 import {
   buildAvatarGeneratedPrompts,
@@ -539,7 +539,6 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
   const data = await sendAIGatewayChat({
     model: process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash',
     messages,
-    response_format: { type: 'json_object' },
     max_tokens: 2000,
     temperature: 0.3
   }, {
@@ -548,14 +547,16 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
     httpReferer: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
     xTitle: 'Flowtra'
   });
-  const content = extractAIGatewayTextContent(data.choices?.[0]?.message?.content);
-
   try {
     const parsed: {
       image_prompt?: string;
       scenes?: Array<{ scene?: number | string; prompt?: Record<string, unknown> }>;
       language?: string;
-    } = JSON.parse(content || '');
+    } | null = extractAIGatewayJsonContent(data.choices?.[0]?.message?.content);
+
+    if (!parsed) {
+      throw new Error('AI did not return valid JSON');
+    }
 
     // Validate structure
     if (!parsed.image_prompt) {
@@ -601,7 +602,7 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
 
     return parsed;
   } catch (error) {
-    console.error('Failed to parse Gemini response:', content);
+    console.error('Failed to parse Gemini response:', data.choices?.[0]?.message?.content);
     console.error('Parse error:', error);
     throw new Error('Failed to parse generated prompts from Gemini');
   }

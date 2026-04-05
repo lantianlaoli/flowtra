@@ -48,6 +48,7 @@ export type ProjectAgentCanvasMutation =
       assetType: ProjectAgentAssetNodeType;
       asset?: ProjectAgentCanvasAssetRef;
       useSelectedAsset?: boolean;
+      allowEmpty?: boolean;
       placement?: ProjectAgentCanvasNodePlacement;
       reuseExisting?: boolean;
       select?: boolean;
@@ -488,14 +489,14 @@ export const executeProjectAgentCanvasActions = ({
     switch (mutation.type) {
       case 'add_asset_node': {
         const asset = mutation.useSelectedAsset ? selectedAsset ?? undefined : mutation.asset;
-        if (!asset?.id) break;
+        if (!asset?.id && !mutation.allowEmpty) break;
 
-        const reusedNode = mutation.reuseExisting
+        const reusedNode = (mutation.reuseExisting && asset?.id)
           ? findExistingAssetNode(canvas, mutation.assetType, asset)
           : null;
         const targetNode = reusedNode ?? createProjectAgentAssetNode({
           type: mutation.assetType,
-          asset,
+          asset: asset ?? null,
           ...getResolvedPlacement(canvas, mutation.placement, resolveNode),
         });
 

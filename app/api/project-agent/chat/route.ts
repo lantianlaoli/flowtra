@@ -1089,7 +1089,7 @@ Workflow rules:
 - Canvas editing workflow:
   - Treat the right chat panel as a canvas-building assistant for the current canvas.
   - Use inspectCanvas before making non-trivial canvas edits when you need the latest node/edge context.
-  - Use requestAssetSelection when the user wants an avatar, product, or video but has not specified which exact asset.
+  - NEVER use requestAssetSelection. Always use planCanvasEdit to place nodes directly on the canvas. If the user has not specified which asset to use, place the feature node anyway and tell them to configure it by clicking on the node.
   - Use planCanvasEdit for safe direct canvas changes such as adding nodes, connecting nodes, updating text, updating feature config, formatting layout, and opening node details.
   - Use confirmDestructiveCanvasAction before clearing the canvas, deleting a multi-node selection, or replacing an existing graph in a way that would drop connections.
   - Never ask the user to drag nodes manually when the action can be done through canvas editing tools.
@@ -1775,6 +1775,248 @@ export async function POST(request: Request) {
       return createUIMessageStreamResponse({ stream });
     };
 
+    // Returns a streaming response immediately so the client sees a reasoning
+    // chunk within ~100ms, then runs the full semantic planning pipeline inside
+    // the stream's execute callback and writes the final reply when ready.
+    const runSemanticPlanningWithEarlyFeedback = (): Response => {
+      const msgId = `assistant-direct-${Date.now().toString(36)}`;
+      const reasoningId = `${msgId}-reasoning`;
+
+      const stream = createUIMessageStream<UIMessage>({
+        execute: async ({ writer }) => {
+          // Immediately emit a reasoning chunk so the UI shows "Analyzed your
+          // request" within ~100ms rather than a silent "thinking..." spinner.
+          writer.write({ type: 'reasoning-start', id: reasoningId });
+          writer.write({ type: 'reasoning-delta', id: reasoningId, delta: 'Analyzing your canvas request...' });
+
+          // --- Heavy work begins here ---
+          const semanticCanvasIntent = await normalizeSemanticCanvasIntentFromModel();
+          if (semanticCanvasIntent) {
+            sessionState = mergeState(sessionState, {
+              language: semanticCanvasIntent.replyLanguage || sessionState.language,
+              canvasIntent: semanticCanvasIntent,
+            });
+          }
+
+          let semanticCanvasPlan: {
+            kind: 'assistant' | 'canvas' | 'asset_selection';
+            replyText: string;
+            actions?: ProjectAgentCanvasAction[];
+            nextState?: SessionState;
+            request?: ProjectAgentPendingAssetSelectionRequest;
+          } | null = null;
+
+          if (semanticCanvasIntent) {
+            const semanticResolvers = [
+              { step: 'video_clone', fn: () => resolveSemanticVideoCloneWorkflowPlan(semanticCanvasIntent) },
+              { step: 'motion_clone', fn: () => resolveSemanticMotionCloneWorkflowPlan(semanticCanvasIntent) },
+              { step: 'avatar_ads', fn: () => resolveSemanticAvatarAdsWorkflowPlan(semanticCanvasIntent) },
+            ];
+            for (const resolver of semanticResolvers) {
+              semanticCanvasPlan = await safelyResolveSemanticCanvasStep({
+                step: resolver.step,
+                latestUserTurn: latestUserTurnRaw,
+                workflow: semanticCanvasIntent.workflow,
+                fn: resolver.fn,
+              });
+              if (semanticCanvasPlan) break;
+            }
+          }
+
+          // Update reasoning with what we decided
+          const decisionNote = semanticCanvasPlan
+            ? `\nDecided: ${semanticCanvasPlan.kind} — ${semanticCanvasPlan.replyText}`
+            : '\nFalling back to standard response.';
+          writer.write({ type: 'reasoning-delta', id: reasoningId, delta: decisionNote });
+          writer.write({ type: 'reasoning-end', id: reasoningId });
+
+          // --- Emit the actual reply ---
+          const resolveReplyText = async (replyText: string, nextState?: SessionState) => {
+            const preferredLanguage = normalizeCanvasReplyLanguage(
+              nextState?.language ?? sessionState.language,
+              'en'
+            );
+            if (preferredLanguage === 'en') return replyText;
+            const { text } = await generateText({
+              model,
+              system: [
+                'You translate Flowtra canvas-planning replies for the user.',
+                'Preserve product names, quoted asset names, and fixed UI labels such as Motion Clone, Video Clone, Avatar Ads, and Start in English.',
+                'Return only the translated reply text.',
+              ].join(' '),
+              prompt: [
+                `Target language: ${preferredLanguage}`,
+                `Original reply: ${replyText}`,
+                `User message: ${latestUserTurnRaw}`,
+              ].join('\n'),
+            });
+            return text.trim() || replyText;
+          };
+
+          const writeCanvasActionReply = async (
+            replyText: string,
+            toolName: 'planCanvasEdit' | 'requestAssetSelection' | 'confirmDestructiveCanvasAction',
+            output: { success: boolean; actions: ProjectAgentCanvasAction[] },
+            nextState?: SessionState,
+          ) => {
+            const localizedReply = await resolveReplyText(replyText, nextState);
+            const assistantMessage: UIMessage = {
+              id: msgId,
+              role: 'assistant',
+              parts: [{ type: 'text', text: localizedReply }],
+            };
+            await persistMessagesOnly(
+              dedupeMessages([...conversationMessages, assistantMessage]),
+              nextState,
+            );
+            const toolCallId = `canvas-tool-${Date.now().toString(36)}`;
+            writer.write({ type: 'tool-input-available', toolCallId, toolName, input: {} });
+            writer.write({ type: 'tool-output-available', toolCallId, output });
+            writer.write({ type: 'text-start', id: msgId });
+            writer.write({ type: 'text-delta', id: msgId, delta: localizedReply });
+            writer.write({ type: 'text-end', id: msgId });
+          };
+
+          const writeAssistantReply = async (replyText: string, nextState?: SessionState) => {
+            const localizedReply = await resolveReplyText(replyText, nextState);
+            const assistantMessage: UIMessage = {
+              id: msgId,
+              role: 'assistant',
+              parts: [{ type: 'text', text: localizedReply }],
+            };
+            await persistMessagesOnly(
+              dedupeMessages([...conversationMessages, assistantMessage]),
+              nextState,
+            );
+            writer.write({ type: 'text-start', id: msgId });
+            writer.write({ type: 'text-delta', id: msgId, delta: localizedReply });
+            writer.write({ type: 'text-end', id: msgId });
+          };
+
+          if (semanticCanvasPlan?.kind === 'assistant') {
+            await writeAssistantReply(semanticCanvasPlan.replyText, semanticCanvasPlan.nextState);
+            return;
+          }
+          if (semanticCanvasPlan?.kind === 'asset_selection' && semanticCanvasPlan.request) {
+            await writeCanvasActionReply(
+              semanticCanvasPlan.replyText,
+              'requestAssetSelection',
+              {
+                success: true,
+                actions: [{ kind: 'ui_action', action: { type: 'open_asset_picker', request: semanticCanvasPlan.request } }],
+              },
+              semanticCanvasPlan.nextState,
+            );
+            return;
+          }
+          if (semanticCanvasPlan?.kind === 'canvas' && semanticCanvasPlan.actions) {
+            await writeCanvasActionReply(
+              semanticCanvasPlan.replyText,
+              'planCanvasEdit',
+              { success: true, actions: semanticCanvasPlan.actions },
+              semanticCanvasPlan.nextState,
+            );
+            return;
+          }
+
+          // No semantic plan matched — run the remaining fallback planners
+          // (named-asset resolver, same-context resolver, keyword planner, LLM).
+          const directNamedCanvasWorkflowPlan = await resolveNamedCanvasWorkflowPlan();
+          if (directNamedCanvasWorkflowPlan) {
+            await writeCanvasActionReply(
+              directNamedCanvasWorkflowPlan.replyText,
+              'planCanvasEdit',
+              { success: true, actions: directNamedCanvasWorkflowPlan.actions },
+              directNamedCanvasWorkflowPlan.nextState,
+            );
+            return;
+          }
+
+          const sameContextCanvasWorkflowPlan = resolveSameContextCanvasWorkflowPlan();
+          if (sameContextCanvasWorkflowPlan) {
+            await writeCanvasActionReply(
+              sameContextCanvasWorkflowPlan.replyText,
+              'planCanvasEdit',
+              { success: true, actions: sameContextCanvasWorkflowPlan.actions },
+              sameContextCanvasWorkflowPlan.nextState,
+            );
+            return;
+          }
+
+          const plannedCanvasCommand = planProjectAgentCanvasCommand(
+            messageText(normalizedIncomingMessage),
+            latestCanvas,
+          );
+
+          if (plannedCanvasCommand?.type === 'asset_selection') {
+            const nextState = mergeState(sessionState, { pendingUiRequest: plannedCanvasCommand.request });
+            await writeCanvasActionReply(
+              plannedCanvasCommand.reply,
+              'requestAssetSelection',
+              {
+                success: true,
+                actions: [{ kind: 'ui_action', action: { type: 'open_asset_picker', request: plannedCanvasCommand.request } }],
+              },
+              nextState,
+            );
+            return;
+          }
+
+          if (plannedCanvasCommand?.type === 'confirmation') {
+            const nextState = mergeState(sessionState, { pendingUiRequest: plannedCanvasCommand.request });
+            await writeCanvasActionReply(
+              plannedCanvasCommand.reply,
+              'confirmDestructiveCanvasAction',
+              {
+                success: true,
+                actions: [{ kind: 'ui_action', action: { type: 'request_confirmation', request: plannedCanvasCommand.request } }],
+              },
+              nextState,
+            );
+            return;
+          }
+
+          if (plannedCanvasCommand?.type === 'safe_edit') {
+            const nextCanvasResult = executeProjectAgentCanvasActions({ canvas: latestCanvas, actions: plannedCanvasCommand.actions });
+            const nextState = mergeState(sessionState, {
+              canvas: nextCanvasResult.canvas,
+              pendingUiRequest: nextCanvasResult.pendingUiRequest,
+            });
+            await writeCanvasActionReply(
+              plannedCanvasCommand.reply,
+              'planCanvasEdit',
+              { success: true, actions: plannedCanvasCommand.actions },
+              nextState,
+            );
+            return;
+          }
+
+          if (plannedCanvasCommand?.type === 'inspect_only') {
+            await writeAssistantReply(plannedCanvasCommand.reply);
+            return;
+          }
+
+          if (nextCloneFollowupDecision === 'clarify-finished' || nextCloneFollowupDecision === 'clarify-in-progress') {
+            await writeAssistantReply(getNextCloneClarificationReply(nextCloneFollowupDecision));
+            return;
+          }
+
+          // Ultimate fallback: let the LLM respond naturally via streamText
+          writer.merge(
+            streamText({
+              model,
+              system: buildSystemPrompt(sessionState),
+              messages: modelMessages,
+              stopWhen: stepCountIs(5),
+            }).toUIMessageStream(),
+          );
+        },
+      });
+
+      return createUIMessageStreamResponse({ stream });
+    };
+
+
     const latestCanvas = sessionState.canvas ?? normalizeCanvasState(null);
     const hasCanvasFeatureNode = latestCanvas.nodes.some((node) => (
       node.type === 'avatar_ads' ||
@@ -1800,6 +2042,7 @@ export async function POST(request: Request) {
         fn: async () => {
           const { text } = await generateText({
             model,
+            maxRetries: 0,
             system: [
               'You normalize Flowtra agent canvas requests into a language-neutral JSON intent.',
               'Support any language.',
@@ -2195,66 +2438,132 @@ export async function POST(request: Request) {
       }
 
       if (!resolvedVideoAsset) {
-        if (semanticVideoNames.length > 0) {
-          return {
-            kind: 'assistant',
-            replyText: 'I could not confidently match the reference video for Motion Clone. Please name the creator video more precisely.',
-            nextState: mergeState(sessionState, {
-              language: nextLanguage,
-              canvasIntent: intent,
-            }),
-          };
-        }
-
-        const request: ProjectAgentPendingAssetSelectionRequest = {
-          type: 'asset_selection',
-          assetType: 'video',
-          title: 'Select a video for Motion Clone',
-          instructions: 'Choose one reference video. I will place it on the canvas, create a Motion Clone node, and connect it automatically.',
-          nodeAlias: 'selectedVideo',
-          mutations: [
-            {
+        // Place empty video + avatar nodes so the user sees the full workflow skeleton
+        const actions: ProjectAgentCanvasAction[] = [
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'add_asset_node',
+              alias: 'videoAsset',
+              assetType: 'video',
+              allowEmpty: true,
+            },
+          },
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'add_asset_node',
+              alias: 'avatarAsset',
+              assetType: 'avatar',
+              asset: resolvedAvatarAsset ?? undefined,
+              allowEmpty: !resolvedAvatarAsset,
+              reuseExisting: Boolean(resolvedAvatarAsset),
+            },
+          },
+          {
+            kind: 'canvas_mutation',
+            mutation: {
               type: 'add_feature_node',
               alias: 'featureNode',
               featureType: 'motion_clone',
-              placement: {
-                kind: 'relative',
-                ref: { kind: 'alias', alias: 'selectedVideo' },
-                dx: 280,
-                dy: 0,
-              },
+              reuseExisting: true,
               select: true,
             },
-            {
+          },
+          {
+            kind: 'canvas_mutation',
+            mutation: {
               type: 'connect_nodes',
-              source: { kind: 'alias', alias: 'selectedVideo' },
+              source: { kind: 'alias', alias: 'videoAsset' },
               target: { kind: 'alias', alias: 'featureNode' },
               targetHandle: 'video',
             },
-            {
-              type: 'open_node_details',
+          },
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'connect_nodes',
+              source: { kind: 'alias', alias: 'avatarAsset' },
               target: { kind: 'alias', alias: 'featureNode' },
+              targetHandle: 'avatar',
             },
-          ],
-        };
+          },
+          { kind: 'canvas_mutation', mutation: { type: 'format_layout' } },
+        ];
+        const replyText = semanticVideoNames.length > 0
+          ? `I placed the Motion Clone workflow on the canvas. I could not match "${semanticVideoNames[0]}" — click the video node to select your reference video.`
+          : "I placed the Motion Clone workflow on the canvas. Click the video node to select your reference video.";
         return {
-          kind: 'asset_selection',
-          replyText: 'Choose the reference video below and I will place the Motion Clone workflow on the canvas.',
-          request,
+          kind: 'canvas',
+          replyText,
+          actions,
           nextState: mergeState(sessionState, {
             language: nextLanguage,
             canvasIntent: intent,
-            pendingUiRequest: request,
           }),
         };
       }
 
       if (!resolvedAvatarAsset) {
+        // Still place the video node (and product if present) so the user can
+        // see the workflow skeleton; only the avatar slot is left empty.
+        const partialMutations: ProjectAgentCanvasAction[] = [
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'add_asset_node',
+              alias: 'videoAsset',
+              assetType: 'video',
+              asset: resolvedVideoAsset,
+              reuseExisting: true,
+            },
+          },
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'add_asset_node',
+              alias: 'avatarAsset',
+              assetType: 'avatar',
+              allowEmpty: true,
+            },
+          },
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'add_feature_node',
+              alias: 'featureNode',
+              featureType: 'motion_clone',
+              reuseExisting: true,
+              select: true,
+            },
+          },
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'connect_nodes',
+              source: { kind: 'alias', alias: 'videoAsset' },
+              target: { kind: 'alias', alias: 'featureNode' },
+              targetHandle: 'video',
+            },
+          },
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'connect_nodes',
+              source: { kind: 'alias', alias: 'avatarAsset' },
+              target: { kind: 'alias', alias: 'featureNode' },
+              targetHandle: 'avatar',
+            },
+          },
+          { kind: 'canvas_mutation', mutation: { type: 'format_layout' } },
+        ];
+        const replyMsg = semanticAvatarNames.length > 0
+          ? `I placed the Motion Clone workflow on the canvas with ${resolvedVideoAsset.name}. I could not match the avatar — click the avatar node to select it.`
+          : `I placed the Motion Clone workflow on the canvas with ${resolvedVideoAsset.name}. Click the avatar node to choose your replacement avatar.`;
         return {
-          kind: 'assistant',
-          replyText: semanticAvatarNames.length > 0
-            ? 'I could not confidently match the replacement avatar for Motion Clone. Please name the avatar more precisely or choose it from the left panel.'
-            : 'Motion Clone needs a replacement avatar. Choose the avatar you want to swap in, then I will place the workflow on the canvas.',
+          kind: 'canvas',
+          replyText: replyMsg,
+          actions: partialMutations,
           nextState: mergeState(sessionState, {
             language: nextLanguage,
             canvasIntent: intent,
@@ -2542,83 +2851,96 @@ export async function POST(request: Request) {
           || getOnlyCanvasAsset('avatar');
 
       if (!resolvedVideoAsset) {
-        if (semanticVideoNames.length > 0) {
-          return {
-            kind: 'assistant',
-            replyText: 'I could not confidently match the reference video yet. Please name the video more precisely.',
-            nextState: mergeState(sessionState, {
-              language: nextLanguage,
-              canvasIntent: intent,
-            }),
-          };
-        }
-
-        const request: ProjectAgentPendingAssetSelectionRequest = {
-          type: 'asset_selection',
-          assetType: 'video',
-          title: 'Select a video for Video Clone',
-          instructions: 'Choose one reference video. I will place it on the canvas, create a Video Clone node, and connect it automatically.',
-          nodeAlias: 'selectedVideo',
-          mutations: [
-            ...(resolvedProductAsset ? [{
+        // Place empty video node so the user sees the full workflow skeleton.
+        // Include any already-resolved product/avatar nodes with proper connections.
+        const actions: ProjectAgentCanvasAction[] = [
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'add_asset_node',
+              alias: 'videoAsset',
+              assetType: 'video',
+              allowEmpty: true,
+            },
+          },
+          ...(resolvedProductAsset ? [{
+            kind: 'canvas_mutation' as const,
+            mutation: {
               type: 'add_asset_node' as const,
               alias: 'productAsset',
               assetType: 'product' as const,
               asset: resolvedProductAsset,
               reuseExisting: true,
-            }] : []),
-            ...(resolvedAvatarAsset && !resolvedProductAsset ? [{
+            },
+          }] : semanticProductNames.length > 0 ? [{
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'add_asset_node' as const,
+              alias: 'productAsset',
+              assetType: 'product' as const,
+              allowEmpty: true,
+            },
+          }] : []),
+          ...(resolvedAvatarAsset ? [{
+            kind: 'canvas_mutation' as const,
+            mutation: {
               type: 'add_asset_node' as const,
               alias: 'avatarAsset',
               assetType: 'avatar' as const,
               asset: resolvedAvatarAsset,
               reuseExisting: true,
-            }] : []),
-            {
-              type: 'add_feature_node',
+            },
+          }] : []),
+          {
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'add_feature_node' as const,
               alias: 'featureNode',
-              featureType: 'video_clone',
-              placement: {
-                kind: 'relative',
-                ref: { kind: 'alias', alias: 'selectedVideo' },
-                dx: 280,
-                dy: 0,
-              },
+              featureType: 'video_clone' as const,
+              reuseExisting: true,
               select: true,
             },
-            {
-              type: 'connect_nodes',
-              source: { kind: 'alias', alias: 'selectedVideo' },
-              target: { kind: 'alias', alias: 'featureNode' },
-              targetHandle: 'video',
-            },
-            ...(resolvedProductAsset ? [{
+          },
+          {
+            kind: 'canvas_mutation' as const,
+            mutation: {
               type: 'connect_nodes' as const,
-              source: { kind: 'alias', alias: 'productAsset' },
-              target: { kind: 'alias', alias: 'featureNode' },
+              source: { kind: 'alias' as const, alias: 'videoAsset' },
+              target: { kind: 'alias' as const, alias: 'featureNode' },
+              targetHandle: 'video' as const,
+            },
+          },
+          ...(resolvedProductAsset || semanticProductNames.length > 0 ? [{
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'connect_nodes' as const,
+              source: { kind: 'alias' as const, alias: 'productAsset' },
+              target: { kind: 'alias' as const, alias: 'featureNode' },
               targetHandle: 'product' as const,
-            }] : []),
-            ...(!resolvedProductAsset && resolvedAvatarAsset ? [{
-              type: 'connect_nodes' as const,
-              source: { kind: 'alias', alias: 'avatarAsset' },
-              target: { kind: 'alias', alias: 'featureNode' },
-              targetHandle: 'avatar' as const,
-            }] : []),
-            {
-              type: 'open_node_details',
-              target: { kind: 'alias', alias: 'featureNode' },
             },
-          ] as ProjectAgentCanvasMutation[],
-        };
-
+          }] : []),
+          ...(resolvedAvatarAsset ? [{
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'connect_nodes' as const,
+              source: { kind: 'alias' as const, alias: 'avatarAsset' },
+              target: { kind: 'alias' as const, alias: 'featureNode' },
+              targetHandle: 'avatar' as const,
+            },
+          }] : []),
+          { kind: 'canvas_mutation' as const, mutation: { type: 'format_layout' as const } },
+        ];
+        const namedNotFound = semanticVideoNames.length > 0;
+        const replyText = namedNotFound
+          ? `I placed the Video Clone workflow on the canvas. I could not match "${semanticVideoNames[0]}" — click the video node to select your reference video.`
+          : "I placed the Video Clone workflow on the canvas. Click the video node to select your reference video.";
         return {
-          kind: 'asset_selection',
-          replyText: 'Choose the reference video below and I will place the Video Clone workflow on the canvas.',
-          request,
+          kind: 'canvas',
+          replyText,
+          actions,
           nextState: mergeState(sessionState, {
             language: nextLanguage,
             canvasIntent: intent,
-            pendingUiRequest: request,
           }),
         };
       }
@@ -2877,73 +3199,92 @@ export async function POST(request: Request) {
           : 'Create a concise premium avatar ad script.');
 
       if (!resolvedAvatarAsset) {
-        const request: ProjectAgentPendingAssetSelectionRequest = {
-          type: 'asset_selection',
-          assetType: 'avatar',
-          title: 'Select an avatar for Avatar Ads',
-          instructions: 'Choose one avatar. I will place it on the canvas, create an Avatar Ads node, and connect it automatically.',
-          nodeAlias: 'selectedAvatar',
-          mutations: [
-            ...(resolvedProductAsset ? [{
+        // Place empty avatar node so user sees the full workflow skeleton
+        const actions: ProjectAgentCanvasAction[] = [
+          {
+            kind: 'canvas_mutation',
+            mutation: {
+              type: 'add_asset_node',
+              alias: 'avatarAsset',
+              assetType: 'avatar',
+              allowEmpty: true,
+            },
+          },
+          ...(resolvedProductAsset ? [{
+            kind: 'canvas_mutation' as const,
+            mutation: {
               type: 'add_asset_node' as const,
               alias: 'productAsset',
               assetType: 'product' as const,
               asset: resolvedProductAsset,
               reuseExisting: true,
-            }] : []),
-            {
-              type: 'add_text_node',
+            },
+          }] : semanticProductNames.length > 0 ? [{
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'add_asset_node' as const,
+              alias: 'productAsset',
+              assetType: 'product' as const,
+              allowEmpty: true,
+            },
+          }] : []),
+          {
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'add_text_node' as const,
               alias: 'scriptAsset',
               content: scriptContent,
               reuseExisting: true,
             },
-            {
-              type: 'add_feature_node',
+          },
+          {
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'add_feature_node' as const,
               alias: 'featureNode',
-              featureType: 'avatar_ads',
-              placement: {
-                kind: 'relative',
-                ref: { kind: 'alias', alias: 'selectedAvatar' },
-                dx: 280,
-                dy: 0,
-              },
+              featureType: 'avatar_ads' as const,
+              reuseExisting: true,
               select: true,
             },
-            {
-              type: 'connect_nodes',
-              source: { kind: 'alias', alias: 'selectedAvatar' },
-              target: { kind: 'alias', alias: 'featureNode' },
-              targetHandle: 'avatar',
-            },
-            {
-              type: 'connect_nodes',
-              source: { kind: 'alias', alias: 'scriptAsset' },
-              target: { kind: 'alias', alias: 'featureNode' },
-              targetHandle: 'text',
-            },
-            ...(resolvedProductAsset ? [{
+          },
+          {
+            kind: 'canvas_mutation' as const,
+            mutation: {
               type: 'connect_nodes' as const,
-              source: { kind: 'alias', alias: 'productAsset' },
-              target: { kind: 'alias', alias: 'featureNode' },
-              targetHandle: 'product' as const,
-            }] : []),
-            {
-              type: 'open_node_details',
-              target: { kind: 'alias', alias: 'featureNode' },
+              source: { kind: 'alias' as const, alias: 'avatarAsset' },
+              target: { kind: 'alias' as const, alias: 'featureNode' },
+              targetHandle: 'avatar' as const,
             },
-          ] as ProjectAgentCanvasMutation[],
-        };
-
+          },
+          {
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'connect_nodes' as const,
+              source: { kind: 'alias' as const, alias: 'scriptAsset' },
+              target: { kind: 'alias' as const, alias: 'featureNode' },
+              targetHandle: 'text' as const,
+            },
+          },
+          ...(resolvedProductAsset || semanticProductNames.length > 0 ? [{
+            kind: 'canvas_mutation' as const,
+            mutation: {
+              type: 'connect_nodes' as const,
+              source: { kind: 'alias' as const, alias: 'productAsset' },
+              target: { kind: 'alias' as const, alias: 'featureNode' },
+              targetHandle: 'product' as const,
+            },
+          }] : []),
+          { kind: 'canvas_mutation' as const, mutation: { type: 'format_layout' as const } },
+        ];
         return {
-          kind: 'asset_selection',
+          kind: 'canvas',
           replyText: semanticAvatarNames.length > 0
-            ? 'I could not confidently match the avatar yet. Please choose it below so I can place the Avatar Ads workflow correctly.'
-            : 'Choose the avatar below and I will place the Avatar Ads workflow on the canvas.',
-          request,
+            ? `I placed the Avatar Ads workflow on the canvas. I could not match the avatar — click the avatar node to select it.`
+            : "I placed the Avatar Ads workflow on the canvas. Click the avatar node to select your character.",
+          actions,
           nextState: mergeState(sessionState, {
             language: nextLanguage,
             canvasIntent: intent,
-            pendingUiRequest: request,
           }),
         };
       }
@@ -3859,89 +4200,8 @@ export async function POST(request: Request) {
       return sendDirectAssistantReply(blockedExecutionReply);
     }
 
-    const semanticCanvasIntent = await normalizeSemanticCanvasIntentFromModel();
-    if (semanticCanvasIntent) {
-      sessionState = mergeState(sessionState, {
-        language: semanticCanvasIntent.replyLanguage || sessionState.language,
-        canvasIntent: semanticCanvasIntent,
-      });
-    }
-    if (semanticCanvasIntent) {
-      const semanticResolvers: Array<{
-        step: string;
-        fn: () => Promise<{
-          kind: 'assistant' | 'canvas' | 'asset_selection';
-          replyText: string;
-          actions?: ProjectAgentCanvasAction[];
-          nextState?: SessionState;
-          request?: ProjectAgentPendingAssetSelectionRequest;
-        } | null>;
-      }> = [
-        {
-          step: 'video_clone',
-          fn: () => resolveSemanticVideoCloneWorkflowPlan(semanticCanvasIntent),
-        },
-        {
-          step: 'motion_clone',
-          fn: () => resolveSemanticMotionCloneWorkflowPlan(semanticCanvasIntent),
-        },
-        {
-          step: 'avatar_ads',
-          fn: () => resolveSemanticAvatarAdsWorkflowPlan(semanticCanvasIntent),
-        },
-      ];
-
-      let semanticCanvasPlan: {
-        kind: 'assistant' | 'canvas' | 'asset_selection';
-        replyText: string;
-        actions?: ProjectAgentCanvasAction[];
-        nextState?: SessionState;
-        request?: ProjectAgentPendingAssetSelectionRequest;
-      } | null = null;
-
-      for (const resolver of semanticResolvers) {
-        semanticCanvasPlan = await safelyResolveSemanticCanvasStep({
-          step: resolver.step,
-          latestUserTurn: latestUserTurnRaw,
-          workflow: semanticCanvasIntent.workflow,
-          fn: resolver.fn,
-        });
-        if (semanticCanvasPlan) break;
-      }
-      if (semanticCanvasPlan?.kind === 'assistant') {
-        return sendDirectAssistantReply(
-          semanticCanvasPlan.replyText,
-          semanticCanvasPlan.nextState,
-        );
-      }
-      if (semanticCanvasPlan?.kind === 'asset_selection' && semanticCanvasPlan.request) {
-        return sendDirectCanvasActionReply({
-          replyText: semanticCanvasPlan.replyText,
-          toolName: 'requestAssetSelection',
-          output: {
-            success: true,
-            actions: [{
-              kind: 'ui_action',
-              action: {
-                type: 'open_asset_picker',
-                request: semanticCanvasPlan.request,
-              },
-            }],
-          },
-          nextState: semanticCanvasPlan.nextState,
-        });
-      }
-      if (semanticCanvasPlan?.kind === 'canvas' && semanticCanvasPlan.actions) {
-        return sendDirectCanvasActionReply({
-          replyText: semanticCanvasPlan.replyText,
-          toolName: 'planCanvasEdit',
-          output: {
-            success: true,
-            actions: semanticCanvasPlan.actions,
-          },
-          nextState: semanticCanvasPlan.nextState,
-        });
-      }
+    if (shouldAttemptSemanticCanvasPlanning(latestUserTurnRaw)) {
+      return runSemanticPlanningWithEarlyFeedback();
     }
 
     const directNamedCanvasWorkflowPlan = await resolveNamedCanvasWorkflowPlan();
