@@ -946,7 +946,14 @@ const buildSystemPrompt = (state: SessionState) => {
       : `confirmation:${state.pendingUiRequest.confirmationType}:${state.pendingUiRequest.title}`
     : 'none';
 
-  return `You are Flowgen, the Flowtra growth agent. Core mission: "Make virality accessible."
+  return `RESPONSE FORMAT (mandatory):
+You MUST start every response with a <thinking> block. Inside it, reason through the user's intent, what they need, and what canvas action you will take. Then write your visible reply outside the tag.
+<thinking>
+[briefly reason through user intent and your planned action]
+</thinking>
+[your visible reply here]
+
+You are Flowgen, the Flowtra growth agent. Core mission: "Make virality accessible."
 
 Identity and brand voice (strict):
 - You are named Flowgen.
@@ -1089,7 +1096,7 @@ Workflow rules:
 - Canvas editing workflow:
   - Treat the right chat panel as a canvas-building assistant for the current canvas.
   - Use inspectCanvas before making non-trivial canvas edits when you need the latest node/edge context.
-  - Use requestAssetSelection when the user wants an avatar, product, or video but has not specified which exact asset.
+  - NEVER use requestAssetSelection. Always use planCanvasEdit to place nodes directly on the canvas. If the user has not specified which asset to use, place the feature node anyway and tell them to configure it by clicking on the node.
   - Use planCanvasEdit for safe direct canvas changes such as adding nodes, connecting nodes, updating text, updating feature config, formatting layout, and opening node details.
   - Use confirmDestructiveCanvasAction before clearing the canvas, deleting a multi-node selection, or replacing an existing graph in a way that would drop connections.
   - Never ask the user to drag nodes manually when the action can be done through canvas editing tools.
@@ -2206,45 +2213,24 @@ export async function POST(request: Request) {
           };
         }
 
-        const request: ProjectAgentPendingAssetSelectionRequest = {
-          type: 'asset_selection',
-          assetType: 'video',
-          title: 'Select a video for Motion Clone',
-          instructions: 'Choose one reference video. I will place it on the canvas, create a Motion Clone node, and connect it automatically.',
-          nodeAlias: 'selectedVideo',
-          mutations: [
-            {
-              type: 'add_feature_node',
-              alias: 'featureNode',
-              featureType: 'motion_clone',
-              placement: {
-                kind: 'relative',
-                ref: { kind: 'alias', alias: 'selectedVideo' },
-                dx: 280,
-                dy: 0,
-              },
-              select: true,
-            },
-            {
-              type: 'connect_nodes',
-              source: { kind: 'alias', alias: 'selectedVideo' },
-              target: { kind: 'alias', alias: 'featureNode' },
-              targetHandle: 'video',
-            },
-            {
-              type: 'open_node_details',
-              target: { kind: 'alias', alias: 'featureNode' },
-            },
-          ],
-        };
         return {
-          kind: 'asset_selection',
-          replyText: 'Choose the reference video below and I will place the Motion Clone workflow on the canvas.',
-          request,
+          kind: 'canvas',
+          replyText: "I've placed a Motion Clone node on the canvas. Click on it to select your reference video and start.",
+          actions: [
+            {
+              kind: 'canvas_mutation',
+              mutation: {
+                type: 'add_feature_node',
+                alias: 'featureNode',
+                featureType: 'motion_clone',
+                reuseExisting: true,
+                select: true,
+              },
+            },
+          ] as ProjectAgentCanvasAction[],
           nextState: mergeState(sessionState, {
             language: nextLanguage,
             canvasIntent: intent,
-            pendingUiRequest: request,
           }),
         };
       }
@@ -2553,72 +2539,43 @@ export async function POST(request: Request) {
           };
         }
 
-        const request: ProjectAgentPendingAssetSelectionRequest = {
-          type: 'asset_selection',
-          assetType: 'video',
-          title: 'Select a video for Video Clone',
-          instructions: 'Choose one reference video. I will place it on the canvas, create a Video Clone node, and connect it automatically.',
-          nodeAlias: 'selectedVideo',
-          mutations: [
-            ...(resolvedProductAsset ? [{
-              type: 'add_asset_node' as const,
-              alias: 'productAsset',
-              assetType: 'product' as const,
-              asset: resolvedProductAsset,
-              reuseExisting: true,
-            }] : []),
-            ...(resolvedAvatarAsset && !resolvedProductAsset ? [{
-              type: 'add_asset_node' as const,
-              alias: 'avatarAsset',
-              assetType: 'avatar' as const,
-              asset: resolvedAvatarAsset,
-              reuseExisting: true,
-            }] : []),
-            {
-              type: 'add_feature_node',
-              alias: 'featureNode',
-              featureType: 'video_clone',
-              placement: {
-                kind: 'relative',
-                ref: { kind: 'alias', alias: 'selectedVideo' },
-                dx: 280,
-                dy: 0,
-              },
-              select: true,
-            },
-            {
-              type: 'connect_nodes',
-              source: { kind: 'alias', alias: 'selectedVideo' },
-              target: { kind: 'alias', alias: 'featureNode' },
-              targetHandle: 'video',
-            },
-            ...(resolvedProductAsset ? [{
-              type: 'connect_nodes' as const,
-              source: { kind: 'alias', alias: 'productAsset' },
-              target: { kind: 'alias', alias: 'featureNode' },
-              targetHandle: 'product' as const,
-            }] : []),
-            ...(!resolvedProductAsset && resolvedAvatarAsset ? [{
-              type: 'connect_nodes' as const,
-              source: { kind: 'alias', alias: 'avatarAsset' },
-              target: { kind: 'alias', alias: 'featureNode' },
-              targetHandle: 'avatar' as const,
-            }] : []),
-            {
-              type: 'open_node_details',
-              target: { kind: 'alias', alias: 'featureNode' },
-            },
-          ] as ProjectAgentCanvasMutation[],
-        };
-
         return {
-          kind: 'asset_selection',
-          replyText: 'Choose the reference video below and I will place the Video Clone workflow on the canvas.',
-          request,
+          kind: 'canvas',
+          replyText: "I've placed a Video Clone node on the canvas. Click on it to select your reference video and start.",
+          actions: [
+            ...(resolvedProductAsset ? [{
+              kind: 'canvas_mutation' as const,
+              mutation: {
+                type: 'add_asset_node' as const,
+                alias: 'productAsset',
+                assetType: 'product' as const,
+                asset: resolvedProductAsset,
+                reuseExisting: true,
+              },
+            }] : []),
+            {
+              kind: 'canvas_mutation' as const,
+              mutation: {
+                type: 'add_feature_node' as const,
+                alias: 'featureNode',
+                featureType: 'video_clone' as const,
+                reuseExisting: true,
+                select: true,
+              },
+            },
+            ...(resolvedProductAsset ? [{
+              kind: 'canvas_mutation' as const,
+              mutation: {
+                type: 'connect_nodes' as const,
+                source: { kind: 'alias', alias: 'productAsset' },
+                target: { kind: 'alias', alias: 'featureNode' },
+                targetHandle: 'product' as const,
+              },
+            }] : []),
+          ] as ProjectAgentCanvasAction[],
           nextState: mergeState(sessionState, {
             language: nextLanguage,
             canvasIntent: intent,
-            pendingUiRequest: request,
           }),
         };
       }
@@ -2877,73 +2834,61 @@ export async function POST(request: Request) {
           : 'Create a concise premium avatar ad script.');
 
       if (!resolvedAvatarAsset) {
-        const request: ProjectAgentPendingAssetSelectionRequest = {
-          type: 'asset_selection',
-          assetType: 'avatar',
-          title: 'Select an avatar for Avatar Ads',
-          instructions: 'Choose one avatar. I will place it on the canvas, create an Avatar Ads node, and connect it automatically.',
-          nodeAlias: 'selectedAvatar',
-          mutations: [
-            ...(resolvedProductAsset ? [{
-              type: 'add_asset_node' as const,
-              alias: 'productAsset',
-              assetType: 'product' as const,
-              asset: resolvedProductAsset,
-              reuseExisting: true,
-            }] : []),
-            {
-              type: 'add_text_node',
-              alias: 'scriptAsset',
-              content: scriptContent,
-              reuseExisting: true,
-            },
-            {
-              type: 'add_feature_node',
-              alias: 'featureNode',
-              featureType: 'avatar_ads',
-              placement: {
-                kind: 'relative',
-                ref: { kind: 'alias', alias: 'selectedAvatar' },
-                dx: 280,
-                dy: 0,
-              },
-              select: true,
-            },
-            {
-              type: 'connect_nodes',
-              source: { kind: 'alias', alias: 'selectedAvatar' },
-              target: { kind: 'alias', alias: 'featureNode' },
-              targetHandle: 'avatar',
-            },
-            {
-              type: 'connect_nodes',
-              source: { kind: 'alias', alias: 'scriptAsset' },
-              target: { kind: 'alias', alias: 'featureNode' },
-              targetHandle: 'text',
-            },
-            ...(resolvedProductAsset ? [{
-              type: 'connect_nodes' as const,
-              source: { kind: 'alias', alias: 'productAsset' },
-              target: { kind: 'alias', alias: 'featureNode' },
-              targetHandle: 'product' as const,
-            }] : []),
-            {
-              type: 'open_node_details',
-              target: { kind: 'alias', alias: 'featureNode' },
-            },
-          ] as ProjectAgentCanvasMutation[],
-        };
-
         return {
-          kind: 'asset_selection',
-          replyText: semanticAvatarNames.length > 0
-            ? 'I could not confidently match the avatar yet. Please choose it below so I can place the Avatar Ads workflow correctly.'
-            : 'Choose the avatar below and I will place the Avatar Ads workflow on the canvas.',
-          request,
+          kind: 'canvas',
+          replyText: "I've placed an Avatar Ads node on the canvas. Click on it to select your avatar and start.",
+          actions: [
+            ...(resolvedProductAsset ? [{
+              kind: 'canvas_mutation' as const,
+              mutation: {
+                type: 'add_asset_node' as const,
+                alias: 'productAsset',
+                assetType: 'product' as const,
+                asset: resolvedProductAsset,
+                reuseExisting: true,
+              },
+            }] : []),
+            {
+              kind: 'canvas_mutation' as const,
+              mutation: {
+                type: 'add_text_node' as const,
+                alias: 'scriptAsset',
+                content: scriptContent,
+                reuseExisting: true,
+              },
+            },
+            {
+              kind: 'canvas_mutation' as const,
+              mutation: {
+                type: 'add_feature_node' as const,
+                alias: 'featureNode',
+                featureType: 'avatar_ads' as const,
+                reuseExisting: true,
+                select: true,
+              },
+            },
+            {
+              kind: 'canvas_mutation' as const,
+              mutation: {
+                type: 'connect_nodes' as const,
+                source: { kind: 'alias', alias: 'scriptAsset' },
+                target: { kind: 'alias', alias: 'featureNode' },
+                targetHandle: 'text' as const,
+              },
+            },
+            ...(resolvedProductAsset ? [{
+              kind: 'canvas_mutation' as const,
+              mutation: {
+                type: 'connect_nodes' as const,
+                source: { kind: 'alias', alias: 'productAsset' },
+                target: { kind: 'alias', alias: 'featureNode' },
+                targetHandle: 'product' as const,
+              },
+            }] : []),
+          ] as ProjectAgentCanvasAction[],
           nextState: mergeState(sessionState, {
             language: nextLanguage,
             canvasIntent: intent,
-            pendingUiRequest: request,
           }),
         };
       }

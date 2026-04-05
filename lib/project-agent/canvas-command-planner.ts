@@ -268,34 +268,15 @@ export const planProjectAgentCanvasCommand = (
   }
 
   if (includesAny(text, [' clone a video', ' clone this video', ' i want to clone a video', ' set up video clone'])) {
-    return buildOpenPickerPlan(
-      'video',
-      'Select one reference video below and I will place the video clone flow on the canvas.',
-      'Select a video for Video Clone',
-      'Choose one reference video. I will place it on the canvas, create a Video Clone node, and connect it automatically.',
-      'selectedVideo',
+    return buildSafeEditPlan(
+      "I've placed a Video Clone node on the canvas. Click on it to select your reference video and start.",
       [
         {
           type: 'add_feature_node',
           alias: 'videoClone',
           featureType: 'video_clone',
-          placement: {
-            kind: 'relative',
-            ref: { kind: 'alias', alias: 'selectedVideo' },
-            dx: 280,
-            dy: 0,
-          },
+          reuseExisting: true,
           select: true,
-        },
-        {
-          type: 'connect_nodes',
-          source: { kind: 'alias', alias: 'selectedVideo' },
-          target: { kind: 'alias', alias: 'videoClone' },
-          targetHandle: 'video',
-        },
-        {
-          type: 'open_node_details',
-          target: { kind: 'alias', alias: 'videoClone' },
         },
       ],
     );
@@ -550,14 +531,16 @@ export const planProjectAgentCanvasCommand = (
   }
 
   if ((assetType === 'avatar' || assetType === 'product' || assetType === 'video') && includesAny(text, [' add ', ' create ', ' insert ', ' place '])) {
-    const featureLabel = assetType === 'avatar' ? 'avatar' : assetType === 'product' ? 'product' : 'video';
-    return buildOpenPickerPlan(
-      assetType,
-      `Select one ${featureLabel} below and I will place it on the canvas.`,
-      `Select a ${featureLabel}`,
-      `Choose one ${featureLabel}. I will place it on the canvas for you.`,
-      assetType === 'avatar' ? 'selectedAvatar' : assetType === 'product' ? 'selectedProduct' : 'selectedVideo',
-      [],
+    return buildSafeEditPlan(
+      `I added an ${assetType} node to the canvas. Click on it to select your ${assetType}.`,
+      [
+        {
+          type: 'add_asset_node',
+          alias: assetType === 'avatar' ? 'selectedAvatar' : assetType === 'product' ? 'selectedProduct' : 'selectedVideo',
+          assetType,
+          select: true,
+        },
+      ],
     );
   }
 
