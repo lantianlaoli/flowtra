@@ -1822,7 +1822,7 @@ async function initializeCloneProjectForManualEditing({
     .update({
       video_prompts: storedVideoPrompts,
       segment_plan: serializedPlan,
-      is_segmented: normalizedSegments.length > 1,
+      is_segmented: normalizedSegments.length > 0,
       segment_count: normalizedSegments.length,
       segment_duration_seconds: normalizedSegments.length > 0 ? resolvedSegmentDurationSeconds : null,
       current_step: 'ready_for_video',
