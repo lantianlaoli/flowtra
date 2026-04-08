@@ -39,6 +39,7 @@ import { getDownloadCost, type VideoModel, getVideoModelDisplayName } from '@/li
 import type { SegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
 import SegmentEditorSplitPane from '@/components/competitor-ugc-replication/SegmentEditorSplitPane';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
+import { useI18n } from '@/providers/I18nProvider';
 
 const ACTION_BUTTON_BASE =
   'inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/35';
@@ -156,11 +157,50 @@ export default function GenerationProgressDisplay({
   onSegmentSelect,
   onMerge,
   onReview,
-  reviewCtaLabel = 'Edit',
+  reviewCtaLabel,
   onSegmentRegenerate,
   projectType,
   selectedLanguage
 }: GenerationProgressDisplayProps) {
+  const { locale } = useI18n();
+  const copy = useMemo(() => ({
+    reviewEdit: locale === 'zh' ? '编辑' : 'Edit',
+    getStarted: locale === 'zh' ? '开始使用' : 'Get started',
+    followSteps: locale === 'zh' ? '按照这些步骤创建你的第一个视频' : 'Follow these steps to create your first video',
+    readyToDownload: locale === 'zh' ? '可下载' : 'Ready to Download',
+    generationFailed: locale === 'zh' ? '生成失败' : 'Generation Failed',
+    needsReview: locale === 'zh' ? '需要检查' : 'Needs Review',
+    generating: locale === 'zh' ? '生成中...' : 'Generating...',
+    inQueue: locale === 'zh' ? '排队中' : 'In Queue',
+    unknown: locale === 'zh' ? '未知状态' : 'Unknown',
+    free: locale === 'zh' ? '免费' : 'Free',
+    credits: locale === 'zh' ? '积分' : 'Credits',
+    reviewNeeded: locale === 'zh' ? '需要检查' : 'Review Needed',
+    previewAlt: locale === 'zh' ? '预览' : 'Preview',
+    reviewYourVideo: locale === 'zh' ? '检查视频' : 'Review Your Video',
+    composeYourVideo: locale === 'zh' ? '编排视频' : 'Compose Your Video',
+    finalMergeAvailable: locale === 'zh' ? '最终合并结果已可用' : 'Final merge available',
+    waitingSegmentData: locale === 'zh' ? '等待分镜数据…' : 'Waiting for segment data…',
+    noImage: locale === 'zh' ? '无图片' : 'No Image',
+    segmentGenerationFailed: locale === 'zh' ? '生成失败' : 'Generation failed',
+    retrying: locale === 'zh' ? '重试中' : 'Retrying',
+    thanks: locale === 'zh' ? '感谢反馈！' : 'Thanks!',
+    good: locale === 'zh' ? '好' : 'Good',
+    bad: locale === 'zh' ? '差' : 'Bad',
+    feedbackFailed: locale === 'zh' ? '提交反馈失败，请重试。' : 'Failed to submit feedback. Please try again.',
+  }), [locale]);
+  const localizedDefaultSteps: EmptyStateStep[] = useMemo(() => (
+    locale === 'zh'
+      ? [
+          { number: 1, description: '在', link: { text: 'Assets', href: '/dashboard/assets' } },
+          { number: 2, description: '选择一个爆款视频' },
+          { number: 3, description: '检查设置并开始生成' },
+          { number: 4, description: '准备好后，点击“编辑”手动微调每个分镜的图片和提示词' },
+          { number: 5, description: '满意后，逐段触发视频生成并合并最终结果' },
+        ]
+      : DEFAULT_STEPS
+  ), [locale]);
+  const resolvedReviewCtaLabel = reviewCtaLabel ?? copy.reviewEdit;
   // Load TikTok script when in empty state
   useEffect(() => {
     if (generations.length === 0) {
@@ -177,7 +217,7 @@ export default function GenerationProgressDisplay({
 
   // Empty state
   if (generations.length === 0) {
-    const steps = emptyStateSteps || DEFAULT_STEPS;
+    const steps = emptyStateSteps || localizedDefaultSteps;
     return (
       <div className="h-full flex items-center justify-center p-8">
         <div className="w-full max-w-5xl flex flex-col lg:flex-row items-center gap-10 lg:gap-12">
@@ -190,12 +230,12 @@ export default function GenerationProgressDisplay({
                 </div>
                 <div>
                   <h3 className="text-3xl font-semibold text-black">
-                    Get started
+                    {copy.getStarted}
                   </h3>
                 </div>
               </div>
               <p className="text-base text-[#666666] mt-3">
-                Follow these steps to create your first video
+                {copy.followSteps}
               </p>
             </div>
 
@@ -271,7 +311,7 @@ interface GenerationCardProps {
   onSegmentSelect?: (generation: Generation, segment: SegmentCardSummary) => void;
   onMerge?: (generation: Generation) => void;
   onReview?: (generation: Generation) => void;
-  reviewCtaLabel: string;
+  reviewCtaLabel?: string;
   onSegmentRegenerate?: (options: {
     projectId: string;
     segmentIndex: number;
@@ -299,6 +339,23 @@ function GenerationCard({
   projectType,
   selectedLanguage
 }: GenerationCardProps) {
+  const { locale } = useI18n();
+  const copy = useMemo(() => ({
+    reviewEdit: locale === 'zh' ? '编辑' : 'Edit',
+    readyToDownload: locale === 'zh' ? '可下载' : 'Ready to Download',
+    generationFailed: locale === 'zh' ? '生成失败' : 'Generation Failed',
+    needsReview: locale === 'zh' ? '需要检查' : 'Needs Review',
+    generating: locale === 'zh' ? '生成中...' : 'Generating...',
+    inQueue: locale === 'zh' ? '排队中' : 'In Queue',
+    unknown: locale === 'zh' ? '未知状态' : 'Unknown',
+    free: locale === 'zh' ? '免费' : 'Free',
+    credits: locale === 'zh' ? '积分' : 'Credits',
+    reviewNeeded: locale === 'zh' ? '需要检查' : 'Review Needed',
+    previewAlt: locale === 'zh' ? '预览' : 'Preview',
+    reviewYourVideo: locale === 'zh' ? '检查视频' : 'Review Your Video',
+    composeYourVideo: locale === 'zh' ? '编排视频' : 'Compose Your Video',
+  }), [locale]);
+  const resolvedReviewCtaLabel = reviewCtaLabel ?? copy.reviewEdit;
   const {
     status,
     progress = 0,
@@ -346,31 +403,31 @@ function GenerationCard({
   );
   const editorFlowLabels = projectType === 'competitor-ugc-replication'
     ? {
-        step1: 'Edit Prompts',
-        step2: 'Generate First Frames',
-        step3: 'Generate Videos',
-        step4: 'Merge Final Video'
+        step1: locale === 'zh' ? '编辑提示词' : 'Edit Prompts',
+        step2: locale === 'zh' ? '生成首帧' : 'Generate First Frames',
+        step3: locale === 'zh' ? '生成视频' : 'Generate Videos',
+        step4: locale === 'zh' ? '合并最终视频' : 'Merge Final Video'
       }
     : {
-        step1: 'Refine Frames & Assets',
-        step2: 'Generate Segment Clips',
-        step3: 'Merge Final Video'
+        step1: locale === 'zh' ? '微调画面和素材' : 'Refine Frames & Assets',
+        step2: locale === 'zh' ? '生成分镜片段' : 'Generate Segment Clips',
+        step3: locale === 'zh' ? '合并最终视频' : 'Merge Final Video'
       };
 
   const downloadMetaLabel = useMemo(() => {
-    if (downloaded) return 'Downloaded';
+    if (downloaded) return locale === 'zh' ? '已下载' : 'Downloaded';
     if (!videoModel) {
-      return 'Cost pending';
+      return locale === 'zh' ? '费用待定' : 'Cost pending';
     }
     const cost = getDownloadCost(videoModel, videoDuration, segmentCount ?? undefined);
-    return cost === 0 ? 'Free' : `${cost} credits`;
-  }, [videoModel, downloaded, videoDuration, segmentCount]);
+    return cost === 0 ? copy.free : `${cost} ${locale === 'zh' ? '积分' : 'credits'}`;
+  }, [videoModel, downloaded, videoDuration, segmentCount, locale, copy.free]);
 
   const downloadActionLabel = useMemo(() => {
-    if (isDownloading) return 'Downloading…';
-    if (downloaded) return 'Download Again';
-    return 'Download';
-  }, [isDownloading, downloaded]);
+    if (isDownloading) return locale === 'zh' ? '下载中…' : 'Downloading…';
+    if (downloaded) return locale === 'zh' ? '再次下载' : 'Download Again';
+    return locale === 'zh' ? '下载' : 'Download';
+  }, [isDownloading, downloaded, locale]);
 
   const hasSegmentFailure = Boolean(
     generation.segmentStatus?.segments?.some(seg => seg.status === 'failed')
@@ -443,18 +500,18 @@ function GenerationCard({
 
     switch (displayStatus) {
       case 'completed':
-        return 'Ready to Download';
+        return copy.readyToDownload;
       case 'failed':
-        return 'Generation Failed';
+        return copy.generationFailed;
       case 'attention':
-        return 'Needs Review';
+        return copy.needsReview;
       case 'processing':
-        return formatStage(displayStage) || 'Generating...';
+        return formatStage(displayStage) || copy.generating;
       case 'pending':
       case 'awaiting_review':
-        return formatStage(displayStage) || 'In Queue';
+        return formatStage(displayStage) || copy.inQueue;
       default:
-        return 'Unknown';
+        return copy.unknown;
     }
   };
 
@@ -506,7 +563,7 @@ function GenerationCard({
                 className={`generation-progress-action ${ACTION_BUTTON_DARK}`}
               >
                 <PencilLine className="w-3.5 h-3.5" />
-                {reviewCtaLabel}
+                {resolvedReviewCtaLabel}
               </button>
             )}
             {primaryActionLabel && onPrimaryAction && (
@@ -528,7 +585,7 @@ function GenerationCard({
                   className={`generation-progress-edit ${ACTION_BUTTON_DARK}`}
                 >
                   <PencilLine className="w-3.5 h-3.5" />
-                  <span>Edit</span>
+                  <span>{copy.reviewEdit}</span>
                 </button>
               </div>
             )}
@@ -564,7 +621,7 @@ function GenerationCard({
           {videoDuration && <MetaTag icon={Clock} text={`${videoDuration}s`} />}
           {videoModel && <MetaTag icon={Rocket} text={getVideoModelDisplayName(videoModel)} />}
           {typeof creditsCost === 'number' && (
-            <MetaTag icon={Coins} text={creditsCost === 0 ? 'Free' : `${creditsCost} Credits`} />
+            <MetaTag icon={Coins} text={creditsCost === 0 ? copy.free : `${creditsCost} ${copy.credits}`} />
           )}
         </div>
 
@@ -591,7 +648,7 @@ function GenerationCard({
                   {hasSegments && generation.segments && generation.segments.length > 0 && !mergeComplete && (
                     <div className="generation-progress-badge inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-50 border border-gray-200 rounded-full text-[10px] font-medium text-gray-900 whitespace-nowrap">
                       <AlertCircle className="w-2.5 h-2.5 flex-shrink-0" />
-                      <span>Review Needed</span>
+                      <span>{copy.reviewNeeded}</span>
                     </div>
                   )}
                 </div>
@@ -650,7 +707,7 @@ function GenerationCard({
                     onEnded={handleStop}
                   />
                 ) : coverUrl ? (
-                  <Image src={coverUrl} alt="Preview" fill className="object-contain" unoptimized />
+                  <Image src={coverUrl} alt={copy.previewAlt} fill className="object-contain" unoptimized />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <Film className="w-8 h-8 text-gray-200" />
@@ -693,7 +750,7 @@ function GenerationCard({
                 <div className="flex items-center gap-2">
                   <Clapperboard className="w-5 h-5 text-black" />
                   <h2 className="text-lg font-semibold text-gray-900 whitespace-nowrap">
-                    {editorReadOnly ? 'Review Your Video' : 'Compose Your Video'}
+                    {editorReadOnly ? copy.reviewYourVideo : copy.composeYourVideo}
                   </h2>
                 </div>
 
@@ -790,6 +847,7 @@ function SegmentBoard({
   segments?: SegmentCardSummary[] | null;
   onSelectSegment?: (generation: Generation, segment: SegmentCardSummary) => void;
 }) {
+  const { locale } = useI18n();
   const derivedSegments = segments && segments.length > 0
     ? segments
     : ((segmentStatus?.segments as SegmentCardSummary[]) || []);
@@ -800,14 +858,14 @@ function SegmentBoard({
         {segmentStatus?.mergedVideoUrl && (
           <div className="flex items-center gap-1 text-emerald-600">
             <CheckCircle className="w-4 h-4" />
-            Final merge available
+            {locale === 'zh' ? '最终合并结果已可用' : 'Final merge available'}
           </div>
         )}
       </div>
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         {derivedSegments.length === 0 ? (
           <div className="col-span-full border border-dashed border-gray-200 rounded-xl p-4 text-sm text-gray-500">
-            Waiting for segment data…
+            {locale === 'zh' ? '等待分镜数据…' : 'Waiting for segment data…'}
           </div>
         ) : (
           derivedSegments.map(segment => (
@@ -830,6 +888,7 @@ function SegmentSummaryCard({
   segment: SegmentCardSummary;
   onSelect?: () => void;
 }) {
+  const { locale } = useI18n();
   const prompt = (segment.prompt || {}) as Record<string, unknown>;
   const title =
     (typeof (prompt as { segment_title?: string }).segment_title === 'string' && (prompt as { segment_title?: string }).segment_title) ||
@@ -840,7 +899,7 @@ function SegmentSummaryCard({
     (typeof (prompt as { description?: string }).description === 'string' && (prompt as { description?: string }).description) ||
     'Awaiting prompt details.';
 
-  const statusBadge = getSegmentStatusBadge(segment.status);
+  const statusBadge = getSegmentStatusBadge(segment.status, locale);
 
   return (
     <div 
@@ -860,7 +919,7 @@ function SegmentSummaryCard({
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-[10px] text-gray-400 gap-1.5 bg-gray-50">
             <ImageIcon className="w-4 h-4 opacity-50" />
-            <span>No Image</span>
+            <span>{locale === 'zh' ? '无图片' : 'No Image'}</span>
           </div>
         )}
         {segment.videoUrl && (
@@ -888,12 +947,12 @@ function SegmentSummaryCard({
             {segment.status === 'failed' ? (
               <span className="text-red-600 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" />
-                {segment.errorMessage || 'Generation failed'}
+                {segment.errorMessage || (locale === 'zh' ? '生成失败' : 'Generation failed')}
               </span>
             ) : (
               <span className="text-amber-600 flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" />
-                Retrying ({segment.retryCount}/5)
+                {locale === 'zh' ? `重试中 (${segment.retryCount}/5)` : `Retrying (${segment.retryCount}/5)`}
               </span>
             )}
           </div>
@@ -904,7 +963,7 @@ function SegmentSummaryCard({
       <div className="absolute right-3 bottom-3 opacity-0 group-hover:opacity-100 transition-opacity">
         <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 bg-white border border-gray-200 px-2 py-1 rounded-md shadow-sm">
           <PenSquare className="w-3 h-3" />
-          Edit
+          {locale === 'zh' ? '编辑' : 'Edit'}
         </span>
       </div>
     </div>
@@ -918,6 +977,7 @@ function FeedbackButtons({
   projectId: string;
   projectType: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-clone';
 }) {
+  const { locale } = useI18n();
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState<'positive' | 'negative' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -934,13 +994,13 @@ function FeedbackButtons({
       });
 
       if (!response.ok) {
-        throw new Error('Failed to submit feedback');
+        throw new Error(locale === 'zh' ? '提交反馈失败，请重试。' : 'Failed to submit feedback');
       }
 
       setSubmitted(true);
     } catch (err) {
       console.error('Feedback error:', err);
-      setError('Failed to submit feedback. Please try again.');
+      setError(locale === 'zh' ? '提交反馈失败，请重试。' : 'Failed to submit feedback. Please try again.');
     } finally {
       setSubmitting(null);
     }
@@ -948,7 +1008,7 @@ function FeedbackButtons({
 
   if (submitted) {
     return (
-      <span className="text-[12px] text-gray-500">Thanks!</span>
+      <span className="text-[12px] text-gray-500">{locale === 'zh' ? '感谢反馈！' : 'Thanks!'}</span>
     );
   }
 
@@ -964,7 +1024,7 @@ function FeedbackButtons({
         ) : (
           <ThumbsUp className="w-3.5 h-3.5" />
         )}
-        <span>Good</span>
+        <span>{locale === 'zh' ? '好' : 'Good'}</span>
       </button>
       <button
         onClick={() => handleFeedback('negative')}
@@ -976,28 +1036,28 @@ function FeedbackButtons({
         ) : (
           <ThumbsDown className="w-3.5 h-3.5" />
         )}
-        <span>Bad</span>
+        <span>{locale === 'zh' ? '差' : 'Bad'}</span>
       </button>
     </>
   );
 }
 
-function getSegmentStatusBadge(status: string) {
+function getSegmentStatusBadge(status: string, locale: 'en' | 'zh') {
   const normalized = status?.toLowerCase() || '';
   switch (normalized) {
     case 'first_frame_ready':
-      return { label: 'Ready for Video', className: 'bg-gray-100 text-gray-900 border border-gray-200' };
+      return { label: locale === 'zh' ? '可生成视频' : 'Ready for Video', className: 'bg-gray-100 text-gray-900 border border-gray-200' };
     case 'generating_first_frame':
-      return { label: 'Generating...', className: 'bg-gray-50 text-gray-600 border border-gray-100' };
+      return { label: locale === 'zh' ? '生成中...' : 'Generating...', className: 'bg-gray-50 text-gray-600 border border-gray-100' };
     case 'retrying_first_frame':
-      return { label: 'Retrying', className: 'bg-gray-100 text-gray-700 border border-gray-200' };
+      return { label: locale === 'zh' ? '重试中' : 'Retrying', className: 'bg-gray-100 text-gray-700 border border-gray-200' };
     case 'generating_video':
-      return { label: 'Rendering Video', className: 'bg-gray-900 text-white border border-transparent' };
+      return { label: locale === 'zh' ? '渲染视频中' : 'Rendering Video', className: 'bg-gray-900 text-white border border-transparent' };
     case 'video_ready':
-      return { label: 'Complete', className: 'bg-black text-white border border-transparent' };
+      return { label: locale === 'zh' ? '完成' : 'Complete', className: 'bg-black text-white border border-transparent' };
     case 'failed':
-      return { label: 'Failed', className: 'bg-gray-200 text-gray-900 border border-gray-300' };
+      return { label: locale === 'zh' ? '失败' : 'Failed', className: 'bg-gray-200 text-gray-900 border border-gray-300' };
     default:
-      return { label: 'Queued', className: 'bg-gray-50 text-gray-500 border border-gray-100' };
+      return { label: locale === 'zh' ? '排队中' : 'Queued', className: 'bg-gray-50 text-gray-500 border border-gray-100' };
   }
 }

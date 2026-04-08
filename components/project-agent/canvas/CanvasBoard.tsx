@@ -39,6 +39,7 @@ import {
   type ProjectAgentCanvasState,
   type ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 type CanvasBoardProps = {
   canvas: ProjectAgentCanvasState;
@@ -66,6 +67,7 @@ type CanvasBoardProps = {
   onDeleteNode: (nodeId: string) => void;
   onNodeDoubleClick: (nodeId: string) => void;
   onRunFeatureNode: (nodeId: string) => void;
+  onRetryFeatureNode: (nodeId: string) => void;
   onRegenerateFeatureNode: (nodeId: string) => void;
   onUpdateNodeContent: (nodeId: string, content: string) => void;
   onFormatLayout: () => void;
@@ -211,6 +213,7 @@ export default function CanvasBoard({
   onDeleteNode,
   onNodeDoubleClick,
   onRunFeatureNode,
+  onRetryFeatureNode,
   onRegenerateFeatureNode,
   onUpdateNodeContent,
   onFormatLayout,
@@ -435,6 +438,8 @@ export default function CanvasBoard({
           const canStart = isFeatureNode ? Boolean(node.runtime?.canStart) : false;
           const blockedReason = isFeatureNode ? (node.runtime?.blockedReason || null) : null;
           const executionState = node.runtime?.executionState || 'invalid';
+          const retryableFailure = executionState === 'failed' && Boolean(node.runtime?.retryable);
+          const userFacingError = node.runtime?.userFacingError || null;
           const hasActiveMilestone = Boolean(node.runtime?.milestones?.some((milestone) => milestone.state === 'active'));
           const isQueuedPhase = node.runtime?.phase === 'queued';
           const showRunningState = executionState === 'running' || hasActiveMilestone || isQueuedPhase;
@@ -711,6 +716,22 @@ export default function CanvasBoard({
                     <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#3d3c38]">
                       {getProjectAgentFeatureDisplayName(node.type as ProjectAgentFeatureNodeType)}
                     </span>
+                    {userFacingError ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-500"
+                            onClick={(event) => event.stopPropagation()}
+                            type="button"
+                          >
+                            <AlertCircle className="h-3 w-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" sideOffset={8} className="max-w-[260px] whitespace-normal leading-5">
+                          {userFacingError}
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : null}
                     {showRunningState ? (
                       <div className="flex shrink-0 items-center gap-1 rounded-full bg-black px-2 py-1 text-[10px] font-semibold text-white">
                         <Loader2 className="h-2.5 w-2.5 animate-spin" />
@@ -724,29 +745,39 @@ export default function CanvasBoard({
                     ) : (
                       <button
                         className={`project-agent-press-button flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${
-                          canStart
+                          retryableFailure || canStart
                             ? 'project-agent-press-button--active cursor-pointer'
                             : blockedReason
                               ? 'cursor-not-allowed border border-amber-200 bg-amber-50 text-amber-700'
+                              : executionState === 'failed'
+                                ? 'cursor-not-allowed border border-red-200 bg-red-50 text-red-500'
                               : 'cursor-not-allowed bg-[#f3f1ea] text-[#b8b5ad]'
                         }`}
-                        disabled={!canStart}
-                        title={!canStart ? blockedReason || undefined : undefined}
+                        disabled={!retryableFailure && !canStart}
                         onClick={(event) => {
+                          if (retryableFailure) {
+                            event.stopPropagation();
+                            onRetryFeatureNode(node.id);
+                            return;
+                          }
                           if (!canStart) return;
                           event.stopPropagation();
                           onRunFeatureNode(node.id);
                         }}
                         type="button"
                       >
-                        {canStart ? (
+                        {retryableFailure ? (
+                          <RefreshCcw className="h-2.5 w-2.5" />
+                        ) : canStart ? (
                           <Play className="h-2.5 w-2.5 fill-white text-white" />
                         ) : blockedReason ? (
                           <AlertTriangle className="h-2.5 w-2.5 text-amber-700" />
+                        ) : executionState === 'failed' ? (
+                          <AlertCircle className="h-2.5 w-2.5 text-red-500" />
                         ) : (
                           <Play className="h-2.5 w-2.5 fill-[#b8b5ad] text-[#b8b5ad]" />
                         )}
-                        {blockedReason ? 'Warning' : 'Start'}
+                        {retryableFailure ? 'Retry' : blockedReason ? 'Warning' : executionState === 'failed' ? 'Failed' : 'Start'}
                       </button>
                     )}
                   </div>

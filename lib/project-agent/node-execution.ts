@@ -26,6 +26,8 @@ export type ProjectAgentCanvasExecutionStatus = {
   outputUrl?: string | null;
   previewUrl?: string | null;
   error?: string | null;
+  userFacingError?: string | null;
+  retryable: boolean;
   statusLabel: string;
   projectId: string;
   table: 'avatar_ads_projects' | 'competitor_ugc_replication_projects' | 'motion_clone_projects';
@@ -38,6 +40,133 @@ export type ProjectAgentCanvasExecutionStatus = {
 const toProgress = (value: unknown, fallback: number) => (
   typeof value === 'number' && Number.isFinite(value) ? value : fallback
 );
+
+type CanvasErrorInfo = {
+  retryable: boolean;
+  userFacingError: string | null;
+};
+
+const RETRYABLE_ERROR_PATTERNS = [
+  '500',
+  '503',
+  'provider_code=500',
+  'server error',
+  'failed after 3 retries',
+  'failed after retries',
+  'service temporarily unavailable',
+  'provider busy',
+  'provider unavailable',
+  'temporarily unavailable',
+  'temporarily busy',
+  'timeout',
+  'timed out',
+  'fetch failed',
+  'econnreset',
+  'enotfound',
+  'network error',
+  'connection reset',
+  'upstream',
+];
+
+const NON_RETRYABLE_INPUT_PATTERNS = [
+  'insufficient credits',
+  'missing',
+  'not found',
+  'forbidden',
+  'unauthorized',
+  'invalid',
+  'unsupported',
+  'policy',
+  'safety check failed',
+  'content policy',
+  'violating content policies',
+  'prompt validation',
+];
+
+export const getProjectAgentCanvasErrorInfo = (error: string | null | undefined): CanvasErrorInfo => {
+  if (!error) {
+    return {
+      retryable: false,
+      userFacingError: null,
+    };
+  }
+
+  const normalized = error.toLowerCase();
+  const isRetryable = RETRYABLE_ERROR_PATTERNS.some((pattern) => normalized.includes(pattern))
+    && !NON_RETRYABLE_INPUT_PATTERNS.some((pattern) => normalized.includes(pattern));
+
+  if (normalized.includes('merge')) {
+    return {
+      retryable: isRetryable,
+      userFacingError: isRetryable
+        ? "We couldn't finish combining the video clips right now. Please try again."
+        : 'We could not combine the video clips with the current project setup.',
+    };
+  }
+
+  if (normalized.includes('timeout') || normalized.includes('timed out')) {
+    return {
+      retryable: true,
+      userFacingError: 'The generation took too long to respond. Please try again.',
+    };
+  }
+
+  if (
+    normalized.includes('fetch failed') ||
+    normalized.includes('network error') ||
+    normalized.includes('econnreset') ||
+    normalized.includes('enotfound') ||
+    normalized.includes('connection reset')
+  ) {
+    return {
+      retryable: true,
+      userFacingError: 'We lost connection to the video service. Please try again.',
+    };
+  }
+
+  if (
+    normalized.includes('503') ||
+    normalized.includes('service temporarily unavailable') ||
+    normalized.includes('provider busy') ||
+    normalized.includes('provider unavailable') ||
+    normalized.includes('temporarily unavailable')
+  ) {
+    return {
+      retryable: true,
+      userFacingError: 'The video service is temporarily unavailable. Please try again.',
+    };
+  }
+
+  if (
+    normalized.includes('policy') ||
+    normalized.includes('safety') ||
+    normalized.includes('content policy')
+  ) {
+    return {
+      retryable: false,
+      userFacingError: 'This request could not be completed because it did not pass the provider review.',
+    };
+  }
+
+  if (
+    normalized.includes('missing') ||
+    normalized.includes('not found') ||
+    normalized.includes('invalid') ||
+    normalized.includes('unsupported')
+  ) {
+    return {
+      retryable: false,
+      userFacingError: 'This run could not continue with the current media or settings.',
+    };
+  }
+
+  return {
+    retryable: isRetryable,
+    userFacingError: isRetryable
+      ? 'Something went wrong with the video service. Please try again.'
+      : 'This run could not be completed. Please review the setup and try again.',
+  };
+};
 
 const getMilestoneLabels = (nodeType: ProjectAgentFeatureNodeType) => {
   switch (nodeType) {
@@ -224,6 +353,8 @@ export const normalizeAvatarExecutionStatus = (
   const awaitingReview = status === 'awaiting_review';
   const executionState = completed ? 'completed' : failed ? 'failed' : 'running';
   const currentMilestoneKey = getCurrentMilestoneForAvatar(status);
+  const error = typeof project.error_message === 'string' ? project.error_message : null;
+  const { retryable, userFacingError } = getProjectAgentCanvasErrorInfo(error);
 
   return {
     executionState,
@@ -231,7 +362,9 @@ export const normalizeAvatarExecutionStatus = (
     progress,
     outputUrl: mergedVideoUrl,
     previewUrl: generatedImageUrl,
-    error: typeof project.error_message === 'string' ? project.error_message : null,
+    error,
+    userFacingError,
+    retryable,
     statusLabel: completed
       ? 'Completed'
       : failed
@@ -302,6 +435,8 @@ export const normalizeCloneExecutionStatus = (
     needsVideoStart,
     hasActiveVideoGeneration,
   );
+  const error = typeof data.errorMessage === 'string' ? data.errorMessage : null;
+  const { retryable, userFacingError } = getProjectAgentCanvasErrorInfo(error);
 
   return {
     executionState,
@@ -309,7 +444,9 @@ export const normalizeCloneExecutionStatus = (
     progress,
     outputUrl: mergedVideo,
     previewUrl: coverImage,
-    error: typeof data.errorMessage === 'string' ? data.errorMessage : null,
+    error,
+    userFacingError,
+    retryable,
     statusLabel: completed
       ? 'Completed'
       : failed
@@ -353,6 +490,8 @@ export const normalizeMotionCloneExecutionStatus = (
   const completed = status === 'completed';
   const executionState = completed ? 'completed' : failed ? 'failed' : 'running';
   const currentMilestoneKey = getCurrentMilestoneForMotionClone(status);
+  const error = typeof project.error_message === 'string' ? project.error_message : null;
+  const { retryable, userFacingError } = getProjectAgentCanvasErrorInfo(error);
 
   return {
     executionState,
@@ -360,7 +499,9 @@ export const normalizeMotionCloneExecutionStatus = (
     progress,
     outputUrl,
     previewUrl,
-    error: typeof project.error_message === 'string' ? project.error_message : null,
+    error,
+    userFacingError,
+    retryable,
     statusLabel: completed ? 'Completed' : failed ? 'Failed' : 'Running motion clone',
     projectId,
     table: 'motion_clone_projects',

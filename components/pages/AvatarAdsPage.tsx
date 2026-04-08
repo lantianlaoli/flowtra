@@ -1300,7 +1300,7 @@ const formatDurationLabel = (seconds: number) => {
                                     <div 
                                       ref={containerRef}
                                       className={`
-                                        absolute bottom-0 left-0 right-0 bg-background border rounded-lg px-4 py-3 flex flex-col justify-center
+                                        absolute bottom-0 left-0 right-0 bg-background border rounded-[16px] px-4 py-3 flex flex-col justify-center
                                         transition-[max-height,box-shadow,border-color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] origin-bottom overflow-hidden will-change-[max-height]
                                         ${isTextareaExpanded 
                                           ? 'max-h-[240px] shadow-xl border-foreground/20 z-50' 

@@ -52,13 +52,6 @@ export default function MotionCloneReferenceControls({
     () => videos.find(video => video.id === selectedVideoId),
     [videos, selectedVideoId]
   );
-  const selectedVideoEligible = requireFirstFrameForSelection
-    ? Boolean(selectedVideo?.cover_url)
-    : Boolean(selectedVideo);
-  const triggerVideo = selectedVideoEligible ? selectedVideo : null;
-  const selectedVideoLabel = selectedVideo
-    ? (selectedVideo.description?.trim() || 'TikTok video')
-    : 'Select video';
   const isInline = variant === 'inline';
 
   return (
@@ -70,32 +63,15 @@ export default function MotionCloneReferenceControls({
         <BottomBarDropdown
           open={videoOpen}
           onOpenChange={setVideoOpen}
-          triggerClassName="min-w-[240px] sm:min-w-[300px]"
+          triggerClassName="min-w-[172px] sm:min-w-[188px]"
           panelWidthClassName="w-[340px] sm:w-[392px]"
           disabled={videos.length === 0}
           trigger={
-            <div className="bottom-bar-video-trigger flex min-w-0 items-center gap-3">
-              <div className="bottom-bar-video-thumb flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-[#d8d8d3] bg-[#f6f6f3]">
-                {selectedVideo?.cover_url ? (
-                  <Image
-                    src={selectedVideo.cover_url}
-                    alt={selectedVideoLabel}
-                    width={44}
-                    height={44}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <Clapperboard className="h-4 w-4 text-[#7a7a74]" />
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="bottom-bar-video-title truncate text-sm font-semibold tracking-tight text-black">
-                  {selectedVideoLabel}
-                </p>
-                <p className="mt-0.5 text-xs text-[#7a7a74]">
-                  {selectedVideo ? 'Reference video selected' : 'Choose a reference video'}
-                </p>
-              </div>
+            <div className="bottom-bar-video-trigger flex min-w-0 items-center gap-2.5">
+              <Clapperboard className="h-4.5 w-4.5 flex-shrink-0 text-black" />
+              <p className="truncate text-sm font-semibold tracking-tight text-black">
+                Select video
+              </p>
             </div>
           }
         >

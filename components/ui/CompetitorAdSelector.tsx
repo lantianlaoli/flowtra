@@ -6,6 +6,7 @@ import { Target, Loader2, Info, ChevronRight, AlertTriangle, Play, Video } from 
 import { CompetitorAd } from '@/lib/supabase';
 import CompetitorAdCard from '../CompetitorAdCard';
 import { cn } from '@/lib/utils';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface CompetitorAdSelectorProps {
   selectedCompetitorAd: CompetitorAd | null;
@@ -20,6 +21,7 @@ export default function CompetitorAdSelector({
   variant = 'default',
   className
 }: CompetitorAdSelectorProps) {
+  const { locale } = useI18n();
   const [competitorAds, setCompetitorAds] = useState<CompetitorAd[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -29,6 +31,29 @@ export default function CompetitorAdSelector({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
+  const copy = locale === 'zh'
+    ? {
+        noViralVideosYet: '还没有爆款视频',
+        addViralVideosFirst: '请先在 Assets 页面添加爆款视频，用它们作为生成视频的参考。',
+        loading: '加载中...',
+        noVideos: '暂无视频',
+        selectVideo: '选择视频',
+        referenceViralVideo: '参考爆款视频',
+        loadingViralVideos: '正在加载爆款视频...',
+        selected: '已选择',
+        viralVideoAvailable: '个爆款视频可选',
+      }
+    : {
+        noViralVideosYet: 'No viral videos yet',
+        addViralVideosFirst: 'Add viral videos in the Assets page to use them as reference for your video generation.',
+        loading: 'Loading...',
+        noVideos: 'No videos',
+        selectVideo: 'Select video',
+        referenceViralVideo: 'Reference Viral Video',
+        loadingViralVideos: 'Loading viral videos...',
+        selected: 'Selected',
+        viralVideoAvailable: 'viral videos available',
+      };
 
   // Set mounted state to prevent hydration issues with portal
   useEffect(() => {
@@ -132,9 +157,9 @@ export default function CompetitorAdSelector({
         <div className="flex items-start gap-4">
           <Info className="w-5 h-5 text-black flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm text-black font-semibold">No viral videos yet</p>
+            <p className="text-sm text-black font-semibold">{copy.noViralVideosYet}</p>
             <p className="text-sm text-[#666666] mt-2 leading-relaxed">
-              Add viral videos in the Assets page to use them as reference for your video generation.
+              {copy.addViralVideosFirst}
             </p>
           </div>
         </div>
@@ -179,21 +204,23 @@ export default function CompetitorAdSelector({
             <h3 className={cn('font-semibold text-black truncate', compact ? 'text-sm' : 'text-sm')}>
               {compact ? (
                 isLoading 
-                  ? 'Loading...'
+                  ? copy.loading
                   : selectedCompetitorAd 
                     ? selectedCompetitorAd.competitor_name
                     : competitorAds.length === 0 
-                      ? 'No videos' 
-                      : 'Select video'
-              ) : 'Reference Viral Video'}
+                      ? copy.noVideos 
+                      : copy.selectVideo
+              ) : copy.referenceViralVideo}
             </h3>
             {!compact && (
               <p className="text-sm text-[#666666] mt-0.5 truncate">
                 {isLoading
-                  ? 'Loading viral videos...'
+                  ? copy.loadingViralVideos
                   : selectedCompetitorAd
-                    ? `Selected: ${selectedCompetitorAd.competitor_name}`
-                    : `${competitorAds.length} viral ${competitorAds.length === 1 ? 'video' : 'videos'} available`
+                    ? `${copy.selected}: ${selectedCompetitorAd.competitor_name}`
+                    : locale === 'zh'
+                      ? `${competitorAds.length}${copy.viralVideoAvailable}`
+                      : `${competitorAds.length} ${competitorAds.length === 1 ? 'viral video available' : copy.viralVideoAvailable}`
                 }
               </p>
             )}
@@ -228,9 +255,9 @@ export default function CompetitorAdSelector({
             {competitorAds.length === 0 ? (
                <div className="flex flex-col items-center justify-center py-8 text-center px-4">
                   <Info className="w-8 h-8 text-gray-300 mb-2" />
-                  <p className="text-sm font-semibold text-gray-900">No viral videos yet</p>
+                  <p className="text-sm font-semibold text-gray-900">{copy.noViralVideosYet}</p>
                   <p className="text-xs text-gray-500 mt-1 max-w-[200px]">
-                    Add viral videos in the Assets page first.
+                    {locale === 'zh' ? '请先在 Assets 页面添加爆款视频。' : 'Add viral videos in the Assets page first.'}
                   </p>
                </div>
             ) : (

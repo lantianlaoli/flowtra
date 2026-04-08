@@ -31,6 +31,35 @@ export const LANGUAGE_SPEECH_RATES: Record<string, LanguageSpeedConfig> = {
   'default': { wordsPerMinute: 150, pauseMultiplier: 1.15 } // Fallback to English
 };
 
+const ENGLISH_SENTENCE_PAUSE_REGEX = /[.!?]+/g;
+const ENGLISH_CLAUSE_PAUSE_REGEX = /[,;:，；：]+/g;
+const ENGLISH_DASH_PAUSE_REGEX = /(?:—|–|\s-\s)/g;
+const ENGLISH_DECIMAL_OR_PRICE_REGEX = /(?:[$€£¥]\s*)?\d+(?:[.,]\d+)+/g;
+const ENGLISH_MEASUREMENT_REGEX = /\b\d+(?:[.,]\d+)?(?:-inch|-in|-ft|-cm|-mm|-oz|-lb|-lbs|-kg|x)\b/gi;
+const ENGLISH_CONTRACTION_REGEX = /\b\w+(?:['’](?:s|re|ve|ll|d|m|t))\b/gi;
+const ENGLISH_PROMO_PHRASE_REGEX = /\b(?:honestly|literally|seriously|definitely|perfect for|worth it|such a steal|starting out)\b/gi;
+
+function getEnglishPauseOverheadSeconds(dialogue: string): number {
+  const sentencePauses = dialogue.match(ENGLISH_SENTENCE_PAUSE_REGEX)?.length ?? 0;
+  const clausePauses = dialogue.match(ENGLISH_CLAUSE_PAUSE_REGEX)?.length ?? 0;
+  const dashPauses = dialogue.match(ENGLISH_DASH_PAUSE_REGEX)?.length ?? 0;
+  const priceOrDecimalTokens = dialogue.match(ENGLISH_DECIMAL_OR_PRICE_REGEX)?.length ?? 0;
+  const measurementTokens = dialogue.match(ENGLISH_MEASUREMENT_REGEX)?.length ?? 0;
+  const contractions = dialogue.match(ENGLISH_CONTRACTION_REGEX)?.length ?? 0;
+  const promoPhrases = dialogue.match(ENGLISH_PROMO_PHRASE_REGEX)?.length ?? 0;
+
+  const pauseOverhead =
+    sentencePauses * 0.42 +
+    clausePauses * 0.18 +
+    dashPauses * 0.32 +
+    priceOrDecimalTokens * 0.42 +
+    measurementTokens * 0.28 +
+    contractions * 0.04 +
+    promoPhrases * 0.12;
+
+  return Math.round(pauseOverhead * 10) / 10;
+}
+
 /**
  * Estimates the duration (in seconds) required to speak a given dialogue
  * @param dialogue - The text to be spoken
@@ -62,7 +91,11 @@ export function estimateDialogueDuration(dialogue: string, languageCode: string 
   }
 
   // Apply pause multiplier for natural speech rhythm
-  const estimatedDuration = baseDuration * config.pauseMultiplier;
+  let estimatedDuration = baseDuration * config.pauseMultiplier;
+
+  if (languageCode === 'en') {
+    estimatedDuration += getEnglishPauseOverheadSeconds(trimmedDialogue);
+  }
 
   return Math.round(estimatedDuration * 10) / 10; // Round to 1 decimal place
 }

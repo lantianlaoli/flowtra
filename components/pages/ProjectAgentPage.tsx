@@ -17,6 +17,7 @@ import CanvasBoard from '@/components/project-agent/canvas/CanvasBoard';
 import InsertToolbar from '@/components/project-agent/canvas/InsertToolbar';
 import NodeDetailsDialog from '@/components/project-agent/canvas/NodeDetailsDialog';
 import { useCredits } from '@/contexts/CreditsContext';
+import { useI18n } from '@/providers/I18nProvider';
 import { toProjectAgentVideoAssets } from '@/lib/project-agent/canvas-assets';
 import {
   getProjectAgentVisibleMessageText,
@@ -53,6 +54,7 @@ import {
   type ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
 import {
+  getProjectAgentCanvasErrorInfo,
   normalizeExecutionStatus,
   createQueuedExecutionStatus,
   type ProjectAgentCanvasExecutionStatus,
@@ -210,9 +212,45 @@ const setSingleSelectedNode = (current: ProjectAgentCanvasState, nodeId: string 
 
 const isSelectionBoxMeaningful = (width: number, height: number) => width > 6 || height > 6;
 
+const getProjectAgentPageMessages = (locale: string) => {
+  if (locale === 'zh') {
+    return {
+      defaults: {
+        avatar: '头像',
+        product: '产品',
+        text: '文本',
+      },
+      history: {
+        open: '打开历史记录',
+        title: '历史记录',
+        searchPlaceholder: '搜索...',
+        newChat: '新对话',
+        empty: '没有匹配的对话。',
+      },
+    };
+  }
+
+  return {
+    defaults: {
+      avatar: 'Avatar',
+      product: 'Product',
+      text: 'Text',
+    },
+    history: {
+      open: 'Open history',
+      title: 'History',
+      searchPlaceholder: 'Search...',
+      newChat: 'New chat',
+      empty: 'No matching conversations.',
+    },
+  };
+};
+
 export default function ProjectAgentPage() {
   const { user, isLoaded } = useUser();
   const { credits, creditsData } = useCredits();
+  const { locale } = useI18n();
+  const pageMessages = getProjectAgentPageMessages(locale);
   const supabase = useSupabaseBrowserClient();
   const [sessionId, setSessionId] = useState('');
   const [canvas, setCanvas] = useState<ProjectAgentCanvasState>(DEFAULT_PROJECT_AGENT_CANVAS_STATE);
@@ -354,10 +392,11 @@ export default function ProjectAgentPage() {
         canvas: next,
         pendingUiRequest: pendingUiRequestRef.current,
         appliedCanvasActionCallIds: appliedCanvasActionCallIdsRef.current,
+        language: locale,
       }, 180);
       return next;
     });
-  }, [persistSessionState]);
+  }, [locale, persistSessionState]);
 
   const resizeComposerInput = useCallback((element: HTMLTextAreaElement | null) => {
     if (!element) return;
@@ -384,6 +423,7 @@ export default function ProjectAgentPage() {
             canvas: canvasRef.current,
             pendingUiRequest: pendingUiRequestRef.current,
             appliedCanvasActionCallIds: appliedCanvasActionCallIdsRef.current,
+            language: locale,
           },
         },
       }),
@@ -447,10 +487,10 @@ export default function ProjectAgentPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sessionId: targetSessionId,
-        statePatch: { canvas: DEFAULT_PROJECT_AGENT_CANVAS_STATE },
+        statePatch: { canvas: DEFAULT_PROJECT_AGENT_CANVAS_STATE, language: locale },
       }),
     });
-  }, []);
+  }, [locale]);
 
   const fetchSession = useCallback(async (targetSessionId: string) => {
     const response = await fetch(`/api/project-agent/session?sessionId=${targetSessionId}`, { cache: 'no-store' });
@@ -530,6 +570,11 @@ export default function ProjectAgentPage() {
   }, [isStreaming, messages, sessionId, sessionReady]);
 
   useEffect(() => {
+    if (!sessionId || !sessionReady) return;
+    persistSessionState({ language: locale });
+  }, [locale, persistSessionState, sessionId, sessionReady]);
+
+  useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node | null;
       if (historyPopoverRef.current?.contains(target)) return;
@@ -606,10 +651,11 @@ export default function ProjectAgentPage() {
         canvas: next,
         pendingUiRequest: pendingUiRequestRef.current,
         appliedCanvasActionCallIds: appliedCanvasActionCallIdsRef.current,
+        language: locale,
       }, 180);
       return next;
     });
-  }, [canvas.edges, canvas.nodes, persistSessionState]);
+  }, [canvas.edges, canvas.nodes, locale, persistSessionState]);
 
   const updateNodeRuntime = useCallback((nodeId: string, execution: ProjectAgentCanvasExecutionStatus) => {
     updateCanvas((current) => {
@@ -639,6 +685,8 @@ export default function ProjectAgentPage() {
           outputUrl: execution.outputUrl || null,
           previewUrl: execution.previewUrl || null,
           error: execution.error || null,
+          userFacingError: execution.userFacingError || null,
+          retryable: execution.retryable,
           statusLabel: execution.statusLabel,
           milestones: execution.milestones,
           currentMilestoneKey: execution.currentMilestoneKey,
@@ -952,10 +1000,11 @@ export default function ProjectAgentPage() {
         canvas: canvasRef.current,
         pendingUiRequest: pendingUiRequestRef.current,
         appliedCanvasActionCallIds: next,
+        language: locale,
       });
       return next;
     });
-  }, [persistSessionState]);
+  }, [locale, persistSessionState]);
 
   const applyCanvasActions = useCallback((actions: ProjectAgentCanvasAction[], selectedAsset?: ProjectAgentCanvasAssetRef | null) => {
     setCanvas((currentCanvas) => {
@@ -973,10 +1022,11 @@ export default function ProjectAgentPage() {
         canvas: result.canvas,
         pendingUiRequest: result.pendingUiRequest,
         appliedCanvasActionCallIds: appliedCanvasActionCallIdsRef.current,
+        language: locale,
       }, 180);
       return result.canvas;
     });
-  }, [detailNodeId, persistSessionState]);
+  }, [detailNodeId, locale, persistSessionState]);
 
   useEffect(() => {
     messages.forEach((message) => {
@@ -1019,7 +1069,7 @@ export default function ProjectAgentPage() {
   const handleAvatarCreated = useCallback((avatar: UserAvatar) => {
     const createdAsset: ProjectAgentCanvasAssetRef = {
       id: avatar.id,
-      name: avatar.avatar_name || avatar.file_name || 'Avatar',
+      name: avatar.avatar_name || avatar.file_name || pageMessages.defaults.avatar,
       imageUrl: avatar.primary_photo_url || avatar.photo_url || null,
       photos: [
         avatar.primary_photo_url || avatar.photo_url,
@@ -1034,7 +1084,7 @@ export default function ProjectAgentPage() {
       handleToolbarAssetSelect('avatar', createdAsset);
       setToolbarOpenKey(null);
     }
-  }, [handleToolbarAssetSelect, loadAssets, pendingUiRequest]);
+  }, [handleToolbarAssetSelect, loadAssets, pageMessages.defaults.avatar, pendingUiRequest]);
 
   const handleProductCreated = useCallback((product: UserProduct) => {
     const photoUrls = Array.isArray(product.user_product_photos)
@@ -1043,7 +1093,7 @@ export default function ProjectAgentPage() {
 
     const createdAsset: ProjectAgentCanvasAssetRef = {
       id: product.id,
-      name: product.product_name || 'Product',
+      name: product.product_name || pageMessages.defaults.product,
       imageUrl: photoUrls[0] || null,
       photos: photoUrls,
     };
@@ -1055,7 +1105,7 @@ export default function ProjectAgentPage() {
       handleToolbarAssetSelect('product', createdAsset);
       setToolbarOpenKey(null);
     }
-  }, [handleToolbarAssetSelect, loadAssets, pendingUiRequest]);
+  }, [handleToolbarAssetSelect, loadAssets, pageMessages.defaults.product, pendingUiRequest]);
 
   const handleConfirmPendingAction = useCallback(() => {
     if (!pendingUiRequest || pendingUiRequest.type !== 'confirmation') return;
@@ -1081,8 +1131,9 @@ export default function ProjectAgentPage() {
       canvas: canvasRef.current,
       pendingUiRequest: null,
       appliedCanvasActionCallIds: appliedCanvasActionCallIdsRef.current,
+      language: locale,
     });
-  }, [persistSessionState]);
+  }, [locale, persistSessionState]);
 
   const handleSend = useCallback(async () => {
     if (!sessionId || !draft.trim()) return;
@@ -1118,8 +1169,8 @@ export default function ProjectAgentPage() {
           type: 'text',
           x,
           y,
-          label: 'Text',
-          asset: { id: nodeId, name: 'Text', content: '' },
+          label: pageMessages.defaults.text,
+          asset: { id: nodeId, name: pageMessages.defaults.text, content: '' },
         };
         return {
           ...upsertCanvasNode(current, nextNode),
@@ -1128,7 +1179,7 @@ export default function ProjectAgentPage() {
         };
       });
     }
-  }, [addAssetNode, addFeatureNode, getCanvasPointFromClient, updateCanvas]);
+  }, [addAssetNode, addFeatureNode, getCanvasPointFromClient, pageMessages.defaults.text, updateCanvas]);
 
   const handleNodePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>, nodeId: string) => {
     if (isInteractiveNodeSurface(event.target)) {
@@ -1442,10 +1493,10 @@ export default function ProjectAgentPage() {
       if (!node) return current;
       return upsertCanvasNode(current, {
         ...node,
-        asset: { ...(node.asset || { id: nodeId, name: 'Text' }), content },
+        asset: { ...(node.asset || { id: nodeId, name: pageMessages.defaults.text }), content },
       });
     });
-  }, [updateCanvas]);
+  }, [pageMessages.defaults.text, updateCanvas]);
 
   const handleFormatLayout = useCallback(() => {
     updateCanvas((current) => {
@@ -1529,10 +1580,20 @@ export default function ProjectAgentPage() {
     setSnappedConnectionTarget(point ? getSnappedConnectionTarget(nodeId, point) : null);
   }, [canvas, getCanvasPointFromClient, getSnappedConnectionTarget]);
 
+  const buildNodeConnectedAssetsPayload = useCallback((nodeId: string) => {
+    const inputs = getConnectedAssetNodeMap(canvas, nodeId);
+    return {
+      avatar: inputs.get('avatar')?.asset || null,
+      product: inputs.get('product')?.asset || null,
+      video: inputs.get('video')?.asset || null,
+      text: inputs.get('text')?.asset || null,
+    };
+  }, [canvas]);
+
   const handleRunNode = useCallback(async (nodeId: string) => {
     const node = getProjectAgentCanvasNodeById(canvas, nodeId);
     if (!node || !isProjectAgentFeatureNode(node.type)) return;
-    const inputs = getConnectedAssetNodeMap(canvas, nodeId);
+    const connectedAssets = buildNodeConnectedAssetsPayload(nodeId);
 
     updateCanvas((current) => {
       const nextNode = getProjectAgentCanvasNodeById(current, nodeId);
@@ -1546,6 +1607,8 @@ export default function ProjectAgentPage() {
           previewUrl: null,
           ...createQueuedExecutionStatus(nextNode.type),
           error: null,
+          userFacingError: null,
+          retryable: false,
           canStart: true,
           missingInputs: [],
         },
@@ -1559,12 +1622,7 @@ export default function ProjectAgentPage() {
         nodeType: node.type,
         mode: 'start',
         config: node.config,
-        connectedAssets: {
-          avatar: inputs.get('avatar')?.asset || null,
-          product: inputs.get('product')?.asset || null,
-          video: inputs.get('video')?.asset || null,
-          text: inputs.get('text')?.asset || null,
-        },
+        connectedAssets,
       }),
     });
 
@@ -1574,6 +1632,7 @@ export default function ProjectAgentPage() {
     };
 
     if (!response.ok || !payload.execution) {
+      const errorInfo = getProjectAgentCanvasErrorInfo(payload.error || 'Run failed.');
       updateCanvas((current) => {
         const nextNode = getProjectAgentCanvasNodeById(current, nodeId);
         if (!nextNode) return current;
@@ -1584,6 +1643,8 @@ export default function ProjectAgentPage() {
             executionState: 'failed',
             statusLabel: 'Failed',
             error: payload.error || 'Run failed.',
+            userFacingError: errorInfo.userFacingError,
+            retryable: errorInfo.retryable,
           },
         });
       });
@@ -1591,7 +1652,70 @@ export default function ProjectAgentPage() {
     }
 
     updateNodeRuntime(nodeId, payload.execution);
-  }, [canvas, updateCanvas, updateNodeRuntime]);
+  }, [buildNodeConnectedAssetsPayload, canvas, updateCanvas, updateNodeRuntime]);
+
+  const handleRetryNode = useCallback(async (nodeId: string) => {
+    const node = getProjectAgentCanvasNodeById(canvas, nodeId);
+    if (!node || !isProjectAgentFeatureNode(node.type) || !node.runtime?.projectId) return;
+
+    const connectedAssets = buildNodeConnectedAssetsPayload(nodeId);
+
+    updateCanvas((current) => {
+      const nextNode = getProjectAgentCanvasNodeById(current, nodeId);
+      if (!nextNode || !isProjectAgentFeatureNode(nextNode.type)) return current;
+      return upsertCanvasNode(current, {
+        ...nextNode,
+        runtime: {
+          ...(nextNode.runtime || {}),
+          executionState: 'running',
+          ...createQueuedExecutionStatus(nextNode.type),
+          statusLabel: 'Retrying',
+          userFacingError: null,
+          error: null,
+          retryable: false,
+        },
+      });
+    });
+
+    const response = await fetch('/api/project-agent/canvas-run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nodeType: node.type,
+        mode: 'retry',
+        projectId: node.runtime.projectId,
+        config: node.config,
+        connectedAssets,
+      }),
+    });
+
+    const payload = await response.json().catch(() => ({})) as {
+      error?: string;
+      execution?: ProjectAgentCanvasExecutionStatus;
+    };
+
+    if (!response.ok || !payload.execution) {
+      const errorInfo = getProjectAgentCanvasErrorInfo(payload.error || 'Retry failed.');
+      updateCanvas((current) => {
+        const nextNode = getProjectAgentCanvasNodeById(current, nodeId);
+        if (!nextNode) return current;
+        return upsertCanvasNode(current, {
+          ...nextNode,
+          runtime: {
+            ...(nextNode.runtime || {}),
+            executionState: 'failed',
+            statusLabel: 'Failed',
+            error: payload.error || 'Retry failed.',
+            userFacingError: errorInfo.userFacingError,
+            retryable: errorInfo.retryable,
+          },
+        });
+      });
+      return;
+    }
+
+    updateNodeRuntime(nodeId, payload.execution);
+  }, [buildNodeConnectedAssetsPayload, canvas, updateCanvas, updateNodeRuntime]);
 
   const handleRegenerateFeatureNode = useCallback(async (nodeId: string) => {
     await handleRunNode(nodeId);
@@ -1731,6 +1855,7 @@ export default function ProjectAgentPage() {
                   onNodeDoubleClick={setDetailNodeId}
                   onNodePointerDown={handleNodePointerDown}
                   onRegenerateFeatureNode={handleRegenerateFeatureNode}
+                  onRetryFeatureNode={handleRetryNode}
                   onRemoveEdge={handleRemoveEdge}
                   onRunFeatureNode={handleRunNode}
                   onSelectEdge={setSelectedEdgeId}
@@ -1776,20 +1901,20 @@ export default function ProjectAgentPage() {
                       type="button"
                       onClick={() => setIsHistoryPopoverOpen((prev) => !prev)}
                       className="project-agent-press-button project-agent-toolbar-button inline-flex h-9 w-9 items-center justify-center rounded-[12px] border text-[#1f1f1e]"
-                      aria-label="Open history"
+                      aria-label={pageMessages.history.open}
                     >
                       <History className="h-4 w-4" />
                     </button>
                     {isHistoryPopoverOpen ? (
                       <div className="project-agent-history-popover absolute right-0 top-11 z-50 w-[320px] max-w-[calc(100vw-2rem)] rounded-[16px] border border-[#e6e6e4] bg-white shadow-[0_12px_36px_rgba(0,0,0,0.14)]">
                         <div className="px-3 py-3">
-                          <p className="text-xs font-semibold text-[#1f1f1e]">History</p>
+                          <p className="text-xs font-semibold text-[#1f1f1e]">{pageMessages.history.title}</p>
                           <div className="relative mt-2">
                             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9b9b98]" />
                             <input
                               value={historyQuery}
                               onChange={(event) => setHistoryQuery(event.target.value)}
-                              placeholder="Search..."
+                              placeholder={pageMessages.history.searchPlaceholder}
                               className="project-agent-history-search h-9 w-full rounded-[12px] border border-[#d9d9d7] bg-[#fbfbfa] pl-8 pr-3 text-xs text-[#1f1f1e] placeholder:text-[#a3a3a0] focus:outline-none focus:ring-2 focus:ring-black"
                             />
                           </div>
@@ -1813,12 +1938,12 @@ export default function ProjectAgentPage() {
                             className="project-agent-press-button project-agent-toolbar-button mt-2 inline-flex min-h-8 items-center gap-1 rounded-[12px] border px-2.5 text-xs font-medium text-[#1f1f1e]"
                           >
                             <Plus className="h-3.5 w-3.5" />
-                            New chat
+                            {pageMessages.history.newChat}
                           </button>
                         </div>
                         <div className="max-h-[360px] space-y-1 overflow-y-auto p-2">
                           {filteredHistoryItems.length === 0 ? (
-                            <div className="px-2 py-3 text-xs text-[#787876]">No matching conversations.</div>
+                            <div className="px-2 py-3 text-xs text-[#787876]">{pageMessages.history.empty}</div>
                           ) : (
                             filteredHistoryItems.map((item) => (
                               <button

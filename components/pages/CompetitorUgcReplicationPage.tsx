@@ -43,6 +43,7 @@ import type {
 import type { CreatorSourceVideo } from "@/lib/supabase";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { trackEvent } from "@/lib/analytics/client";
+import { useI18n } from "@/providers/I18nProvider";
 
 const CLONE_TUTORIAL_EMBED_URL = "https://www.youtube.com/embed/BX5XLe3JbQ8?rel=0";
 
@@ -81,25 +82,6 @@ const REPLICA_ASPECT_RATIOS: ReplicaAspectRatio[] = [
 ];
 const REPLICA_RESOLUTIONS: ReplicaResolution[] = ["1K"];
 const REPLICA_OUTPUT_FORMATS: ReplicaOutputFormat[] = ["png"];
-
-const STEP_DESCRIPTIONS: Record<string, string> = {
-  generating_cover:
-    "Crafting your viral hook – the moment they stop scrolling…",
-  generating_segment_frames:
-    'Open "Edit" to manually refine photos and prompts for each segment until satisfied.',
-  reviewing_segment_frames:
-    'Frames ready! Click "Edit" to refine prompts, then trigger video generation for each segment.',
-  generating_segment_videos: "Transforming scenes into engagement powerhouses…",
-  merging_segments: "Stitching viral moments into one compelling story…",
-  awaiting_merge: "All scenes are ready – assembling your video clone…",
-  ready_for_video:
-    "Clone prompts loaded. Edit each scene before generating frames or videos.",
-  generating_video: "Creating your winning video… it's almost time to viral!",
-  processing:
-    "Analyzing competitor tactics and adapting them for your product…",
-  completed: "Your viral competitor clone is ready to roll!",
-  failed: "Generation paused – let's troubleshoot and try again",
-};
 
 const STATUS_MAP: Record<string, Generation["status"]> = {
   completed: "completed",
@@ -176,15 +158,46 @@ const STEP_PROGRESS_HINTS: Record<string, number> = {
   failed: 0,
 };
 
-const getStageLabel = (status: Generation["status"], step?: string | null) => {
+const getStageLabel = (
+  status: Generation["status"],
+  step?: string | null,
+  locale: "en" | "zh" = "en"
+) => {
+  const stepDescriptions: Record<string, string> = locale === "zh"
+    ? {
+        generating_cover: "正在制作你的爆款开场画面…",
+        generating_segment_frames: '打开“编辑”手动微调每个分镜的图片和提示词，直到满意。',
+        reviewing_segment_frames: '分镜图已准备好！点击“编辑”微调提示词，然后逐段触发视频生成。',
+        generating_segment_videos: "正在把分镜转成更有表现力的视频…",
+        merging_segments: "正在把高光片段拼接成完整故事…",
+        awaiting_merge: "所有片段都已准备好，正在组装你的视频克隆…",
+        ready_for_video: "克隆提示词已加载。先编辑每个场景，再生成图片或视频。",
+        generating_video: "正在生成你的视频…",
+        processing: "正在分析竞品结构并适配到你的产品…",
+        completed: "你的竞品克隆视频已经准备好了！",
+        failed: "生成已暂停，请排查后重试",
+      }
+    : {
+        generating_cover: "Crafting your viral hook – the moment they stop scrolling…",
+        generating_segment_frames: 'Open "Edit" to manually refine photos and prompts for each segment until satisfied.',
+        reviewing_segment_frames: 'Frames ready! Click "Edit" to refine prompts, then trigger video generation for each segment.',
+        generating_segment_videos: "Transforming scenes into engagement powerhouses…",
+        merging_segments: "Stitching viral moments into one compelling story…",
+        awaiting_merge: "All scenes are ready – assembling your video clone…",
+        ready_for_video: "Clone prompts loaded. Edit each scene before generating frames or videos.",
+        generating_video: "Creating your winning video… it's almost time to viral!",
+        processing: "Analyzing competitor tactics and adapting them for your product…",
+        completed: "Your viral competitor clone is ready to roll!",
+        failed: "Generation paused – let's troubleshoot and try again",
+      };
   const key = step?.toLowerCase() ?? "";
-  if (key && STEP_DESCRIPTIONS[key]) {
-    return STEP_DESCRIPTIONS[key];
+  if (key && stepDescriptions[key]) {
+    return stepDescriptions[key];
   }
-  if (status === "completed") return "Completed";
-  if (status === "failed") return "Failed";
-  if (status === "processing") return "Processing…";
-  return "Queued";
+  if (status === "completed") return locale === "zh" ? "已完成" : "Completed";
+  if (status === "failed") return locale === "zh" ? "失败" : "Failed";
+  if (status === "processing") return locale === "zh" ? "处理中…" : "Processing…";
+  return locale === "zh" ? "排队中" : "Queued";
 };
 
 const ALL_VIDEO_MODELS: VideoModel[] = [
@@ -196,6 +209,7 @@ const ALL_VIDEO_MODELS: VideoModel[] = [
 const SESSION_STORAGE_KEY = "flowtra_competitor_ugc_replication_generations";
 
 export default function CompetitorUgcReplicationPage() {
+  const { locale } = useI18n();
   const { user } = useUser();
   const {
     credits: userCredits,
@@ -741,13 +755,14 @@ export default function CompetitorUgcReplicationPage() {
           let stageLabel = getStageLabel(
             resolvedStatus,
             effectiveStep || payload.current_step,
+            locale,
           );
           if (resolvedStatus === "awaiting_review") {
             stageLabel = payloadData?.videoGenerationRequested
-              ? "Video queued…"
-              : "Awaiting Manual Review";
+              ? (locale === "zh" ? "视频已排队…" : "Video queued…")
+              : (locale === "zh" ? "等待手动检查" : "Awaiting Manual Review");
           }
-          const resolvedStage = hasVideoReady ? "Completed" : stageLabel;
+          const resolvedStage = hasVideoReady ? (locale === "zh" ? "已完成" : "Completed") : stageLabel;
 
           if (nextIsSegmented) {
             const framesReady = nextSegmentStatus?.framesReady || 0;
@@ -2125,7 +2140,7 @@ export default function CompetitorUgcReplicationPage() {
         isGenerating={isGenerating}
         generationCost={composerGenerationCost}
         userCredits={userCredits || 0}
-        generateButtonText={isCompetitorPhotoMode ? "Generate" : "Start"}
+        generateButtonText={isCompetitorPhotoMode ? (locale === "zh" ? "生成" : "Generate") : (locale === "zh" ? "开始" : "Start")}
       />
 
       {segmentInspector && inspectorContext && (
@@ -2155,7 +2170,7 @@ export default function CompetitorUgcReplicationPage() {
                 <AlertCircle className="w-6 h-6 text-yellow-600" />
               </div>
               <h3 className="text-xl font-bold text-foreground">
-                Configuration Required
+                {locale === "zh" ? "需要先完成配置" : "Configuration Required"}
               </h3>
             </div>
             <p className="text-muted-foreground mb-6">{validationMessage}</p>
@@ -2164,14 +2179,14 @@ export default function CompetitorUgcReplicationPage() {
                 onClick={() => setShowValidationModal(false)}
                 className="flex-1 px-4 py-2 border border-gray-300 text-muted-foreground rounded-lg hover:bg-muted transition-colors"
               >
-                Got it
+                {locale === "zh" ? "知道了" : "Got it"}
               </button>
               <Link
                 href="/dashboard/assets"
                 onClick={() => setShowValidationModal(false)}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-center font-medium"
               >
-                Go to Assets
+                {locale === "zh" ? "前往 Assets" : "Go to Assets"}
               </Link>
             </div>
           </div>

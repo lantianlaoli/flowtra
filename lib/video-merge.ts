@@ -15,12 +15,69 @@ const RESOLUTION_MAP: Record<FalAspectRatio, FalMergeResolution> = {
   '9:16': 'portrait_16_9'
 };
 
+const MERGE_SUBMIT_MAX_ATTEMPTS = 4;
+const MERGE_SUBMIT_BASE_DELAY_MS = 1500;
+
 async function getFalClient(): Promise<FalClient> {
   const { fal } = await import('@fal-ai/client');
   fal.config({
     credentials: process.env.FAL_KEY
   });
   return fal;
+}
+
+function isRetryableFalMergeSubmitError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+
+  return (
+    message.includes('503') ||
+    message.includes('service temporarily unavailable') ||
+    message.includes('connect timeout') ||
+    message.includes('und_err_connect_timeout') ||
+    message.includes('fetch failed') ||
+    message.includes('econnreset') ||
+    message.includes('eai_again') ||
+    message.includes('enotfound') ||
+    message.includes('timeout')
+  );
+}
+
+async function submitFalMergeWithRetry(input: {
+  fal: FalClient;
+  videoUrls: string[];
+  resolution: FalMergeResolution;
+  webhookUrl?: string;
+}) {
+  const { fal, videoUrls, resolution, webhookUrl } = input;
+
+  for (let attempt = 1; attempt <= MERGE_SUBMIT_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await fal.queue.submit('fal-ai/ffmpeg-api/merge-videos', {
+        input: {
+          video_urls: videoUrls,
+          target_fps: 30,
+          resolution
+        },
+        webhookUrl
+      });
+    } catch (error) {
+      const isRetryable = isRetryableFalMergeSubmitError(error);
+      const isLastAttempt = attempt === MERGE_SUBMIT_MAX_ATTEMPTS;
+
+      console.error(`❌ fal.ai merge submit failed (attempt ${attempt}/${MERGE_SUBMIT_MAX_ATTEMPTS}):`, error);
+
+      if (!isRetryable || isLastAttempt) {
+        throw error;
+      }
+
+      const delayMs = MERGE_SUBMIT_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+      console.warn(`⚠️ Retrying fal.ai merge submit in ${delayMs}ms due to transient upstream failure...`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  throw new Error('fal.ai merge submit failed after retries.');
 }
 
 export async function mergeVideosWithFal(
@@ -49,12 +106,10 @@ export async function mergeVideosWithFal(
 
     console.log(`📡 Submitting merge task with webhook URL: ${webhookUrl || 'none (local dev mode)'}`);
 
-    const { request_id } = await fal.queue.submit('fal-ai/ffmpeg-api/merge-videos', {
-      input: {
-        video_urls: videoUrls,
-        target_fps: 30,
-        resolution
-      },
+    const { request_id } = await submitFalMergeWithRetry({
+      fal,
+      videoUrls,
+      resolution,
       webhookUrl
     });
 

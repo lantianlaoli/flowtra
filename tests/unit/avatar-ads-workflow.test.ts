@@ -24,7 +24,7 @@ test('buildAvatarAdsVideoExecutionPrompt synthesizes fixed talking-head visuals 
   assert.match(result, /Subject: spokesperson from the provided character image\./);
   assert.match(result, /Action: speak directly to camera/i);
   assert.match(result, /Style: authentic user-generated talking-head ad\./);
-  assert.match(result, /dialogue, the character in the video says:/i);
+  assert.match(result, /Dialogue: "This is the easiest way to get clean energy every morning\."/i);
 });
 
 test('buildAvatarAdsVideoExecutionPrompt preserves explicit structured visual fields when present', () => {

@@ -39,6 +39,7 @@ export default function CreateProductModal({
   const [highlightReferenceRequirement, setHighlightReferenceRequirement] = useState(false);
   const frontalInputRef = useRef<HTMLInputElement | null>(null);
   const referenceInputRef = useRef<HTMLInputElement | null>(null);
+  const processedGenerationJobIdsRef = useRef<Set<string>>(new Set());
 
   const triggerReferenceRequirementHint = () => {
     setHighlightReferenceRequirement(false);
@@ -56,6 +57,7 @@ export default function CreateProductModal({
       setFormError(null);
       setIsGeneratingReferences(false);
       setHighlightReferenceRequirement(false);
+      processedGenerationJobIdsRef.current = new Set();
     }
   }, [isOpen]);
 
@@ -168,6 +170,7 @@ export default function CreateProductModal({
 
     setIsGeneratingReferences(true);
     setFormError(null);
+    processedGenerationJobIdsRef.current = new Set();
 
     try {
       const createResponse = await fetch('/api/assets/ai-reference-angles', {
@@ -187,23 +190,39 @@ export default function CreateProductModal({
       }
 
       const jobs = createPayload.jobs as AiReferenceAngleCreateJobResponse[];
+      const appendCompletedReferences = async (
+        updatedJobs: Array<{ id: string; result_image_url: string | null; status: string }>
+      ) => {
+        for (let index = 0; index < jobs.length; index += 1) {
+          const job = jobs[index];
+          const resolvedJob = updatedJobs.find((candidate) => candidate.id === job.id);
+          if (!resolvedJob || resolvedJob.status !== 'completed' || !resolvedJob.result_image_url) {
+            continue;
+          }
+          if (processedGenerationJobIdsRef.current.has(job.id)) {
+            continue;
+          }
+
+          processedGenerationJobIdsRef.current.add(job.id);
+          const reference = await buildPreviewFileFromUrl(
+            resolvedJob.result_image_url,
+            `product-reference-angle-${index + 1}.png`
+          );
+          setReferenceImages((prev) => {
+            if (prev.length >= 3) return prev;
+            return [...prev, reference].slice(0, 3);
+          });
+        }
+      };
+
       const resolvedJobs = await waitForAiReferenceAngleJobs({
         supabase,
-        jobIds: jobs.map((job) => job.id)
-      });
-
-      const generatedReferences: PreviewFile[] = [];
-      for (let index = 0; index < jobs.length; index += 1) {
-        const resolvedJob = resolvedJobs.find((job) => job.id === jobs[index].id);
-        const imageUrl = resolvedJob?.result_image_url;
-        if (!imageUrl) {
-          throw new Error('AI generated image URL is missing.');
+        jobIds: jobs.map((job) => job.id),
+        onJobsUpdated: (updatedJobs) => {
+          void appendCompletedReferences(updatedJobs);
         }
-        const reference = await buildPreviewFileFromUrl(imageUrl, `product-reference-angle-${index + 1}.png`);
-        generatedReferences.push(reference);
-      }
-
-      setReferenceImages(generatedReferences.slice(0, 3));
+      });
+      await appendCompletedReferences(resolvedJobs);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Failed to generate AI references.');
     } finally {

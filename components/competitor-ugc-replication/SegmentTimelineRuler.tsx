@@ -67,6 +67,35 @@ export default function SegmentTimelineRuler({
 
   const displayRanges = previewRanges ?? ranges;
 
+  // Auto-adjust shots on initial mount if they exceed the timeline boundary
+  const hasAdjustedInitialRef = useRef(false);
+  useEffect(() => {
+    if (hasAdjustedInitialRef.current) {
+      return;
+    }
+    if (ranges.length === 0) {
+      return;
+    }
+
+    const lastRange = ranges[ranges.length - 1];
+    if (lastRange && lastRange.endSec > totalDurationSeconds) {
+      // Shots exceed boundary, need to normalize and sync back
+      const normalizedRanges = normalizeTimelineRanges(shots, totalDurationSeconds);
+      const serialized = serializeTimelineRanges(normalizedRanges);
+      
+      // Check if any shot actually needs updating
+      const needsUpdate = shots.some((shot, index) => {
+        const newRange = serialized[index];
+        return newRange && shot.time_range !== newRange.time_range;
+      });
+
+      if (needsUpdate) {
+        onChange(serialized);
+      }
+    }
+    hasAdjustedInitialRef.current = true;
+  }, [ranges, shots, totalDurationSeconds, onChange]);
+
   const previewDragRanges = (
     sourceRanges: TimelineRange[],
     target: { type: 'boundary'; index: number } | { type: 'end' },

@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Settings, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useI18n } from '@/providers/I18nProvider';
 import VideoDurationSelector, { type VideoDurationOption } from './VideoDurationSelector';
 import VideoModelSelector from './VideoModelSelector';
 import VideoQualitySelector from './VideoQualitySelector';
@@ -105,6 +106,7 @@ export default function ConfigPopover({
   onPhotoOutputFormatChange,
   photoOutputFormatOptions = ['png', 'jpg'],
 }: ConfigPopoverProps) {
+  const { locale } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -181,13 +183,35 @@ export default function ConfigPopover({
     }
   }, [isOpen]);
 
-  const headerTitle = 'Config';
+  const copy = locale === 'zh'
+    ? {
+        headerTitle: '配置',
+        aspectRatio: '画幅比例',
+        resolution: '分辨率',
+        outputFormat: '输出格式',
+        videoModel: '视频模型',
+        duration: '时长',
+        openConfiguration: '打开配置',
+        advancedConfiguration: '高级配置',
+        closeConfigurationDrawer: '关闭配置抽屉',
+      }
+    : {
+        headerTitle: 'Config',
+        aspectRatio: 'Aspect Ratio',
+        resolution: 'Resolution',
+        outputFormat: 'Output Format',
+        videoModel: 'Video Model',
+        duration: 'Duration',
+        openConfiguration: 'Open configuration',
+        advancedConfiguration: 'Advanced configuration',
+        closeConfigurationDrawer: 'Close configuration drawer',
+      };
 
   const renderPhotoOptions = () => (
     <div className="space-y-4">
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">
-          Aspect Ratio
+          {copy.aspectRatio}
         </label>
         <div className="flex flex-wrap gap-2">
           {photoAspectRatioOptions.map(option => {
@@ -213,7 +237,7 @@ export default function ConfigPopover({
 
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">
-          Resolution
+          {copy.resolution}
         </label>
         <div className="flex flex-wrap gap-2">
           {photoResolutionOptions.map(option => {
@@ -239,7 +263,7 @@ export default function ConfigPopover({
 
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">
-          Output Format
+          {copy.outputFormat}
         </label>
         <div className="flex flex-wrap gap-2">
           {photoOutputFormatOptions.map(option => {
@@ -271,7 +295,7 @@ export default function ConfigPopover({
         outputMode="video"
         selectedFormat={format}
         onFormatChange={onFormatChange}
-        label="Aspect Ratio"
+        label={copy.aspectRatio}
         disabled={formatDisabled}
       />
       {formatHelperText && (
@@ -287,7 +311,7 @@ export default function ConfigPopover({
           videoQuality={selectedVideoQuality}
           disabledModels={disabledModels}
           disabledModelReasons={disabledModelReasons}
-          label="Video Model"
+          label={copy.videoModel}
           showIcon
         />
       )}
@@ -308,7 +332,7 @@ export default function ConfigPopover({
           onDurationChange={onDurationChange}
           disabledDurations={disabledDurations}
           recommendedDuration={recommendedDuration}
-          label="Duration"
+          label={copy.duration}
           showIcon
           disabled={disabled}
           options={durationOptions}
@@ -325,17 +349,17 @@ export default function ConfigPopover({
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
         className={cn(
-          'config-popover-button my-ads-button my-ads-button--secondary h-14 rounded-[24px] border border-[#dfdfd9] bg-white px-5 flex items-center gap-2 transition-all duration-200 outline-none',
+          'config-popover-button my-ads-button my-ads-button--secondary h-12 rounded-[16px] border border-[#dfdfd9] bg-white px-4.5 flex items-center gap-2 transition-all duration-200 outline-none',
           disabled
             ? 'bg-[#F7F7F7] border-[#E5E5E5] text-[#999999] cursor-not-allowed'
             : 'text-black',
           isOpen ? 'border-black ring-1 ring-black/10' : ''
         )}
-        aria-label="Open configuration"
-        title="Advanced configuration"
+        aria-label={copy.openConfiguration}
+        title={copy.advancedConfiguration}
       >
         <Settings className={`w-5 h-5 ${isOpen ? 'rotate-90' : ''} transition-transform duration-300`} />
-        <span className="text-sm font-medium">Config</span>
+        <span className="text-sm font-medium">{copy.headerTitle}</span>
       </button>
 
       {/* Popover */}
@@ -344,7 +368,7 @@ export default function ConfigPopover({
           <>
             {isMobile && (
               <motion.button
-                aria-label="Close configuration drawer"
+                aria-label={copy.closeConfigurationDrawer}
                 type="button"
                 onClick={() => setIsOpen(false)}
                 initial={{ opacity: 0 }}
@@ -366,7 +390,7 @@ export default function ConfigPopover({
                 bottom: `${window.innerHeight - buttonRect.top + 8}px`,
               }}
               className={cn(
-                'config-popover-panel bg-white rounded-[20px] shadow-2xl border border-gray-200 z-[110] overflow-visible',
+                'config-popover-panel bg-white rounded-[18px] shadow-2xl border border-gray-200 z-[110] overflow-visible',
                 isMobile
                   ? 'fixed inset-x-4 bottom-4 max-h-[80vh] overflow-y-auto origin-bottom'
                   : 'w-96 origin-bottom-right'
@@ -376,7 +400,7 @@ export default function ConfigPopover({
               <div className="config-popover-header flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
               <div className="flex items-center gap-2">
                 <Settings className="w-5 h-5 text-gray-700" />
-                <h3 className="font-semibold text-gray-900">{headerTitle}</h3>
+                <h3 className="font-semibold text-gray-900">{copy.headerTitle}</h3>
               </div>
               <button
                 onClick={() => setIsOpen(false)}

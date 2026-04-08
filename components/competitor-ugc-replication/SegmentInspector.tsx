@@ -147,13 +147,18 @@ const buildShotPayloadForPersistence = (shot: SegmentShotPayload, index: number)
   camera_motion_positioning: shot.camera_motion_positioning.trim()
 });
 
+const MAX_SHOTS_PER_SEGMENT = 5;
+
 const convertShotsForEditor = (
   shots: SegmentPrompt['shots'],
   fallbackLanguage: LanguageCode,
   videoModel?: string | null
 ): SegmentShotPayload[] => {
   if (Array.isArray(shots) && shots.length > 0) {
-    return shots.map((shot, index) => {
+    // Limit to max 5 shots per segment
+    const limitedShots = shots.slice(0, MAX_SHOTS_PER_SEGMENT);
+    
+    return limitedShots.map((shot, index) => {
       const parsedAudio = parseLegacyAudioField(shot.audio || '');
       const sfx = (shot.sfx || '').trim() || parsedAudio.sfx;
       const ambient = (shot.ambient || '').trim() || parsedAudio.ambient;

@@ -73,8 +73,9 @@ export async function waitForAiReferenceAngleJobs(options: {
   jobIds: string[];
   onJobsUpdated?: (jobs: AiReferenceAngleJob[]) => void;
   timeoutMs?: number;
+  pollIntervalMs?: number;
 }): Promise<AiReferenceAngleJob[]> {
-  const { supabase, jobIds, onJobsUpdated, timeoutMs = 180000 } = options;
+  const { supabase, jobIds, onJobsUpdated, timeoutMs = 180000, pollIntervalMs = 2000 } = options;
   const initialJobs = await fetchAiReferenceAngleJobs(jobIds);
   onJobsUpdated?.(initialJobs);
 
@@ -90,45 +91,59 @@ export async function waitForAiReferenceAngleJobs(options: {
   return new Promise<AiReferenceAngleJob[]>((resolve, reject) => {
     let settled = false;
     let jobs = initialJobs;
+    let pollingInFlight = false;
+
+    const evaluateJobs = (nextJobs: AiReferenceAngleJob[], failedJobOverride?: AiReferenceAngleJob) => {
+      jobs = nextJobs;
+      onJobsUpdated?.(jobs);
+
+      const failedJob = failedJobOverride || hasFailedJob(jobs);
+      if (failedJob) {
+        finish(() => reject(new Error(failedJob.error_message || 'AI reference generation failed.')));
+        return true;
+      }
+
+      if (allJobsCompleted(jobs)) {
+        finish(() => resolve(jobs));
+        return true;
+      }
+
+      return false;
+    };
 
     const finish = (callback: () => void) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutId);
+      clearInterval(pollingIntervalId);
       unsubscribe();
       callback();
     };
 
     const unsubscribe = subscribeToAiReferenceAngleJobs(supabase, jobIds, (updatedJob) => {
-      jobs = jobs.map((job) => (job.id === updatedJob.id ? updatedJob : job));
-      onJobsUpdated?.(jobs);
-
-      if (updatedJob.status === 'failed') {
-        finish(() => reject(new Error(updatedJob.error_message || 'AI reference generation failed.')));
-        return;
-      }
-
-      if (allJobsCompleted(jobs)) {
-        finish(() => resolve(jobs));
-      }
+      const nextJobs = jobs.map((job) => (job.id === updatedJob.id ? updatedJob : job));
+      evaluateJobs(nextJobs, updatedJob.status === 'failed' ? updatedJob : undefined);
     });
+
+    const pollingIntervalId = window.setInterval(async () => {
+      if (settled || pollingInFlight) return;
+      pollingInFlight = true;
+      try {
+        const latestJobs = await fetchAiReferenceAngleJobs(jobIds);
+        evaluateJobs(latestJobs);
+      } catch {
+        // Ignore transient polling errors and continue waiting.
+      } finally {
+        pollingInFlight = false;
+      }
+    }, pollIntervalMs);
 
     const timeoutId = window.setTimeout(async () => {
       try {
         const latestJobs = await fetchAiReferenceAngleJobs(jobIds);
-        onJobsUpdated?.(latestJobs);
-
-        const failedJob = hasFailedJob(latestJobs);
-        if (failedJob) {
-          finish(() => reject(new Error(failedJob.error_message || 'AI reference generation failed.')));
+        if (evaluateJobs(latestJobs)) {
           return;
         }
-
-        if (allJobsCompleted(latestJobs)) {
-          finish(() => resolve(latestJobs));
-          return;
-        }
-
         finish(() => reject(new Error('AI reference generation is still in progress. Reopen this view to resume.')));
       } catch (error) {
         finish(() => reject(error instanceof Error ? error : new Error('Failed to refresh AI reference angle jobs.')));

@@ -44,6 +44,7 @@ export default function EditProductModal({
   const frontalInputRef = useRef<HTMLInputElement | null>(null);
   const referenceInputRef = useRef<HTMLInputElement | null>(null);
   const resumedGenerationKeyRef = useRef<string | null>(null);
+  const processedGenerationJobIdsRef = useRef<Set<string>>(new Set());
 
   const photos = product?.user_product_photos || [];
   const frontalPhoto = photos.find((photo) => photo.photo_role === 'frontal')
@@ -235,24 +236,42 @@ export default function EditProductModal({
 
     setIsGeneratingReferences(true);
     setError(null);
+    processedGenerationJobIdsRef.current = new Set();
 
     try {
+      const uploadCompletedReferences = async (
+        updatedJobs: Array<{ id: string; result_image_url: string | null; status: string }>
+      ) => {
+        setIsUploadingPhotos(true);
+        try {
+          for (let index = 0; index < jobIds.length; index += 1) {
+            const jobId = jobIds[index];
+            const resolvedJob = updatedJobs.find((job) => job.id === jobId);
+            const imageUrl = resolvedJob?.result_image_url;
+            if (!resolvedJob || resolvedJob.status !== 'completed' || !imageUrl) {
+              continue;
+            }
+            if (processedGenerationJobIdsRef.current.has(jobId)) {
+              continue;
+            }
+
+            processedGenerationJobIdsRef.current.add(jobId);
+            const referenceFile = await buildFileFromUrl(imageUrl, `product-reference-angle-${index + 1}.png`);
+            await onPhotoUpload(productId, referenceFile, 'reference');
+          }
+        } finally {
+          setIsUploadingPhotos(false);
+        }
+      };
+
       const resolvedJobs = await waitForAiReferenceAngleJobs({
         supabase,
-        jobIds
-      });
-
-      setIsUploadingPhotos(true);
-      for (let index = 0; index < jobIds.length; index += 1) {
-        const resolvedJob = resolvedJobs.find((job) => job.id === jobIds[index]);
-        const imageUrl = resolvedJob?.result_image_url;
-        if (!imageUrl) {
-          throw new Error('AI generated image URL is missing.');
+        jobIds,
+        onJobsUpdated: (updatedJobs) => {
+          void uploadCompletedReferences(updatedJobs);
         }
-
-        const referenceFile = await buildFileFromUrl(imageUrl, `product-reference-angle-${index + 1}.png`);
-        await onPhotoUpload(productId, referenceFile, 'reference');
-      }
+      });
+      await uploadCompletedReferences(resolvedJobs);
 
       clearPersistedJobIds();
     } catch (generateError) {
@@ -568,6 +587,7 @@ export default function EditProductModal({
                     </div>
 
                     <ReferenceImageGrid
+                      columns={2}
                       items={referenceGridItems}
                       isGenerating={isGeneratingReferences}
                       onAdd={referencePhotos.length < 3 ? () => referenceInputRef.current?.click() : undefined}

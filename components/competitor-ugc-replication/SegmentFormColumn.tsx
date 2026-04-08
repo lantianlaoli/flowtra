@@ -36,7 +36,7 @@ import { getSegmentPromptVideoGenerationCost } from '@/lib/competitor-ugc-segmen
 import { getSegmentDurationForModel, type CloneVideoQuality, type VideoModel } from '@/lib/constants';
 import SegmentTimelineRuler from '@/components/competitor-ugc-replication/SegmentTimelineRuler';
 import { MENTION_TOKEN_REGEX, normalizeMentionLabel, parseMentionToken } from '@/lib/prompt-mention-tokens';
-import { formatTimelineRange } from '@/lib/segment-shot-timeline';
+import { formatTimelineRange, normalizeTimelineRanges } from '@/lib/segment-shot-timeline';
 
 export type SegmentShotPayload = {
   id: number;
@@ -194,19 +194,29 @@ const autoResizePromptField = (target: HTMLTextAreaElement) => {
   target.style.height = `${Math.max(88, target.scrollHeight)}px`;
 };
 
+const MAX_SHOTS_PER_SEGMENT = 5;
+
 const convertShotsForEditor = (
   shots: SegmentPrompt['shots'],
   fallbackLanguage: LanguageCode,
   videoModel?: string | null
 ): SegmentShotPayload[] => {
   if (Array.isArray(shots) && shots.length > 0) {
-    return shots.map((shot, index) => {
+    // Limit to max 5 shots per segment
+    const limitedShots = shots.slice(0, MAX_SHOTS_PER_SEGMENT);
+    
+    // Normalize time ranges to ensure they fit within segment duration
+    const segmentDuration = getSegmentDurationForModel((videoModel as VideoModel | null | undefined) ?? null);
+    const normalizedRanges = normalizeTimelineRanges(limitedShots, segmentDuration);
+    
+    return limitedShots.map((shot, index) => {
       const parsedAudio = parseLegacyAudioField(shot.audio || '');
       const sfx = (shot.sfx || '').trim() || parsedAudio.sfx;
       const ambient = (shot.ambient || '').trim() || parsedAudio.ambient;
+      const normalizedRange = normalizedRanges[index];
       return {
       id: shot.id || index + 1,
-      time_range: shot.time_range || getDefaultShotTimeRange(videoModel),
+      time_range: normalizedRange ? formatTimelineRange(normalizedRange.startSec, normalizedRange.endSec) : (shot.time_range || getDefaultShotTimeRange(videoModel)),
       audio: buildLegacyAudioField({ sfx, ambient }),
       sfx,
       ambient,

@@ -35,6 +35,10 @@ const DEFAULT_VISUAL_PROMPT = {
   audio: 'Natural room tone under clean spoken dialogue'
 };
 
+const KLING_SAFE_DURATION_BUFFER_SECONDS = 1;
+const KLING_RISKY_COPY_BUFFER_SECONDS = 1.5;
+const RISKY_DIALOGUE_PATTERN = /(?:[$€£¥]\s*\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?-inch|—|–|,|;|:|\b(?:honestly|literally|seriously|definitely|worth it|perfect for|such a steal|starting out)\b)/i;
+
 const normalizeWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim();
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -127,8 +131,12 @@ const splitLongSentence = (sentence: string, language: string) => {
   const normalized = normalizeWhitespace(sentence);
   if (!normalized) return [] as string[];
 
+  if (estimateDialogueDuration(normalized, language) <= getKlingScenePlanningLimitSeconds(normalized, language)) {
+    return [normalized];
+  }
+
   const clauseParts = normalized
-    .split(/(?<=[,;:，；：])\s+/)
+    .split(/(?<=[,;:，；：]|—|–)\s*/)
     .map((part) => normalizeWhitespace(part))
     .filter(Boolean);
 
@@ -152,7 +160,7 @@ const splitLongSentence = (sentence: string, language: string) => {
       const candidate = current ? `${current} ${word}` : word;
       if (
         current &&
-        estimateDialogueDuration(candidate, language) > KLING_MAX_TASK_DURATION_SECONDS
+        estimateDialogueDuration(candidate, language) > getKlingScenePlanningLimitSeconds(candidate, language)
       ) {
         expanded.push(current);
         current = word;
@@ -177,6 +185,29 @@ export const normalizeAvatarPromptDuration = (value: unknown) => {
   return Math.max(
     KLING_MIN_TASK_DURATION_SECONDS,
     Math.min(KLING_MAX_TASK_DURATION_SECONDS, Math.round(numeric))
+  );
+};
+
+const getKlingScenePlanningLimitSeconds = (dialogue: string, language: string) => {
+  const baseLimit = language === 'en'
+    ? KLING_MAX_TASK_DURATION_SECONDS - KLING_SAFE_DURATION_BUFFER_SECONDS
+    : KLING_MAX_TASK_DURATION_SECONDS - 0.5;
+
+  if (language === 'en' && RISKY_DIALOGUE_PATTERN.test(dialogue)) {
+    return Math.max(KLING_MIN_TASK_DURATION_SECONDS, KLING_MAX_TASK_DURATION_SECONDS - KLING_RISKY_COPY_BUFFER_SECONDS);
+  }
+
+  return Math.max(KLING_MIN_TASK_DURATION_SECONDS, baseLimit);
+};
+
+const getKlingTargetDurationSeconds = (dialogue: string, language: string) => {
+  const estimated = estimateDialogueDuration(dialogue, language);
+  const bufferedEstimate = estimated + (language === 'en' ? 0.6 : 0.3);
+  const planningLimit = getKlingScenePlanningLimitSeconds(dialogue, language);
+
+  return Math.max(
+    KLING_MIN_TASK_DURATION_SECONDS,
+    Math.min(Math.ceil(bufferedEstimate), Math.floor(planningLimit))
   );
 };
 
@@ -226,7 +257,7 @@ export const buildAvatarScenesFromScript = (input: {
     const candidate = currentBucket ? `${currentBucket} ${part}` : part;
     if (
       currentBucket &&
-      estimateDialogueDuration(candidate, language) > KLING_MAX_TASK_DURATION_SECONDS
+      estimateDialogueDuration(candidate, language) > getKlingScenePlanningLimitSeconds(candidate, language)
     ) {
       buckets.push(currentBucket);
       currentBucket = part;
@@ -245,7 +276,7 @@ export const buildAvatarScenesFromScript = (input: {
     const previousBucket = buckets[buckets.length - 2];
     if (
       estimateDialogueDuration(lastBucket, language) < KLING_MIN_TASK_DURATION_SECONDS &&
-      estimateDialogueDuration(`${previousBucket} ${lastBucket}`, language) <= KLING_MAX_TASK_DURATION_SECONDS
+      estimateDialogueDuration(`${previousBucket} ${lastBucket}`, language) <= getKlingScenePlanningLimitSeconds(`${previousBucket} ${lastBucket}`, language)
     ) {
       buckets.splice(buckets.length - 2, 2, `${previousBucket} ${lastBucket}`);
     }
@@ -258,7 +289,7 @@ export const buildAvatarScenesFromScript = (input: {
       prompt: {
         ...template,
         dialog,
-        duration_seconds: normalizeAvatarPromptDuration(estimateDialogueDuration(dialog, language))
+        duration_seconds: getKlingTargetDurationSeconds(dialog, language)
       }
     };
   });

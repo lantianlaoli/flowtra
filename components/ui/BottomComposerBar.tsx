@@ -2,6 +2,7 @@
 
 import { Sparkles } from 'lucide-react';
 import { ReactNode } from 'react';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface BottomComposerBarProps {
   // Left controls (specific to each page)
@@ -59,19 +60,33 @@ export default function BottomComposerBar({
   className = '',
   compact = false
 }: BottomComposerBarProps) {
+  const { locale } = useI18n();
   const canAfford = userCredits >= generationCost;
   const showInsufficientCredits = !canAfford && generationCost > 0;
   const isButtonDisabled = !canGenerate || isGenerating || showInsufficientCredits;
+  const localizedGenerateButtonText =
+    generateButtonText === 'Start'
+      ? (locale === 'zh' ? '开始' : 'Start')
+      : generateButtonText === 'Generate'
+        ? (locale === 'zh' ? '生成' : 'Generate')
+        : generateButtonText;
   const buttonLabel = resolveBottomComposerButtonLabel({
     showInsufficientCredits,
     isGenerating,
-    generateButtonText,
+    generateButtonText:
+      showInsufficientCredits
+        ? (locale === 'zh' ? '积分不足' : 'Insufficient')
+        : isGenerating
+          ? (localizedGenerateButtonText === (locale === 'zh' ? '开始' : 'Start')
+              ? (locale === 'zh' ? '处理中...' : 'Processing...')
+              : (locale === 'zh' ? '生成中...' : 'Generating...'))
+          : localizedGenerateButtonText,
   });
 
   return (
     <div className={`bottom-composer-bar ${compact ? 'bottom-composer-bar--compact' : ''} fixed bottom-0 z-40 pb-4 md:pb-6 pointer-events-none ${className}`}>
       <div className={`mx-auto flex w-full ${compact ? 'justify-center' : ''}`}>
-        <div className={`bottom-composer-surface rounded-[20px] bg-white/98 backdrop-blur border border-[#E5E5E5] shadow-[0_12px_32px_rgba(0,0,0,0.08)] p-2 md:p-3 flex flex-row items-end gap-2 md:gap-3 pointer-events-auto ${compact ? 'w-fit max-w-full' : 'w-full'}`}>
+        <div className={`bottom-composer-surface rounded-[16px] bg-white/98 backdrop-blur border border-[#E5E5E5] shadow-[0_12px_30px_rgba(0,0,0,0.07)] p-2 flex flex-row items-center gap-2 md:gap-3 pointer-events-auto ${compact ? 'w-fit max-w-full' : 'w-full'}`}>
           {/* Left controls - dynamic per page */}
           {leftControls && (
             <div className="flex items-center gap-2 flex-shrink-0 h-12">
@@ -100,8 +115,8 @@ export default function BottomComposerBar({
               className={`
                 bottom-composer-generate
                 my-ads-button ${!isButtonDisabled ? 'my-ads-button--primary' : ''}
-                rounded-[24px] flex items-center justify-center gap-2 px-6 h-14 cursor-pointer
-                font-semibold text-sm whitespace-nowrap min-w-[160px]
+                rounded-[16px] flex items-center justify-center gap-2 px-5 h-12 cursor-pointer
+                font-semibold text-sm whitespace-nowrap min-w-[138px]
                 transition-all duration-200
                 ${!isButtonDisabled
                   ? 'border border-black bg-black text-white'

@@ -34,6 +34,7 @@ type SiteMessages = {
     };
     utilityDock: {
       account: string;
+      language: string;
       lightMode: string;
       darkMode: string;
       backToLanding: string;
@@ -218,6 +219,7 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
       },
       utilityDock: {
         account: 'Account',
+        language: 'Language',
         lightMode: 'Light Mode',
         darkMode: 'Dark Mode',
         backToLanding: 'Back to Landing',
@@ -520,6 +522,7 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
       },
       utilityDock: {
         account: '账户',
+        language: '语言',
         lightMode: '浅色模式',
         darkMode: '深色模式',
         backToLanding: '返回首页',

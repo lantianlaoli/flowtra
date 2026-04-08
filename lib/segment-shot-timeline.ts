@@ -108,7 +108,7 @@ export function normalizeTimelineRanges(
     : distributeDurations(shots.length, fallbackDurationSeconds);
 
   let cursor = 0;
-  return shots.map((shot, index) => {
+  const ranges = shots.map((shot, index) => {
     const nextDuration = durationPlan[index] || DEFAULT_MIN_SHOT_DURATION_SECONDS;
     const startSec = cursor;
     const endSec = cursor + nextDuration;
@@ -119,6 +119,36 @@ export function normalizeTimelineRanges(
       endSec,
     };
   });
+
+  // Ensure last shot doesn't exceed fallbackDurationSeconds
+  if (ranges.length > 0) {
+    const lastIndex = ranges.length - 1;
+    const lastRange = ranges[lastIndex];
+    if (lastRange && lastRange.endSec > fallbackDurationSeconds) {
+      const overflow = lastRange.endSec - fallbackDurationSeconds;
+      // Clamp last shot's end to fallbackDurationSeconds
+      lastRange.endSec = fallbackDurationSeconds;
+      // Adjust start if needed to maintain minimum duration
+      const minDuration = DEFAULT_MIN_SHOT_DURATION_SECONDS;
+      if (lastRange.endSec - lastRange.startSec < minDuration) {
+        lastRange.startSec = Math.max(0, lastRange.endSec - minDuration);
+      }
+      // Propagate adjustment backward to ensure no gaps and maintain boundaries
+      for (let i = lastIndex - 1; i >= 0; i--) {
+        const current = ranges[i];
+        const next = ranges[i + 1];
+        if (current && next && current.endSec > next.startSec) {
+          current.endSec = next.startSec;
+          // Ensure minimum duration
+          if (current.endSec - current.startSec < minDuration) {
+            current.startSec = Math.max(0, current.endSec - minDuration);
+          }
+        }
+      }
+    }
+  }
+
+  return ranges;
 }
 
 export function updateTimelineBoundary(

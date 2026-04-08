@@ -47,7 +47,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Merge already in progress' }, { status: 400 });
     }
 
-    if (project.current_step !== 'awaiting_merge' && project.status !== 'awaiting_merge') {
+    if (
+      project.current_step !== 'awaiting_merge' &&
+      project.status !== 'awaiting_merge' &&
+      project.status !== 'failed'
+    ) {
       return NextResponse.json({ error: 'Project is not awaiting merge confirmation yet' }, { status: 400 });
     }
 

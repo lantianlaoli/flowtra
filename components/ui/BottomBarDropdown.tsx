@@ -48,7 +48,7 @@ export default function BottomBarDropdown({
         disabled={disabled}
         data-open={open}
         className={cn(
-          'bottom-bar-dropdown-trigger my-ads-button my-ads-button--secondary flex h-14 items-center justify-between gap-3 rounded-[26px] border border-[#dfdfd9] bg-white px-4 text-gray-700 transition-all disabled:cursor-not-allowed disabled:opacity-60',
+          'bottom-bar-dropdown-trigger my-ads-button my-ads-button--secondary flex h-12 items-center justify-between gap-3 rounded-[16px] border border-[#dfdfd9] bg-white px-4 text-gray-700 transition-all disabled:cursor-not-allowed disabled:opacity-60',
           triggerClassName
         )}
       >
@@ -60,7 +60,7 @@ export default function BottomBarDropdown({
       {open && (
         <div
           className={cn(
-            'bottom-bar-dropdown-panel absolute bottom-16 left-0 rounded-[28px] border border-[#e4e4df] bg-white p-3 shadow-[0_22px_48px_rgba(15,23,42,0.12)]',
+            'bottom-bar-dropdown-panel absolute bottom-14 left-0 rounded-[18px] border border-[#e4e4df] bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.10)]',
             panelWidthClassName,
             panelClassName
           )}

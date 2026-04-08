@@ -116,6 +116,7 @@ export default function PromptMentionTextarea({
   const [mentionStart, setMentionStart] = useState<number | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const mentionEnabled = characterMentions.length > 0 || productMentions.length > 0;
 
   const highlightedSegments = useMemo(() => parseHighlightedSegments(value), [value]);
@@ -262,11 +263,42 @@ export default function PromptMentionTextarea({
     activeOption?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex, mentionOpen]);
 
+  // Calculate dropdown position when mention opens
+  useEffect(() => {
+    if (!mentionOpen || !textareaRef.current) {
+      setMenuPosition(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      const rect = textarea.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    };
+
+    updatePosition();
+
+    // Update position on scroll/resize
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [mentionOpen]);
+
   return (
-    <div ref={rootRef} className="prompt-mention-root relative flex h-full min-w-0 min-h-0 flex-col">
+    <div ref={rootRef} className="prompt-mention-root flex h-full min-w-0 min-h-0 flex-col">
       <div
         className={clsx(
-          'relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-white transition-colors',
+          'relative flex min-h-0 flex-1 flex-col rounded-lg border bg-white transition-colors',
           hasError ? 'border-red-500 focus-within:border-red-500' : 'border-gray-200 focus-within:border-black',
           readOnly || disabled ? 'bg-gray-50' : ''
         )}
@@ -379,8 +411,17 @@ export default function PromptMentionTextarea({
         />
       </div>
 
-      {mentionOpen && (
-        <div role="listbox" className="prompt-mention-menu absolute z-20 mt-2 w-full rounded-xl border border-gray-200 bg-white shadow-lg">
+      {mentionOpen && menuPosition && (
+        <div
+          role="listbox"
+          className="prompt-mention-menu fixed z-50 min-w-[200px] max-w-[320px] rounded-xl border border-gray-200 bg-white shadow-lg"
+          style={{
+            top: `${menuPosition.top}px`,
+            left: `${menuPosition.left}px`,
+            width: 'auto',
+            marginTop: '8px',
+          }}
+        >
           <div ref={menuScrollRef} className="max-h-64 space-y-2 overflow-y-auto p-2">
             <div>
               <div className="flex items-center gap-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">

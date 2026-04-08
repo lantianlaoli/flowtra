@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
 import { Check, Globe, Moon, Sun } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
@@ -16,6 +17,7 @@ type ViewTransitionCapableDocument = Document & {
 };
 
 export default function FloatingPreferences() {
+  const pathname = usePathname();
   const { locale, setLocale, messages } = useI18n();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isLanguageOpen, setIsLanguageOpen] = useState(false);
@@ -91,6 +93,10 @@ export default function FloatingPreferences() {
 
     applyTheme();
   };
+
+  if (pathname?.startsWith('/dashboard')) {
+    return null;
+  }
 
   return (
     <div

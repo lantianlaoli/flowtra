@@ -67,7 +67,7 @@ interface ProcessResult {
   nextStep?: string;
 }
 
-const resolveAvatarAdsVideoModel = (project: Pick<AvatarAdsProject, 'video_model'>) => (
+export const resolveAvatarAdsVideoModel = (project: Pick<AvatarAdsProject, 'video_model'>) => (
   project.video_model === 'kling_3' ? 'kling_3' : DEFAULT_VIDEO_MODEL
 );
 
@@ -99,13 +99,13 @@ const buildAvatarAdsTalkingHeadVisualLines = (hasProductContext: boolean) => {
   ];
 };
 
-const getAvatarPromptScenes = (generatedPrompts: Record<string, unknown> | null | undefined) => (
+export const getAvatarPromptScenes = (generatedPrompts: Record<string, unknown> | null | undefined) => (
   Array.isArray(generatedPrompts?.scenes)
     ? generatedPrompts.scenes as Array<{ prompt?: Record<string, unknown> | null }>
     : []
 );
 
-const getAvatarSceneDurationSeconds = (
+export const getAvatarSceneDurationSeconds = (
   prompt: Record<string, unknown> | null | undefined,
   model: 'veo3_fast' | 'kling_3'
 ) => {

@@ -46,6 +46,7 @@ export default function EditAvatarModal({
   const primaryInputRef = useRef<HTMLInputElement | null>(null);
   const referenceInputRef = useRef<HTMLInputElement | null>(null);
   const resumedGenerationKeyRef = useRef<string | null>(null);
+  const processedGenerationJobIdsRef = useRef<Set<string>>(new Set());
 
   const photoSet: AvatarPhotoSet | null = useMemo(() => {
     if (!currentAvatar) return null;
@@ -287,23 +288,37 @@ export default function EditAvatarModal({
   const resolveGeneratedReferences = useCallback(async (jobIds: string[]) => {
     setIsGeneratingReferences(true);
     setError(null);
+    processedGenerationJobIdsRef.current = new Set();
 
     try {
+      const uploadCompletedReferences = async (
+        updatedJobs: Array<{ id: string; result_image_url: string | null; status: string }>
+      ) => {
+        for (let index = 0; index < jobIds.length; index += 1) {
+          const jobId = jobIds[index];
+          const resolvedJob = updatedJobs.find((job) => job.id === jobId);
+          const imageUrl = resolvedJob?.result_image_url;
+          if (!resolvedJob || resolvedJob.status !== 'completed' || !imageUrl) {
+            continue;
+          }
+          if (processedGenerationJobIdsRef.current.has(jobId)) {
+            continue;
+          }
+
+          processedGenerationJobIdsRef.current.add(jobId);
+          const referenceFile = await buildFileFromUrl(imageUrl, `avatar-reference-angle-${index + 1}.png`);
+          await runAvatarAction({ action: 'add_reference', file: referenceFile });
+        }
+      };
+
       const resolvedJobs = await waitForAiReferenceAngleJobs({
         supabase,
-        jobIds
-      });
-
-      for (let index = 0; index < jobIds.length; index += 1) {
-        const resolvedJob = resolvedJobs.find((job) => job.id === jobIds[index]);
-        const imageUrl = resolvedJob?.result_image_url;
-        if (!imageUrl) {
-          throw new Error('AI generated image URL is missing.');
+        jobIds,
+        onJobsUpdated: (updatedJobs) => {
+          void uploadCompletedReferences(updatedJobs);
         }
-
-        const referenceFile = await buildFileFromUrl(imageUrl, `avatar-reference-angle-${index + 1}.png`);
-        await runAvatarAction({ action: 'add_reference', file: referenceFile });
-      }
+      });
+      await uploadCompletedReferences(resolvedJobs);
 
       clearPersistedJobIds();
     } catch (generationError) {

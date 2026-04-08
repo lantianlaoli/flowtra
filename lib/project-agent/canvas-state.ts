@@ -67,6 +67,8 @@ export type ProjectAgentCanvasNodeRuntime = {
   outputUrl?: string | null;
   previewUrl?: string | null;
   error?: string | null;
+  userFacingError?: string | null;
+  retryable?: boolean;
   statusLabel?: string | null;
   milestones?: ProjectAgentCanvasMilestone[] | null;
   currentMilestoneKey?: string | null;
