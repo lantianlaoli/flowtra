@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { __test__ } from '@/lib/competitor-ugc-replication-workflow';
+import { __test__ } from '@/lib/video-clone-workflow';
 
 test('Kling video request body defaults input.mode to std', () => {
   const requestBody = __test__.buildKlingVideoRequestBody({

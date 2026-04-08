@@ -6,7 +6,7 @@ import { sendEmail } from '@/lib/resend';
 
 const feedbackSchema = z.object({
   projectId: z.string().min(1),
-  projectType: z.enum(['avatar-ads', 'competitor-ugc-replication', 'motion-clone']),
+  projectType: z.enum(['avatar-ads', 'video-clone', 'motion-clone']),
   feedbackType: z.enum(['positive', 'negative'])
 });
 
@@ -30,8 +30,8 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const tableName = projectType === 'avatar-ads'
       ? 'avatar_ads_projects'
-      : projectType === 'competitor-ugc-replication'
-      ? 'competitor_ugc_replication_projects'
+      : projectType === 'video-clone'
+      ? 'video_clone_projects'
       : 'motion_clone_projects';
 
     const { data: project, error: projectError } = await supabase
@@ -54,8 +54,8 @@ export async function POST(request: NextRequest) {
     // 5. Build email content
     const projectTypeLabel = projectType === 'avatar-ads'
       ? 'Avatar Ads'
-      : projectType === 'competitor-ugc-replication'
-      ? 'Competitor UGC Replication'
+      : projectType === 'video-clone'
+      ? 'Video Clone'
       : 'Motion Clone';
 
     const feedbackLabel = feedbackType === 'positive' ? 'Positive 👍' : 'Negative 👎';
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     const videoUrl = projectType === 'avatar-ads'
       ? project.merged_video_url
-      : projectType === 'competitor-ugc-replication'
+      : projectType === 'video-clone'
       ? (project.merged_video_url || project.video_url)
       : project.output_video_url;
 

@@ -90,16 +90,16 @@ export const buildCreatorVideoPath = ({
 }) =>
   `users/${sanitizeSegment(userId)}/creator-videos/${sanitizeSegment(creatorVideoId)}/${variant}/original.${extension}`
 
-export const buildCompetitorAdSourcePath = ({
+export const buildReferenceVideoSourcePath = ({
   userId,
-  competitorAdId,
+  referenceVideoId,
   extension,
 }: {
   userId: string
-  competitorAdId: string
+  referenceVideoId: string
   extension: string
 }) =>
-  `users/${sanitizeSegment(userId)}/competitor-ads/${sanitizeSegment(competitorAdId)}/source/original.${extension}`
+  `users/${sanitizeSegment(userId)}/reference-videos/${sanitizeSegment(referenceVideoId)}/source/original.${extension}`
 
 export const buildToolTempUploadPath = ({
   userId,
@@ -116,7 +116,7 @@ export const buildToolTempUploadPath = ({
   return `users/${sanitizeSegment(userId)}/tools/${sanitizeSegment(sessionId)}/${kind}/${buildFileName(fileName, extension)}`
 }
 
-export const buildCompetitorAdTempUploadPath = ({
+export const buildReferenceVideoTempUploadPath = ({
   userId,
   draftId,
   fileName,
@@ -126,7 +126,7 @@ export const buildCompetitorAdTempUploadPath = ({
   fileName: string
 }) => {
   const extension = getFileExtension(fileName, 'mp4')
-  return `users/${sanitizeSegment(userId)}/competitor-ads/drafts/${sanitizeSegment(draftId)}/source.${extension}`
+  return `users/${sanitizeSegment(userId)}/reference-videos/drafts/${sanitizeSegment(draftId)}/source.${extension}`
 }
 
 export const buildTempProductPhotoPath = ({
@@ -165,6 +165,6 @@ export const getBucketForPathBuilder = {
   productImage: STORAGE_BUCKETS.userImages,
   creatorVideo: STORAGE_BUCKETS.userVideos,
   creatorVideoCover: STORAGE_BUCKETS.userImages,
-  competitorVideo: STORAGE_BUCKETS.userVideos,
+  referenceVideo: STORAGE_BUCKETS.userVideos,
   tempUpload: STORAGE_BUCKETS.tempUploads,
 } satisfies Record<string, StorageBucket>

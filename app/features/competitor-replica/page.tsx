@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function Page() {
-  redirect('/features/viral-clone');
+  redirect('/features/video-clone');
 }

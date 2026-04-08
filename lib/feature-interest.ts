@@ -1,7 +1,7 @@
 export type FeatureInterestOption =
   | 'ai_agent'
   | 'avatar_ads'
-  | 'competitor_ugc_replication'
+  | 'video_clone'
   | 'motion_clone'
   | 'other';
 
@@ -14,7 +14,7 @@ export type FeatureInterestOptionConfig = {
 export const FEATURE_INTEREST_OPTIONS: FeatureInterestOptionConfig[] = [
   { value: 'ai_agent', label: 'AI Agent', isNew: true },
   { value: 'avatar_ads', label: 'Avatar Ads' },
-  { value: 'competitor_ugc_replication', label: 'Competitor UGC Replication' },
+  { value: 'video_clone', label: 'Video Clone' },
   { value: 'motion_clone', label: 'Motion Clone' },
   { value: 'other', label: 'Other' },
 ];

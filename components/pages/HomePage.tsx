@@ -189,7 +189,7 @@ export default function HomePage() {
 // --- Discover Section --- //
 type DiscoverType =
   | "all"
-  | "competitor-ugc-replication"
+  | "video-clone"
   | "character"
   | "motion-clone";
 
@@ -303,7 +303,7 @@ function DiscoverSection() {
                 {discoverMessages.all}
               </TabsTrigger>
               <TabsTrigger
-                value="competitor-ugc-replication"
+                value="video-clone"
                 className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md px-3 py-1.5 text-sm font-medium transition-all gap-2"
               >
                 <Copy className="w-4 h-4" />

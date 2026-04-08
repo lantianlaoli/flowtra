@@ -32,7 +32,7 @@ test('visible reference selection returns clone reference chips', () => {
 
 test('visible replacement selection returns clone replacement chips', () => {
   const stage = getProjectAgentPromptChipStage({
-    intent: 'competitor_ugc_replication',
+    intent: 'video_clone',
     cloneReferenceVideo: { id: 'ref-1' },
     showCloneReplacementSelectors: true
   });
@@ -41,7 +41,7 @@ test('visible replacement selection returns clone replacement chips', () => {
 
 test('workspace-ready state returns draft review guidance', () => {
   const stage = getProjectAgentPromptChipStage({
-    intent: 'competitor_ugc_replication',
+    intent: 'video_clone',
     cloneReferenceVideo: { id: 'ref-1' },
     cloneReplacementDraft: {
       status: 'ready',
@@ -53,7 +53,7 @@ test('workspace-ready state returns draft review guidance', () => {
 
 test('awaiting confirmation in visible workspace stays on draft review chips', () => {
   const stage = getProjectAgentPromptChipStage({
-    intent: 'competitor_ugc_replication',
+    intent: 'video_clone',
     cloneReferenceVideo: { id: 'ref-1' },
     cloneReplacementDraft: {
       status: 'awaiting_confirmation'
@@ -65,7 +65,7 @@ test('awaiting confirmation in visible workspace stays on draft review chips', (
 
 test('awaiting-merge and completed states prioritize final-step and next-clone prompts', () => {
   const awaitingMerge = getProjectAgentPromptChipStage({
-    intent: 'competitor_ugc_replication',
+    intent: 'video_clone',
     cloneExecution: {
       projectId: 'project-1',
       phase: 'awaiting_merge'
@@ -74,7 +74,7 @@ test('awaiting-merge and completed states prioritize final-step and next-clone p
   assert.equal(awaitingMerge, 'video_generation');
 
   const completed = getProjectAgentPromptChipStage({
-    intent: 'competitor_ugc_replication',
+    intent: 'video_clone',
     cloneExecution: {
       projectId: 'project-1',
       phase: 'completed',
@@ -84,7 +84,7 @@ test('awaiting-merge and completed states prioritize final-step and next-clone p
   assert.equal(completed, 'completed');
 
   const completedChips = getProjectAgentPromptChips({
-    intent: 'competitor_ugc_replication',
+    intent: 'video_clone',
     cloneExecution: {
       projectId: 'project-1',
       phase: 'completed',
@@ -98,7 +98,7 @@ test('awaiting-merge and completed states prioritize final-step and next-clone p
 
 test('chip selection returns only 3-4 items from the active stage pool', () => {
   const stage = getProjectAgentPromptChipStage({
-    intent: 'competitor_ugc_replication',
+    intent: 'video_clone',
     cloneExecution: {
       projectId: 'project-1',
       phase: 'generating_videos'
@@ -106,7 +106,7 @@ test('chip selection returns only 3-4 items from the active stage pool', () => {
   });
   const pool = getProjectAgentPromptChipPool(stage);
   const { chips } = getProjectAgentPromptChips({
-    intent: 'competitor_ugc_replication',
+    intent: 'video_clone',
     cloneExecution: {
       projectId: 'project-1',
       phase: 'generating_videos'
@@ -121,7 +121,7 @@ test('chip selection returns only 3-4 items from the active stage pool', () => {
 
 test('chip selection stays stable for the same stage key and changes when stage changes', () => {
   const baseState = {
-    intent: 'competitor_ugc_replication' as const,
+    intent: 'video_clone' as const,
     cloneReferenceVideo: { id: 'ref-1' },
     cloneReplacementDraft: {
       status: 'ready' as const,
@@ -141,7 +141,7 @@ test('chip selection stays stable for the same stage key and changes when stage 
   assert.notEqual(first.stageKey, referenceSelection.stageKey);
 
   const completedState = {
-    intent: 'competitor_ugc_replication' as const,
+    intent: 'video_clone' as const,
     cloneExecution: {
       projectId: 'project-1',
       phase: 'completed' as const,

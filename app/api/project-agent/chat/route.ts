@@ -146,7 +146,7 @@ type SessionState = {
   canvasIntent?: CanvasIntent | null;
   pendingUiRequest?: ProjectAgentPendingUiRequest | null;
   appliedCanvasActionCallIds?: string[];
-  intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_clone';
+  intent?: 'avatar_ads' | 'video_clone' | 'motion_clone';
   step?: 'collecting' | 'creating' | 'awaiting_review' | 'regenerating_image' | 'generating_videos' | 'completed';
   avatarStage?: ProjectAgentAvatarStage;
   avatarSelection?: {
@@ -161,7 +161,7 @@ type SessionState = {
   cloneReferenceVideo?: {
     id: string;
     name?: string | null;
-    sourceType?: 'creator' | 'competitor_ad';
+    sourceType?: 'creator' | 'reference_video';
     sourceId?: string | null;
     videoUrl?: string | null;
     cdnUrl?: string | null;
@@ -328,7 +328,7 @@ const isRegenerateFrameCommand = (text: string) => {
 const CLONE_WORKSPACE_STATUS_KEYWORD_REGEX = /\b(frame|frames|image|images|photo|photos|video|videos|scene|scenes|shot|shots|prompt|prompts|timing|preview|regenerate|retry|render|ready|start)\b/i;
 
 const shouldSyncCloneWorkspaceStatus = (state: SessionState, text: string) => {
-  if (state.intent !== 'competitor_ugc_replication') {
+  if (state.intent !== 'video_clone') {
     return false;
   }
 
@@ -415,7 +415,7 @@ const shouldGenerateWorkflowFallback = (latestUserTurnText: string, state: Sessi
     return true;
   }
 
-  return state.intent === 'competitor_ugc_replication';
+  return state.intent === 'video_clone';
 };
 
 const isCloneDraftPreviewIntent = (text: string) => {
@@ -565,7 +565,7 @@ const buildWorkflowFallbackReply = async (input: {
   const videosReady = segments.filter((segment) => Boolean(segment.videoUrl)).length;
 
   if (
-    input.state.intent === 'competitor_ugc_replication' &&
+    input.state.intent === 'video_clone' &&
     input.state.cloneReferenceVideo?.id &&
     draftStatus !== 'generating' &&
     draftStatus !== 'ready' &&
@@ -962,7 +962,7 @@ Identity and brand voice (strict):
 
 Supported workflows:
 - avatar_ads (create spokesperson-style avatar videos)
-- competitor_ugc_replication (primary use case: clone viral videos with your product)
+- video_clone (primary use case: clone viral videos with your product)
 - motion_clone (replace avatar and/or product inside an existing creator video)
 
 Domain model (strict):
@@ -1037,13 +1037,13 @@ Workflow rules:
 - For motion_clone, continue rule (strict): if the current state already has the selected reference video plus a selected avatar, and the user says continue / set it up / create the project / use these selections, do not ask for names again. Create the motion clone project from the existing state and move into the workspace.
 - For motion_clone, never invent avatar option names. If you need to mention available avatars, either call listAvatars first or tell the user to choose from the avatars shown on the left.
 - For motion_clone, immediately after a reference video is selected, do not enumerate avatar names in prose. Just confirm the selected reference and direct the user to choose the replacement avatar from the left panel; product remains optional.
-- If the user picks competitor_ugc_replication, use chat only to build the clone canvas:
+- If the user picks video_clone, use chat only to build the clone canvas:
   - Step 1: choose reference video.
   - Step 2: collect replacement selections. Avatar and product are both optional individually, but at least one replacement is required before confirmation or draft generation.
   - Step 3: prepare and review the replacement draft workspace. If product replacement is selected, include deterministic scene assignments preview too.
   - Step 4: once the required replacement setup is represented on the canvas, tell the user to click the video clone node's "Start" button.
   - Keep replies progress-aware and concise at each phase.
-- For competitor_ugc_replication, the sequence must follow the existing manual flow:
+- For video_clone, the sequence must follow the existing manual flow:
   1) First ask user to select ONE reference video.
   2) Do not ask for product before a reference video is selected.
   3) Ask for product only as a later step.
@@ -1084,7 +1084,7 @@ Workflow rules:
   29) If matching is uncertain, present top likely candidates and ask a short clarification question; do not proceed to generation.
 - When user asks what workflows are available, always list ALL three:
   1) Avatar Ads
-  2) Clone Viral Videos (Competitor UGC Replication)
+  2) Clone Viral Videos (Video Clone)
   3) Motion Clone
 - Canvas editing workflow:
   - Treat the right chat panel as a canvas-building assistant for the current canvas.
@@ -1213,7 +1213,7 @@ const mergeState = (state: SessionState, patch: Partial<SessionState>) => {
 
 const buildFreshCloneState = (state: SessionState): SessionState => ({
   ...state,
-  intent: 'competitor_ugc_replication',
+  intent: 'video_clone',
   canvasIntent: null,
   videoModel: 'kling_3',
   pendingUiRequest: null,
@@ -1356,7 +1356,7 @@ const detectWorkflowIntentSwitch = (userText: string): SessionState['intent'] | 
   }
 
   if (isNextCloneIntentMessage(userText)) {
-    return 'competitor_ugc_replication';
+    return 'video_clone';
   }
 
   return null;
@@ -1380,7 +1380,7 @@ const toCloneExecutionFromStatusPayload = (projectId: string, payload: Record<st
   }));
 
   const videoModel = data.videoModel;
-  const normalizedModel = normalizeProjectAgentVideoModel(videoModel, 'kling_3', 'competitor_ugc_replication');
+  const normalizedModel = normalizeProjectAgentVideoModel(videoModel, 'kling_3', 'video_clone');
 
   return {
     projectId,
@@ -1609,7 +1609,7 @@ export async function POST(request: Request) {
     ]);
 
     const nextCloneFollowupDecision = (
-      sessionState.intent === 'competitor_ugc_replication' &&
+      sessionState.intent === 'video_clone' &&
       Boolean(sessionState.cloneReferenceVideo?.id) &&
       !isReferenceSelectionMessage(messageText(normalizedIncomingMessage))
     )
@@ -1629,7 +1629,7 @@ export async function POST(request: Request) {
     if (requestedWorkflowIntent && requestedWorkflowIntent !== sessionState.intent) {
       if (requestedWorkflowIntent === 'motion_clone') {
         sessionState = buildFreshMotionCloneState(sessionState);
-      } else if (requestedWorkflowIntent === 'competitor_ugc_replication') {
+      } else if (requestedWorkflowIntent === 'video_clone') {
         sessionState = buildFreshCloneState(sessionState);
       } else {
         sessionState = buildFreshAvatarState(sessionState);
@@ -2184,14 +2184,14 @@ export async function POST(request: Request) {
         return [];
       }
 
-      const { data: competitorAds, error: competitorAdsError } = await supabase
-        .from('competitor_ads')
-        .select('id, competitor_name, video_duration_seconds, language')
+      const { data: referenceVideoRows, error: referenceVideosError } = await supabase
+        .from('reference_videos')
+        .select('id, reference_name, video_duration_seconds, language')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
-      if (competitorAdsError) {
-        console.error('[Project Agent] Failed to load competitor ads for semantic canvas matching:', competitorAdsError);
+      if (referenceVideosError) {
+        console.error('[Project Agent] Failed to load reference videos for semantic canvas matching:', referenceVideosError);
         return [];
       }
 
@@ -2216,21 +2216,21 @@ export async function POST(request: Request) {
         }));
       });
 
-      const competitorReferenceVideos = (competitorAds ?? []).map((ad) => ({
+      const storedReferenceVideos = (referenceVideoRows ?? []).map((ad) => ({
         id: String(ad.id),
-        name: typeof ad.competitor_name === 'string' && ad.competitor_name.trim().length > 0
-          ? ad.competitor_name
-          : 'Competitor video',
+        name: typeof ad.reference_name === 'string' && ad.reference_name.trim().length > 0
+          ? ad.reference_name
+          : 'Reference video',
         imageUrl: null,
         durationSeconds: typeof ad.video_duration_seconds === 'number' ? ad.video_duration_seconds : null,
-        sourceType: 'competitor_ad' as const,
+        sourceType: 'reference_video' as const,
         videoUrl: null,
         videoCdnUrl: null,
         analysisLanguage: typeof ad.language === 'string' ? ad.language : null,
-        sourceName: typeof ad.competitor_name === 'string' ? ad.competitor_name : null,
+        sourceName: typeof ad.reference_name === 'string' ? ad.reference_name : null,
       }));
 
-      return [...creatorReferenceVideos, ...competitorReferenceVideos];
+      return [...creatorReferenceVideos, ...storedReferenceVideos];
     };
 
     const resolveSemanticMotionCloneWorkflowPlan = async (intent: CanvasIntent): Promise<{
@@ -3045,7 +3045,7 @@ export async function POST(request: Request) {
         : null;
 
       const nextState = mergeState(sessionState, {
-        intent: 'competitor_ugc_replication',
+        intent: 'video_clone',
         language: nextLanguage,
         canvasIntent: intent,
         canvas: nextCanvasResult.canvas,
@@ -3053,7 +3053,7 @@ export async function POST(request: Request) {
         cloneReferenceVideo: {
           id: resolvedVideoAsset.id,
           name: resolvedVideoAsset.name,
-          sourceType: resolvedVideoAsset.sourceType === 'competitor_ad' ? 'competitor_ad' : 'creator',
+          sourceType: resolvedVideoAsset.sourceType === 'reference_video' ? 'reference_video' : 'creator',
           videoUrl: resolvedVideoAsset.videoUrl || null,
           cdnUrl: resolvedVideoAsset.videoCdnUrl || null,
           language: resolvedVideoAsset.analysisLanguage || null,
@@ -3584,14 +3584,14 @@ export async function POST(request: Request) {
         return null;
       }
 
-      const { data: competitorAds, error: competitorAdsError } = await supabase
-        .from('competitor_ads')
-        .select('id, competitor_name, video_duration_seconds, language')
+      const { data: referenceVideoRows, error: referenceVideosError } = await supabase
+        .from('reference_videos')
+        .select('id, reference_name, video_duration_seconds, language')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
-      if (competitorAdsError) {
-        console.error('[Project Agent] Failed to load competitor ads for direct canvas matching:', competitorAdsError);
+      if (referenceVideosError) {
+        console.error('[Project Agent] Failed to load reference videos for direct canvas matching:', referenceVideosError);
         return null;
       }
 
@@ -3616,26 +3616,26 @@ export async function POST(request: Request) {
         }));
       });
 
-      const competitorReferenceVideos = (competitorAds ?? []).map((ad) => ({
+      const storedReferenceVideos = (referenceVideoRows ?? []).map((ad) => ({
         id: String(ad.id),
-        description: typeof ad.competitor_name === 'string' && ad.competitor_name.trim().length > 0
-          ? ad.competitor_name
-          : 'Competitor video',
-        sourceName: typeof ad.competitor_name === 'string' ? ad.competitor_name : null,
+        description: typeof ad.reference_name === 'string' && ad.reference_name.trim().length > 0
+          ? ad.reference_name
+          : 'Reference video',
+        sourceName: typeof ad.reference_name === 'string' ? ad.reference_name : null,
         videoUrl: null,
         videoCdnUrl: null,
         coverUrl: null,
         durationSeconds: typeof ad.video_duration_seconds === 'number' ? ad.video_duration_seconds : null,
         analysisLanguage: typeof ad.language === 'string' ? ad.language : null,
-        sourceType: 'competitor_ad' as const,
+        sourceType: 'reference_video' as const,
       }));
 
-      const referenceVideos = [...creatorReferenceVideos, ...competitorReferenceVideos];
+      const availableReferenceVideos = [...creatorReferenceVideos, ...storedReferenceVideos];
 
       const matchedAvatar = mergedAvatars.find((avatar) => matchesAssetReference(rawTurnText, avatar.avatar_name));
       const matchedSystemAvatar = SYSTEM_AVATARS.find((avatar) => matchesAssetReference(rawTurnText, avatar.avatar_name));
       const matchedProductRow = (productRows ?? []).find((product) => matchesAssetReference(rawTurnText, product.product_name));
-      const matchedReferenceVideo = referenceVideos.find((video) => (
+      const matchedReferenceVideo = availableReferenceVideos.find((video) => (
         (typeof video.description === 'string' && matchesAssetReference(rawTurnText, video.description))
         || (typeof video.sourceName === 'string' && matchesAssetReference(rawTurnText, video.sourceName))
       ));
@@ -3880,7 +3880,7 @@ export async function POST(request: Request) {
         canvas: nextCanvasResult.canvas,
         pendingUiRequest: nextCanvasResult.pendingUiRequest,
         intent: workflowIntent === 'video_clone'
-          ? 'competitor_ugc_replication'
+          ? 'video_clone'
           : workflowIntent,
       });
 
@@ -4129,7 +4129,7 @@ export async function POST(request: Request) {
       const nextState = mergeState(sessionState, {
         canvas: nextCanvasResult.canvas,
         pendingUiRequest: nextCanvasResult.pendingUiRequest,
-        intent: workflowIntent === 'video_clone' ? 'competitor_ugc_replication' : workflowIntent,
+        intent: workflowIntent === 'video_clone' ? 'video_clone' : workflowIntent,
       });
 
       let replyText = 'I updated the canvas.';
@@ -4705,7 +4705,7 @@ export async function POST(request: Request) {
     };
 
     const cloneDraftPrerequisiteGate = () => {
-      if (sessionState.intent !== 'competitor_ugc_replication' || !sessionState.cloneReferenceVideo?.id) {
+      if (sessionState.intent !== 'video_clone' || !sessionState.cloneReferenceVideo?.id) {
         return { ok: false as const, message: 'Reference video is not selected yet.' };
       }
       // Backward compatibility: allow legacy in-flight clone sessions that predate
@@ -4755,7 +4755,7 @@ export async function POST(request: Request) {
       }
 
       const { data: latestCloneProject, error: latestCloneProjectError } = await supabase
-        .from('competitor_ugc_replication_projects')
+        .from('video_clone_projects')
         .select('id')
         .eq('user_id', userId)
         .order('updated_at', { ascending: false })
@@ -4863,25 +4863,25 @@ export async function POST(request: Request) {
 
         try {
           // Schema verified via Supabase MCP (2026-03-11):
-          // competitor_ads has id,user_id,analysis_result,video_duration_seconds.
+          // reference_videos has id,user_id,analysis_result,video_duration_seconds.
           // creator_source_videos has id,user_id,source_id,analysis_result,duration_seconds.
           let analysisResult: Record<string, unknown> | null = null;
           let referenceDurationSeconds: number | null = null;
 
-          if (reference.sourceType === 'competitor_ad') {
+          if (reference.sourceType === 'reference_video') {
             const { data } = await supabase
-              .from('competitor_ads')
+              .from('reference_videos')
               .select('id,analysis_result,video_duration_seconds')
               .eq('id', reference.sourceId || reference.id)
               .eq('user_id', userId)
               .maybeSingle();
-            const competitorAd = data as {
+            const referenceVideo = data as {
               id: string;
               analysis_result: unknown;
               video_duration_seconds?: number | null;
             } | null;
-            analysisResult = (competitorAd?.analysis_result as Record<string, unknown> | null) || null;
-            referenceDurationSeconds = Number(competitorAd?.video_duration_seconds || 0) || null;
+            analysisResult = (referenceVideo?.analysis_result as Record<string, unknown> | null) || null;
+            referenceDurationSeconds = Number(referenceVideo?.video_duration_seconds || 0) || null;
           } else {
             type CreatorSourceVideoRow = {
               id: string;
@@ -4958,7 +4958,7 @@ export async function POST(request: Request) {
     };
 
     const buildCloneSelectionNeededReply = async (options?: { requireProgressTurn?: boolean }) => {
-      if (sessionState.intent !== 'competitor_ugc_replication' || !sessionState.cloneReferenceVideo?.id) {
+      if (sessionState.intent !== 'video_clone' || !sessionState.cloneReferenceVideo?.id) {
         return null;
       }
 
@@ -5042,7 +5042,7 @@ export async function POST(request: Request) {
           'x-project-agent-internal': '1',
           'x-project-agent-user-id': userId
         };
-        const workspaceStatusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${cloneProjectId}/status`, {
+        const workspaceStatusResponse = await fetch(`${origin}/api/video-clone/${cloneProjectId}/status`, {
           cache: 'no-store',
           headers: internalHeaders
         });
@@ -5092,7 +5092,7 @@ export async function POST(request: Request) {
 
     const cloneDraftStatus = sessionState.cloneReplacementDraft?.status || 'idle';
     const shouldForceAvatarOnlyDraft = (
-      sessionState.intent === 'competitor_ugc_replication' &&
+      sessionState.intent === 'video_clone' &&
       Boolean(sessionState.cloneReferenceVideo?.id) &&
       !sessionState.cloneExecution?.projectId &&
       cloneDraftStatus !== 'generating' &&
@@ -5279,7 +5279,7 @@ export async function POST(request: Request) {
           }),
           execute: async ({ avatarId, avatarName }) => {
             if (
-              sessionState.intent === 'competitor_ugc_replication' &&
+              sessionState.intent === 'video_clone' &&
               isProductOnlyIntent(latestUserTurnText) &&
               !hasExplicitAvatarIntent(latestUserTurnText)
             ) {
@@ -7136,8 +7136,8 @@ export async function POST(request: Request) {
               segmentPrompts,
               requestSource: 'project_agent_clone'
             };
-            if (cloneReferenceVideo.sourceType === 'competitor_ad') {
-              createPayload.competitorAdId = cloneReferenceVideo.sourceId || cloneReferenceVideo.id;
+            if (cloneReferenceVideo.sourceType === 'reference_video') {
+              createPayload.referenceVideoId = cloneReferenceVideo.sourceId || cloneReferenceVideo.id;
             } else {
               createPayload.creatorSourceVideoId = cloneReferenceVideo.id || cloneReferenceVideo.sourceId;
             }
@@ -7159,7 +7159,7 @@ export async function POST(request: Request) {
             });
 
             const internalTimestamp = String(Date.now());
-            const createResponse = await fetch(`${origin}/api/competitor-ugc-replication/create`, {
+            const createResponse = await fetch(`${origin}/api/video-clone/create`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -7189,7 +7189,7 @@ export async function POST(request: Request) {
               'x-project-agent-internal': '1',
               'x-project-agent-user-id': userId
             };
-            const statusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+            const statusResponse = await fetch(`${origin}/api/video-clone/${projectId}/status`, {
               cache: 'no-store',
               headers: internalHeaders
             });
@@ -7221,7 +7221,7 @@ export async function POST(request: Request) {
           }
         }),
         startCloneVideoGeneration: tool({
-          description: 'Start clone video generation from reviewed first frames for the current competitor clone project',
+          description: 'Start clone video generation from reviewed first frames for the current video clone project',
           inputSchema: emptySchema,
           execute: async () => {
             const gate = cloneExecutionGate();
@@ -7250,7 +7250,7 @@ export async function POST(request: Request) {
                   latestDraftScenes[index],
                   sessionState.language ?? 'en'
                 );
-                const syncResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/segments/${index}`, {
+                const syncResponse = await fetch(`${origin}/api/video-clone/${projectId}/segments/${index}`, {
                   method: 'PATCH',
                   headers: {
                     ...internalHeaders,
@@ -7272,7 +7272,7 @@ export async function POST(request: Request) {
               }
             }
 
-            const precheckStatusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+            const precheckStatusResponse = await fetch(`${origin}/api/video-clone/${projectId}/status`, {
               cache: 'no-store',
               headers: internalHeaders
             });
@@ -7298,7 +7298,7 @@ export async function POST(request: Request) {
               }
             }
 
-            const startResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/start-video`, {
+            const startResponse = await fetch(`${origin}/api/video-clone/${projectId}/start-video`, {
               method: 'POST',
               headers: internalHeaders
             });
@@ -7371,7 +7371,7 @@ export async function POST(request: Request) {
               }
             });
 
-            const statusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+            const statusResponse = await fetch(`${origin}/api/video-clone/${projectId}/status`, {
               cache: 'no-store',
               headers: internalHeaders
             });
@@ -7430,7 +7430,7 @@ export async function POST(request: Request) {
               internalHeaders['x-project-agent-user-id'] = userId;
             }
 
-            const statusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+            const statusResponse = await fetch(`${origin}/api/video-clone/${projectId}/status`, {
               cache: 'no-store',
               headers: internalHeaders
             });
@@ -7468,7 +7468,7 @@ export async function POST(request: Request) {
               const promptOverride = draftScene
                 ? cloneDraftSceneToSegmentPrompt(draftScene, sessionState.language ?? 'en')
                 : undefined;
-              const regenerateResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/segments/${index}`, {
+              const regenerateResponse = await fetch(`${origin}/api/video-clone/${projectId}/segments/${index}`, {
                 method: 'PATCH',
                 headers: {
                   ...internalHeaders,
@@ -7508,7 +7508,7 @@ export async function POST(request: Request) {
               regeneratedIndices.push(index);
             }
 
-            const refreshedStatusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+            const refreshedStatusResponse = await fetch(`${origin}/api/video-clone/${projectId}/status`, {
               cache: 'no-store',
               headers: internalHeaders
             });
@@ -7587,7 +7587,7 @@ export async function POST(request: Request) {
               internalHeaders['x-project-agent-user-id'] = userId;
             }
 
-            const statusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+            const statusResponse = await fetch(`${origin}/api/video-clone/${projectId}/status`, {
               cache: 'no-store',
               headers: internalHeaders
             });
@@ -7612,7 +7612,7 @@ export async function POST(request: Request) {
               };
             }
 
-            const regenerateResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/segments/${targetIndex}`, {
+            const regenerateResponse = await fetch(`${origin}/api/video-clone/${projectId}/segments/${targetIndex}`, {
               method: 'PATCH',
               headers: {
                 ...internalHeaders,
@@ -7638,7 +7638,7 @@ export async function POST(request: Request) {
               return { success: false, message: regeneratePayload?.error || 'Failed to regenerate scene video.' };
             }
 
-            const refreshedStatusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+            const refreshedStatusResponse = await fetch(`${origin}/api/video-clone/${projectId}/status`, {
               cache: 'no-store',
               headers: internalHeaders
             });
@@ -7696,7 +7696,7 @@ export async function POST(request: Request) {
               internalHeaders['x-project-agent-user-id'] = userId;
             }
 
-            const precheckResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+            const precheckResponse = await fetch(`${origin}/api/video-clone/${projectId}/status`, {
               cache: 'no-store',
               headers: internalHeaders
             });
@@ -7717,7 +7717,7 @@ export async function POST(request: Request) {
               };
             }
 
-            const mergeResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/merge`, {
+            const mergeResponse = await fetch(`${origin}/api/video-clone/${projectId}/merge`, {
               method: 'POST',
               headers: internalHeaders
             });
@@ -7726,7 +7726,7 @@ export async function POST(request: Request) {
               return { success: false, message: mergePayload?.error || 'Failed to start creating the final video.' };
             }
 
-            const statusResponse = await fetch(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+            const statusResponse = await fetch(`${origin}/api/video-clone/${projectId}/status`, {
               cache: 'no-store',
               headers: internalHeaders
             });

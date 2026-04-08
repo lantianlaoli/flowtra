@@ -18,8 +18,8 @@ import {
 import { useRouter } from "next/navigation";
 import { useToast } from "@/contexts/ToastContext";
 import VideoPlayer from "@/components/ui/VideoPlayer";
-import CompetitorShotsEditor from "@/components/CompetitorShotsEditor";
-import { parseShotsFromAnalysis } from "@/lib/competitor-shot-form";
+import ReferenceVideoShotsEditor from "@/components/ReferenceVideoShotsEditor";
+import { parseShotsFromAnalysis } from "@/lib/reference-video-shot-form";
 import { getAnalysisShotCount, normalizeAnalysisToV2 } from "@/lib/video-analysis-schema";
 
 interface VideoAsset {
@@ -35,8 +35,8 @@ interface VideoAsset {
   analysis_result?: Record<string, unknown> | null;
   analysis_error?: string | null;
   analysis_language?: string | null;
-  source_type?: "creator" | "competitor_ad";
-  competitor_ad_id?: string | null;
+  source_type?: "creator" | "reference_video";
+  reference_video_id?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -203,7 +203,7 @@ export default function VideoAssetDetailsModal({
     try {
       if (typeof window !== "undefined") {
         window.sessionStorage.setItem(
-          "preselect_competitor_ad",
+          "preselect_reference_video",
           JSON.stringify({
             videoId: currentVideo.id,
             analysis: currentVideo.analysis_result,
@@ -216,7 +216,7 @@ export default function VideoAssetDetailsModal({
 
       showSuccess("Analysis ready. Continue to clone setup.");
       onClose();
-      router.push("/dashboard/competitor-ugc-replication");
+      router.push("/dashboard/video-clone");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to start clone flow";
@@ -279,13 +279,13 @@ export default function VideoAssetDetailsModal({
       return;
     }
 
-    const isCompetitorAd =
-      currentVideo.source_type === "competitor_ad" || Boolean(currentVideo.competitor_ad_id);
-    const endpoint = isCompetitorAd
-      ? `/api/competitor-ads/${currentVideo.id}`
+    const isReferenceVideo =
+      currentVideo.source_type === "reference_video" || Boolean(currentVideo.reference_video_id);
+    const endpoint = isReferenceVideo
+      ? `/api/reference-videos/${currentVideo.id}`
       : `/api/creator-videos/${currentVideo.id}`;
-    const payload = isCompetitorAd
-      ? { competitor_name: nextName }
+    const payload = isReferenceVideo
+      ? { reference_name: nextName }
       : { description: nextName };
 
     setIsSavingVideoName(true);
@@ -302,14 +302,14 @@ export default function VideoAssetDetailsModal({
         throw new Error(data.error || "Failed to update video name.");
       }
 
-      const nextVideo = isCompetitorAd
+      const nextVideo = isReferenceVideo
         ? {
             ...currentVideo,
-            description: data.competitorAd?.competitor_name ?? nextName,
-            analysis_language: data.competitorAd?.language ?? currentVideo.analysis_language,
-            analysis_result: data.competitorAd?.analysis_result ?? currentVideo.analysis_result,
-            duration_seconds: data.competitorAd?.video_duration_seconds ?? currentVideo.duration_seconds,
-            updated_at: data.competitorAd?.updated_at ?? currentVideo.updated_at,
+            description: data.referenceVideo?.reference_name ?? nextName,
+            analysis_language: data.referenceVideo?.language ?? currentVideo.analysis_language,
+            analysis_result: data.referenceVideo?.analysis_result ?? currentVideo.analysis_result,
+            duration_seconds: data.referenceVideo?.video_duration_seconds ?? currentVideo.duration_seconds,
+            updated_at: data.referenceVideo?.updated_at ?? currentVideo.updated_at,
           }
         : {
             ...currentVideo,
@@ -562,7 +562,7 @@ export default function VideoAssetDetailsModal({
                   {hasAnalysis ? (
                     <div className="min-h-0 flex-1">
                       <div className="assets-video-details-shots h-full overflow-y-auto pr-1">
-                        <CompetitorShotsEditor
+                        <ReferenceVideoShotsEditor
                           shots={parsedShots}
                           onShotsChange={() => {}}
                           showSummary={false}

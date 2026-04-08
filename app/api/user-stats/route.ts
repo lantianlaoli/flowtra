@@ -27,15 +27,15 @@ export async function GET() {
       hoursSaved: 0,
     };
 
-    // Query Competitor UGC Replication projects
-    type CompetitorUgcReplicationRow = { status: string; created_at: string; download_credits_used?: number | null };
-    const { data: competitorUgcReplicationHistory, error: errorStandard } = await supabase
-      .from('competitor_ugc_replication_projects')
+    // Query Video Clone projects
+    type VideoCloneRow = { status: string; created_at: string; download_credits_used?: number | null };
+    const { data: videoCloneHistory, error: errorStandard } = await supabase
+      .from('video_clone_projects')
       .select('status, created_at, download_credits_used')
       .eq('user_id', userId);
 
     if (errorStandard) {
-      console.error('❌ Error querying competitor_ugc_replication_projects:', errorStandard);
+      console.error('❌ Error querying video_clone_projects:', errorStandard);
     }
 
     // Query Avatar Ads projects
@@ -49,9 +49,9 @@ export async function GET() {
       console.error('❌ Error querying avatar_ads_projects:', errorCharacter);
     }
 
-    // Calculate stats from Competitor UGC Replication data
-    if (competitorUgcReplicationHistory && competitorUgcReplicationHistory.length > 0) {
-      for (const record of competitorUgcReplicationHistory as CompetitorUgcReplicationRow[]) {
+    // Calculate stats from Video Clone data
+    if (videoCloneHistory && videoCloneHistory.length > 0) {
+      for (const record of videoCloneHistory as VideoCloneRow[]) {
         stats.totalVideos++;
 
         // Check if this month
@@ -86,8 +86,8 @@ export async function GET() {
     let completedCount = 0;
     let totalCount = 0;
 
-    if (competitorUgcReplicationHistory) {
-      for (const record of competitorUgcReplicationHistory as CompetitorUgcReplicationRow[]) {
+    if (videoCloneHistory) {
+      for (const record of videoCloneHistory as VideoCloneRow[]) {
         totalCount++;
         if (record.status === 'completed') {
           completedCount++;

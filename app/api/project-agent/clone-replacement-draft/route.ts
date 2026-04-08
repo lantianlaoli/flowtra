@@ -82,7 +82,7 @@ type SessionState = {
   cloneReferenceVideo?: {
     id: string;
     name?: string | null;
-    sourceType?: 'creator' | 'competitor_ad';
+    sourceType?: 'creator' | 'reference_video';
     sourceId?: string | null;
     analysisSummary?: string | null;
     keyShots?: string[] | null;
@@ -768,16 +768,16 @@ export async function POST(request: NextRequest) {
     let analysisResult: Record<string, unknown> | null = null;
     let referenceDurationSeconds: number | null = null;
 
-    if (referenceSourceType === 'competitor_ad') {
-      // Schema verified via Supabase MCP (2026-02-11): competitor_ads includes id,user_id,analysis_result.
-      const { data: competitorAd } = await supabase
-        .from('competitor_ads')
+    if (referenceSourceType === 'reference_video') {
+      // Schema verified via Supabase MCP (2026-02-11): reference_videos includes id,user_id,analysis_result.
+      const { data: referenceVideo } = await supabase
+        .from('reference_videos')
         .select('id,analysis_result,video_duration_seconds')
         .eq('id', referenceSourceId)
         .eq('user_id', userId)
         .maybeSingle();
-      analysisResult = (competitorAd?.analysis_result as Record<string, unknown> | null) || null;
-      referenceDurationSeconds = Number(competitorAd?.video_duration_seconds || 0) || null;
+      analysisResult = (referenceVideo?.analysis_result as Record<string, unknown> | null) || null;
+      referenceDurationSeconds = Number(referenceVideo?.video_duration_seconds || 0) || null;
     } else {
       // Schema verified via Supabase MCP (2026-02-11): creator_source_videos includes id,user_id,source_id,analysis_result.
       let creatorVideo: { id: string; analysis_result: unknown; duration_seconds?: number | null } | null = null;

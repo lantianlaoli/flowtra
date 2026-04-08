@@ -70,7 +70,7 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
   const primaryNavigation = [
     { name: sidebarMessages.home, href: '/dashboard', icon: Home },
     { name: sidebarMessages.agent, href: '/dashboard/agent', icon: MessageCircle },
-    { name: sidebarMessages.viralClone, href: '/dashboard/competitor-ugc-replication', icon: Sparkles },
+    { name: sidebarMessages.viralClone, href: '/dashboard/video-clone', icon: Sparkles },
     { name: sidebarMessages.avatarAds, href: '/dashboard/avatar-ads', icon: Video },
     { name: sidebarMessages.motionClone, href: '/dashboard/motion-clone', icon: Shuffle },
     { name: sidebarMessages.myAds, href: '/dashboard/my-ads', icon: Play },

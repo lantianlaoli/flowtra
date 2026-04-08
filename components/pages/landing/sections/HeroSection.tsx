@@ -131,7 +131,7 @@ export default function HeroSection() {
                 wrapperClassName="w-full h-full"
                 className="w-full h-full object-cover"
                 src={`${SITE_ASSET_BASE_URL}/landing/clone_reference.mp4`}
-                ariaLabel={heroMessages.competitorVideoAriaLabel}
+                ariaLabel={heroMessages.referenceVideoAriaLabel}
                 analyticsName="hero_reference_video"
                 autoPlay
                 loop

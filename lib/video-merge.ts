@@ -83,7 +83,7 @@ async function submitFalMergeWithRetry(input: {
 export async function mergeVideosWithFal(
   videoUrls: string[],
   videoAspectRatio: FalAspectRatio = '16:9',
-  webhookEndpoint?: string // Optional: Custom webhook endpoint (e.g., '/api/competitor-ugc-replication/webhooks/merge')
+  webhookEndpoint?: string // Optional: Custom webhook endpoint (e.g., '/api/video-clone/webhooks/merge')
 ): Promise<{ taskId: string }> {
   const fal = await getFalClient();
 

@@ -48,19 +48,19 @@ export default function BottomBarDropdown({
         disabled={disabled}
         data-open={open}
         className={cn(
-          'bottom-bar-dropdown-trigger my-ads-button my-ads-button--secondary flex h-12 items-center justify-between gap-3 rounded-[16px] border border-[#dfdfd9] bg-white px-4 text-gray-700 transition-all disabled:cursor-not-allowed disabled:opacity-60',
+          'bottom-bar-dropdown-trigger my-ads-button my-ads-button--secondary inline-flex h-11 w-fit max-w-full items-center justify-start gap-1 rounded-[14px] border border-[#dfdfd9] bg-white pl-3 pr-2.5 text-gray-700 transition-all disabled:cursor-not-allowed disabled:opacity-60',
           triggerClassName
         )}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex min-w-0 items-center gap-1.5">
           {trigger}
         </div>
-        <ChevronDown className={cn('h-4 w-4 text-[#8a8a84] transition-transform', open && 'rotate-180')} />
+        <ChevronDown className={cn('h-[15px] w-[15px] flex-shrink-0 text-[#8a8a84] transition-transform', open && 'rotate-180')} />
       </button>
       {open && (
         <div
           className={cn(
-            'bottom-bar-dropdown-panel absolute bottom-14 left-0 rounded-[18px] border border-[#e4e4df] bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.10)]',
+            'bottom-bar-dropdown-panel absolute bottom-13 left-0 rounded-[16px] border border-[#e4e4df] bg-white p-2.5 shadow-[0_18px_40px_rgba(15,23,42,0.10)]',
             panelWidthClassName,
             panelClassName
           )}

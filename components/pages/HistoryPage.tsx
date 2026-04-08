@@ -21,7 +21,7 @@ import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { trackEvent } from '@/lib/analytics/client';
 
-interface CompetitorUgcReplicationItem {
+interface VideoCloneItem {
   id: string;
   coverImageUrl?: string;
   videoUrl?: string;
@@ -39,7 +39,7 @@ interface CompetitorUgcReplicationItem {
   createdAt: string;
   progress?: number;
   currentStep?: string;
-  adType: 'competitor-ugc-replication';
+  adType: 'video-clone';
   videoAspectRatio?: string;
   // Segment information for cost calculation
   isSegmented?: boolean;
@@ -101,7 +101,7 @@ interface MotionCloneItem {
   errorMessage?: string;
 }
 
-type HistoryItem = CompetitorUgcReplicationItem | AvatarAdsItem | MotionCloneItem;
+type HistoryItem = VideoCloneItem | AvatarAdsItem | MotionCloneItem;
 
 const ITEMS_PER_PAGE = 8; // 2 rows × 4 columns (desktop) = 8 items per page
 
@@ -113,8 +113,8 @@ const AD_TYPE_OPTIONS = [
     description: 'Every campaign you have generated so far',
   },
   {
-    value: 'competitor-ugc-replication',
-    label: 'Viral Clone',
+    value: 'video-clone',
+    label: 'Video Clone',
     icon: ImageIcon,
     description: 'Segmented UGC workflows cloned from viral videos',
   },
@@ -144,8 +144,8 @@ const isCharacterAds = (item: HistoryItem): item is AvatarAdsItem => {
   return 'adType' in item && item.adType === 'character';
 };
 
-const isCompetitorUgcReplication = (item: HistoryItem): item is CompetitorUgcReplicationItem => {
-  return 'adType' in item && item.adType === 'competitor-ugc-replication';
+const isVideoClone = (item: HistoryItem): item is VideoCloneItem => {
+  return 'adType' in item && item.adType === 'video-clone';
 };
 
 const isMotionClone = (item: HistoryItem): item is MotionCloneItem => {
@@ -208,7 +208,7 @@ export default function HistoryPage() {
     return history.filter(item => {
       return (
         adTypeFilter === 'all' ||
-        (adTypeFilter === 'competitor-ugc-replication' && isCompetitorUgcReplication(item)) ||
+        (adTypeFilter === 'video-clone' && isVideoClone(item)) ||
         (adTypeFilter === 'character' && isCharacterAds(item)) ||
         (adTypeFilter === 'motion-clone' && isMotionClone(item))
       );
@@ -358,7 +358,7 @@ export default function HistoryPage() {
     const channels: RealtimeChannel[] = [];
 
     const updateHighResUrls = (
-      item: AvatarAdsItem | CompetitorUgcReplicationItem,
+      item: AvatarAdsItem | VideoCloneItem,
       merged1080p?: string | null,
       merged4k?: string | null
     ) => {
@@ -402,7 +402,7 @@ export default function HistoryPage() {
 
       setHistory((prev) =>
         prev.map((item) => {
-          if (!isCompetitorUgcReplication(item) || item.id !== projectId) return item;
+          if (!isVideoClone(item) || item.id !== projectId) return item;
           return updateHighResUrls(
             item,
             record.merged_video_1080p_url as string | undefined,
@@ -435,7 +435,7 @@ export default function HistoryPage() {
         {
           event: 'UPDATE',
           schema: 'public',
-          table: 'competitor_ugc_replication_projects',
+          table: 'video_clone_projects',
           filter: `user_id=eq.${user.id}`
         },
         handleUgcUpdate
@@ -681,7 +681,7 @@ export default function HistoryPage() {
       return 'error';
     }
 
-    if (!isCompetitorUgcReplication(item) && !isCharacterAds(item)) {
+    if (!isVideoClone(item) && !isCharacterAds(item)) {
       showError('High-resolution downloads are only available for Avatar Ads and Clone Video.');
       return 'error';
     }
@@ -728,10 +728,10 @@ export default function HistoryPage() {
           setHistory(prevHistory =>
             prevHistory.map(current => {
               if (current.id !== historyId) return current;
-              if (resolution === '1080p' && (isCharacterAds(current) || isCompetitorUgcReplication(current))) {
+              if (resolution === '1080p' && (isCharacterAds(current) || isVideoClone(current))) {
                 return { ...current, videoUrl1080p: result.videoUrl };
               }
-              if (resolution === '4k' && (isCharacterAds(current) || isCompetitorUgcReplication(current))) {
+              if (resolution === '4k' && (isCharacterAds(current) || isVideoClone(current))) {
                 return { ...current, videoUrl4k: result.videoUrl };
               }
               return current;
@@ -772,8 +772,8 @@ export default function HistoryPage() {
   const getPackingText = (stage: 'packing' | 'done') =>
     stage === 'packing' ? 'Packing…' : 'Ready!';
 
-  // Competitor UGC Replication cover download function (free) — show phrase only, no video download state
-  const downloadCompetitorUgcReplicationCover = async (historyId: string) => {
+  // Video Clone cover download function (free) — show phrase only, no video download state
+  const downloadVideoCloneCover = async (historyId: string) => {
     if (!user?.id) return;
 
     const item = history.find(h => h.id === historyId);
@@ -805,7 +805,7 @@ export default function HistoryPage() {
     }
   };
 
-  // Character ads cover download function (free) — similar to Competitor UGC Replication
+  // Character ads cover download function (free) — similar to Video Clone
   const downloadCharacterAdsCover = async (historyId: string) => {
     if (!user?.id) return;
 
@@ -876,8 +876,8 @@ export default function HistoryPage() {
     const id = item.id;
     setCoverStates(prev => ({ ...prev, [id]: 'packing' }));
     try {
-      if (isCompetitorUgcReplication(item)) {
-        await downloadCompetitorUgcReplicationCover(item.id);
+      if (isVideoClone(item)) {
+        await downloadVideoCloneCover(item.id);
       } else if (isCharacterAds(item)) {
         await downloadCharacterAdsCover(item.id);
       } else if (isMotionClone(item)) {
@@ -898,7 +898,7 @@ export default function HistoryPage() {
     const id = item.id;
     setVideoStates(prev => ({ ...prev, [id]: 'packing' }));
     try {
-      if (isCompetitorUgcReplication(item) || isCharacterAds(item) || isMotionClone(item)) {
+      if (isVideoClone(item) || isCharacterAds(item) || isMotionClone(item)) {
         await downloadVideo(item, '720p');
       }
       setVideoStates(prev => ({ ...prev, [id]: 'done' }));

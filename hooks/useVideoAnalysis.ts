@@ -12,7 +12,7 @@ export type AnalysisState =
   | 'error_upload'
   | 'error_analysis';
 
-export interface CompetitorShot {
+export interface ReferenceVideoShot {
   shot_id: number;
   start_time: string;
   end_time: string;
@@ -30,15 +30,15 @@ export interface CompetitorShot {
   contains_product: boolean;
 }
 
-export interface CompetitorAnalysis {
+export interface ReferenceVideoAnalysis {
   name: string;
   detected_language: string;
   video_duration_seconds: number;
-  shots: CompetitorShot[];
+  shots: ReferenceVideoShot[];
 }
 
 export interface VideoAnalysisResult {
-  analysis: CompetitorAnalysis;
+  analysis: ReferenceVideoAnalysis;
   language: string;
   videoUrl?: string;
 }
@@ -141,7 +141,7 @@ export function useVideoAnalysis(): UseVideoAnalysisReturn {
         try {
           console.log('[useVideoAnalysis] Starting analysis...');
 
-          const response = await fetch('/api/competitor-ads/analyze-preview', {
+          const response = await fetch('/api/reference-videos/analyze-preview', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

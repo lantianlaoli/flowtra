@@ -248,7 +248,7 @@ const fetchAvatarStatus = async (origin: string, projectId: string, headers?: He
 };
 
 const fetchCloneStatus = async (origin: string, projectId: string, headers?: HeadersInit) => {
-  const payload = await fetchJson(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+  const payload = await fetchJson(`${origin}/api/video-clone/${projectId}/status`, {
     cache: 'no-store',
     headers,
   });
@@ -354,7 +354,7 @@ const startVideoClone = async (origin: string, userId: string, body: CanvasRunRe
   });
 
   const internalHeaders = buildInternalHeaders(userId);
-  const createPayload = await fetchJson(`${origin}/api/competitor-ugc-replication/create`, {
+  const createPayload = await fetchJson(`${origin}/api/video-clone/create`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -383,8 +383,8 @@ export const startMotionClone = async (origin: string, userId: string, body: Can
   const avatar = body.connectedAssets?.avatar || null;
   const product = body.connectedAssets?.product || null;
   const video = ensureAsset(body.connectedAssets?.video, 'Video');
-  if (video.sourceType === 'competitor_ad') {
-    throw new Error('Motion Clone requires a creator video, not a competitor ad.');
+  if (video.sourceType === 'reference_video') {
+    throw new Error('Motion Clone requires a creator video, not a reference video.');
   }
 
   if (!avatar && !product) {
@@ -431,7 +431,7 @@ const advanceVideoClone = async (origin: string, userId: string, projectId: stri
   const internalHeaders = buildInternalHeaders(userId);
   let status = await fetchCloneStatus(origin, projectId, internalHeaders);
   if (status.nextAction === 'start_clone_video') {
-    await fetchJson(`${origin}/api/competitor-ugc-replication/${projectId}/start-video`, {
+    await fetchJson(`${origin}/api/video-clone/${projectId}/start-video`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -443,7 +443,7 @@ const advanceVideoClone = async (origin: string, userId: string, projectId: stri
   }
 
   if (status.nextAction === 'merge_clone_video') {
-    await fetchJson(`${origin}/api/competitor-ugc-replication/${projectId}/merge`, {
+    await fetchJson(`${origin}/api/video-clone/${projectId}/merge`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -675,7 +675,7 @@ const retryVideoClone = async (
   projectId: string,
 ) => {
   const internalHeaders = buildInternalHeaders(userId);
-  const payload = await fetchJson(`${origin}/api/competitor-ugc-replication/${projectId}/status`, {
+  const payload = await fetchJson(`${origin}/api/video-clone/${projectId}/status`, {
     cache: 'no-store',
     headers: internalHeaders,
   });
@@ -699,7 +699,7 @@ const retryVideoClone = async (
   const awaitingMerge = Boolean(data.awaitingMerge);
 
   if (allVideosReady || awaitingMerge) {
-    await fetchJson(`${origin}/api/competitor-ugc-replication/${projectId}/merge`, {
+    await fetchJson(`${origin}/api/video-clone/${projectId}/merge`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -713,7 +713,7 @@ const retryVideoClone = async (
   if (failedFrameSegments.length > 0) {
     for (const segment of failedFrameSegments) {
       await fetchJson(
-        `${origin}/api/competitor-ugc-replication/${projectId}/segments/${segment.index}`,
+        `${origin}/api/video-clone/${projectId}/segments/${segment.index}`,
         {
           method: 'PATCH',
           headers: {
@@ -731,7 +731,7 @@ const retryVideoClone = async (
   if (failedVideoSegments.length > 0) {
     for (const segment of failedVideoSegments) {
       await fetchJson(
-        `${origin}/api/competitor-ugc-replication/${projectId}/segments/${segment.index}`,
+        `${origin}/api/video-clone/${projectId}/segments/${segment.index}`,
         {
           method: 'PATCH',
           headers: {
@@ -746,7 +746,7 @@ const retryVideoClone = async (
     return fetchCloneStatus(origin, projectId, internalHeaders);
   }
 
-  await fetchJson(`${origin}/api/competitor-ugc-replication/${projectId}/start-video`, {
+  await fetchJson(`${origin}/api/video-clone/${projectId}/start-video`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -63,20 +63,20 @@ export default function MotionCloneReferenceControls({
         <BottomBarDropdown
           open={videoOpen}
           onOpenChange={setVideoOpen}
-          triggerClassName="min-w-[172px] sm:min-w-[188px]"
-          panelWidthClassName="w-[340px] sm:w-[392px]"
+          triggerClassName="w-auto"
+          panelWidthClassName="w-[308px] sm:w-[356px]"
           disabled={videos.length === 0}
           trigger={
-            <div className="bottom-bar-video-trigger flex min-w-0 items-center gap-2.5">
-              <Clapperboard className="h-4.5 w-4.5 flex-shrink-0 text-black" />
+            <div className="bottom-bar-video-trigger flex min-w-0 items-center gap-1.5">
+              <Clapperboard className="h-4 w-4 flex-shrink-0 text-black" />
               <p className="truncate text-sm font-semibold tracking-tight text-black">
-                Select video
+                Video
               </p>
             </div>
           }
         >
           {videos.length > 0 ? (
-            <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+            <div className="max-h-[340px] space-y-1.5 overflow-y-auto pr-1">
               {videos.map(video => {
                 const hasFirstFrame = Boolean(video.cover_url);
                 const canSelectVideo = requireFirstFrameForSelection ? hasFirstFrame : true;
@@ -95,7 +95,7 @@ export default function MotionCloneReferenceControls({
                       setVideoOpen(false);
                     }}
                     disabled={!canSelectVideo}
-                    className={`bottom-bar-video-option w-full rounded-[22px] border px-3 py-3 text-left transition-all ${
+                    className={`bottom-bar-video-option w-full rounded-[18px] border px-2.5 py-2.5 text-left transition-all ${
                       selectedVideoId === video.id && canSelectVideo
                         ? 'border-black bg-[#f8f8f5] shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_2px_0_rgba(232,232,228,0.98)]'
                         : canSelectVideo
@@ -103,8 +103,8 @@ export default function MotionCloneReferenceControls({
                           : 'cursor-not-allowed border-[#e6e6e1] bg-[#f7f7f4] opacity-70'
                     }`}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="bottom-bar-video-preview flex h-[96px] w-[72px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[16px] border border-[#d8d8d3] bg-[#f4f4f1]">
+                    <div className="flex items-start gap-2.5">
+                      <div className="bottom-bar-video-preview flex h-[84px] w-[64px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-[#d8d8d3] bg-[#f4f4f1]">
                         {video.video_cdn_url ? (
                           <video
                             src={video.video_cdn_url}
@@ -118,8 +118,8 @@ export default function MotionCloneReferenceControls({
                           <Image
                             src={video.cover_url}
                             alt={video.description || 'Video cover'}
-                            width={56}
-                            height={80}
+                            width={64}
+                            height={84}
                             className="h-full w-full object-cover"
                           />
                         ) : (
@@ -127,33 +127,33 @@ export default function MotionCloneReferenceControls({
                         )}
                       </div>
                       <div className="min-w-0 flex-1 self-start pt-0.5">
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="bottom-bar-video-option-title truncate text-[15px] font-semibold tracking-tight text-black">
+                            <p className="bottom-bar-video-option-title truncate text-[14px] font-semibold tracking-tight text-black">
                               {sourceTitle}
                             </p>
                             {requireFirstFrameForSelection && !hasFirstFrame ? (
-                              <p className="mt-1 text-xs font-medium text-[#8a8a84]">First frame required</p>
+                              <p className="mt-0.5 text-[11px] font-medium text-[#8a8a84]">First frame required</p>
                             ) : null}
                           </div>
                           <ChevronRight
                             className={cn(
-                              'mt-0.5 h-4 w-4 flex-shrink-0 text-[#9a9a94] transition-transform',
+                              'mt-0.5 h-[15px] w-[15px] flex-shrink-0 text-[#9a9a94] transition-transform',
                               selectedVideoId === video.id && canSelectVideo && 'translate-x-0.5 text-black'
                             )}
                           />
                         </div>
 
-                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-[#4f4f49]">
-                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] font-medium text-[#4f4f49]">
+                          <span className="inline-flex items-center gap-1 whitespace-nowrap">
                             <Clock3 className="h-3.5 w-3.5 text-[#7a7a74]" />
                             {durationLabel}
                           </span>
-                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 whitespace-nowrap">
                             <Languages className="h-3.5 w-3.5 text-[#7a7a74]" />
                             {languageLabel}
                           </span>
-                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 whitespace-nowrap">
                             <Rows3 className="h-3.5 w-3.5 text-[#7a7a74]" />
                             {shotCount ? `${shotCount} shots` : 'No shots'}
                           </span>

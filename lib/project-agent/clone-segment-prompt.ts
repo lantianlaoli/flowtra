@@ -1,5 +1,5 @@
 import { KLING_MIN_TASK_DURATION_SECONDS } from '@/lib/constants';
-import type { SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
+import type { SegmentPrompt } from '@/lib/video-clone-workflow';
 import { parseTimelineRange } from '@/lib/segment-shot-timeline';
 import {
   createProjectAgentCloneShot,

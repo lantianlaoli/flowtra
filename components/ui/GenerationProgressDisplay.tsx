@@ -36,8 +36,8 @@ import {
   ThumbsDown
 } from 'lucide-react';
 import { getDownloadCost, type VideoModel, getVideoModelDisplayName } from '@/lib/constants';
-import type { SegmentStatusPayload } from '@/lib/competitor-ugc-replication-workflow';
-import SegmentEditorSplitPane from '@/components/competitor-ugc-replication/SegmentEditorSplitPane';
+import type { SegmentStatusPayload } from '@/lib/video-clone-workflow';
+import SegmentEditorSplitPane from '@/components/video-clone/SegmentEditorSplitPane';
 import type { LanguageCode } from '@/components/ui/LanguageSelector';
 import { useI18n } from '@/providers/I18nProvider';
 
@@ -141,7 +141,7 @@ interface GenerationProgressDisplayProps {
     productIds?: string[];
     characterIds?: string[];
   }) => Promise<void> | void;
-  projectType?: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-clone';
+  projectType?: 'avatar-ads' | 'video-clone' | 'motion-clone';
   selectedLanguage?: LanguageCode;
 }
 
@@ -320,7 +320,7 @@ interface GenerationCardProps {
     productIds?: string[];
     characterIds?: string[];
   }) => Promise<void> | void;
-  projectType?: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-clone';
+  projectType?: 'avatar-ads' | 'video-clone' | 'motion-clone';
   selectedLanguage?: LanguageCode;
 }
 
@@ -401,7 +401,7 @@ function GenerationCard({
     totalSegments > 0 &&
     videosReady === totalSegments
   );
-  const editorFlowLabels = projectType === 'competitor-ugc-replication'
+  const editorFlowLabels = projectType === 'video-clone'
     ? {
         step1: locale === 'zh' ? '编辑提示词' : 'Edit Prompts',
         step2: locale === 'zh' ? '生成首帧' : 'Generate First Frames',
@@ -975,7 +975,7 @@ function FeedbackButtons({
   projectType
 }: {
   projectId: string;
-  projectType: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-clone';
+  projectType: 'avatar-ads' | 'video-clone' | 'motion-clone';
 }) {
   const { locale } = useI18n();
   const [submitted, setSubmitted] = useState(false);

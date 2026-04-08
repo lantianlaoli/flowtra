@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 type Resolution = '1080p' | '4k';
-type AdType = 'competitor-ugc-replication' | 'character';
+type AdType = 'video-clone' | 'character';
 
 interface DownloadRequestBody {
   historyId?: string;
@@ -16,7 +16,7 @@ interface DownloadRequestBody {
 }
 
 const isResolution = (value?: string): value is Resolution => value === '1080p' || value === '4k';
-const isAdType = (value?: string): value is AdType => value === 'competitor-ugc-replication' || value === 'character';
+const isAdType = (value?: string): value is AdType => value === 'video-clone' || value === 'character';
 
 const PROJECT_FIELDS = {
   '1080p': 'merged_video_1080p_url',
@@ -60,11 +60,11 @@ export async function POST(request: NextRequest) {
     const projectField = PROJECT_FIELDS[resolution];
     const segmentField = SEGMENT_FIELDS[resolution];
 
-    if (adType === 'competitor-ugc-replication') {
-      // Schema verified via Supabase MCP (2026-01-25): competitor_ugc_replication_projects columns include
+    if (adType === 'video-clone') {
+      // Schema verified via Supabase MCP (2026-01-25): video_clone_projects columns include
       // id, user_id, status, merged_video_1080p_url, merged_video_4k_url.
       const { data: project, error: projectError } = await supabase
-        .from('competitor_ugc_replication_projects')
+        .from('video_clone_projects')
         .select('id, user_id, status, merged_video_1080p_url, merged_video_4k_url')
         .eq('id', historyId)
         .eq('user_id', userId)
@@ -78,10 +78,10 @@ export async function POST(request: NextRequest) {
       let downloadUrl = mergedUrl;
 
       if (!downloadUrl) {
-        // Schema verified via Supabase MCP (2026-01-25): competitor_ugc_replication_segments columns include
+        // Schema verified via Supabase MCP (2026-01-25): video_clone_segments columns include
         // id, project_id, segment_index, video_1080p_url, video_4k_url.
         const { data: segments } = await supabase
-          .from('competitor_ugc_replication_segments')
+          .from('video_clone_segments')
           .select('id, segment_index, video_1080p_url, video_4k_url')
           .eq('project_id', historyId)
           .order('segment_index', { ascending: true });

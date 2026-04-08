@@ -5,7 +5,7 @@ import {
   snapDurationToModel,
   type VideoDuration,
 } from '@/lib/constants';
-import { formatTimecode, parseCompetitorTimeline, sumShotDurations, type CompetitorShot } from '@/lib/competitor-shots';
+import { formatTimecode, parseReferenceVideoTimeline, sumShotDurations, type ReferenceVideoShot } from '@/lib/reference-video-shots';
 import { KLING_MAX_MULTI_SHOT_ITEMS } from '@/lib/kling-shot-limits';
 import { buildProjectAgentLegacyAudioField, type ProjectAgentCloneShot } from '@/lib/project-agent/clone-prompt-schema';
 import { normalizeProjectAgentKlingShots } from '@/lib/project-agent/kling-shot-normalization';
@@ -31,7 +31,7 @@ type BuildProjectAgentCloneDraftSeedsInput = {
 };
 
 type PlannedShotPart = {
-  shot: CompetitorShot;
+  shot: ReferenceVideoShot;
   durationSeconds: number;
 };
 
@@ -43,7 +43,7 @@ type PlannedSceneBucket = {
   sourceShotIds: number[];
 };
 
-function buildFallbackCompetitorShots(fallbackShots?: string[] | null, fallbackSummary?: string | null): CompetitorShot[] {
+function buildFallbackReferenceVideoShots(fallbackShots?: string[] | null, fallbackSummary?: string | null): ReferenceVideoShot[] {
   const normalizedShots = (fallbackShots || [])
     .map((shot) => shot?.trim())
     .filter((shot): shot is string => Boolean(shot));
@@ -102,7 +102,7 @@ function resolveKlingDuration(
   referenceDurationSeconds?: number | null,
   fallbackDurationSeconds?: number | null,
   timelineTotalDurationSeconds?: number | null,
-  shots?: CompetitorShot[]
+  shots?: ReferenceVideoShot[]
 ): VideoDuration {
   const explicitReferenceDuration = Number(referenceDurationSeconds);
   if (Number.isFinite(explicitReferenceDuration) && explicitReferenceDuration > KLING_MAX_PROJECT_DURATION_SECONDS) {
@@ -126,7 +126,7 @@ function resolveKlingDuration(
   return snapDurationToModel('kling_3', preferredDuration);
 }
 
-function normalizeShotDurations(shots: CompetitorShot[], targetTotalSeconds: number): PlannedShotPart[] {
+function normalizeShotDurations(shots: ReferenceVideoShot[], targetTotalSeconds: number): PlannedShotPart[] {
   if (!shots.length) return [];
 
   const sourceDurations = shots.map((shot) => Math.max(1, Math.round(shot.durationSeconds || 1)));
@@ -159,7 +159,7 @@ function normalizeShotDurations(shots: CompetitorShot[], targetTotalSeconds: num
   }));
 }
 
-function hasHardContinuityBreak(previous: CompetitorShot | null, next: CompetitorShot) {
+function hasHardContinuityBreak(previous: ReferenceVideoShot | null, next: ReferenceVideoShot) {
   if (!previous) return false;
   const gapSeconds = Math.round(next.startTimeSeconds - previous.endTimeSeconds);
   return gapSeconds > 1 || gapSeconds < 0;
@@ -348,20 +348,20 @@ export function buildProjectAgentCloneDraftSeeds(
   input: BuildProjectAgentCloneDraftSeedsInput
 ) {
   const fallbackLanguage = input.language?.trim() || 'en';
-  const parsedTimeline = parseCompetitorTimeline(
+  const parsedTimeline = parseReferenceVideoTimeline(
     input.analysisResult || null,
     input.referenceDurationSeconds ?? input.fallbackDurationSeconds ?? null
   );
-  const competitorShots = parsedTimeline.shots.length > 0
+  const referenceVideoShots = parsedTimeline.shots.length > 0
     ? parsedTimeline.shots
-    : buildFallbackCompetitorShots(input.fallbackShots, input.fallbackSummary);
+    : buildFallbackReferenceVideoShots(input.fallbackShots, input.fallbackSummary);
   const resolvedDuration = resolveKlingDuration(
     input.referenceDurationSeconds,
     input.fallbackDurationSeconds,
     parsedTimeline.videoDurationSeconds,
-    competitorShots
+    referenceVideoShots
   );
-  const normalizedParts = normalizeShotDurations(competitorShots, Number(resolvedDuration));
+  const normalizedParts = normalizeShotDurations(referenceVideoShots, Number(resolvedDuration));
   const sceneBuckets = partitionSceneBuckets(normalizedParts);
 
   return {

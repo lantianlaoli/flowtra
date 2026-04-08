@@ -130,15 +130,15 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     // Count how many projects reference this product (for logging purposes)
     // Standard Ads stores clone selections in selected_inputs JSONB for multi-product support.
-    const [competitorUgcReplicationCount, avatarAdsCount] = await Promise.all([
-      supabase.from('competitor_ugc_replication_projects').select('id', { count: 'exact', head: true })
+    const [videoCloneProjectCount, avatarAdsCount] = await Promise.all([
+      supabase.from('video_clone_projects').select('id', { count: 'exact', head: true })
         .contains('selected_inputs', { productIds: [id] }),
       supabase.from('avatar_ads_projects').select('id', { count: 'exact', head: true })
         .eq('selected_product_id', id),
     ]);
 
     const totalReferencedProjects =
-      (competitorUgcReplicationCount.count || 0) +
+      (videoCloneProjectCount.count || 0) +
       (avatarAdsCount.count || 0);
 
     // Delete the product

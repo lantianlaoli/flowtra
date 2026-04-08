@@ -18,7 +18,7 @@ test('buildVideoCloneStartPayload maps connected assets into clone request field
   });
 
   assert.equal(payload.creatorSourceVideoId, 'video-1');
-  assert.equal(payload.competitorAdId, undefined);
+  assert.equal(payload.referenceVideoId, undefined);
   assert.deepEqual(payload.selectedAvatarIds, ['avatar-1']);
   assert.deepEqual(payload.selectedProductIds, []);
   assert.equal(payload.videoDuration, '16');
@@ -28,11 +28,11 @@ test('buildVideoCloneStartPayload maps connected assets into clone request field
 test('buildVideoCloneStartPayload supports product-only replacements', () => {
   const payload = buildVideoCloneStartPayload({
     product: { id: 'product-1', name: 'Product' },
-    video: { id: 'video-1', name: 'Video', sourceType: 'competitor_ad', analysisLanguage: 'en' },
+    video: { id: 'video-1', name: 'Video', sourceType: 'reference_video', analysisLanguage: 'en' },
   });
 
   assert.equal(payload.creatorSourceVideoId, undefined);
-  assert.equal(payload.competitorAdId, 'video-1');
+  assert.equal(payload.referenceVideoId, 'video-1');
   assert.deepEqual(payload.selectedAvatarIds, []);
   assert.deepEqual(payload.selectedProductIds, ['product-1']);
 });

@@ -41,7 +41,7 @@ export async function sendWelcomeEmail(options: {
   const appUrl = `${siteBase}/dashboard`
   const logoUrl = `${siteBase}/logo.svg`
   const avatarAdsUrl = `${siteBase}/features/avatar-ads`
-  const competitorReplicaUrl = `${siteBase}/features/competitor-replica`
+  const videoCloneUrl = `${siteBase}/features/video-clone`
   const recipientName = options.name?.trim()
 
   const greetingLine = recipientName ? `Hi ${recipientName},` : 'Hi there,'
@@ -106,17 +106,17 @@ export async function sendWelcomeEmail(options: {
               </tr>
               <tr>
                 <td style="padding-top:24px;font-size:20px;font-weight:600;">
-                  🎬 Competitor Replica
+                  🎬 Video Clone
                 </td>
               </tr>
               <tr>
                 <td style="padding-top:12px;font-size:16px;line-height:1.6;color:#4b5563;">
-                  Analyze your competitor's winning ads and generate similar videos featuring your product. Our AI studies their shot composition, narrative flow, and visual style to create high-performing ads for your brand.
+                  Start from a reference video and generate a version tailored to your product. Flowtra analyzes pacing, shot order, and visual structure so you can recreate the format with your own assets.
                 </td>
               </tr>
               <tr>
                 <td style="padding-top:8px;">
-                  <a href="${competitorReplicaUrl}" style="color:#111827;text-decoration:underline;font-size:16px;">Learn more about Competitor Replica →</a>
+                  <a href="${videoCloneUrl}" style="color:#111827;text-decoration:underline;font-size:16px;">Learn more about Video Clone →</a>
                 </td>
               </tr>
               <tr>
@@ -192,9 +192,9 @@ Create talking head videos where an AI character showcases your product or discu
 Learn more: ${avatarAdsUrl}
 
 🎬 COMPETITOR REPLICA
-Analyze your competitor's winning ads and generate similar videos featuring your product. Our AI studies their shot composition, narrative flow, and visual style to create high-performing ads for your brand.
+Start from a reference video and generate a version tailored to your product. Flowtra analyzes pacing, shot order, and visual structure so you can recreate the format with your own assets.
 
-Learn more: ${competitorReplicaUrl}
+Learn more: ${videoCloneUrl}
 
 READY TO GET STARTED?
 Jump into your dashboard and create your first AI-powered video ad. Both tools are designed to be intuitive — you'll be generating professional ads in minutes.

@@ -10,6 +10,7 @@ interface BottomComposerBarProps {
 
   // Center input (specific to each page)
   centerInput?: ReactNode;
+  centerInputClassName?: string;
 
   // Config popover (standardized)
   configButton?: ReactNode;
@@ -25,6 +26,7 @@ interface BottomComposerBarProps {
   // Container props
   className?: string;
   compact?: boolean;
+  surfaceClassName?: string;
 }
 
 export function resolveBottomComposerButtonLabel(input: {
@@ -51,6 +53,7 @@ export default function BottomComposerBar({
   leftControls,
   centerInput,
   configButton,
+  centerInputClassName = '',
   onGenerate,
   canGenerate,
   isGenerating = false,
@@ -58,7 +61,8 @@ export default function BottomComposerBar({
   userCredits = 0,
   generateButtonText = 'Generate',
   className = '',
-  compact = false
+  compact = false,
+  surfaceClassName = ''
 }: BottomComposerBarProps) {
   const { locale } = useI18n();
   const canAfford = userCredits >= generationCost;
@@ -86,23 +90,23 @@ export default function BottomComposerBar({
   return (
     <div className={`bottom-composer-bar ${compact ? 'bottom-composer-bar--compact' : ''} fixed bottom-0 z-40 pb-4 md:pb-6 pointer-events-none ${className}`}>
       <div className={`mx-auto flex w-full ${compact ? 'justify-center' : ''}`}>
-        <div className={`bottom-composer-surface rounded-[16px] bg-white/98 backdrop-blur border border-[#E5E5E5] shadow-[0_12px_30px_rgba(0,0,0,0.07)] p-2 flex flex-row items-center gap-2 md:gap-3 pointer-events-auto ${compact ? 'w-fit max-w-full' : 'w-full'}`}>
+        <div className={`bottom-composer-surface mx-auto rounded-[16px] bg-white/98 backdrop-blur border border-[#E5E5E5] shadow-[0_12px_30px_rgba(0,0,0,0.07)] p-1.5 flex flex-row items-center gap-1.5 md:gap-1.5 pointer-events-auto ${compact ? 'w-fit max-w-full' : 'w-full'} ${surfaceClassName}`}>
           {/* Left controls - dynamic per page */}
           {leftControls && (
-            <div className="flex items-center gap-2 flex-shrink-0 h-12">
+            <div className="flex items-center gap-1.5 flex-shrink-0 h-11">
               {leftControls}
             </div>
           )}
 
           {/* Center input - dynamic per page */}
           {centerInput && (
-            <div className="flex-1 min-w-[200px] md:min-w-[240px]">
+            <div className={`flex-1 min-w-[200px] md:min-w-[240px] ${centerInputClassName}`}>
               {centerInput}
             </div>
           )}
 
           {/* Right actions - standardized */}
-          <div className={`flex items-center gap-2 flex-shrink-0 h-12 ${compact ? '' : 'ml-auto'}`}>
+          <div className={`flex items-center gap-1.5 flex-shrink-0 h-11 ${compact ? '' : 'ml-auto'}`}>
             {/* Config button */}
             {configButton}
 
@@ -115,8 +119,8 @@ export default function BottomComposerBar({
               className={`
                 bottom-composer-generate
                 my-ads-button ${!isButtonDisabled ? 'my-ads-button--primary' : ''}
-                rounded-[16px] flex items-center justify-center gap-2 px-5 h-12 cursor-pointer
-                font-semibold text-sm whitespace-nowrap min-w-[138px]
+                rounded-[14px] flex items-center justify-center gap-1.5 px-3 h-11 cursor-pointer
+                font-semibold text-sm whitespace-nowrap min-w-[108px]
                 transition-all duration-200
                 ${!isButtonDisabled
                   ? 'border border-black bg-black text-white'

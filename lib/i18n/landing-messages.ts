@@ -62,7 +62,7 @@ export type LandingMessages = {
     socialProofSuffix: string;
     referenceVideo: string;
     cloneResult: string;
-    competitorVideoAriaLabel: string;
+    referenceVideoAriaLabel: string;
     resultVideoAriaLabel: string;
     views: string;
   };
@@ -208,7 +208,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       featureItems: [
         { href: '/features/ai-agent', title: 'AI Agent', isNew: true },
         { href: '/features/avatar-ads', title: 'Avatar Ads' },
-        { href: '/features/viral-clone', title: 'Viral Clone' },
+        { href: '/features/video-clone', title: 'Video Clone' },
         { href: '/features/motion-clone', title: 'Motion Clone' },
       ],
       toolItems: [
@@ -259,7 +259,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       socialProofSuffix: 'small business owners',
       referenceVideo: 'Viral Video',
       cloneResult: 'Clone Result',
-      competitorVideoAriaLabel: 'Competitor viral video reference',
+      referenceVideoAriaLabel: 'Reference video example',
       resultVideoAriaLabel: 'AI generated result video',
       views: 'Views',
     },
@@ -283,9 +283,9 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
           isNew: true,
         },
         {
-          title: 'Viral Clone',
+          title: 'Video Clone',
           description: 'Clone top-performing viral videos with AI. Clone proven creative structures in minutes.',
-          href: '/features/viral-clone',
+          href: '/features/video-clone',
           mediaLabels: ['Viral Video', 'Clone'],
           bullets: [
             'Max 60 seconds',
@@ -452,7 +452,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       items: [
         {
           question: 'What is Flowtra, and how does it help TikTok dropshippers?',
-          answer: 'Flowtra helps TikTok dropshippers turn product photos and viral references into scroll-stopping UGC ads in minutes. Use Viral Clone, Avatar Ads, or Motion Clone to ship new creatives fast without a full production team.',
+          answer: 'Flowtra helps TikTok dropshippers turn product photos and reference videos into scroll-stopping UGC ads in minutes. Use Video Clone, Avatar Ads, or Motion Clone to ship new creatives fast without a full production team.',
         },
         {
           question: 'I’m not a video editor. Can I still use Flowtra?',
@@ -464,7 +464,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         },
         {
           question: 'Can I clone viral TikTok ads for my products?',
-          answer: 'Yes. Viral Clone lets you upload a viral TikTok video and recreate the structure with your product, so you can launch new ads fast.',
+          answer: 'Yes. Video Clone lets you upload a reference TikTok video and recreate the structure with your product, so you can launch new ads fast.',
         },
         {
           question: 'Can I use the videos commercially?',
@@ -489,7 +489,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       featureItems: [
         { href: '/features/ai-agent', label: 'AI Agent', isNew: true },
         { href: '/features/avatar-ads', label: 'Avatar Ads' },
-        { href: '/features/viral-clone', label: 'Viral Clone' },
+        { href: '/features/video-clone', label: 'Video Clone' },
         { href: '/features/motion-clone', label: 'Motion Clone' },
       ],
       toolItems: [
@@ -520,7 +520,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       featureItems: [
         { href: '/features/ai-agent', title: 'AI 智能体', isNew: true },
         { href: '/features/avatar-ads', title: '数字人广告' },
-        { href: '/features/viral-clone', title: '爆款复刻' },
+        { href: '/features/video-clone', title: '爆款复刻' },
         { href: '/features/motion-clone', title: '动作复刻' },
       ],
       toolItems: [
@@ -571,7 +571,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       socialProofSuffix: '位小商家',
       referenceVideo: '爆款视频',
       cloneResult: '复刻结果',
-      competitorVideoAriaLabel: '竞品爆款视频参考',
+      referenceVideoAriaLabel: '视频克隆参考视频',
       resultVideoAriaLabel: 'AI 生成结果视频',
       views: '播放量',
     },
@@ -597,7 +597,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         {
           title: '爆款复刻',
           description: '用 AI 复刻高表现的爆款视频结构，几分钟内生成经过验证的创意版本。',
-          href: '/features/viral-clone',
+          href: '/features/video-clone',
           mediaLabels: ['爆款视频', '复刻效果'],
           bullets: [
             '最长支持 60 秒',
@@ -801,7 +801,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       featureItems: [
         { href: '/features/ai-agent', label: 'AI 智能体', isNew: true },
         { href: '/features/avatar-ads', label: '数字人广告' },
-        { href: '/features/viral-clone', label: '爆款复刻' },
+        { href: '/features/video-clone', label: '爆款复刻' },
         { href: '/features/motion-clone', label: '动作复刻' },
       ],
       toolItems: [
@@ -812,4 +812,3 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
     },
   },
 };
-

@@ -1,10 +1,10 @@
 'use client';
 
 import { CheckCircle, Play, Mic } from 'lucide-react';
-import type { CompetitorAnalysis } from '@/hooks/useVideoAnalysis';
+import type { ReferenceVideoAnalysis } from '@/hooks/useVideoAnalysis';
 
 interface AnalysisResultsPreviewProps {
-  analysis: CompetitorAnalysis;
+  analysis: ReferenceVideoAnalysis;
   language: string;
 }
 

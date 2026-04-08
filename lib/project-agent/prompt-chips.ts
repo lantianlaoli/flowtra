@@ -1,5 +1,5 @@
 type ProjectAgentPromptChipState = {
-  intent?: 'avatar_ads' | 'competitor_ugc_replication' | 'motion_clone';
+  intent?: 'avatar_ads' | 'video_clone' | 'motion_clone';
   step?: string;
   avatarStage?: string;
   projectId?: string;
@@ -159,7 +159,7 @@ export const getProjectAgentPromptChipStage = (
   const motionPhase = state.intent === 'motion_clone' ? state.motionClone?.phase : undefined;
   const motionStage = state.intent === 'motion_clone' ? state.motionClone?.stage : undefined;
   const isCloneFlowActive = Boolean(
-    state.intent === 'competitor_ugc_replication' ||
+    state.intent === 'video_clone' ||
     isCloneReferenceSelectionVisible ||
     isCloneReplacementSelectionVisible ||
     isCloneSceneWorkspaceVisible ||

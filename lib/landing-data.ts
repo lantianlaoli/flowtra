@@ -27,7 +27,7 @@ export interface SuccessCase {
 
 export const successCases: SuccessCase[] = [
   {
-    id: 'competitor-ugc-replication',
+    id: 'video-clone',
     user: '@laolilantian',
     avatar: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/landing/user_avatar_1.jpg',
     quote: 'Turn viral TikToks into your own UGC with Flowtra AI! Learn to swap products and use scene linking for consistent, high-quality results.',

@@ -171,7 +171,7 @@ export default function FeaturesSection() {
 
                   <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
                     <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_source.mp4"
+                      src="/showcase/video-clone/reference-source.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
                       eager
@@ -188,7 +188,7 @@ export default function FeaturesSection() {
 
                   <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
                     <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_result.mp4"
+                      src="/showcase/video-clone/reference-result.mp4"
                       wrapperClassName="h-full w-full"
                       className="h-full w-full object-cover"
                       eager

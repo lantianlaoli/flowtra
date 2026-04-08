@@ -6,7 +6,7 @@ export const revalidate = 0;
 
 const DISCOVER_TEMP_MEDIA_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
-type DiscoverType = 'all' | 'competitor-ugc-replication' | 'character' | 'motion-clone';
+type DiscoverType = 'all' | 'video-clone' | 'character' | 'motion-clone';
 
 interface DiscoverItem {
   id: string;
@@ -60,13 +60,13 @@ export async function GET(request: NextRequest) {
 
     const items: DiscoverItem[] = [];
 
-    // Competitor UGC Replication
-    if (type === 'all' || type === 'competitor-ugc-replication') {
+    // Video Clone
+    if (type === 'all' || type === 'video-clone') {
       // Schema verified via Supabase MCP (2026-02-01):
-      // competitor_ugc_replication_projects has: video_url, merged_video_url,
+      // video_clone_projects has: video_url, merged_video_url,
       // merged_video_1080p_url, merged_video_4k_url, status, created_at
       const { data, error } = await supabase
-        .from('competitor_ugc_replication_projects')
+        .from('video_clone_projects')
         .select('id, video_url, merged_video_url, merged_video_1080p_url, merged_video_4k_url, status, created_at')
         .eq('status', 'completed')
         .order('created_at', { ascending: false })
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
           if (!isDiscoverMediaValid(videoUrl, r.created_at, nowMs)) continue;
           items.push({
             id: r.id,
-            type: 'competitor-ugc-replication',
+            type: 'video-clone',
             coverImageUrl: videoUrl,
             videoUrl,
             createdAt: r.created_at,

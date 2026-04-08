@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { compilePromptForExecution, replaceMentionsForPlainText } from '@/lib/competitor-ugc-replication-prompt-compiler';
+import { compilePromptForExecution, replaceMentionsForPlainText } from '@/lib/video-clone-prompt-compiler';
 
 test('kling mode preserves @mentions for mapping path', () => {
   const source = {

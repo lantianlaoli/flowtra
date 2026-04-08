@@ -9,7 +9,7 @@
  */
 export async function triggerProjectCleanup(): Promise<{ success: boolean; cleaned: number }> {
   try {
-    const response = await fetch('/api/competitor-ugc-replication/cleanup-timeout', {
+    const response = await fetch('/api/video-clone/cleanup-timeout', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

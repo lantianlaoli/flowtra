@@ -30,7 +30,7 @@ export type ProjectAgentCanvasExecutionStatus = {
   retryable: boolean;
   statusLabel: string;
   projectId: string;
-  table: 'avatar_ads_projects' | 'competitor_ugc_replication_projects' | 'motion_clone_projects';
+  table: 'avatar_ads_projects' | 'video_clone_projects' | 'motion_clone_projects';
   nextAction: ProjectAgentCanvasExecutionAction;
   milestones: ProjectAgentCanvasMilestone[];
   currentMilestoneKey: string;
@@ -280,7 +280,7 @@ export const getExecutionTableForNodeType = (
     case 'avatar_ads':
       return 'avatar_ads_projects';
     case 'video_clone':
-      return 'competitor_ugc_replication_projects';
+      return 'video_clone_projects';
     case 'motion_clone':
       return 'motion_clone_projects';
     default:
@@ -310,8 +310,8 @@ export const buildVideoCloneStartPayload = (input: {
   video: ProjectAgentCanvasAssetRef;
   config?: ProjectAgentFeatureNodeConfig | null;
 }) => ({
-  creatorSourceVideoId: input.video.sourceType === 'competitor_ad' ? undefined : input.video.id,
-  competitorAdId: input.video.sourceType === 'competitor_ad' ? input.video.id : undefined,
+  creatorSourceVideoId: input.video.sourceType === 'reference_video' ? undefined : input.video.id,
+  referenceVideoId: input.video.sourceType === 'reference_video' ? input.video.id : undefined,
   selectedAvatarIds: input.avatar?.id ? [input.avatar.id] : [],
   selectedProductIds: input.product?.id ? [input.product.id] : [],
   videoModel: 'kling_3' as const,
@@ -459,7 +459,7 @@ export const normalizeCloneExecutionStatus = (
             ? 'Auto starting video generation'
             : 'Running clone workflow',
     projectId,
-    table: 'competitor_ugc_replication_projects',
+    table: 'video_clone_projects',
     nextAction: awaitingMerge
       ? 'merge_clone_video'
       : needsVideoStart

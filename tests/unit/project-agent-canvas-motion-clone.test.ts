@@ -198,7 +198,7 @@ test('startMotionClone rejects competitor ad references before making requests',
         product: motionCloneAssets.product,
         video: {
           ...motionCloneAssets.video,
-          sourceType: 'competitor_ad',
+          sourceType: 'reference_video',
         },
       },
     }),
@@ -283,7 +283,7 @@ test('toProjectAgentVideoAssets keeps only motion-clone-ready creator videos', (
     {
       id: 'competitor-1',
       description: 'Competitor Ad',
-      source_type: 'competitor_ad',
+      source_type: 'reference_video',
       cover_url: null,
       video_url: 'https://example.com/competitor.mp4',
     },

@@ -349,7 +349,7 @@ export default function ConfigPopover({
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
         className={cn(
-          'config-popover-button my-ads-button my-ads-button--secondary h-12 rounded-[16px] border border-[#dfdfd9] bg-white px-4.5 flex items-center gap-2 transition-all duration-200 outline-none',
+          'config-popover-button my-ads-button my-ads-button--secondary h-11 rounded-[14px] border border-[#dfdfd9] bg-white px-3 flex items-center gap-1.5 transition-all duration-200 outline-none',
           disabled
             ? 'bg-[#F7F7F7] border-[#E5E5E5] text-[#999999] cursor-not-allowed'
             : 'text-black',
@@ -358,7 +358,7 @@ export default function ConfigPopover({
         aria-label={copy.openConfiguration}
         title={copy.advancedConfiguration}
       >
-        <Settings className={`w-5 h-5 ${isOpen ? 'rotate-90' : ''} transition-transform duration-300`} />
+        <Settings className={`w-4 h-4 ${isOpen ? 'rotate-90' : ''} transition-transform duration-300`} />
         <span className="text-sm font-medium">{copy.headerTitle}</span>
       </button>
 
@@ -393,7 +393,7 @@ export default function ConfigPopover({
                 'config-popover-panel bg-white rounded-[18px] shadow-2xl border border-gray-200 z-[110] overflow-visible',
                 isMobile
                   ? 'fixed inset-x-4 bottom-4 max-h-[80vh] overflow-y-auto origin-bottom'
-                  : 'w-96 origin-bottom-right'
+                  : 'w-[22rem] origin-bottom-right'
               )}
             >
               {/* Header */}

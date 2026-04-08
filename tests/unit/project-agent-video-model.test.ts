@@ -10,13 +10,13 @@ import {
 
 test('project agent exposes Kling 3 as the only selectable model', () => {
   assert.deepEqual(getProjectAgentVideoModels(), ['kling_3']);
-  assert.deepEqual(getProjectAgentVideoModels('competitor_ugc_replication'), ['kling_3']);
+  assert.deepEqual(getProjectAgentVideoModels('video_clone'), ['kling_3']);
   assert.equal(
-    normalizeProjectAgentVideoModel('veo3_fast', 'veo3_fast', 'competitor_ugc_replication'),
+    normalizeProjectAgentVideoModel('veo3_fast', 'veo3_fast', 'video_clone'),
     'kling_3'
   );
   assert.equal(
-    normalizeProjectAgentVideoModel('seedance_1_5_pro', 'veo3_fast', 'competitor_ugc_replication'),
+    normalizeProjectAgentVideoModel('seedance_1_5_pro', 'veo3_fast', 'video_clone'),
     'kling_3'
   );
   assert.equal(

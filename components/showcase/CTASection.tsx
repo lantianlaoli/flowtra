@@ -39,7 +39,7 @@ export function CTASection({ result }: CTASectionProps) {
           </p>
 
           <Link
-            href="/dashboard/competitor-ugc-replication"
+            href="/dashboard/video-clone"
             onClick={handleStartCloning}
             className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all hover:scale-105 shadow-lg hover:shadow-xl"
           >
@@ -72,7 +72,7 @@ export function CTASection({ result }: CTASectionProps) {
         <div className="flex flex-wrap justify-center gap-3 mt-6">
           {/* Email */}
           <a
-            href={`mailto:${contactEmail}?subject=Help with Viral Clone&body=Hi, I just analyzed a video and would like to learn more about cloning it.`}
+            href={`mailto:${contactEmail}?subject=Help with Video Clone&body=Hi, I just analyzed a video and would like to learn more about cloning it.`}
             className="inline-flex items-center gap-2 px-4 py-3 bg-white border-2 border-gray-200 rounded-lg font-medium text-gray-700 hover:border-black hover:bg-gray-50 transition-all"
           >
             <Mail className="w-4 h-4" />

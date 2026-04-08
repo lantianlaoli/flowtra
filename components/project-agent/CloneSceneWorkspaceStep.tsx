@@ -12,7 +12,7 @@ import {
   Sparkles,
   TextQuote
 } from 'lucide-react';
-import SegmentTimelineRuler from '@/components/competitor-ugc-replication/SegmentTimelineRuler';
+import SegmentTimelineRuler from '@/components/video-clone/SegmentTimelineRuler';
 import {
   CLONE_PROMPT_SHOT_FIELD_GROUPS,
   PromptFieldLabel,

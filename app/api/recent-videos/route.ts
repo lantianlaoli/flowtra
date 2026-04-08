@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
 import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
-import { deriveSegmentDetails, type SegmentPrompt } from '@/lib/competitor-ugc-replication-workflow';
+import { deriveSegmentDetails, type SegmentPrompt } from '@/lib/video-clone-workflow';
 
 export async function GET() {
   try {
@@ -15,9 +15,9 @@ export async function GET() {
 
     const supabase = await createServerUserSupabaseClient();
 
-    // Fetch latest completed video from Competitor UGC Replication workflow
+    // Fetch latest completed video from Video Clone workflow
     const { data: historyV1, error: errorV1 } = await supabase
-      .from('competitor_ugc_replication_projects')
+      .from('video_clone_projects')
       .select('*')
       .eq('user_id', userId)
       .eq('status', 'completed')

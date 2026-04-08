@@ -1,6 +1,6 @@
 import type { VideoModel } from '@/lib/constants';
 
-export type ProjectAgentIntent = 'avatar_ads' | 'competitor_ugc_replication' | 'motion_clone';
+export type ProjectAgentIntent = 'avatar_ads' | 'video_clone' | 'motion_clone';
 
 export const PROJECT_AGENT_VIDEO_MODELS: VideoModel[] = ['kling_3'];
 
@@ -30,7 +30,7 @@ export function getEffectiveProjectAgentVideoModel(
   intent: ProjectAgentIntent | undefined,
   preferredModel: unknown
 ): VideoModel {
-  if (intent === 'avatar_ads' || intent === 'competitor_ugc_replication') {
+  if (intent === 'avatar_ads' || intent === 'video_clone') {
     return 'kling_3';
   }
   return normalizeProjectAgentVideoModel(preferredModel, 'kling_3', intent);

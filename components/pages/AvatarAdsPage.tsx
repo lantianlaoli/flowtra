@@ -14,17 +14,21 @@ import { User, ShoppingBag, ChevronDown, ChevronUp } from 'lucide-react';
 import BottomComposerBar from '@/components/ui/BottomComposerBar';
 import ConfigPopover from '@/components/ui/ConfigPopover';
 import BottomBarDropdown from '@/components/ui/BottomBarDropdown';
-import { type VideoDurationOption } from '@/components/ui/VideoDurationSelector';
 import { UserProduct, UserAvatar } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getGenerationCost, type VideoDuration } from '@/lib/constants';
-import { AvatarAdsDuration, AVATAR_ADS_DURATION_OPTIONS } from '@/lib/avatar-ads-dialogue';
+import {
+  getGenerationCost,
+  getSegmentDurationForModel,
+  snapDurationToModel,
+  type VideoDuration
+} from '@/lib/constants';
+import { AVATAR_ADS_DURATION_OPTIONS } from '@/lib/avatar-ads-dialogue';
 import { AvatarAdInspector, StructuredVideoPrompt } from '@/components/avatar-ads/AvatarAdInspector';
 import {
   clampDialogueToWordLimit,
-  countDialogueWords,
   getAvatarAdsDialogueWordLimit
 } from '@/lib/avatar-ads-dialogue';
+import { estimateDialogueDuration } from '@/lib/dialogue-duration-estimator';
 import { type Format } from '@/components/ui/FormatSelector';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -42,13 +46,6 @@ interface KieCreditsStatus {
 const DEFAULT_VIDEO_MODEL = 'veo3_fast' as const;
 const SESSION_STORAGE_KEY = 'flowtra_avatar_ads_generations';
 const AVATAR_ADS_TUTORIAL_EMBED_URL = 'https://www.youtube.com/embed/B_UjnFsbitk?rel=0';
-
-// Format AVATAR_ADS_DURATION_OPTIONS for ConfigPopover
-const AVATAR_ADS_DURATION_OPTIONS_FORMATTED: VideoDurationOption[] = AVATAR_ADS_DURATION_OPTIONS.map((seconds) => ({
-  value: seconds.toString() as VideoDuration,
-  label: `${seconds}s`
-  // No hardcoded 'recommended' - let recommendedDuration prop control it dynamically
-}));
 
 const generateClientProjectId = () => {
   try {
@@ -170,7 +167,6 @@ export default function AvatarAdsPage() {
   const [selectedPersonPhotoUrl, setSelectedPersonPhotoUrl] = useState<string>('');
   const [avatarOptions, setAvatarOptions] = useState<Array<UserAvatar & { isSystem?: boolean }>>([]);
   const [productOptions, setProductOptions] = useState<UserProduct[]>([]);
-  const [videoDuration, setVideoDuration] = useState<VideoDuration>('8');
   const [format, setFormat] = useState<Format>('9:16');
   const [customDialogue, setCustomDialogue] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
@@ -277,10 +273,6 @@ const formatDurationLabel = (seconds: number) => {
     });
   }, [selectedProduct?.id]);
 
-  const dialogueWordLimit = useMemo(
-    () => getAvatarAdsDialogueWordLimit(Number(videoDuration)),
-    [videoDuration]
-  );
   const productPhotoUrls = useMemo(() => {
     if (!selectedProduct?.user_product_photos?.length) return [] as string[];
     return selectedProduct.user_product_photos
@@ -345,6 +337,22 @@ const formatDurationLabel = (seconds: number) => {
   });
 
   const isTalkingHeadMode = !selectedProduct;
+  const baseSegmentDuration = getSegmentDurationForModel(DEFAULT_VIDEO_MODEL);
+  const videoDuration = useMemo<VideoDuration>(() => {
+    const estimatedSeconds = estimateDialogueDuration(customDialogue, selectedLanguage);
+    if (estimatedSeconds <= 0) {
+      return String(baseSegmentDuration) as VideoDuration;
+    }
+
+    return snapDurationToModel(
+      DEFAULT_VIDEO_MODEL,
+      Math.max(baseSegmentDuration, Math.ceil(estimatedSeconds))
+    );
+  }, [baseSegmentDuration, customDialogue, selectedLanguage]);
+  const dialogueWordLimit = useMemo(
+    () => getAvatarAdsDialogueWordLimit(Number(videoDuration)),
+    [videoDuration]
+  );
 
   // Calculate required credits for the current duration selection
   const requiredCredits = useMemo(() => {
@@ -982,7 +990,7 @@ const formatDurationLabel = (seconds: number) => {
           productName,
           productImageUrls: productPhotoUrls,
           language: selectedLanguage,
-          videoDurationSeconds: videoDuration
+          videoDurationSeconds: baseSegmentDuration
         })
       });
 
@@ -994,11 +1002,6 @@ const formatDurationLabel = (seconds: number) => {
 
       const limitedDialogue = clampDialogueToWordLimit(result.dialogue || '', maxWordLimit);
       setCustomDialogue(limitedDialogue);
-      const generatedWordCount = countDialogueWords(limitedDialogue);
-      const autoDuration = getDurationForWordCount(generatedWordCount);
-      if (autoDuration !== videoDuration) {
-        setVideoDuration(autoDuration);
-      }
       setHasAIGeneratedDialogue(true);
       trackEvent(ANALYTICS_EVENTS.avatar_ads_dialogue_generated, {
         feature: 'avatar_ads',
@@ -1014,24 +1017,6 @@ const formatDurationLabel = (seconds: number) => {
       setIsGeneratingDialogue(false);
     }
   };
-
-  const getDurationForWordCount = (words: number): VideoDuration => {
-    if (words <= 0) {
-      return AVATAR_ADS_DURATION_OPTIONS[0].toString() as VideoDuration;
-    }
-    for (const option of AVATAR_ADS_DURATION_OPTIONS) {
-      if (words <= getAvatarAdsDialogueWordLimit(option)) {
-        return option.toString() as VideoDuration;
-      }
-    }
-    return AVATAR_ADS_DURATION_OPTIONS[AVATAR_ADS_DURATION_OPTIONS.length - 1].toString() as VideoDuration;
-  };
-
-  const recommendedDuration = useMemo(() => {
-    const words = countDialogueWords(customDialogue);
-    if (words === 0) return null; // No recommendation for empty script
-    return getDurationForWordCount(words);
-  }, [customDialogue]);
 
   const handleCustomDialogueChange = (value: string) => {
     setCustomDialogue(value);
@@ -1113,42 +1098,30 @@ const formatDurationLabel = (seconds: number) => {
 
       {composerVisible && (
         <BottomComposerBar
+          compact={false}
+          surfaceClassName="max-w-[var(--dashboard-content-max-width)]"
+          centerInputClassName="flex-1 min-w-[280px] max-w-none"
           leftControls={
             <>
               <BottomBarDropdown
                 open={personDropdownOpen}
                 onOpenChange={setPersonDropdownOpen}
-                triggerClassName="min-w-[200px] sm:min-w-[232px]"
-                panelWidthClassName="w-[280px] sm:w-[300px]"
+                triggerClassName="w-auto"
+                panelWidthClassName="w-[280px] sm:w-[320px]"
                 disabled={isLoadingAssets || avatarOptions.length === 0}
                 trigger={
-                  <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-[#d8d8d3] bg-[#f6f6f3]">
-                      {selectedAvatar?.photo_url ? (
-                        <Image
-                          src={selectedAvatar.photo_url}
-                          alt={selectedAvatar.avatar_name}
-                          width={44}
-                          height={44}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <User className="h-4 w-4 text-[#7a7a74]" />
-                      )}
+                  <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                    <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+                      <User className="h-4 w-4 text-black" />
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold tracking-tight text-black">
-                        {selectedAvatar?.avatar_name || 'Select character'}
-                      </p>
-                      <p className="mt-0.5 text-xs text-[#7a7a74]">
-                        {selectedAvatar ? 'Character ready' : 'Choose the on-screen character'}
-                      </p>
-                    </div>
+                    <p className="truncate text-sm font-semibold tracking-tight text-black">
+                      Character
+                    </p>
                   </div>
                 }
               >
                 {avatarOptions.length > 0 ? (
-                  <div className="max-h-[340px] space-y-2 overflow-y-auto pr-1">
+                  <div className="max-h-[340px] space-y-1.5 overflow-y-auto pr-1">
                     {avatarOptions.map((avatar) => (
                       <button
                         key={avatar.id}
@@ -1157,30 +1130,24 @@ const formatDurationLabel = (seconds: number) => {
                           setSelectedPersonPhotoUrl(avatar.photo_url);
                           setPersonDropdownOpen(false);
                         }}
-                        className={`w-full rounded-[20px] border px-3 py-2.5 text-left transition-all ${
+                        className={`w-full rounded-[18px] border px-2.5 py-2 text-left transition-all ${
                           selectedPersonPhotoUrl === avatar.photo_url
                             ? 'border-black bg-[#f8f8f5] shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_2px_0_rgba(232,232,228,0.98)]'
                             : 'border-[#e1e1dc] bg-white hover:border-black/45 hover:bg-[#fcfcfa]'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="h-12 w-12 overflow-hidden rounded-[15px] border border-[#d8d8d3] bg-[#f4f4f1]">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-10 w-10 overflow-hidden rounded-[12px] border border-[#d8d8d3] bg-[#f4f4f1]">
                             <Image
                               src={avatar.photo_url}
                               alt={avatar.avatar_name}
-                              width={48}
-                              height={48}
+                              width={40}
+                              height={40}
                               className="h-full w-full object-cover"
                             />
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-semibold tracking-tight text-black">{avatar.avatar_name}</p>
-                            {avatar.isSystem && (
-                              <p className="mt-0.5 text-xs text-[#7a7a74]">System avatar</p>
-                            )}
-                            {!avatar.isSystem && (
-                              <p className="mt-0.5 text-xs text-[#7a7a74]">Custom character</p>
-                            )}
                           </div>
                         </div>
                       </button>
@@ -1194,56 +1161,40 @@ const formatDurationLabel = (seconds: number) => {
               <BottomBarDropdown
                 open={productDropdownOpen}
                 onOpenChange={setProductDropdownOpen}
-                triggerClassName="min-w-[220px] sm:min-w-[260px]"
-                panelWidthClassName="w-[320px] sm:w-[360px]"
+                triggerClassName="w-auto"
+                panelWidthClassName="w-[296px] sm:w-[332px]"
                 disabled={isLoadingAssets || productOptions.length === 0}
                 trigger={
-                  <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-[#d8d8d3] bg-[#f6f6f3]">
-                      {primaryProductPhoto ? (
-                        <Image
-                          src={primaryProductPhoto}
-                          alt={selectedProductName || 'Product'}
-                          width={44}
-                          height={44}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <ShoppingBag className="h-4 w-4 text-[#7a7a74]" />
-                      )}
+                  <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                    <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+                      <ShoppingBag className="h-4 w-4 text-black" />
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold tracking-tight text-black">
-                        {selectedProductName || 'Select product'}
-                      </p>
-                      <p className="mt-0.5 text-xs text-[#7a7a74]">
-                        {selectedProduct ? 'Product linked' : 'Optional product context'}
-                      </p>
-                    </div>
+                    <p className="truncate text-sm font-semibold tracking-tight text-black">
+                      Product
+                    </p>
                   </div>
                 }
               >
                 {productOptions.length > 0 ? (
-                  <div className="max-h-[340px] space-y-2 overflow-y-auto pr-1">
+                  <div className="max-h-[340px] space-y-1.5 overflow-y-auto pr-1">
                     <button
                       type="button"
                       onClick={() => {
                         setSelectedProduct(null);
                         setProductDropdownOpen(false);
                       }}
-                      className={`w-full rounded-[22px] border px-3 py-3 text-left transition-all ${
+                      className={`w-full rounded-[18px] border px-2.5 py-2.5 text-left transition-all ${
                         !selectedProduct
                           ? 'border-black bg-[#f8f8f5] shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_2px_0_rgba(232,232,228,0.98)]'
                           : 'border-[#e1e1dc] bg-white hover:border-black/45 hover:bg-[#fcfcfa]'
                       }`}
                       >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-[16px] border border-[#d8d8d3] bg-[#f4f4f1]">
-                          <ShoppingBag className="h-4 w-4 text-[#7a7a74]" />
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-[12px] border border-[#d8d8d3] bg-[#f4f4f1]">
+                          <ShoppingBag className="h-3.5 w-3.5 text-[#7a7a74]" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[15px] font-semibold tracking-tight text-black">No product</p>
-                          <p className="mt-1 text-xs text-[#7a7a74]">Talking-head mode without product context</p>
+                          <p className="truncate text-[14px] font-semibold tracking-tight text-black">No product</p>
                         </div>
                       </div>
                     </button>
@@ -1257,29 +1208,28 @@ const formatDurationLabel = (seconds: number) => {
                             setSelectedProduct(product);
                             setProductDropdownOpen(false);
                           }}
-                          className={`w-full rounded-[22px] border px-3 py-3 text-left transition-all ${
+                          className={`w-full rounded-[18px] border px-2.5 py-2.5 text-left transition-all ${
                             selectedProduct?.id === product.id
                               ? 'border-black bg-[#f8f8f5] shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_2px_0_rgba(232,232,228,0.98)]'
                               : 'border-[#e1e1dc] bg-white hover:border-black/45 hover:bg-[#fcfcfa]'
                           }`}
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-14 w-[72px] items-center justify-center overflow-hidden rounded-[16px] border border-[#d8d8d3] bg-[#f4f4f1]">
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex h-11 w-[56px] items-center justify-center overflow-hidden rounded-[12px] border border-[#d8d8d3] bg-[#f4f4f1]">
                               {cover ? (
                                 <Image
                                   src={cover}
                                   alt={product.product_name || 'Product'}
-                                  width={72}
-                                  height={56}
+                                  width={56}
+                                  height={44}
                                   className="h-full w-full object-cover"
                                 />
                               ) : (
-                                <ShoppingBag className="h-4 w-4 text-[#7a7a74]" />
+                                <ShoppingBag className="h-3.5 w-3.5 text-[#7a7a74]" />
                               )}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-[15px] font-semibold tracking-tight text-black">{product.product_name || 'Untitled product'}</p>
-                              <p className="mt-1 text-xs text-[#7a7a74]">Product context for script and visuals</p>
+                              <p className="truncate text-[14px] font-semibold tracking-tight text-black">{product.product_name || 'Untitled product'}</p>
                             </div>
                           </div>
                         </button>
@@ -1293,7 +1243,7 @@ const formatDurationLabel = (seconds: number) => {
             </>
           }
                               centerInput={
-                                <div className="flex-1 min-w-[200px]">
+                                <div className="w-full">
                                   {/* Placeholder div to hold space in the flex row */}
                                   <div className="relative h-[48px] w-full">
                                     {/* Actual Input Container - Always absolute, anchored to bottom for smooth animation */}
@@ -1362,14 +1312,11 @@ const formatDurationLabel = (seconds: number) => {
                                 </div>
                               }          configButton={
             <ConfigPopover
-              videoDuration={videoDuration}
-              onDurationChange={setVideoDuration}
-              durationOptions={AVATAR_ADS_DURATION_OPTIONS_FORMATTED}
-              recommendedDuration={recommendedDuration}
               selectedModel={DEFAULT_VIDEO_MODEL}
               onModelChange={() => {}}
               userCredits={userCredits || 0}
               hideModelSelector={true}
+              hideDurationSelector={true}
               selectedLanguage={selectedLanguage}
               onLanguageChange={setSelectedLanguage}
               format={format}

@@ -74,22 +74,22 @@ export async function GET() {
       }))
     ));
 
-    // Schema verified via Supabase MCP (2026-01-28): competitor_ads has analysis_result, language, video_duration_seconds
-    const { data: competitorAds, error: competitorAdsError } = await supabase
-      .from('competitor_ads')
+    // Schema verified via Supabase MCP (2026-01-28): reference_videos has analysis_result, language, video_duration_seconds
+    const { data: referenceVideos, error: referenceVideosError } = await supabase
+      .from('reference_videos')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (competitorAdsError) {
-      console.error('Error fetching competitor ads:', competitorAdsError);
+    if (referenceVideosError) {
+      console.error('Error fetching reference videos:', referenceVideosError);
       return NextResponse.json(
-        { error: 'Failed to fetch competitor ads' },
+        { error: 'Failed to fetch reference videos' },
         { status: 500 }
       );
     }
 
-    const competitorVideos = (competitorAds || []).map(ad => ({
+    const referenceAssetVideos = (referenceVideos || []).map(ad => ({
       id: ad.id,
       user_id: ad.user_id,
       source_id: ad.id,
@@ -98,7 +98,7 @@ export async function GET() {
       video_url: '',
       video_cdn_url: null,
       cover_url: null,
-      description: ad.competitor_name,
+      description: ad.reference_name,
       stats: null,
       duration_seconds: ad.video_duration_seconds,
       analysis_status: ad.analysis_status,
@@ -109,18 +109,18 @@ export async function GET() {
       created_at: ad.created_at,
       updated_at: ad.updated_at,
       source_name: 'Legacy',
-      source_type: 'competitor_ad',
-      competitor_ad_id: ad.id
+      source_type: 'reference_video',
+      reference_video_id: ad.id
     }));
 
     const response = {
       products,
       creatorSources: creatorSources || [],
-      videos: [...competitorVideos, ...videos],
+      videos: [...referenceAssetVideos, ...videos],
       stats: {
         totalProducts: (allProducts?.length || 0),
         totalCreatorSources: creatorSources?.length || 0,
-        totalCreatorVideos: creatorSourceVideoCount + competitorVideos.length
+        totalCreatorVideos: creatorSourceVideoCount + referenceAssetVideos.length
       }
     };
 

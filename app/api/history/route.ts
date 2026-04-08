@@ -5,7 +5,7 @@ import { auth } from '@clerk/nextjs/server';
 import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
 import type { VideoModel } from '@/lib/constants';
 
-interface CompetitorUgcReplicationItem {
+interface VideoCloneItem {
   id: string;
   coverImageUrl?: string;
   videoUrl?: string;
@@ -23,7 +23,7 @@ interface CompetitorUgcReplicationItem {
   createdAt: string;
   progress?: number;
   currentStep?: string;
-  adType: 'competitor-ugc-replication';
+  adType: 'video-clone';
   videoAspectRatio?: string;
   // Segment information for cost calculation
   isSegmented?: boolean;
@@ -85,7 +85,7 @@ interface MotionCloneItem {
   errorMessage?: string;
 }
 
-type HistoryItem = CompetitorUgcReplicationItem | CharacterAdsItem | MotionCloneItem;
+type HistoryItem = VideoCloneItem | CharacterAdsItem | MotionCloneItem;
 
 type SupportedAspectRatio = '16:9' | '9:16' | '1:1';
 
@@ -116,14 +116,14 @@ const resolveCoverAspectRatio = (ratio?: string | null): SupportedAspectRatio | 
   return normalizeAspectRatio(ratio);
 };
 
-const ALLOWED_COMPETITOR_VIDEO_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'seedance_1_5_pro', 'kling_3'];
+const ALLOWED_VIDEO_CLONE_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'seedance_1_5_pro', 'kling_3'];
 const LEGACY_MODELS = ['sora2', 'sora2_pro', 'grok'];
 
-const normalizeCompetitorVideoModel = (model?: string | null): VideoModel => {
+const normalizeVideoCloneModel = (model?: string | null): VideoModel => {
   if (model === 'seedance-1.5-pro' || model === 'bytedance/seedance-1.5-pro') {
     return 'seedance_1_5_pro';
   }
-  if (ALLOWED_COMPETITOR_VIDEO_MODELS.includes(model as VideoModel)) {
+  if (ALLOWED_VIDEO_CLONE_MODELS.includes(model as VideoModel)) {
     return model as VideoModel;
   }
   return 'veo3_fast'; // Default for invalid/null models
@@ -173,15 +173,15 @@ export async function GET() {
       }
     };
 
-    // Fetch Competitor UGC Replication data
-    const { data: competitorUgcReplicationItems, error: competitorUgcReplicationError } = await supabase
-      .from('competitor_ugc_replication_projects')
+    // Fetch Video Clone data
+    const { data: videoCloneItems, error: videoCloneError } = await supabase
+      .from('video_clone_projects')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (competitorUgcReplicationError) {
-      console.error('Failed to fetch Competitor UGC Replication history:', competitorUgcReplicationError);
+    if (videoCloneError) {
+      console.error('Failed to fetch Video Clone history:', videoCloneError);
     }
 
     // Fetch Avatar Ads data
@@ -210,9 +210,9 @@ export async function GET() {
       console.error('Failed to fetch Motion Clone history:', motionCloneError);
     }
 
-    // Transform Competitor UGC Replication data
-    const transformedCompetitorUgcReplicationHistory: CompetitorUgcReplicationItem[] = (competitorUgcReplicationItems || []).map(item => {
-      const videoModel = normalizeCompetitorVideoModel(item.video_model);
+    // Transform Video Clone data
+    const transformedVideoCloneHistory: VideoCloneItem[] = (videoCloneItems || []).map(item => {
+      const videoModel = normalizeVideoCloneModel(item.video_model);
       const isLegacy = isLegacyModel(item.video_model);
 
       // Parse segment_status to extract cover image from segment[0]
@@ -241,7 +241,7 @@ export async function GET() {
         createdAt: item.created_at,
         progress: item.progress_percentage,
         currentStep: item.current_step,
-        adType: 'competitor-ugc-replication',
+        adType: 'video-clone',
         videoAspectRatio: resolveVideoAspectRatio(item.video_aspect_ratio, item.cover_image_aspect_ratio),
         // Segment information for accurate cost calculation
         isSegmented: item.is_segmented || false,
@@ -336,7 +336,7 @@ export async function GET() {
 
     // Combine and sort by creation date
     const combinedHistory: HistoryItem[] = [
-      ...transformedCompetitorUgcReplicationHistory,
+      ...transformedVideoCloneHistory,
       ...transformedCharacterAdsHistory,
       ...transformedMotionCloneHistory
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

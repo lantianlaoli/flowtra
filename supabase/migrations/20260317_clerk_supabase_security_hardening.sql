@@ -126,17 +126,17 @@ create policy "user_avatars_insert_own" on public.user_avatars for insert to aut
 create policy "user_avatars_update_own" on public.user_avatars for update to authenticated using ((select auth.jwt()->>'sub') = user_id::text) with check ((select auth.jwt()->>'sub') = user_id::text);
 create policy "user_avatars_delete_own" on public.user_avatars for delete to authenticated using ((select auth.jwt()->>'sub') = user_id::text);
 
-alter table public.competitor_ads enable row level security;
-revoke all on table public.competitor_ads from anon, authenticated;
-grant select, insert, update, delete on table public.competitor_ads to authenticated;
-drop policy if exists "competitor_ads_select_own" on public.competitor_ads;
-drop policy if exists "competitor_ads_insert_own" on public.competitor_ads;
-drop policy if exists "competitor_ads_update_own" on public.competitor_ads;
-drop policy if exists "competitor_ads_delete_own" on public.competitor_ads;
-create policy "competitor_ads_select_own" on public.competitor_ads for select to authenticated using ((select auth.jwt()->>'sub') = user_id::text);
-create policy "competitor_ads_insert_own" on public.competitor_ads for insert to authenticated with check ((select auth.jwt()->>'sub') = user_id::text);
-create policy "competitor_ads_update_own" on public.competitor_ads for update to authenticated using ((select auth.jwt()->>'sub') = user_id::text) with check ((select auth.jwt()->>'sub') = user_id::text);
-create policy "competitor_ads_delete_own" on public.competitor_ads for delete to authenticated using ((select auth.jwt()->>'sub') = user_id::text);
+alter table public.reference_videos enable row level security;
+revoke all on table public.reference_videos from anon, authenticated;
+grant select, insert, update, delete on table public.reference_videos to authenticated;
+drop policy if exists "reference_videos_select_own" on public.reference_videos;
+drop policy if exists "reference_videos_insert_own" on public.reference_videos;
+drop policy if exists "reference_videos_update_own" on public.reference_videos;
+drop policy if exists "reference_videos_delete_own" on public.reference_videos;
+create policy "reference_videos_select_own" on public.reference_videos for select to authenticated using ((select auth.jwt()->>'sub') = user_id::text);
+create policy "reference_videos_insert_own" on public.reference_videos for insert to authenticated with check ((select auth.jwt()->>'sub') = user_id::text);
+create policy "reference_videos_update_own" on public.reference_videos for update to authenticated using ((select auth.jwt()->>'sub') = user_id::text) with check ((select auth.jwt()->>'sub') = user_id::text);
+create policy "reference_videos_delete_own" on public.reference_videos for delete to authenticated using ((select auth.jwt()->>'sub') = user_id::text);
 
 alter table public.creator_sources enable row level security;
 revoke all on table public.creator_sources from anon, authenticated;
@@ -215,47 +215,47 @@ for delete
 to authenticated
 using (exists (select 1 from public.avatar_ads_projects p where p.id = project_id and (select auth.jwt()->>'sub') = p.user_id::text));
 
-alter table public.competitor_ugc_replication_projects enable row level security;
-revoke all on table public.competitor_ugc_replication_projects from anon, authenticated;
-grant select, insert, update, delete on table public.competitor_ugc_replication_projects to authenticated;
-drop policy if exists "anyone" on public.competitor_ugc_replication_projects;
-drop policy if exists "competitor_ugc_replication_projects_select_own" on public.competitor_ugc_replication_projects;
-drop policy if exists "competitor_ugc_replication_projects_insert_own" on public.competitor_ugc_replication_projects;
-drop policy if exists "competitor_ugc_replication_projects_update_own" on public.competitor_ugc_replication_projects;
-drop policy if exists "competitor_ugc_replication_projects_delete_own" on public.competitor_ugc_replication_projects;
-create policy "competitor_ugc_replication_projects_select_own" on public.competitor_ugc_replication_projects for select to authenticated using ((select auth.jwt()->>'sub') = user_id::text);
-create policy "competitor_ugc_replication_projects_insert_own" on public.competitor_ugc_replication_projects for insert to authenticated with check ((select auth.jwt()->>'sub') = user_id::text);
-create policy "competitor_ugc_replication_projects_update_own" on public.competitor_ugc_replication_projects for update to authenticated using ((select auth.jwt()->>'sub') = user_id::text) with check ((select auth.jwt()->>'sub') = user_id::text);
-create policy "competitor_ugc_replication_projects_delete_own" on public.competitor_ugc_replication_projects for delete to authenticated using ((select auth.jwt()->>'sub') = user_id::text);
+alter table public.video_clone_projects enable row level security;
+revoke all on table public.video_clone_projects from anon, authenticated;
+grant select, insert, update, delete on table public.video_clone_projects to authenticated;
+drop policy if exists "anyone" on public.video_clone_projects;
+drop policy if exists "video_clone_projects_select_own" on public.video_clone_projects;
+drop policy if exists "video_clone_projects_insert_own" on public.video_clone_projects;
+drop policy if exists "video_clone_projects_update_own" on public.video_clone_projects;
+drop policy if exists "video_clone_projects_delete_own" on public.video_clone_projects;
+create policy "video_clone_projects_select_own" on public.video_clone_projects for select to authenticated using ((select auth.jwt()->>'sub') = user_id::text);
+create policy "video_clone_projects_insert_own" on public.video_clone_projects for insert to authenticated with check ((select auth.jwt()->>'sub') = user_id::text);
+create policy "video_clone_projects_update_own" on public.video_clone_projects for update to authenticated using ((select auth.jwt()->>'sub') = user_id::text) with check ((select auth.jwt()->>'sub') = user_id::text);
+create policy "video_clone_projects_delete_own" on public.video_clone_projects for delete to authenticated using ((select auth.jwt()->>'sub') = user_id::text);
 
-alter table public.competitor_ugc_replication_segments enable row level security;
-revoke all on table public.competitor_ugc_replication_segments from anon, authenticated;
-grant select, insert, update, delete on table public.competitor_ugc_replication_segments to authenticated;
-drop policy if exists "competitor_ugc_replication_segments_select_own" on public.competitor_ugc_replication_segments;
-drop policy if exists "competitor_ugc_replication_segments_insert_own" on public.competitor_ugc_replication_segments;
-drop policy if exists "competitor_ugc_replication_segments_update_own" on public.competitor_ugc_replication_segments;
-drop policy if exists "competitor_ugc_replication_segments_delete_own" on public.competitor_ugc_replication_segments;
-create policy "competitor_ugc_replication_segments_select_own"
-on public.competitor_ugc_replication_segments
+alter table public.video_clone_segments enable row level security;
+revoke all on table public.video_clone_segments from anon, authenticated;
+grant select, insert, update, delete on table public.video_clone_segments to authenticated;
+drop policy if exists "video_clone_segments_select_own" on public.video_clone_segments;
+drop policy if exists "video_clone_segments_insert_own" on public.video_clone_segments;
+drop policy if exists "video_clone_segments_update_own" on public.video_clone_segments;
+drop policy if exists "video_clone_segments_delete_own" on public.video_clone_segments;
+create policy "video_clone_segments_select_own"
+on public.video_clone_segments
 for select
 to authenticated
-using (exists (select 1 from public.competitor_ugc_replication_projects p where p.id = project_id and (select auth.jwt()->>'sub') = p.user_id::text));
-create policy "competitor_ugc_replication_segments_insert_own"
-on public.competitor_ugc_replication_segments
+using (exists (select 1 from public.video_clone_projects p where p.id = project_id and (select auth.jwt()->>'sub') = p.user_id::text));
+create policy "video_clone_segments_insert_own"
+on public.video_clone_segments
 for insert
 to authenticated
-with check (exists (select 1 from public.competitor_ugc_replication_projects p where p.id = project_id and (select auth.jwt()->>'sub') = p.user_id::text));
-create policy "competitor_ugc_replication_segments_update_own"
-on public.competitor_ugc_replication_segments
+with check (exists (select 1 from public.video_clone_projects p where p.id = project_id and (select auth.jwt()->>'sub') = p.user_id::text));
+create policy "video_clone_segments_update_own"
+on public.video_clone_segments
 for update
 to authenticated
-using (exists (select 1 from public.competitor_ugc_replication_projects p where p.id = project_id and (select auth.jwt()->>'sub') = p.user_id::text))
-with check (exists (select 1 from public.competitor_ugc_replication_projects p where p.id = project_id and (select auth.jwt()->>'sub') = p.user_id::text));
-create policy "competitor_ugc_replication_segments_delete_own"
-on public.competitor_ugc_replication_segments
+using (exists (select 1 from public.video_clone_projects p where p.id = project_id and (select auth.jwt()->>'sub') = p.user_id::text))
+with check (exists (select 1 from public.video_clone_projects p where p.id = project_id and (select auth.jwt()->>'sub') = p.user_id::text));
+create policy "video_clone_segments_delete_own"
+on public.video_clone_segments
 for delete
 to authenticated
-using (exists (select 1 from public.competitor_ugc_replication_projects p where p.id = project_id and (select auth.jwt()->>'sub') = p.user_id::text));
+using (exists (select 1 from public.video_clone_projects p where p.id = project_id and (select auth.jwt()->>'sub') = p.user_id::text));
 
 alter table public.motion_swap_projects enable row level security;
 revoke all on table public.motion_swap_projects from anon, authenticated;

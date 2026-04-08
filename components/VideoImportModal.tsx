@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, Link, Upload, Loader2, ArrowLeft, Info, Sparkles, Shuffle, RotateCcw, Type, Languages, Film, Clock, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import CompetitorShotsEditor from '@/components/CompetitorShotsEditor';
+import ReferenceVideoShotsEditor from '@/components/ReferenceVideoShotsEditor';
 import VideoPlayer from '@/components/ui/VideoPlayer';
-import { parseShotsFromAnalysis } from '@/lib/competitor-shot-form';
+import { parseShotsFromAnalysis } from '@/lib/reference-video-shot-form';
 import { getAnalysisShotCount, normalizeAnalysisToV2 } from '@/lib/video-analysis-schema';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 
@@ -740,7 +740,7 @@ export default function VideoImportModal({
     }
 
     onClose();
-    router.push('/dashboard/competitor-ugc-replication');
+    router.push('/dashboard/video-clone');
   };
 
   const handleUseInMotionClone = () => {
@@ -1293,7 +1293,7 @@ export default function VideoImportModal({
                       ) : processingVideo?.analysis_result ? (
                         <div className="min-h-0 flex-1">
                           <div className="h-full overflow-y-auto pr-1">
-                            <CompetitorShotsEditor
+                            <ReferenceVideoShotsEditor
                               shots={processingShots}
                               onShotsChange={() => {}}
                               showSummary={false}

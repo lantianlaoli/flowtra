@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 type Resolution = '1080p' | '4k';
-type AdType = 'competitor-ugc-replication' | 'character';
+type AdType = 'video-clone' | 'character';
 
 const RESOLUTION_COSTS: Record<Resolution, number> = {
   '1080p': 5,
@@ -47,7 +47,7 @@ interface HighResRequestBody {
 }
 
 const isResolution = (value?: string): value is Resolution => value === '1080p' || value === '4k';
-const isAdType = (value?: string): value is AdType => value === 'competitor-ugc-replication' || value === 'character';
+const isAdType = (value?: string): value is AdType => value === 'video-clone' || value === 'character';
 
 const buildCallbackUrl = (path: string) => {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL;
@@ -80,12 +80,12 @@ export async function POST(request: NextRequest) {
     const projectFields = PROJECT_FIELDS[resolution];
     const perSegmentCost = RESOLUTION_COSTS[resolution];
 
-    if (adType === 'competitor-ugc-replication') {
-      // Schema verified via Supabase MCP (2026-03-11): competitor_ugc_replication_projects columns include
+    if (adType === 'video-clone') {
+      // Schema verified via Supabase MCP (2026-03-11): video_clone_projects columns include
       // id, user_id, status, video_url, video_aspect_ratio, segment_count, is_segmented,
       // video_model, merged_video_1080p_url, merged_video_4k_url, fal_merge_1080p_task_id, fal_merge_4k_task_id.
       const { data: project, error: projectError } = await supabase
-        .from('competitor_ugc_replication_projects')
+        .from('video_clone_projects')
         .select('id, user_id, status, video_url, video_aspect_ratio, segment_count, is_segmented, video_model, merged_video_1080p_url, merged_video_4k_url, fal_merge_1080p_task_id, fal_merge_4k_task_id')
         .eq('id', historyId)
         .eq('user_id', userId)
@@ -106,11 +106,11 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Schema verified via Supabase MCP (2026-01-25): competitor_ugc_replication_segments columns include
+      // Schema verified via Supabase MCP (2026-01-25): video_clone_segments columns include
       // id, project_id, segment_index, video_task_id, video_url, video_1080p_task_id, video_1080p_url,
       // video_1080p_webhook_received_at, video_4k_task_id, video_4k_url, video_4k_webhook_received_at.
       const { data: segments, error: segmentsError } = await supabase
-        .from('competitor_ugc_replication_segments')
+        .from('video_clone_segments')
         .select('id, segment_index, video_task_id, video_url, video_1080p_task_id, video_1080p_url, video_4k_task_id, video_4k_url')
         .eq('project_id', historyId)
         .order('segment_index', { ascending: true });
@@ -161,8 +161,8 @@ export async function POST(request: NextRequest) {
       }
 
       const callbackPath = resolution === '1080p'
-        ? '/api/competitor-ugc-replication/webhooks/1080p'
-        : '/api/competitor-ugc-replication/webhooks/4k';
+        ? '/api/video-clone/webhooks/1080p'
+        : '/api/video-clone/webhooks/4k';
 
       let startedTasks = 0;
       const pending1080pSegments: Array<{ id: string; taskId: string }> = [];
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
           }
 
           const { error: updateError } = await supabase
-            .from('competitor_ugc_replication_segments')
+            .from('video_clone_segments')
             .update(updates)
             .eq('id', segment.id);
 
@@ -223,7 +223,7 @@ export async function POST(request: NextRequest) {
         for (const result of pollResults) {
           if (!result.resultUrl) continue;
           await supabase
-            .from('competitor_ugc_replication_segments')
+            .from('video_clone_segments')
             .update({
               [segmentFields.url]: result.resultUrl,
               [segmentFields.webhook]: new Date().toISOString()
@@ -233,7 +233,7 @@ export async function POST(request: NextRequest) {
       }
 
       const { data: refreshedSegments } = await supabase
-        .from('competitor_ugc_replication_segments')
+        .from('video_clone_segments')
         .select('id, segment_index, video_1080p_url, video_4k_url')
         .eq('project_id', historyId)
         .order('segment_index', { ascending: true });
@@ -248,7 +248,7 @@ export async function POST(request: NextRequest) {
 
         if (segmentUrls.length === 1) {
           const { error: updateProjectError } = await supabase
-            .from('competitor_ugc_replication_projects')
+            .from('video_clone_projects')
             .update({
               [projectFields.mergedUrl]: segmentUrls[0]
             })
@@ -266,9 +266,9 @@ export async function POST(request: NextRequest) {
 
         const mergeTaskId = (project as Record<string, string | null>)[projectFields.mergeTaskId];
         if (!mergeTaskId && segmentUrls.length > 1) {
-          const { taskId: falTaskId } = await mergeVideosWithFal(segmentUrls, project.video_aspect_ratio || '16:9', '/api/competitor-ugc-replication/webhooks/merge');
+          const { taskId: falTaskId } = await mergeVideosWithFal(segmentUrls, project.video_aspect_ratio || '16:9', '/api/video-clone/webhooks/merge');
           await supabase
-            .from('competitor_ugc_replication_projects')
+            .from('video_clone_projects')
             .update({
               [projectFields.mergeTaskId]: falTaskId
             })

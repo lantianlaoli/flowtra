@@ -172,7 +172,7 @@ export async function ensureClerkUserWelcomeState(userId: string) {
 export async function purgeClerkUserData(userId: string) {
   const supabase = getSupabaseAdmin()
   const avatarProjectIds = await fetchIdsByUserId('avatar_ads_projects', userId)
-  const competitorProjectIds = await fetchIdsByUserId('competitor_ugc_replication_projects', userId)
+  const videoCloneProjectIds = await fetchIdsByUserId('video_clone_projects', userId)
   const productIds = await fetchIdsByUserId('user_products', userId)
   const creatorSourceIds = await fetchIdsByUserId('creator_sources', userId)
 
@@ -241,16 +241,16 @@ export async function purgeClerkUserData(userId: string) {
     })
   }
 
-  const { data: competitorAds, error: competitorAdsError } = await supabase
-    .from('competitor_ads')
+  const { data: referenceVideos, error: referenceVideosError } = await supabase
+    .from('reference_videos')
     .select('id, source_storage_bucket, source_storage_path')
     .eq('user_id', userId)
 
-  if (competitorAdsError) {
-    throw new Error(`Failed to load competitor_ads for ${userId}: ${competitorAdsError.message}`)
+  if (referenceVideosError) {
+    throw new Error(`Failed to load reference_videos for ${userId}: ${referenceVideosError.message}`)
   }
 
-  for (const ad of competitorAds ?? []) {
+  for (const ad of referenceVideos ?? []) {
     addStorageRef(storageRefs, {
       bucket: ad.source_storage_bucket,
       path: ad.source_storage_path,
@@ -262,7 +262,7 @@ export async function purgeClerkUserData(userId: string) {
   }
 
   await deleteByIds('avatar_ads_scenes', 'project_id', avatarProjectIds)
-  await deleteByIds('competitor_ugc_replication_segments', 'project_id', competitorProjectIds)
+  await deleteByIds('video_clone_segments', 'project_id', videoCloneProjectIds)
 
   if (creatorSourceIds.length > 0 || productIds.length > 0) {
     const filters = [
@@ -289,8 +289,8 @@ export async function purgeClerkUserData(userId: string) {
   await deleteByUserId('creator_source_videos', userId)
   await deleteByUserId('creator_sources', userId)
   await deleteByUserId('avatar_ads_projects', userId)
-  await deleteByUserId('competitor_ugc_replication_projects', userId)
-  await deleteByUserId('competitor_ads', userId)
+  await deleteByUserId('video_clone_projects', userId)
+  await deleteByUserId('reference_videos', userId)
   await deleteByUserId('user_tiktok_connections', userId)
   await deleteByUserId('user_avatars', userId)
   await deleteByUserId('user_product_photos', userId)
@@ -304,7 +304,7 @@ export async function purgeClerkUserData(userId: string) {
   return {
     removedStorageObjects: storageRefs.size,
     avatarProjectCount: avatarProjectIds.length,
-    competitorProjectCount: competitorProjectIds.length,
+    videoCloneProjectCount: videoCloneProjectIds.length,
     creatorSourceCount: creatorSourceIds.length,
     productCount: productIds.length,
   }

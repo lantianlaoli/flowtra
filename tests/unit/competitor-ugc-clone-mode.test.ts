@@ -4,12 +4,12 @@ import assert from 'node:assert/strict';
 import {
   buildManualCloneSeedPrompts,
   resolveCloneModeFromProject
-} from '@/lib/competitor-ugc-replication-workflow';
+} from '@/lib/video-clone-workflow';
 
 test('resolves clone mode from selected_inputs for competitor ad projects', () => {
   const resolved = resolveCloneModeFromProject({
     selected_inputs: {
-      referenceSourceType: 'competitor_ad',
+      referenceSourceType: 'reference_video',
       referenceSourceMediaType: 'video',
       referenceSourceId: 'comp_123',
       isCloneMode: true
@@ -18,7 +18,7 @@ test('resolves clone mode from selected_inputs for competitor ad projects', () =
 
   assert.deepEqual(resolved, {
     isCloneMode: true,
-    sourceType: 'competitor_ad',
+    sourceType: 'reference_video',
     mediaType: 'video',
     sourceId: 'comp_123'
   });
@@ -42,14 +42,14 @@ test('resolves clone mode from selected_inputs for creator source video projects
   });
 });
 
-test('falls back to legacy competitor_ad_id when metadata is missing', () => {
+test('falls back to legacy reference_video_id when metadata is missing', () => {
   const resolved = resolveCloneModeFromProject({
-    competitor_ad_id: 'legacy_competitor'
+    reference_video_id: 'legacy_competitor'
   });
 
   assert.deepEqual(resolved, {
     isCloneMode: true,
-    sourceType: 'competitor_ad',
+    sourceType: 'reference_video',
     mediaType: 'video',
     sourceId: 'legacy_competitor'
   });
@@ -70,13 +70,13 @@ test('returns non-clone mode when no metadata or legacy source exists', () => {
   });
 });
 
-test('buildManualCloneSeedPrompts preserves competitor shots for segmented non-Kling clone projects', () => {
+test('buildManualCloneSeedPrompts preserves reference shots for segmented non-Kling clone projects', () => {
   const prompts = buildManualCloneSeedPrompts({
     videoModel: 'veo3_fast',
     segmentCount: 2,
     videoDuration: '16',
     language: 'en',
-    competitorShots: [
+    referenceVideoShots: [
       {
         id: 1,
         startTime: '00:00',
@@ -137,8 +137,8 @@ test('buildManualCloneSeedPrompts creates shot-aware Kling segments without AI a
     segmentCount: 1,
     videoDuration: '12',
     language: 'en',
-    competitorTotalDurationSeconds: 12,
-    competitorShots: [
+    referenceTotalDurationSeconds: 12,
+    referenceVideoShots: [
       {
         id: 1,
         startTime: '00:00',

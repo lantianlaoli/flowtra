@@ -206,11 +206,11 @@ opencode mcp logout github
 
 **Key Files**:
 
-- Workflow: `lib/competitor-ugc-replication-workflow.ts` (2,922 lines)
-- UI: `components/pages/CompetitorUgcReplicationPage.tsx`
-- API: `app/api/competitor-ugc-replication/` (create, status, merge, webhooks)
-- Database: `competitor_ugc_replication_projects`, `competitor_ugc_replication_segments`
-- Competitor shots: `lib/competitor-shots.ts` (shot data structure)
+- Workflow: `lib/video-clone-workflow.ts` (2,922 lines)
+- UI: `components/pages/VideoClonePage.tsx`
+- API: `app/api/video-clone/` (create, status, merge, webhooks)
+- Database: `video_clone_projects`, `video_clone_segments`
+- Competitor shots: `lib/reference-video-shots.ts` (shot data structure)
 
 **Technical Details**:
 
@@ -253,8 +253,8 @@ opencode mcp logout github
 
 ### Core Project Tables (4)
 
-- `competitor_ugc_replication_projects` - UGC clone projects with brand/competitor references
-- `competitor_ugc_replication_segments` - 8-second video segments with continuation support
+- `video_clone_projects` - UGC clone projects with brand/competitor references
+- `video_clone_segments` - 8-second video segments with continuation support
 - `avatar_ads_projects` - Character ad projects with dialogue/language
 - `avatar_ads_scenes` - Individual video scenes for avatar ads
 
@@ -270,7 +270,7 @@ opencode mcp logout github
 - `user_products` - Product catalog with descriptions and brand associations
 - `user_product_photos` - Product image gallery (multiple photos per product)
 - `user_avatars` - Character photos for avatar ads with optimization
-- `competitor_ads` - Competitor video analysis data (shot breakdown, style, timing, language)
+- `reference_videos` - Competitor video analysis data (shot breakdown, style, timing, language)
 
 ### Support Tables (6)
 
@@ -309,13 +309,13 @@ opencode mcp logout github
   - CreditsDisplay, DownloadButton, GenerationProgressDisplay
 
 - **Feature Pages**:
-  - `CompetitorUgcReplicationPage.tsx` - UGC clone UI
+  - `VideoClonePage.tsx` - UGC clone UI
   - `AvatarAdsPage.tsx` - Avatar ads UI
   - `HistoryPage.tsx` - Project history with legacy support
 
 - **Managers** (CRUD interfaces):
   - BrandManager, ProductManager, AssetsManager
-  - CompetitorAdsList, CompetitorUgcReplicationRecentList
+  - ReferenceVideosList, VideoCloneRecentList
 
 ### CRITICAL: UI Language Requirement
 
@@ -334,8 +334,8 @@ opencode mcp logout github
 **Locations to Check**:
 
 - `/components/ui/LanguageSelector.tsx` - Language dropdown (native name: '中文')
-- `/components/competitor-ugc-replication/SegmentInspector.tsx` - Segment inspector
-- `/components/EditCompetitorAdModal.tsx` - Competitor ad modal
+- `/components/video-clone/SegmentInspector.tsx` - Segment inspector
+- `/components/EditReferenceVideoModal.tsx` - Competitor ad modal
 
 ## Credit System (Version 2.0)
 
@@ -443,7 +443,7 @@ git commit -m "feat: add react-query for data fetching"
 1. **Identify Target Table**:
 
    ```typescript
-   // Example: Need to update competitor_ugc_replication_segments
+   // Example: Need to update video_clone_segments
    ```
 
 2. **Verify Schema via MCP**:
@@ -454,7 +454,7 @@ git commit -m "feat: add react-query for data fetching"
      query: `
        SELECT column_name, data_type, is_nullable
        FROM information_schema.columns
-       WHERE table_name = 'competitor_ugc_replication_segments'
+       WHERE table_name = 'video_clone_segments'
        ORDER BY ordinal_position;
      `,
    });
@@ -464,11 +464,11 @@ git commit -m "feat: add react-query for data fetching"
 
    ```typescript
    // Schema verified via Supabase MCP (2026-01-07):
-   // competitor_ugc_replication_segments has: status, first_frame_url,
+   // video_clone_segments has: status, first_frame_url,
    // first_frame_webhook_received_at (NO last_processed_at)
 
    await supabase
-     .from("competitor_ugc_replication_segments")
+     .from("video_clone_segments")
      .update({
        status: "first_frame_ready",
        first_frame_webhook_received_at: new Date().toISOString(),
@@ -488,7 +488,7 @@ git commit -m "feat: add react-query for data fetching"
 // ❌ NO schema verification, assumed field exists
 
 await supabase
-  .from("competitor_ugc_replication_segments")
+  .from("video_clone_segments")
   .update({
     status: "ready",
     last_processed_at: new Date().toISOString(), // ❌ Field doesn't exist!
@@ -502,7 +502,7 @@ await supabase
 
 ```typescript
 // Schema verified via Supabase MCP (2026-01-07):
-// competitor_ugc_replication_segments columns:
+// video_clone_segments columns:
 // - id, project_id, segment_index, status, prompt
 // - first_frame_task_id, first_frame_url, first_frame_webhook_received_at
 // - video_task_id, video_url, video_webhook_received_at
@@ -510,7 +510,7 @@ await supabase
 // NOTE: No last_processed_at field (only exists in projects table)
 
 await supabase
-  .from("competitor_ugc_replication_segments")
+  .from("video_clone_segments")
   .update({
     status: "first_frame_ready",
     first_frame_url: imageUrl,
@@ -600,7 +600,7 @@ pnpm test:e2e:debug   # Step-by-step debugging
 
 ```
 tests/e2e/
-├── competitor-ugc-replication/
+├── video-clone/
 │   ├── happy-path.spec.ts          # 16s 2-segment flow
 │   ├── single-segment.spec.ts      # 8s no-merge
 │   ├── continuation-frames.spec.ts # Auto-trigger test
@@ -714,7 +714,7 @@ if (segment.first_frame_webhook_received_at) {
 
 // Process webhook
 const { data, error } = await supabase
-  .from("competitor_ugc_replication_segments")
+  .from("video_clone_segments")
   .update({
     first_frame_url: resultUrl,
     status: "first_frame_ready",
@@ -875,7 +875,7 @@ if (currentSegment.segment_index < totalSegments - 1) {
 3. **Verify Idempotency**: Is `webhook_received_at` set?
 
    ```sql
-   SELECT first_frame_webhook_received_at FROM competitor_ugc_replication_segments WHERE id = 'xxx';
+   SELECT first_frame_webhook_received_at FROM video_clone_segments WHERE id = 'xxx';
    ```
 
 4. **Test Locally** with ngrok:
@@ -888,7 +888,7 @@ if (currentSegment.segment_index < totalSegments - 1) {
    NEXT_PUBLIC_SITE_URL=https://abc123.ngrok.io
 
    # Test webhook
-   curl -X POST https://abc123.ngrok.io/api/competitor-ugc-replication/webhooks/frame \
+   curl -X POST https://abc123.ngrok.io/api/video-clone/webhooks/frame \
      -H "Content-Type: application/json" \
      -d '{"data": {"taskId": "xxx", "resultUrls": ["https://..."]}}'
    ```

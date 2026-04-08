@@ -87,7 +87,7 @@ const normalizeSessionPatchState = (state: Record<string, unknown>) => {
       cloneReferenceVideo: state.cloneReferenceVideo as {
         id: string;
         name?: string | null;
-        sourceType?: 'creator' | 'competitor_ad';
+        sourceType?: 'creator' | 'reference_video';
         videoUrl?: string | null;
         cdnUrl?: string | null;
         analysisLanguage?: string | null;

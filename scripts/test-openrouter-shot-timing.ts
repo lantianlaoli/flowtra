@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { sendOpenRouterChat } from '../lib/openrouter';
 import { normalizeAnalysisToV2 } from '../lib/video-analysis-schema';
-import { parseCompetitorTimeline } from '../lib/competitor-shots';
+import { parseReferenceVideoTimeline } from '../lib/reference-video-shots';
 import { __test__ as creatorVideoAnalysisTestUtils } from '../lib/creator-video-analysis';
 
 const videoUrl = process.argv[2]?.trim();
@@ -199,7 +199,7 @@ async function main() {
 
   const strictValidation = creatorVideoAnalysisTestUtils.validateStrictShotSchema(normalizedAnalysis);
   const timingHealth = summarizeTimingHealth(parsedResult.parsed);
-  const rebuiltTimeline = parseCompetitorTimeline(
+  const rebuiltTimeline = parseReferenceVideoTimeline(
     normalizedAnalysis as unknown as Record<string, unknown>,
     normalizedAnalysis.video_duration_seconds
   );

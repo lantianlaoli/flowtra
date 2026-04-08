@@ -178,7 +178,7 @@ async function main() {
   const beforeUserCredits = await countTable('user_credits')
 
   const avatarProjectIds = await fetchIds('avatar_ads_projects', 'id')
-  const competitorProjectIds = await fetchIds('competitor_ugc_replication_projects', 'id')
+  const competitorProjectIds = await fetchIds('video_clone_projects', 'id')
   const productIds = await fetchIds('user_products', 'id')
   const creatorSourceIds = await fetchIds('creator_sources', 'id')
 
@@ -247,17 +247,17 @@ async function main() {
     })
   }
 
-  const { data: competitorAds, error: competitorAdsError } = await supabase
-    .from('competitor_ads')
+  const { data: referenceVideos, error: referenceVideosError } = await supabase
+    .from('reference_videos')
     .select('id, user_id, source_storage_bucket, source_storage_path')
     .in('user_id', [...TARGET_USERS])
 
-  if (competitorAdsError) {
-    throw new Error(`Failed to load competitor_ads: ${competitorAdsError.message}`)
+  if (referenceVideosError) {
+    throw new Error(`Failed to load reference_videos: ${referenceVideosError.message}`)
   }
 
-  for (const ad of competitorAds ?? []) {
-    addStorageRef(storageRefs, `competitor_ads:${ad.id}`, {
+  for (const ad of referenceVideos ?? []) {
+    addStorageRef(storageRefs, `reference_videos:${ad.id}`, {
       bucket: ad.source_storage_bucket,
       path: ad.source_storage_path,
     })
@@ -271,7 +271,7 @@ async function main() {
   console.log(`Removed storage refs: ${removedStorageCount}`)
 
   await deleteByIds('avatar_ads_scenes', 'project_id', avatarProjectIds)
-  await deleteByIds('competitor_ugc_replication_segments', 'project_id', competitorProjectIds)
+  await deleteByIds('video_clone_segments', 'project_id', competitorProjectIds)
 
   if (creatorSourceIds.length > 0 || productIds.length > 0) {
     const { error: motionCloneError } = await supabase
@@ -297,8 +297,8 @@ async function main() {
   await deleteByUserIds('creator_sources')
 
   await deleteByUserIds('avatar_ads_projects')
-  await deleteByUserIds('competitor_ugc_replication_projects')
-  await deleteByUserIds('competitor_ads')
+  await deleteByUserIds('video_clone_projects')
+  await deleteByUserIds('reference_videos')
   await deleteByUserIds('user_tiktok_connections')
   await deleteByUserIds('user_avatars')
   await deleteByUserIds('user_product_photos')
@@ -319,8 +319,8 @@ async function main() {
     user_products: await countByUserIds('user_products'),
     user_product_photos: await countByUserIds('user_product_photos'),
     user_tiktok_connections: await countByUserIds('user_tiktok_connections'),
-    competitor_ads: await countByUserIds('competitor_ads'),
-    competitor_ugc_replication_projects: await countByUserIds('competitor_ugc_replication_projects'),
+    reference_videos: await countByUserIds('reference_videos'),
+    video_clone_projects: await countByUserIds('video_clone_projects'),
     avatar_ads_projects: await countByUserIds('avatar_ads_projects'),
     project_agent_sessions: await countByUserIds('project_agent_sessions'),
     creator_sources: await countByUserIds('creator_sources'),

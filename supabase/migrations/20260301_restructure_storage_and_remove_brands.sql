@@ -26,7 +26,7 @@ alter table public.creator_source_videos
   add column if not exists cover_storage_bucket text,
   add column if not exists cover_storage_path text;
 
-alter table public.competitor_ads
+alter table public.reference_videos
   add column if not exists source_storage_bucket text,
   add column if not exists source_storage_path text;
 
@@ -89,20 +89,20 @@ begin
     select 1
     from information_schema.table_constraints
     where constraint_schema = 'public'
-      and table_name = 'competitor_ads'
-      and constraint_name = 'competitor_ads_brand_id_fkey'
+      and table_name = 'reference_videos'
+      and constraint_name = 'reference_videos_brand_id_fkey'
   ) then
-    alter table public.competitor_ads drop constraint competitor_ads_brand_id_fkey;
+    alter table public.reference_videos drop constraint reference_videos_brand_id_fkey;
   end if;
 
   if exists (
     select 1
     from information_schema.table_constraints
     where constraint_schema = 'public'
-      and table_name = 'competitor_ugc_replication_projects'
+      and table_name = 'video_clone_projects'
       and constraint_name = 'standard_ads_projects_selected_brand_id_fkey'
   ) then
-    alter table public.competitor_ugc_replication_projects drop constraint standard_ads_projects_selected_brand_id_fkey;
+    alter table public.video_clone_projects drop constraint standard_ads_projects_selected_brand_id_fkey;
   end if;
 
   if exists (
@@ -116,14 +116,14 @@ begin
   end if;
 end $$;
 
-drop index if exists public.idx_competitor_ads_brand_id;
+drop index if exists public.idx_reference_videos_brand_id;
 drop index if exists public.idx_standard_ads_projects_brand_id;
 drop index if exists public.idx_user_products_brand_id;
 
-alter table public.competitor_ads
+alter table public.reference_videos
   drop column if exists brand_id;
 
-alter table public.competitor_ugc_replication_projects
+alter table public.video_clone_projects
   drop column if exists selected_brand_id;
 
 alter table public.user_products

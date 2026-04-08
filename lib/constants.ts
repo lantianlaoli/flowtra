@@ -72,7 +72,7 @@ export const MODEL_PROCESSING_TIMES = {
   'seedance_1_5_pro': '1-2 min',  // Seedance 1.5 Pro: 1-2 minutes processing time
   'kling_3': '2-4 min'            // Kling 3.0 Pro: 2-4 minutes processing time
 } as const
-// Replica photo generation credits (competitor photo mode)
+// Replica photo generation credits (reference photo mode)
 export const REPLICA_PHOTO_CREDITS = {
   '1K': 6,
   '2K': 6,
@@ -800,10 +800,10 @@ export function getLanguageVoiceStyle(code: LanguageCode): string {
 }
 
 // ===== VIDEO ANALYSIS SIZE LIMITS =====
-// Limits for competitor video analysis to ensure API compatibility
+// Limits for reference video analysis to ensure API compatibility
 
 /**
- * Maximum video file size for competitor ad analysis (bytes)
+ * Maximum video file size for reference video analysis (bytes)
  *
  * Rationale:
  * - Keep uploads within provider expectations for video_url analysis

@@ -734,7 +734,7 @@ export default function ProjectAgentPage() {
       const endpoint = nodeType === 'avatar_ads'
         ? `/api/avatar-ads/${projectId}/status`
         : nodeType === 'video_clone'
-          ? `/api/competitor-ugc-replication/${projectId}/status`
+          ? `/api/video-clone/${projectId}/status`
           : `/api/motion-clone/${projectId}/status`;
 
       const response = await fetch(endpoint, { cache: 'no-store' });
@@ -796,15 +796,15 @@ export default function ProjectAgentPage() {
         : node.type === 'video_clone'
           ? [
               {
-                key: `competitor_ugc_replication_projects:${node.runtime.projectId}`,
-                channelName: `project-agent-canvas-competitor_ugc_replication_projects:${node.runtime.projectId}`,
-                table: 'competitor_ugc_replication_projects',
+                key: `video_clone_projects:${node.runtime.projectId}`,
+                channelName: `project-agent-canvas-video_clone_projects:${node.runtime.projectId}`,
+                table: 'video_clone_projects',
                 filter: `id=eq.${node.runtime.projectId}`,
               },
               {
-                key: `competitor_ugc_replication_segments:${node.runtime.projectId}`,
-                channelName: `project-agent-canvas-competitor_ugc_replication_segments:${node.runtime.projectId}`,
-                table: 'competitor_ugc_replication_segments',
+                key: `video_clone_segments:${node.runtime.projectId}`,
+                channelName: `project-agent-canvas-video_clone_segments:${node.runtime.projectId}`,
+                table: 'video_clone_segments',
                 filter: `project_id=eq.${node.runtime.projectId}`,
               },
             ]
@@ -843,8 +843,8 @@ export default function ProjectAgentPage() {
         if (n.type === 'avatar_ads') return [`avatar_ads_projects:${n.runtime.projectId}`];
         if (n.type === 'video_clone') {
           return [
-            `competitor_ugc_replication_projects:${n.runtime.projectId}`,
-            `competitor_ugc_replication_segments:${n.runtime.projectId}`,
+            `video_clone_projects:${n.runtime.projectId}`,
+            `video_clone_segments:${n.runtime.projectId}`,
           ];
         }
         return [`motion_clone_projects:${n.runtime.projectId}`];

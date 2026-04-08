@@ -436,7 +436,7 @@ export function VideoAnalysisUploader({ initialFile }: { initialFile?: File | nu
             {/* CTA */}
             <div className="pt-6 border-t border-gray-200 space-y-4">
               <Link
-                href="/dashboard/competitor-ugc-replication"
+                href="/dashboard/video-clone"
                 onClick={() => {
                   if (result) {
                     sessionStorage.setItem('showcase_analysis', JSON.stringify(result));

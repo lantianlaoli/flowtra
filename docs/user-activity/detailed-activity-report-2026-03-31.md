@@ -235,7 +235,7 @@
 - **数据来源**: Supabase PostgreSQL 数据库
 - **查询范围**: 
   - `avatar_ads_projects`
-  - `competitor_ugc_replication_projects`
+  - `video_clone_projects`
   - `motion_clone_projects`
   - `credit_transactions`
   - `user_products`

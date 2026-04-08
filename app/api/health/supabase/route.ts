@@ -13,7 +13,7 @@ export async function GET() {
 
     // Try a simple SELECT query to test connectivity
     const { data, error, status } = await supabase
-      .from('competitor_ads')
+      .from('reference_videos')
       .select('id')
       .limit(1);
 

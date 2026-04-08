@@ -61,13 +61,56 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/dashboard/generate',
-        destination: '/dashboard/competitor-ugc-replication',
+        destination: '/dashboard/video-clone',
         permanent: false,
+      },
+      {
+        source: '/dashboard/competitor-ugc-replication',
+        destination: '/dashboard/video-clone',
+        permanent: false,
+      },
+      {
+        source: '/features/competitor-replica',
+        destination: '/features/video-clone',
+        permanent: true,
+      },
+      {
+        source: '/features/viral-clone',
+        destination: '/features/video-clone',
+        permanent: true,
       },
       {
         source: '/sora2-watermark-removal',
         destination: '/',
         permanent: true,
+      },
+    ];
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/api/competitor-ugc-replication/:path*',
+        destination: '/api/video-clone/:path*',
+      },
+      {
+        source: '/api/public/competitor-ugc-replication-recent',
+        destination: '/api/public/video-clone-recent',
+      },
+      {
+        source: '/api/competitor-ads/:path*',
+        destination: '/api/reference-videos/:path*',
+      },
+      {
+        source: '/showcase/video-clone/reference-source.mp4',
+        destination: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_source.mp4',
+      },
+      {
+        source: '/showcase/video-clone/reference-result.mp4',
+        destination: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_result.mp4',
+      },
+      {
+        source: '/showcase/video-clone/reference-analysis.mp4',
+        destination: 'https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_competitor_parse.mp4',
       },
     ];
   },

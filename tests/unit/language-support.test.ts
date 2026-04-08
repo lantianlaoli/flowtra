@@ -7,7 +7,7 @@ import {
   getLanguageVoiceStyle,
 } from '@/lib/constants';
 import { formatLanguage, isValidLanguageCode } from '@/lib/language-utils';
-import { normalizeSegmentPrompts } from '@/lib/competitor-ugc-replication-workflow';
+import { normalizeSegmentPrompts } from '@/lib/video-clone-workflow';
 
 test('shared language constants include Arabic metadata', () => {
   assert.equal(SUPPORTED_LANGUAGE_CODES.includes('ar'), true);

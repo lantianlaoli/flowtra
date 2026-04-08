@@ -11,7 +11,7 @@ import { MY_ADS_RETENTION_DAYS } from '@/lib/my-ads-retention';
 import TikTokPublishDialog from '@/components/TikTokPublishDialog';
 
 // Type definitions matching HistoryPage
-interface CompetitorUgcReplicationItem {
+interface VideoCloneItem {
   id: string;
   coverImageUrl?: string;
   videoUrl?: string;
@@ -29,7 +29,7 @@ interface CompetitorUgcReplicationItem {
   createdAt: string;
   progress?: number;
   currentStep?: string;
-  adType: 'competitor-ugc-replication';
+  adType: 'video-clone';
   videoAspectRatio?: string;
   isSegmented?: boolean;
   segmentCount?: number;
@@ -90,7 +90,7 @@ interface MotionCloneItem {
   errorMessage?: string;
 }
 
-type HistoryItem = CompetitorUgcReplicationItem | AvatarAdsItem | MotionCloneItem;
+type HistoryItem = VideoCloneItem | AvatarAdsItem | MotionCloneItem;
 
 interface VideoDetailsModalProps {
   isOpen: boolean;
@@ -102,8 +102,8 @@ interface VideoDetailsModalProps {
 }
 
 // Helper functions
-const isCompetitorUgcReplication = (item: HistoryItem | null): item is CompetitorUgcReplicationItem => {
-  return !!item && item.adType === 'competitor-ugc-replication';
+const isVideoClone = (item: HistoryItem | null): item is VideoCloneItem => {
+  return !!item && item.adType === 'video-clone';
 };
 
 const isCharacterAds = (item: HistoryItem | null): item is AvatarAdsItem => {
@@ -169,7 +169,7 @@ const formatDuration = (item: HistoryItem): string => {
   if (isCharacterAds(item)) {
     return `${item.videoDurationSeconds || 8}s`;
   }
-  if (isCompetitorUgcReplication(item)) {
+  if (isVideoClone(item)) {
     return `${item.videoDuration || (item.isSegmented && item.segmentCount ? item.segmentCount * 8 : 8)}s`;
   }
   if (isMotionClone(item)) {
@@ -208,7 +208,7 @@ const getVideoDurationSeconds = (item: HistoryItem | null): number | null => {
   if (isCharacterAds(item)) {
     return item.videoDurationSeconds ?? 8;
   }
-  if (isCompetitorUgcReplication(item)) {
+  if (isVideoClone(item)) {
     if (item.isSegmented && item.segmentCount) {
       return item.segmentCount * 8;
     }
@@ -265,7 +265,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
   const handleDownloadClick = async () => {
     if (!item) return;
     if (!item.videoUrl || item.status !== 'completed') return;
-    if (isCompetitorUgcReplication(item) || isCharacterAds(item) || isMotionClone(item)) {
+    if (isVideoClone(item) || isCharacterAds(item) || isMotionClone(item)) {
       setIsPreparing(true);
       const status = await onDownload(item, selectedResolution);
       if (status !== 'processing') {
@@ -283,7 +283,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
 
   // Get prompts content with better formatting
   const getPromptsContent = () => {
-    if (isCompetitorUgcReplication(item)) {
+    if (isVideoClone(item)) {
       if (item.useCustomScript && item.customScript) {
         return {
           type: 'custom-script',
@@ -569,12 +569,12 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
   };
   const supportsHighRes = useMemo(() => {
     if (!item) return false;
-    return (isCompetitorUgcReplication(item) || isCharacterAds(item)) && supportsUpgradeableExport;
+    return (isVideoClone(item) || isCharacterAds(item)) && supportsUpgradeableExport;
   }, [item, supportsUpgradeableExport]);
 
   const segmentCount = useMemo(() => {
     if (!item) return 1;
-    if (isCompetitorUgcReplication(item)) return item.segmentCount || 1;
+    if (isVideoClone(item)) return item.segmentCount || 1;
     if (isCharacterAds(item)) return Math.max(1, Math.ceil((item.videoDurationSeconds || 8) / 8));
     return 1;
   }, [item]);
@@ -602,11 +602,11 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
   const canDownload = !!item && item.status === 'completed' && item.videoUrl && !isExpired;
   const canPublishToTikTok = useMemo(() => {
     if (!item) return false;
-    return (isCompetitorUgcReplication(item) || isCharacterAds(item)) && item.status === 'completed' && !!item.videoUrl;
+    return (isVideoClone(item) || isCharacterAds(item)) && item.status === 'completed' && !!item.videoUrl;
   }, [item]);
   const isHighResReady = selectedResolution === '720p'
     ? true
-    : isCompetitorUgcReplication(item) || isCharacterAds(item)
+    : isVideoClone(item) || isCharacterAds(item)
       ? selectedResolution === '1080p'
         ? !!item.videoUrl1080p
         : !!item.videoUrl4k
@@ -765,7 +765,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                           />
                         )}
 
-                        {(isCompetitorUgcReplication(item) || isCharacterAds(item)) && item.language && (
+                        {(isVideoClone(item) || isCharacterAds(item)) && item.language && (
                           <CompactParam 
                             icon={<Languages className="w-3.5 h-3.5" />} 
                             label="Language" 
@@ -834,7 +834,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                         historyId={item.id}
                         coverImageUrl={'coverImageUrl' in item ? item.coverImageUrl : undefined}
                         videoDurationSeconds={getVideoDurationSeconds(item)}
-                        isPhotoPost={isCompetitorUgcReplication(item) && !!item.photoOnly}
+                        isPhotoPost={isVideoClone(item) && !!item.photoOnly}
                         inline
                       />
                     </motion.div>
@@ -852,8 +852,8 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                           projectType={
                             item.adType === 'character'
                               ? 'avatar-ads'
-                              : item.adType === 'competitor-ugc-replication'
-                              ? 'competitor-ugc-replication'
+                              : item.adType === 'video-clone'
+                              ? 'video-clone'
                               : 'motion-clone'
                           }
                         />
@@ -1043,7 +1043,7 @@ function FeedbackButtons({
   projectType
 }: {
   projectId: string;
-  projectType: 'avatar-ads' | 'competitor-ugc-replication' | 'motion-clone';
+  projectType: 'avatar-ads' | 'video-clone' | 'motion-clone';
 }) {
   const feedbackButtonBase =
     'inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-[13px] font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/35';

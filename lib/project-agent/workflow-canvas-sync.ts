@@ -19,7 +19,7 @@ type AvatarDraftLike = {
 type CloneReferenceVideoLike = {
   id: string;
   name?: string | null;
-  sourceType?: 'creator' | 'competitor_ad';
+  sourceType?: 'creator' | 'reference_video';
   videoUrl?: string | null;
   cdnUrl?: string | null;
   analysisLanguage?: string | null;

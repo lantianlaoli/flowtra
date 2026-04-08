@@ -100,7 +100,7 @@ export interface Article {
   og_image?: string // Custom Open Graph image URL (overrides default)
 }
 
-// Database types for single_video_projects table (now competitor_ugc_replication_projects)
+// Database types for single_video_projects table (now video_clone_projects)
 export interface SingleVideoProject {
   id: string
   user_id: string
@@ -143,7 +143,7 @@ export interface SingleVideoProject {
   updated_at: string
 }
 
-export interface CompetitorUgcReplicationSegment {
+export interface VideoCloneSegment {
   id: string
   project_id: string
   segment_index: number
@@ -356,24 +356,24 @@ export interface MotionCloneProject {
   updated_at: string
 }
 
-// Database types for competitor_ads table
-// Note: Competitor ads now store only analysis data (no video files or platform info)
-// Files are temporarily uploaded for analysis, then discarded
-export interface CompetitorAd {
+// Database types for reference_videos table
+// Note: Reference videos store analysis data only.
+// Source files may be retained temporarily for analysis and then discarded.
+export interface ReferenceVideo {
   id: string
   user_id: string
-  competitor_name: string
+  reference_name: string
   source_storage_bucket?: StorageBucket | null
   source_storage_path?: string | null
   created_at: string
   updated_at: string
-  // Analysis fields - these contain all valuable data from competitor ads
+  // Analysis fields - these contain the reusable structure from reference videos
   analysis_result?: Record<string, unknown> | null // 10 Veo elements analysis (complete shot breakdown)
   language?: string | null // Language short code (e.g., 'en', 'zh', 'es')
   analysis_status?: 'pending' | 'analyzing' | 'completed' | 'failed'
   analysis_error?: string | null
   analyzed_at?: string | null
-  video_duration_seconds?: number | null // Total runtime for analyzed competitor video
+  video_duration_seconds?: number | null // Total runtime for analyzed reference video
 }
 
 export type Database = {
@@ -384,15 +384,15 @@ export type Database = {
         Insert: Omit<UserCredits, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<UserCredits, 'id' | 'created_at' | 'updated_at'>>
       }
-      competitor_ugc_replication_projects: {
+      video_clone_projects: {
         Row: SingleVideoProject
         Insert: Omit<SingleVideoProject, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<SingleVideoProject, 'id' | 'created_at' | 'updated_at'>>
       }
-      competitor_ugc_replication_segments: {
-        Row: CompetitorUgcReplicationSegment
-        Insert: Omit<CompetitorUgcReplicationSegment, 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Omit<CompetitorUgcReplicationSegment, 'id' | 'created_at' | 'updated_at'>>
+      video_clone_segments: {
+        Row: VideoCloneSegment
+        Insert: Omit<VideoCloneSegment, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<VideoCloneSegment, 'id' | 'created_at' | 'updated_at'>>
       }
       motion_clone_projects: {
         Row: MotionCloneProject
@@ -1001,6 +1001,6 @@ export const deleteProductPhotoFromStorage = async (options: {
   })
 }
 
-// NOTE: Competitor ad storage functions have been removed
-// Competitor ads now only store analysis data, not video files
+// NOTE: Reference video storage functions have been removed
+// Reference videos now store analysis data, not original video files
 // Files are temporarily uploaded for analysis, then discarded immediately

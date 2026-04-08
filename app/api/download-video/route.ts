@@ -160,10 +160,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
       }
     }
 
-    // Schema verified via Supabase MCP (2026-03-06): competitor_ugc_replication_projects columns include
+    // Schema verified via Supabase MCP (2026-03-06): video_clone_projects columns include
     // id, user_id, status, video_url, merged_video_url, downloaded, download_credits_used, last_processed_at
     const { data: historyRecord, error: historyError } = await supabase
-      .from('competitor_ugc_replication_projects')
+      .from('video_clone_projects')
       .select('*')
       .eq('id', historyId)
       .eq('user_id', userId)
@@ -201,7 +201,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<DownloadV
 
       // Mark as downloaded (no credit deduction)
       const { error: updateError } = await supabase
-        .from('competitor_ugc_replication_projects')
+        .from('video_clone_projects')
         .update({
           downloaded: true,
           download_credits_used: 0, // Always 0 in Version 2.0

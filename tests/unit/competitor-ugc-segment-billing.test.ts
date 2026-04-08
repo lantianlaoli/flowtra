@@ -6,7 +6,7 @@ import {
   getSegmentPromptVideoGenerationCost,
   getTimeRangeDurationSeconds,
   parseTimecodeToSeconds
-} from '@/lib/competitor-ugc-segment-billing';
+} from '@/lib/video-clone-segment-billing';
 import { getGenerationCost, getSegmentVideoGenerationCost } from '@/lib/constants';
 
 test('getSegmentVideoGenerationCost returns fixed non-Kling segment pricing', () => {

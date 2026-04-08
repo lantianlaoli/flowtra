@@ -295,7 +295,7 @@ export default function MotionClonePage() {
         const allVideos = data.videos || [];
         const motionCloneVideos = allVideos.filter(
           (video: { source_type?: string }) =>
-            video.source_type !== "competitor_ad",
+            video.source_type !== "reference_video",
         );
         setVideos(motionCloneVideos);
         setProducts(data.products || []);

@@ -13,7 +13,7 @@ import {
   collectKlingMentions,
   replacePromptMentionsWithKlingElements,
 } from '@/lib/kling-elements';
-import { replaceMentionsForPlainText } from '@/lib/competitor-ugc-replication-prompt-compiler';
+import { replaceMentionsForPlainText } from '@/lib/video-clone-prompt-compiler';
 import { verifyInternalUserRequest } from '@/lib/security/internal-request';
 
 export const dynamic = 'force-dynamic';

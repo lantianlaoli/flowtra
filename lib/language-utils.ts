@@ -1,5 +1,5 @@
 /**
- * Language utility functions for competitor ad analysis
+ * Language utility functions for reference video analysis
  *
  * Provides helpers for displaying language information with flags and native names
  */

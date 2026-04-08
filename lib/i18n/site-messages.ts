@@ -236,7 +236,7 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
         discover: {
           title: 'Discover',
           all: 'All',
-          viralClone: 'Viral Clone',
+          viralClone: 'Video Clone',
           character: 'Character',
           motionClone: 'Motion Clone',
           failedToLoad: 'Failed to load content',

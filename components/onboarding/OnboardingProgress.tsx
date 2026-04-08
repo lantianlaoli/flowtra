@@ -70,7 +70,7 @@ export default function OnboardingProgress({ progress, className = '' }: Onboard
       title: 'Generate your first video',
       description: 'Use any feature to create your first output',
       completed: progress.hasCreatedVideo,
-      targetUrl: '/dashboard/competitor-ugc-replication',
+      targetUrl: '/dashboard/video-clone',
       icon: SparklesIcon,
     },
   ];

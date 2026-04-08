@@ -45,7 +45,7 @@ export type ProjectAgentCanvasAssetRef = {
   photos?: string[];
   content?: string | null;
   durationSeconds?: number | null;
-  sourceType?: 'creator' | 'competitor_ad' | null;
+  sourceType?: 'creator' | 'reference_video' | null;
   videoUrl?: string | null;
   videoCdnUrl?: string | null;
   analysisLanguage?: string | null;

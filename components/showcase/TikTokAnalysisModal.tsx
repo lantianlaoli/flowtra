@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { X, CheckCircle, AlertCircle, Loader2, Sparkles, Film, Volume2, Maximize, Download } from 'lucide-react';
-import type { VideoAnalysisResult, CompetitorShot } from '@/hooks/useVideoAnalysis';
+import type { VideoAnalysisResult, ReferenceVideoShot } from '@/hooks/useVideoAnalysis';
 
 interface TikTokAnalysisModalProps {
   isOpen: boolean;
@@ -133,7 +133,7 @@ export function TikTokAnalysisModal({
       setShareImageError(null);
       setShareImageStatus('generating');
 
-      const response = await fetch('/api/competitor-ads/share-image', {
+      const response = await fetch('/api/reference-videos/share-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -230,7 +230,7 @@ export function TikTokAnalysisModal({
       }
 
       try {
-        const response = await fetch(`/api/competitor-ads/share-image?taskId=${encodeURIComponent(shareImageTaskId)}`);
+        const response = await fetch(`/api/reference-videos/share-image?taskId=${encodeURIComponent(shareImageTaskId)}`);
         const data = await response.json();
 
         if (!response.ok || !data.success) {
@@ -326,13 +326,13 @@ export function TikTokAnalysisModal({
       }, 3000);
 
       // Call Analysis API with the fetched URL
-      const analyzeRes = await fetch('/api/competitor-ads/analyze-preview', {
+      const analyzeRes = await fetch('/api/reference-videos/analyze-preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           file_url: fetchedVideoUrl,
           is_external_url: true, // Use external URL mode
-          competitor_name: 'TikTok Video'
+          reference_name: 'TikTok Video'
         }),
       });
 
@@ -389,17 +389,17 @@ export function TikTokAnalysisModal({
     if (!result) return;
 
     if (!isSignedIn) {
-      window.location.href = '/sign-up?redirect_url=/dashboard/competitor-ugc-replication';
+      window.location.href = '/sign-up?redirect_url=/dashboard/video-clone';
       return;
     }
 
     try {
       const creatorSourceVideoId = await persistCreatorSourceVideo(result);
-      sessionStorage.setItem('preselect_competitor_ad', JSON.stringify({
+      sessionStorage.setItem('preselect_reference_video', JSON.stringify({
         creatorSourceVideoId,
         videoId: creatorSourceVideoId,
       }));
-      window.location.href = '/dashboard/competitor-ugc-replication';
+      window.location.href = '/dashboard/video-clone';
     } catch (cloneError) {
       console.error('[TikTokAnalysisModal] Clone setup failed:', cloneError);
       setCloneReadyStatus('error');
@@ -557,7 +557,7 @@ export function TikTokAnalysisModal({
                         ))
                       ) : (
                         // Real Shots
-                        result?.analysis.shots.map((shot: CompetitorShot) => (
+                        result?.analysis.shots.map((shot: ReferenceVideoShot) => (
                           <div 
                             key={shot.shot_id} 
                             className="group rounded-[24px] border border-[#E8E8E3] bg-[#FBFBFA] p-5 transition-all duration-200 hover:border-[#CFCFC9] hover:bg-white hover:shadow-[0_10px_30px_rgba(0,0,0,0.04)]"

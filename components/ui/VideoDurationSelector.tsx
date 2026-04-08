@@ -22,7 +22,7 @@ interface VideoDurationSelectorProps {
   disabled?: boolean;
   disabledDurations?: VideoDuration[];
   options?: VideoDurationOption[];
-  recommendedDuration?: VideoDuration | null; // NEW: Recommended duration from competitor ad
+  recommendedDuration?: VideoDuration | null; // NEW: Recommended duration from reference video
 }
 
 export default function VideoDurationSelector({
