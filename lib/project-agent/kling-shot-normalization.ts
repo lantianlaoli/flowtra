@@ -8,6 +8,7 @@ import { KLING_MAX_MULTI_SHOT_ITEMS } from '@/lib/kling-shot-limits';
 import {
   formatTimelineRange,
   normalizeTimelineRanges,
+  parseTimelineRange,
 } from '@/lib/segment-shot-timeline';
 import {
   buildProjectAgentLegacyAudioField,
@@ -54,9 +55,13 @@ function buildShotBuckets(
   const normalizedShots = (shots.length > 0 ? shots : [undefined]).map((shot, index) => (
     serializeProjectAgentCloneShot(shot, index, fallbackLanguage)
   ));
+  const parsedTotalDuration = normalizedShots.reduce((sum, shot) => {
+    const range = parseTimelineRange(shot.time_range);
+    return sum + Math.max(0, (range?.endSec ?? 0) - (range?.startSec ?? 0));
+  }, 0);
   const timeline = normalizeTimelineRanges(
     normalizedShots.map((shot) => ({ id: shot.id, time_range: shot.time_range })),
-    Math.max(1, normalizedShots.length * 2)
+    Math.max(1, parsedTotalDuration, normalizedShots.length * 2)
   );
 
   return normalizedShots.map((shot, index) => {

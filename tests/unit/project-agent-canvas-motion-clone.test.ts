@@ -202,7 +202,7 @@ test('startMotionClone rejects competitor ad references before making requests',
         },
       },
     }),
-    /Motion Clone requires a creator video, not a competitor ad\./
+    /Motion Clone requires a creator video, not a reference video\./
   );
 });
 

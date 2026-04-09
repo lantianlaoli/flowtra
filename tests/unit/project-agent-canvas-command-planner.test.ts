@@ -15,10 +15,11 @@ test('planner opens the video picker for clone-video intent', () => {
   );
 
   assert.ok(plan);
-  assert.equal(plan?.type, 'asset_selection');
-  if (plan?.type !== 'asset_selection') return;
-  assert.equal(plan.request.assetType, 'video');
-  assert.equal(plan.request.title, 'Select a video for Video Clone');
+  assert.equal(plan?.type, 'safe_edit');
+  if (plan?.type !== 'safe_edit') return;
+  assert.equal(plan.actions[0]?.kind, 'canvas_mutation');
+  if (plan.actions[0]?.kind !== 'canvas_mutation') return;
+  assert.equal(plan.actions[0].mutation.type, 'add_feature_node');
 });
 
 test('planner requests confirmation before deleting a multi-selection', () => {
