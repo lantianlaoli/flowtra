@@ -28,7 +28,6 @@ import {
   getProjectAgentCanvasNodeSize,
   getProjectAgentAssetDisplayName,
   getProjectAgentFeatureDisplayName,
-  formatMissingFeatureInputsLabel,
   isProjectAgentAssetNode,
   isProjectAgentFeatureNode,
   isProjectAgentOutputNode,
@@ -39,6 +38,7 @@ import {
   type ProjectAgentCanvasState,
   type ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
+import { getProjectAgentFeaturePlaceholderCopy } from '@/lib/project-agent/canvas-ui';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 type CanvasBoardProps = {
@@ -830,11 +830,11 @@ export default function CanvasBoard({
                       <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl bg-[#f8f7f2] px-3 py-4">
                         {FeatureIcon ? <FeatureIcon className="h-5 w-5 text-[#c8c5bc]" /> : null}
                         <p className="text-center text-[11px] leading-relaxed text-[#b8b5ad]">
-                          {blockedReason
-                            ? blockedReason
-                            : missingInputs.length > 0
-                            ? `Connect ${formatMissingFeatureInputsLabel(node.type, missingInputs).replace(', ', ' and ')} to start`
-                            : 'Ready to start'}
+                          {getProjectAgentFeaturePlaceholderCopy({
+                            featureType: node.type,
+                            blockedReason,
+                            missingInputs,
+                          })}
                         </p>
                       </div>
                     )}

@@ -119,7 +119,7 @@ export interface SingleVideoProject {
   current_step?: 'describing' | 'generating_prompts' | 'generating_cover' | 'generating_video' | 'completed'
   progress_percentage?: number
   last_processed_at?: string
-  selected_inputs?: Record<string, unknown> | null // Multi-selection context (primary + arrays)
+  selected_inputs?: VideoCloneSelectedInputs | null // Multi-selection context (primary + arrays)
   product_image_urls?: string[] | null
   video_generation_requested?: boolean | null // Whether user approved moving from cover to video
   video_aspect_ratio?: string // Video aspect ratio, defaults to '16:9'
@@ -141,6 +141,21 @@ export interface SingleVideoProject {
   retry_count?: number // Number of automatic retries for server errors (failCode: 500)
   created_at: string
   updated_at: string
+}
+
+export interface VideoCloneSelectedInputs {
+  primaryAvatarId?: string | null
+  primaryProductId?: string | null
+  avatarIds?: string[]
+  productIds?: string[]
+  workflowSource?: 'project_agent_clone' | 'default' | string
+  mergePolicy?: 'manual_confirm' | 'auto' | string
+  referenceSourceType?: 'reference_video' | 'creator_source_video' | null
+  referenceSourceMediaType?: 'video' | null
+  referenceSourceId?: string | null
+  isCloneMode?: boolean
+  supplementalText?: string | null
+  [key: string]: unknown
 }
 
 export interface VideoCloneSegment {

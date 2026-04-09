@@ -308,12 +308,14 @@ export const buildVideoCloneStartPayload = (input: {
   avatar?: ProjectAgentCanvasAssetRef | null;
   product?: ProjectAgentCanvasAssetRef | null;
   video: ProjectAgentCanvasAssetRef;
+  text?: ProjectAgentCanvasAssetRef | null;
   config?: ProjectAgentFeatureNodeConfig | null;
 }) => ({
   creatorSourceVideoId: input.video.sourceType === 'reference_video' ? undefined : input.video.id,
   referenceVideoId: input.video.sourceType === 'reference_video' ? input.video.id : undefined,
   selectedAvatarIds: input.avatar?.id ? [input.avatar.id] : [],
   selectedProductIds: input.product?.id ? [input.product.id] : [],
+  supplementalText: input.text?.content?.trim() || undefined,
   videoModel: 'kling_3' as const,
   videoAspectRatio: input.config?.aspectRatio || '9:16',
   videoDuration: input.config?.videoDuration || '8',

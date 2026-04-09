@@ -1,4 +1,5 @@
 import { getSupabaseAdmin, type VideoCloneSegment, type SingleVideoProject } from '@/lib/supabase';
+import type { VideoCloneSelectedInputs } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { extractAIGatewayTextContent, sendAIGatewayChat } from '@/lib/ai-gateway';
 import {
@@ -121,6 +122,7 @@ export interface StartWorkflowRequest {
   useCustomScript?: boolean; // Flag to enable custom script mode
   resolvedVideoModel?: VideoModel;
   requestSource?: 'project_agent_clone' | 'default';
+  supplementalText?: string;
   segmentPrompts?: Array<{
     first_frame_description?: string;
     is_continuation_from_prev?: boolean;
@@ -142,6 +144,64 @@ export interface StartWorkflowRequest {
     }>;
   }>;
 }
+
+const normalizeSupplementalText = (value: string | null | undefined): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+export const buildSupplementalTextPromptInstruction = (
+  supplementalText: string | null | undefined,
+): string => {
+  const normalized = normalizeSupplementalText(supplementalText);
+  if (!normalized) return '';
+
+  return [
+    'HIGH-PRIORITY SUPPLEMENTAL PRODUCT BEHAVIOR GUIDANCE:',
+    normalized,
+    'This guidance must be applied as a strong constraint for product motion, effect placement, and how the product behaves on screen. Preserve the storyboard structure unless this guidance is needed to correct product-specific behavior.',
+  ].join('\n');
+};
+
+const SENTENCE_END_REGEX = /[.!?]$/;
+
+const ensureSentence = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return SENTENCE_END_REGEX.test(trimmed) ? trimmed : `${trimmed}.`;
+};
+
+const appendConstraint = (base: string, constraint: string): string => {
+  const normalizedBase = base.trim();
+  if (!normalizedBase) return constraint;
+  if (normalizedBase.includes(constraint)) return normalizedBase;
+  return `${ensureSentence(normalizedBase)} ${constraint}`;
+};
+
+export const applySupplementalTextToSegments = (
+  segments: SegmentPrompt[],
+  supplementalText: string | null | undefined,
+): SegmentPrompt[] => {
+  const normalized = normalizeSupplementalText(supplementalText);
+  if (!normalized) {
+    return segments;
+  }
+
+  const frameConstraint = `Product behavior constraint: ${ensureSentence(normalized)}`;
+  const shotConstraint = `Must visibly follow this exact product behavior: ${ensureSentence(normalized)}`;
+
+  return segments.map((segment) => ({
+    ...segment,
+    first_frame_description: appendConstraint(segment.first_frame_description || '', frameConstraint),
+    shots: Array.isArray(segment.shots)
+      ? segment.shots.map((shot) => ({
+          ...shot,
+          action: appendConstraint(shot.action || '', shotConstraint),
+        }))
+      : segment.shots,
+  }));
+};
 
 interface WorkflowResult {
   success: boolean;
@@ -262,7 +322,7 @@ export function resolveCloneModeFromProject(project: SingleVideoProject | Record
     : null;
   const selectedInputs =
     projectRecord?.selected_inputs && typeof projectRecord.selected_inputs === 'object'
-      ? projectRecord.selected_inputs as Record<string, unknown>
+      ? projectRecord.selected_inputs as VideoCloneSelectedInputs
       : null;
 
   const sourceType = normalizeReferenceSourceType(selectedInputs?.referenceSourceType);
@@ -1559,17 +1619,20 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
             isCloneMode: false
           };
 
+    const selectedInputs: VideoCloneSelectedInputs = {
+      primaryAvatarId: cloneReferenceAssets.selectedAvatarId || null,
+      primaryProductId: cloneReferenceAssets.selectedProductId || null,
+      avatarIds: cloneReferenceAssets.selectedAvatarIds || [],
+      productIds: cloneReferenceAssets.selectedProductIds || [],
+      workflowSource: request.requestSource || 'default',
+      mergePolicy: request.requestSource === 'project_agent_clone' ? 'manual_confirm' : 'auto',
+      supplementalText: normalizeSupplementalText(request.supplementalText),
+      ...cloneReferenceSource
+    };
+
     const projectInsertWithSelectedInputs = {
       ...projectInsertBase,
-      selected_inputs: {
-        primaryAvatarId: cloneReferenceAssets.selectedAvatarId || null,
-        primaryProductId: cloneReferenceAssets.selectedProductId || null,
-        avatarIds: cloneReferenceAssets.selectedAvatarIds || [],
-        productIds: cloneReferenceAssets.selectedProductIds || [],
-        workflowSource: request.requestSource || 'default',
-        mergePolicy: request.requestSource === 'project_agent_clone' ? 'manual_confirm' : 'auto',
-        ...cloneReferenceSource
-      }
+      selected_inputs: selectedInputs
     };
 
     // Create project record in video_clone_projects table.
@@ -2017,7 +2080,8 @@ async function startAIWorkflow(
           segmentCount,
           request.resolvedVideoModel,
           productContext,
-          referenceVideoDescription // Pass reference video analysis result (not raw context)
+          referenceVideoDescription, // Pass reference video analysis result (not raw context)
+          request.supplementalText,
         );
 
     if (hasSegmentPromptOverrides) {
@@ -2565,7 +2629,8 @@ async function generateImageBasedPrompts(
   segmentCount = 1,
   videoModel?: VideoModel,
   productContext?: { product_name?: string },
-  referenceVideoDescription?: Record<string, unknown> // Changed: Now receives analysis result, not raw context
+  referenceVideoDescription?: Record<string, unknown>, // Changed: Now receives analysis result, not raw context
+  supplementalText?: string,
 ): Promise<Record<string, unknown>> {
   console.log(`[generateImageBasedPrompts] Step 2: Generating prompts for our product${referenceVideoDescription ? ' (reference-video mode)' : ' (traditional mode)'}${!imageUrl ? ' (no product image provided)' : ''}`);
 
@@ -2672,6 +2737,8 @@ Return JSON:
 
 No other top-level keys or metadata.`;
 
+  const supplementalInstruction = buildSupplementalTextPromptInstruction(supplementalText);
+
   const responseFormat = {
     type: "json_schema",
     json_schema: {
@@ -2726,7 +2793,9 @@ Your task is to create a similar advertisement for OUR product${imageUrl ? ' (sh
 - Keep the same level of detail and specificity as the source analysis
 - Example: If the source has "A medium shot captures a woman with shoulder-length blonde wavy hair...", you should keep all those details but replace the product with ours
 
-${imageUrl ? 'Remember: The user\'s image is OUR product - adapt the reference video to showcase OUR product instead.' : 'Note: No product image provided - use product context to adapt the reference video.'}`
+${imageUrl ? 'Remember: The user\'s image is OUR product - adapt the reference video to showcase OUR product instead.' : 'Note: No product image provided - use product context to adapt the reference video.'}
+
+${supplementalInstruction ? `${supplementalInstruction}` : ''}`
           },
           {
             role: 'user',
@@ -2750,6 +2819,8 @@ Use the reference video analysis provided in the system message to recreate the 
 
 ${productContext?.product_name ? `Product Context:\nProduct Name: ${productContext.product_name}\n(Use this to ensure accurate product replacement)\n` : ''}
 
+${supplementalInstruction ? `${supplementalInstruction}\n\n` : ''}
+
 ${strictSegmentFormat}`
                   }
                 ]
@@ -2765,6 +2836,8 @@ ${strictSegmentFormat}`
 - Keep all environmental details, lighting descriptions, composition specifics unchanged
 
 ${productContext?.product_name ? `Product Context:\nProduct Name: ${productContext.product_name}\n(Use this context when replacing subjects or props)\n` : ''}
+
+${supplementalInstruction ? `${supplementalInstruction}\n\n` : ''}
 
 ${strictSegmentFormat}`
                   }
@@ -2789,6 +2862,8 @@ Analyze the product image and build a storyboard that feels like a premium adver
 
 ${productContext?.product_name ? `Product Context:\nProduct Name: ${productContext.product_name}\n(Use this context sparingly and only when it matches what you see in the photo)\n` : ''}
 
+${supplementalInstruction ? `${supplementalInstruction}\n\n` : ''}
+
 Focus on real visual cues from the image: product texture, use cases, target audience, and natural environments. Dialogue must describe the product or experience without adding slogans or pricing.
 
 ${strictSegmentFormat}`
@@ -2802,6 +2877,8 @@ ${strictSegmentFormat}`
 Use ONLY the product context to imagine what the product looks like in the real world, then output a storyboard following the exact reference-video-inspired schema.
 
 ${productContext?.product_name ? `Product Context:\nProduct Name: ${productContext.product_name}\n(Use this to inform the visuals you invent)\n` : ''}
+
+${supplementalInstruction ? `${supplementalInstruction}\n\n` : ''}
 
 Every segment must feel grounded, cinematic, and ready for production. Mention props, environments, and characters explicitly.
 
@@ -2879,7 +2956,9 @@ ${strictSegmentFormat}`
           }
         });
 
-        parsed = { segments };
+        parsed = {
+          segments: applySupplementalTextToSegments(segments, supplementalText),
+        };
 
         console.log('✅ Structured output parsed successfully with all required fields');
       } catch (parseError) {

@@ -37,6 +37,16 @@ test('buildVideoCloneStartPayload supports product-only replacements', () => {
   assert.deepEqual(payload.selectedProductIds, ['product-1']);
 });
 
+test('buildVideoCloneStartPayload includes trimmed supplemental text guidance', () => {
+  const payload = buildVideoCloneStartPayload({
+    product: { id: 'product-1', name: 'Bubble machine' },
+    text: { id: 'text-1', name: 'Text', content: '  Bubbles should emerge from the front nozzle after the motor starts.  ' },
+    video: { id: 'video-1', name: 'Video', sourceType: 'reference_video', analysisLanguage: 'en' },
+  });
+
+  assert.equal(payload.supplementalText, 'Bubbles should emerge from the front nozzle after the motor starts.');
+});
+
 test('buildAvatarAdsStartPayload keeps strict avatar and product requirements', () => {
   const payload = buildAvatarAdsStartPayload({
     avatar: { id: 'avatar-1', name: 'Avatar', imageUrl: 'https://example.com/avatar.png' },

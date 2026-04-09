@@ -177,6 +177,7 @@ const assertVideoCloneCredits = async (userId: string, body: CanvasRunRequestBod
     avatar,
     product,
     video,
+    text: body.connectedAssets?.text || null,
     config: body.config,
   });
 
@@ -350,6 +351,7 @@ const startVideoClone = async (origin: string, userId: string, body: CanvasRunRe
     avatar,
     product,
     video,
+    text: body.connectedAssets?.text || null,
     config: body.config,
   });
 

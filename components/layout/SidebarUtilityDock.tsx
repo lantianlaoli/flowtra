@@ -98,6 +98,15 @@ export default function SidebarUtilityDock({
   const selectedOption =
     SITE_LOCALE_OPTIONS.find((option) => option.value === locale) ?? SITE_LOCALE_OPTIONS[0];
 
+  const toggleLanguageMenu = () => {
+    setIsLanguageOpen((current) => !current);
+  };
+
+  const selectLanguage = (value: (typeof SITE_LOCALE_OPTIONS)[number]['value']) => {
+    setLocale(value);
+    setIsLanguageOpen(false);
+  };
+
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent | globalThis.MouseEvent) => {
       if (languageRef.current && !languageRef.current.contains(event.target as Node)) {
@@ -122,7 +131,16 @@ export default function SidebarUtilityDock({
       <div ref={languageRef} className="relative">
         <button
           type="button"
-          onClick={() => setIsLanguageOpen((current) => !current)}
+          onPointerUp={(event) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            toggleLanguageMenu();
+          }}
+          onClick={(event) => {
+            if (event.detail !== 0) return;
+            event.preventDefault();
+            toggleLanguageMenu();
+          }}
           aria-label={utilityMessages.language}
           aria-expanded={isLanguageOpen}
           title={`${utilityMessages.language}: ${selectedOption.nativeName}`}
@@ -142,9 +160,15 @@ export default function SidebarUtilityDock({
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => {
-                      setLocale(option.value);
-                      setIsLanguageOpen(false);
+                    onPointerUp={(event) => {
+                      if (event.button !== 0) return;
+                      event.preventDefault();
+                      selectLanguage(option.value);
+                    }}
+                    onClick={(event) => {
+                      if (event.detail !== 0) return;
+                      event.preventDefault();
+                      selectLanguage(option.value);
                     }}
                     className={`flex items-center justify-between rounded-[14px] px-3 py-2 text-left text-[14px] transition-colors ${
                       isActive ? 'bg-black text-white' : 'text-black hover:bg-[#F7F7F7]'

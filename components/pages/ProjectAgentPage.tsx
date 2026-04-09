@@ -5,7 +5,7 @@ import { DefaultChatTransport } from 'ai';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import { useUser } from '@clerk/nextjs';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { AlertTriangle, ArrowUpRight, History, Loader2, MessageCircle, Plus, Search } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, History, Loader2, MessageCircle, Plus, Search, X } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import CreateAvatarModal from '@/components/CreateAvatarModal';
@@ -19,6 +19,10 @@ import NodeDetailsDialog from '@/components/project-agent/canvas/NodeDetailsDial
 import { useCredits } from '@/contexts/CreditsContext';
 import { useI18n } from '@/providers/I18nProvider';
 import { toProjectAgentVideoAssets } from '@/lib/project-agent/canvas-assets';
+import {
+  createProjectAgentCanvasNotice,
+  type ProjectAgentCanvasNotice,
+} from '@/lib/project-agent/canvas-ui';
 import {
   getProjectAgentVisibleMessageText,
   parseProjectAgentMessageParts,
@@ -83,6 +87,8 @@ type HistoryItem = {
   updatedAt: string;
 };
 
+const CANVAS_NOTICE_TIMEOUT_MS = 5000;
+
 type SnappedConnectionTarget = {
   targetNodeId: string;
   handle: ProjectAgentAssetNodeType;
@@ -138,6 +144,13 @@ export const hasVisibleAssistantReplyAfterLatestUserTurn = (messages: UIMessage[
     }
   }
   return false;
+};
+
+export const getProjectAgentDisplayMessageKey = (message: UIMessage, index: number) => {
+  const visibleText = getProjectAgentVisibleMessageText(message).trim();
+  const reasoningText = parseProjectAgentMessageParts(message).reasoningText.trim();
+  const contentSignature = (visibleText || reasoningText || '').slice(0, 80);
+  return `${message.id}:${message.role}:${contentSignature}:${index}`;
 };
 
 const buildHistoryTitle = (messages: UIMessage[]) => {
@@ -257,6 +270,7 @@ export default function ProjectAgentPage() {
   const [draft, setDraft] = useState('');
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const [statusNote, setStatusNote] = useState('');
+  const [canvasNotice, setCanvasNotice] = useState<ProjectAgentCanvasNotice | null>(null);
   const [pendingUiRequest, setPendingUiRequest] = useState<ProjectAgentPendingUiRequest | null>(null);
   const [appliedCanvasActionCallIds, setAppliedCanvasActionCallIds] = useState<string[]>([]);
   const [toolbarOpenKey, setToolbarOpenKey] = useState<'avatar' | 'product' | 'video' | 'feature' | null>(null);
@@ -290,6 +304,7 @@ export default function ProjectAgentPage() {
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
   const persistenceTimeoutRef = useRef<number | null>(null);
+  const canvasNoticeTimeoutRef = useRef<number | null>(null);
   const dragMovedRef = useRef(false);
   const previousAwaitingAssistantTurnRef = useRef(false);
   const statusFetchInFlightRef = useRef<Set<string>>(new Set());
@@ -358,6 +373,12 @@ export default function ProjectAgentPage() {
     }
   }, [pendingUiRequest]);
 
+  useEffect(() => () => {
+    if (canvasNoticeTimeoutRef.current) {
+      window.clearTimeout(canvasNoticeTimeoutRef.current);
+    }
+  }, []);
+
   const persistSessionState = useCallback((statePatch: Record<string, unknown>, debounceMs = 0) => {
     if (!sessionId) return;
     if (persistenceTimeoutRef.current) {
@@ -381,6 +402,29 @@ export default function ProjectAgentPage() {
 
     persist();
   }, [sessionId]);
+
+  const dismissCanvasNotice = useCallback(() => {
+    if (canvasNoticeTimeoutRef.current) {
+      window.clearTimeout(canvasNoticeTimeoutRef.current);
+      canvasNoticeTimeoutRef.current = null;
+    }
+    setCanvasNotice(null);
+  }, []);
+
+  const showCanvasNotice = useCallback((message: string) => {
+    const nextNotice = createProjectAgentCanvasNotice(message);
+    if (!nextNotice) return;
+
+    if (canvasNoticeTimeoutRef.current) {
+      window.clearTimeout(canvasNoticeTimeoutRef.current);
+    }
+
+    setCanvasNotice(nextNotice);
+    canvasNoticeTimeoutRef.current = window.setTimeout(() => {
+      setCanvasNotice(null);
+      canvasNoticeTimeoutRef.current = null;
+    }, CANVAS_NOTICE_TIMEOUT_MS);
+  }, []);
 
   const updateCanvas = useCallback((updater: ProjectAgentCanvasState | ((current: ProjectAgentCanvasState) => ProjectAgentCanvasState)) => {
     setCanvas((current) => {
@@ -1018,6 +1062,9 @@ export default function ProjectAgentPage() {
       canvasRef.current = result.canvas;
       setDetailNodeId(result.detailNodeId);
       setPendingUiRequest(result.pendingUiRequest);
+      if (result.statusNote) {
+        showCanvasNotice(result.statusNote);
+      }
       persistSessionState({
         canvas: result.canvas,
         pendingUiRequest: result.pendingUiRequest,
@@ -1026,7 +1073,7 @@ export default function ProjectAgentPage() {
       }, 180);
       return result.canvas;
     });
-  }, [detailNodeId, locale, persistSessionState]);
+  }, [detailNodeId, locale, persistSessionState, showCanvasNotice]);
 
   useEffect(() => {
     messages.forEach((message) => {
@@ -1141,8 +1188,9 @@ export default function ProjectAgentPage() {
     const text = draft;
     setDraft('');
     setStatusNote('');
+    dismissCanvasNotice();
     await sendMessage({ text });
-  }, [draft, ensureHistoryTracked, sendMessage, sessionId]);
+  }, [dismissCanvasNotice, draft, ensureHistoryTracked, sendMessage, sessionId]);
 
   const handleCanvasDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -1360,7 +1408,7 @@ export default function ProjectAgentPage() {
         if (!connectionCommittedRef.current && snappedConnectionTarget) {
           connectionCommittedRef.current = true;
           if (snappedConnectionTarget.errorMessage) {
-            setStatusNote(snappedConnectionTarget.errorMessage);
+            showCanvasNotice(snappedConnectionTarget.errorMessage);
           } else {
             updateCanvas((current) => connectCanvasNodes(current, {
               id: createProjectAgentCanvasEdgeId(
@@ -1461,7 +1509,7 @@ export default function ProjectAgentPage() {
     const errorMessage = getCanvasConnectionError(canvas, edge);
     if (errorMessage) {
       connectionCommittedRef.current = true;
-      setStatusNote(errorMessage);
+      showCanvasNotice(errorMessage);
       setPendingConnectionSourceId(null);
       setPendingConnectionPoint(null);
       setSnappedConnectionTarget(null);
@@ -1469,7 +1517,7 @@ export default function ProjectAgentPage() {
     }
     connectionCommittedRef.current = true;
     updateCanvas((current) => connectCanvasNodes(current, edge));
-    setStatusNote('');
+    dismissCanvasNotice();
     setPendingConnectionSourceId(null);
     setPendingConnectionPoint(null);
     setSnappedConnectionTarget(null);
@@ -1478,14 +1526,15 @@ export default function ProjectAgentPage() {
   const handleRemoveEdge = useCallback((edgeId: string) => {
     updateCanvas((current) => removeCanvasEdge(current, edgeId));
     setSelectedEdgeId(null);
-  }, [updateCanvas]);
+    dismissCanvasNotice();
+  }, [dismissCanvasNotice, updateCanvas]);
 
   const handleDeleteNode = useCallback((nodeId: string) => {
     updateCanvas((current) => removeCanvasNode(current, nodeId));
     setSelectedEdgeId(null);
-    setStatusNote('');
+    dismissCanvasNotice();
     setDetailNodeId((current) => (current === nodeId ? null : current));
-  }, [updateCanvas]);
+  }, [dismissCanvasNotice, updateCanvas]);
 
   const handleUpdateNodeContent = useCallback((nodeId: string, content: string) => {
     updateCanvas((current) => {
@@ -1568,17 +1617,17 @@ export default function ProjectAgentPage() {
       setPendingConnectionSourceId(null);
       setPendingConnectionPoint(null);
       setSnappedConnectionTarget(null);
-      setStatusNote(`Add a compatible feature node before connecting this ${assetType}.`);
+      showCanvasNotice(`Add a compatible feature node before connecting this ${assetType}.`);
       return;
     }
 
     connectionCommittedRef.current = false;
-    setStatusNote('');
+    dismissCanvasNotice();
     const point = getCanvasPointFromClient(event.clientX, event.clientY);
     setPendingConnectionSourceId(nodeId);
     setPendingConnectionPoint(point);
     setSnappedConnectionTarget(point ? getSnappedConnectionTarget(nodeId, point) : null);
-  }, [canvas, getCanvasPointFromClient, getSnappedConnectionTarget]);
+  }, [canvas, dismissCanvasNotice, getCanvasPointFromClient, getSnappedConnectionTarget, showCanvasNotice]);
 
   const buildNodeConnectedAssetsPayload = useCallback((nodeId: string) => {
     const inputs = getConnectedAssetNodeMap(canvas, nodeId);
@@ -1871,6 +1920,22 @@ export default function ProjectAgentPage() {
                   selectedEdgeId={selectedEdgeId}
                 />
               </div>
+              {canvasNotice ? (
+                <div className="pointer-events-none absolute left-1/2 top-4 z-40 flex -translate-x-1/2 justify-center px-4">
+                  <div className="pointer-events-auto flex max-w-[min(560px,calc(100vw-3rem))] items-start gap-3 rounded-full border border-amber-200 bg-[rgba(255,251,235,0.96)] px-4 py-3 text-sm text-amber-900 shadow-[0_16px_40px_rgba(15,15,15,0.12)] backdrop-blur-md animate-in fade-in zoom-in-95">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <p className="line-clamp-2 min-w-0 flex-1 leading-5">{canvasNotice.message}</p>
+                    <button
+                      type="button"
+                      onClick={dismissCanvasNotice}
+                      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-amber-700 transition-colors hover:bg-amber-100"
+                      aria-label="Dismiss canvas warning"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               <div data-canvas-ui="true" className="pointer-events-none absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 justify-center">
                 <InsertToolbar
                   avatars={avatars}
@@ -1932,6 +1997,7 @@ export default function ProjectAgentPage() {
                               setMessages([]);
                               setDraft('');
                               setStatusNote('');
+                              dismissCanvasNotice();
                               setHistoryQuery('');
                               setIsHistoryPopoverOpen(false);
                             }}
@@ -2007,7 +2073,7 @@ export default function ProjectAgentPage() {
 
               <div ref={chatScrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
                 <div className="space-y-4">
-                  {displayMessages.map((message) => {
+                  {displayMessages.map((message, index) => {
                     const { visibleText, reasoningText } = parseProjectAgentMessageParts(message);
                     const messageText = visibleText.trim();
                     const reasoning = reasoningText.trim();
@@ -2015,7 +2081,7 @@ export default function ProjectAgentPage() {
                     const shouldRenderBubble = isUserMessage || messageText.length > 0;
 
                     return (
-                      <div key={message.id} className={isUserMessage ? 'ml-auto w-fit max-w-[94%]' : 'max-w-[94%]'}>
+                      <div key={getProjectAgentDisplayMessageKey(message, index)} className={isUserMessage ? 'ml-auto w-fit max-w-[94%]' : 'max-w-[94%]'}>
                         {!isUserMessage && reasoning ? (
                           <details className="mb-2 rounded-[12px] border border-[#d9d9d7] bg-[#f7f7f5] px-3 py-2 text-[#6c6c66]">
                             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-medium marker:hidden">

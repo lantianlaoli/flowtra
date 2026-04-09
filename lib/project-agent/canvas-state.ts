@@ -185,6 +185,7 @@ export const PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS: Partial<Record<
   ProjectAgentFeatureNodeType,
   ProjectAgentAssetNodeType[]
 >> = {
+  video_clone: ['text'],
   avatar_ads: ['product'],
 };
 

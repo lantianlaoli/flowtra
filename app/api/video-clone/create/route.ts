@@ -82,6 +82,13 @@ export async function POST(request: NextRequest) {
       requestData.customScript = trimmedScript;
     }
 
+    if (typeof requestData.supplementalText === 'string') {
+      const trimmedSupplementalText = requestData.supplementalText.trim();
+      requestData.supplementalText = trimmedSupplementalText || undefined;
+    } else {
+      requestData.supplementalText = undefined;
+    }
+
     // Ensure photoOnly field is correctly set as inverse of shouldGenerateVideo
     // If interface selected image only, then shouldGenerateVideo should be false, photoOnly should be true
     requestData.photoOnly = requestData.shouldGenerateVideo === undefined ? false : !requestData.shouldGenerateVideo;
