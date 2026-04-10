@@ -9,6 +9,7 @@ import {
   createProjectAgentCanvasEdgeId,
   createProjectAgentFeatureNode,
   getMissingFeatureInputs,
+  isProjectAgentRuntimeActive,
   normalizeCanvasState,
 } from '@/lib/project-agent/canvas-state';
 
@@ -169,4 +170,26 @@ test('video clone accepts an optional text node without changing required inputs
 
   assert.deepEqual(getMissingFeatureInputs(state, featureNode.id), []);
   assert.equal(canRunFeatureNode(state, featureNode.id), true);
+});
+
+test('runtime with active milestones stays active even if executionState drifted from running', () => {
+  assert.equal(isProjectAgentRuntimeActive({
+    executionState: 'ready',
+    phase: 'awaiting_review',
+    milestones: [
+      { key: 'preparing_prompt', label: 'Preparing prompt', state: 'completed' },
+      { key: 'generating_cover', label: 'Generating cover', state: 'active' },
+      { key: 'generating_video', label: 'Generating video', state: 'pending' },
+      { key: 'completed', label: 'Completed', state: 'pending' },
+    ],
+  }), true);
+
+  assert.equal(isProjectAgentRuntimeActive({
+    executionState: 'ready',
+    phase: 'idle',
+    milestones: [
+      { key: 'preparing_prompt', label: 'Preparing prompt', state: 'completed' },
+      { key: 'generating_cover', label: 'Generating cover', state: 'pending' },
+    ],
+  }), false);
 });

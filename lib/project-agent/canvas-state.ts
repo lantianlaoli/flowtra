@@ -77,6 +77,15 @@ export type ProjectAgentCanvasNodeRuntime = {
   blockedReason?: string | null;
 };
 
+export const isProjectAgentRuntimeActive = (
+  runtime: ProjectAgentCanvasNodeRuntime | null | undefined
+) => {
+  if (!runtime) return false;
+  if (runtime.executionState === 'running') return true;
+  if (runtime.phase === 'queued') return true;
+  return Boolean(runtime.milestones?.some((milestone) => milestone.state === 'active'));
+};
+
 export type ProjectAgentCanvasNode = {
   id: string;
   type: ProjectAgentCanvasNodeType;

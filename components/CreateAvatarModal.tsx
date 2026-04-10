@@ -9,6 +9,7 @@ import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import { waitForAiReferenceAngleJobs } from '@/lib/ai-reference-angle-jobs-client';
 import type { AiReferenceAngleCreateJobResponse } from '@/lib/ai-reference-angle-jobs';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
+import { useI18n } from '@/providers/I18nProvider';
 import AssetCreationFields from './AssetCreationFields';
 
 interface CreateAvatarModalProps {
@@ -25,26 +26,15 @@ interface PreviewFile {
   preview: string;
 }
 
-const AVATAR_REFERENCE_SLOTS = [
-  {
-    label: '45° Front Left',
-    description: 'Show the left-front facial angle and shoulder line.'
-  },
-  {
-    label: '45° Front Right',
-    description: 'Show the right-front facial angle and silhouette.'
-  },
-  {
-    label: 'Back View',
-    description: 'Show the rear profile, hair, or outfit details.'
-  }
-];
-
 export default function CreateAvatarModal({
   isOpen,
   onClose,
   onAvatarCreated
 }: CreateAvatarModalProps) {
+  const { messages } = useI18n();
+  const assetsMessages = messages.dashboard.assets;
+  const createAvatarMessages = assetsMessages.createAvatar;
+  const createFieldsMessages = assetsMessages.createFields;
   const supabase = useSupabaseBrowserClient();
   const fieldBadgeClassName = 'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]';
   const [avatarName, setAvatarName] = useState('');
@@ -123,7 +113,7 @@ export default function CreateAvatarModal({
     }
 
     if (file.size > 8 * 1024 * 1024) {
-      throw new Error('Image file size must be less than 8MB');
+      throw new Error(createAvatarMessages.errors.sizeLimit);
     }
 
     const objectUrl = URL.createObjectURL(file);
@@ -137,7 +127,7 @@ export default function CreateAvatarModal({
           }
           resolve();
         };
-        img.onerror = () => reject(new Error('Failed to load image. Please try a different file.'));
+        img.onerror = () => reject(new Error(`${createAvatarMessages.errors.loadFailed} Please try a different file.`));
         img.src = objectUrl;
       });
 
@@ -161,7 +151,7 @@ export default function CreateAvatarModal({
       setPrimaryImage({ file, preview });
       setError(null);
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : 'Failed to load image.');
+      setError(uploadError instanceof Error ? uploadError.message : createAvatarMessages.errors.loadFailed);
     } finally {
       event.target.value = '';
     }
@@ -172,7 +162,7 @@ export default function CreateAvatarModal({
     if (!file) return;
 
     if (referenceImages.length >= 3) {
-      setError('You can add up to 3 reference photos.');
+      setError(createAvatarMessages.errors.referenceCountLimit);
       event.target.value = '';
       return;
     }
@@ -183,7 +173,7 @@ export default function CreateAvatarModal({
       setError(null);
       setHighlightReferenceRequirement(false);
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : 'Failed to load image.');
+      setError(uploadError instanceof Error ? uploadError.message : createAvatarMessages.errors.loadFailed);
     } finally {
       event.target.value = '';
     }
@@ -196,7 +186,7 @@ export default function CreateAvatarModal({
   const buildPreviewFileFromUrl = async (imageUrl: string, fileName: string): Promise<PreviewFile> => {
     const response = await fetch(imageUrl);
     if (!response.ok) {
-      throw new Error('Failed to download generated reference image.');
+      throw new Error(createAvatarMessages.errors.downloadGeneratedFailed);
     }
 
     const blob = await response.blob();
@@ -207,13 +197,13 @@ export default function CreateAvatarModal({
 
   const handleGenerateReferences = async () => {
     if (!primaryImage) {
-      setError('Upload a primary portrait first.');
+      setError(createAvatarMessages.errors.primaryFirst);
       return;
     }
 
     const missingCount = 3 - referenceImages.length;
     if (missingCount <= 0) {
-      setError('Reference photos are already full (3/3).');
+      setError(createAvatarMessages.errors.referencesFull);
       return;
     }
 
@@ -235,7 +225,7 @@ export default function CreateAvatarModal({
 
       const createPayload = await createResponse.json().catch(() => ({}));
       if (!createResponse.ok || !Array.isArray(createPayload?.jobs) || createPayload.jobs.length !== missingCount) {
-        throw new Error(createPayload?.error || 'Failed to start AI reference generation.');
+        throw new Error(createPayload?.error || createAvatarMessages.errors.generationStartFailed);
       }
 
       const jobs = createPayload.jobs as AiReferenceAngleCreateJobResponse[];
@@ -273,7 +263,7 @@ export default function CreateAvatarModal({
       });
       await appendCompletedReferences(resolvedJobs);
     } catch (generationError) {
-      setError(generationError instanceof Error ? generationError.message : 'Failed to generate AI references.');
+      setError(generationError instanceof Error ? generationError.message : createAvatarMessages.errors.generationFailed);
     } finally {
       setIsGeneratingReferences(false);
     }
@@ -283,17 +273,17 @@ export default function CreateAvatarModal({
     e.preventDefault();
 
     if (!avatarName.trim()) {
-      setError('Avatar name is required');
+      setError(createAvatarMessages.errors.nameRequired);
       return;
     }
 
     if (!primaryImage) {
-      setError('Upload one primary avatar photo to continue.');
+      setError(createAvatarMessages.errors.primaryRequired);
       return;
     }
 
     if (referenceImages.length < 1) {
-      setError('Upload at least one reference photo to continue.');
+      setError(createAvatarMessages.errors.referenceRequired);
       triggerReferenceRequirementHint();
       return;
     }
@@ -313,7 +303,7 @@ export default function CreateAvatarModal({
 
       const createPayload = await createResponse.json().catch(() => ({}));
       if (!createResponse.ok || !createPayload?.avatar) {
-        throw new Error(createPayload?.error || 'Failed to create avatar');
+        throw new Error(createPayload?.error || createAvatarMessages.errors.createFailed);
       }
 
       let latestAvatar = createPayload.avatar as UserAvatar;
@@ -332,7 +322,7 @@ export default function CreateAvatarModal({
 
           const refPayload = await refResponse.json().catch(() => ({}));
           if (!refResponse.ok || !refPayload?.avatar) {
-            throw new Error(refPayload?.error || 'Failed to upload reference photo');
+            throw new Error(refPayload?.error || createAvatarMessages.errors.uploadReferenceFailed);
           }
 
           latestAvatar = refPayload.avatar as UserAvatar;
@@ -343,7 +333,7 @@ export default function CreateAvatarModal({
       onClose();
     } catch (submitError) {
       console.error('Error creating avatar:', submitError);
-      setError(submitError instanceof Error ? submitError.message : 'Failed to create avatar. Please try again.');
+      setError(submitError instanceof Error ? submitError.message : createAvatarMessages.errors.createFailed);
     } finally {
       setIsCreating(false);
       setIsUploadingRefs(false);
@@ -400,8 +390,8 @@ export default function CreateAvatarModal({
                   <UserCircle className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="assets-modal-title text-xl font-semibold text-gray-900">Create New Avatar</p>
-                  <p className="assets-modal-subtitle text-sm text-gray-600">Add 1 primary portrait and 1-3 reference photos.</p>
+                  <p className="assets-modal-title text-xl font-semibold text-gray-900">{createAvatarMessages.title}</p>
+                  <p className="assets-modal-subtitle text-sm text-gray-600">{createAvatarMessages.subtitle}</p>
                 </div>
               </div>
               <button
@@ -420,8 +410,9 @@ export default function CreateAvatarModal({
               highlightReferenceRequirement={highlightReferenceRequirement}
               isGeneratingReferences={isGeneratingReferences}
               isPrimaryBusy={isCreating || isUploadingRefs}
+              nameLabel={createFieldsMessages.nameLabel}
               nameInputId="avatar-name-input"
-              namePlaceholder="Enter avatar name"
+              namePlaceholder={createAvatarMessages.namePlaceholder}
               nameValue={avatarName}
               onCancel={onClose}
               onGenerateReferences={handleGenerateReferences}
@@ -431,50 +422,56 @@ export default function CreateAvatarModal({
               onReferenceAdd={referenceImages.length < 3 ? () => referenceInputRef.current?.click() : undefined}
               onReferenceRemove={removeReferenceImage}
               onSubmit={handleSubmit}
-              primaryEmptyCopy="PNG or JPG, up to 8MB"
-              primaryEmptyTitle="Upload primary portrait"
-              primaryHelpAriaLabel="Photo examples"
+              primaryEmptyCopy={createAvatarMessages.primaryEmptyCopy}
+              primaryEmptyTitle={createAvatarMessages.primaryEmptyTitle}
+              primaryHelpAriaLabel={createAvatarMessages.primaryHelpLabel}
               primaryHelpContent={(
                 <>
-                  <p className="mb-2 text-xs font-semibold text-gray-800">Portrait Photo Examples</p>
+                  <p className="mb-2 text-xs font-semibold text-gray-800">{createAvatarMessages.examplesTitle}</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col items-center">
                       <div className="h-16 w-16 overflow-hidden rounded-full border border-gray-200">
                         <Image src={GOOD_EXAMPLE_URL} alt="Good example" width={64} height={64} className="h-full w-full object-cover" />
                       </div>
-                      <span className="mt-1 text-[11px] text-gray-600">Good Example</span>
+                      <span className="mt-1 text-[11px] text-gray-600">{createAvatarMessages.goodExample}</span>
                     </div>
                     <div className="flex flex-col items-center">
                       <div className="h-16 w-16 overflow-hidden rounded-full border border-gray-200">
                         <Image src={BLURRY_EXAMPLE_URL} alt="Bad example" width={64} height={64} className="h-full w-full object-cover" />
                       </div>
-                      <span className="mt-1 text-[11px] text-gray-600">Bad (Blurry)</span>
+                      <span className="mt-1 text-[11px] text-gray-600">{createAvatarMessages.badExample}</span>
                     </div>
                   </div>
                   <div className="mt-3 rounded-lg border border-black/8 bg-[#fafaf9] px-3 py-2">
                     <p className="text-[11px] leading-5 text-gray-600">
-                      Use a front-facing, well-lit portrait on a clean background.
+                      {createAvatarMessages.primaryHelpContent}
                     </p>
                   </div>
                 </>
               )}
               primaryImage={primaryImage ? { src: primaryImage.preview, alt: 'Primary preview' } : null}
-              primaryPreviewLabel="Primary"
-              primaryTitle="Primary Portrait"
+              primaryPreviewLabel={createAvatarMessages.primaryPreviewLabel}
+              primaryTitle={createAvatarMessages.primaryTitle}
+              requiredLabel={createFieldsMessages.required}
               referenceColumns={2}
               referenceGenerateDisabled={referenceImages.length >= 3 || isCreating || isUploadingRefs || isGeneratingReferences}
-              referenceHelpAriaLabel="Reference angle recommendation"
+              referenceMinimumLabel={createFieldsMessages.minimumOne}
+              referenceHelpAriaLabel={createAvatarMessages.referencesHelpLabel}
               referenceHelpContent={(
                 <p className="text-xs text-gray-700">
-                  Recommended: one 45° side angle and 1–2 detail/profile shots.
+                  {createAvatarMessages.referencesHelpContent}
                 </p>
               )}
               referenceItems={referenceGridItems}
               referenceRemoveDisabled={isCreating || isUploadingRefs || isGeneratingReferences}
-              referenceSlots={AVATAR_REFERENCE_SLOTS}
-              referenceTitle="Reference Photos"
+              referenceSlots={createAvatarMessages.referenceSlots}
+              referenceTitle={createAvatarMessages.referencesTitle}
+              generateLabel={createFieldsMessages.aiGenerate}
+              generatingLabel={createFieldsMessages.generating}
               saveDisabled={!canSubmit}
               saveBusy={isCreating || isUploadingRefs}
+              cancelLabel={createFieldsMessages.cancel}
+              saveLabel={createFieldsMessages.save}
             />
             <input
               ref={primaryInputRef}

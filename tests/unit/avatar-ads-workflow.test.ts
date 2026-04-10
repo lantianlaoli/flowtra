@@ -38,3 +38,18 @@ test('buildAvatarAdsVideoExecutionPrompt preserves explicit structured visual fi
   assert.match(result, /Action: speaks directly to camera and smiles/);
   assert.doesNotMatch(result, /spokesperson from the provided character image/i);
 });
+
+test('buildAvatarAdsVideoExecutionPrompt keeps Chinese dialogue aligned with Chinese voice guidance', () => {
+  const result = buildAvatarAdsVideoExecutionPrompt({
+    subject: 'Male creator in a dark collared shirt',
+    dialog: '这款草本清风包，清香淡雅不刺鼻，帮助舒缓身心、放松压力。',
+    voice_type: 'English accent, warm male voice',
+  }, {
+    hasProductContext: true,
+    language: 'en',
+  });
+
+  assert.match(result, /Dialogue: "这款草本清风包/);
+  assert.match(result, /Voice Type: Warm male voice speaking natural Chinese/);
+  assert.doesNotMatch(result, /English accent/i);
+});

@@ -31,6 +31,7 @@ import {
   isProjectAgentAssetNode,
   isProjectAgentFeatureNode,
   isProjectAgentOutputNode,
+  isProjectAgentRuntimeActive,
   PROJECT_AGENT_FEATURE_ANY_OF_INPUTS,
   PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS,
   type ProjectAgentAssetNodeType,
@@ -440,9 +441,7 @@ export default function CanvasBoard({
           const executionState = node.runtime?.executionState || 'invalid';
           const retryableFailure = executionState === 'failed' && Boolean(node.runtime?.retryable);
           const userFacingError = node.runtime?.userFacingError || null;
-          const hasActiveMilestone = Boolean(node.runtime?.milestones?.some((milestone) => milestone.state === 'active'));
-          const isQueuedPhase = node.runtime?.phase === 'queued';
-          const showRunningState = executionState === 'running' || hasActiveMilestone || isQueuedPhase;
+          const showRunningState = isProjectAgentRuntimeActive(node.runtime);
           const hasAnyInput = isFeatureNode
             ? canvas.edges.some((e) => e.targetNodeId === node.id)
             : false;

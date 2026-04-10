@@ -8,7 +8,6 @@ import {
   getGenerationCost,
   getLanguagePromptName,
   getSegmentVideoGenerationCost,
-  getLanguageVoiceStyle,
   type LanguageCode
 } from '@/lib/constants';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
@@ -21,6 +20,11 @@ import {
   buildAvatarGeneratedPrompts,
   normalizeAvatarPromptDuration
 } from '@/lib/project-agent/avatar-script-planning';
+import {
+  buildAvatarVoiceType,
+  inferAvatarVoiceGender,
+  resolveAvatarSpokenLanguage,
+} from '@/lib/avatar-spoken-language';
 // Events table removed: no tracking imports
 
 const UNIT_SECONDS = 8;
@@ -138,7 +142,7 @@ export const getAvatarPlannedTotalDurationSeconds = (
 
 export const buildAvatarAdsVideoExecutionPrompt = (
   prompt: Record<string, unknown>,
-  options?: { hasProductContext?: boolean }
+  options?: { hasProductContext?: boolean; language?: string | null }
 ) => {
   const promptObj = prompt as {
     voice_type?: string;
@@ -155,6 +159,10 @@ export const buildAvatarAdsVideoExecutionPrompt = (
   };
 
   const hasProductContext = Boolean(options?.hasProductContext);
+  const resolvedLanguage = resolveAvatarSpokenLanguage({
+    scriptSource: typeof promptObj.dialog === 'string' ? promptObj.dialog : '',
+    configuredLanguage: options?.language || null,
+  });
   const visualParts = [
     promptObj.subject ? `Subject: ${compileAvatarAdsMentionText(String(promptObj.subject))}` : '',
     promptObj.context_environment ? `Context: ${compileAvatarAdsMentionText(String(promptObj.context_environment))}` : '',
@@ -180,9 +188,12 @@ export const buildAvatarAdsVideoExecutionPrompt = (
     parts.push(`Dialogue: "${dialogText}"`);
   }
 
-  if (promptObj.voice_type) {
-    parts.push(`Voice Type: ${compileAvatarAdsMentionText(String(promptObj.voice_type))}`);
-  }
+  parts.push(
+    `Voice Type: ${buildAvatarVoiceType(
+      resolvedLanguage,
+      inferAvatarVoiceGender(promptObj.voice_type, promptObj.subject)
+    )}`
+  );
 
   return parts.join('\n\n').trim();
 };
@@ -283,7 +294,10 @@ async function _generatePromptsInternal(
   options?: { talkingHeadMode?: boolean; model?: 'veo3_fast' | 'kling_3' }
 ): Promise<Record<string, unknown>> {
   // Get language name for prompts
-  const languageCode = (language || 'en') as LanguageCode;
+  const languageCode = resolveAvatarSpokenLanguage({
+    scriptSource: userDialogue,
+    configuredLanguage: language || 'en',
+  });
   const languageName = getLanguagePromptName(languageCode);
   const isTalkingHeadMode = options?.talkingHeadMode ?? false;
   const resolvedModel = options?.model === 'kling_3' ? 'kling_3' : DEFAULT_VIDEO_MODEL;
@@ -365,8 +379,8 @@ IMPORTANT: Use this authentic product context to enhance the video prompts.
 
 CRITICAL RULES FOR GENDER:
 - Analyze the person's ACTUAL GENDER from the image - do NOT guess or assume
-- For MALE characters: Use "${languageName} accent, warm male voice"
-- For FEMALE characters: Use "${languageName} accent, warm female voice"
+- For MALE characters: Use "Warm male voice speaking natural ${languageName}"
+- For FEMALE characters: Use "Warm female voice speaking natural ${languageName}"
 - The gender MUST match what you see in the person image
 
 UGC STYLE PRINCIPLES:
@@ -381,8 +395,8 @@ UGC STYLE PRINCIPLES:
 
 VIDEO SCENE REQUIREMENTS:
 - Each scene should fit naturally within ${targetSceneDuration} seconds
-- Write ALL dialogue in ENGLISH (regardless of target language)
-- The 'language' field is metadata - actual dialogue text is always English
+- Write ALL dialogue in ${languageName}
+- The dialog must match the resolved spoken language exactly
 - Camera movement: always "fixed"
 - Emotion: "excited, genuine" or similar positive emotions
 ${userDialogue ? `- The user has provided a custom script: "${userDialogue.replace(/"/g, '\\"')}"
@@ -427,8 +441,8 @@ OUTPUT FORMAT (JSON):
         "composition": "A balanced composition...",
         "ambiance_color_lighting": "Warm color grading...",
         "audio": "Soft background noise...",
-        "dialog": "This is more than a suit—it defines my confidence.",
-        "voice_type": "${languageName} accent, warm [male/female] voice"
+        "dialog": "Write the spoken line in ${languageName}.",
+        "voice_type": "Warm [male/female] voice speaking natural ${languageName}"
       }
     }
   ],
@@ -454,8 +468,8 @@ ${talkHeadContext}
 
 CRITICAL RULES FOR GENDER:
 - Analyze the person's ACTUAL GENDER from the image - do NOT guess or assume
-- For MALE characters: Use "${languageName} accent, warm male voice"
-- For FEMALE characters: Use "${languageName} accent, warm female voice"
+- For MALE characters: Use "Warm male voice speaking natural ${languageName}"
+- For FEMALE characters: Use "Warm female voice speaking natural ${languageName}"
 - The gender MUST match what you see in the person image
 
 TALKING HEAD STYLE PRINCIPLES:
@@ -468,8 +482,8 @@ TALKING HEAD STYLE PRINCIPLES:
 
 VIDEO SCENE REQUIREMENTS:
 - Each scene should fit naturally within ${targetSceneDuration} seconds
-- Write ALL dialogue in ENGLISH (regardless of target language)
-- The 'language' field is metadata - actual dialogue text is always English
+- Write ALL dialogue in ${languageName}
+- The dialog must match the resolved spoken language exactly
 - Camera movement: always "fixed"
 - Emotion: "confident, genuine, and helpful"
 - The dialog content should follow the provided script/context exactly when supplied.
@@ -503,8 +517,8 @@ OUTPUT FORMAT (JSON):
         "composition": "Centered framing with soft depth of field...",
         "ambiance_color_lighting": "Natural daylight with warm tones...",
         "audio": "Soft room tone...",
-        "dialog": "Hey team, I just wrapped up my 5th project of the week...",
-        "voice_type": "${languageName} accent, warm [male/female] voice"
+        "dialog": "Write the spoken line in ${languageName}.",
+        "voice_type": "Warm [male/female] voice speaking natural ${languageName}"
       }
     }
   ],
@@ -592,13 +606,17 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
           scene: scene.sceneIndex,
           prompt: scene.prompt
         }));
+        Object.assign(parsed as Record<string, unknown>, {
+          resolved_spoken_language: normalized.generatedPrompts.resolved_spoken_language,
+          planned_total_duration_seconds: normalized.generatedPrompts.planned_total_duration_seconds,
+          planned_scene_duration_seconds: normalized.generatedPrompts.planned_scene_duration_seconds,
+        });
       }
     }
 
     // Ensure language field is set
-    if (!parsed.language) {
-      (parsed as Record<string, unknown>)['language'] = languageName;
-    }
+    (parsed as Record<string, unknown>)['language'] = languageName;
+    (parsed as Record<string, unknown>)['resolved_spoken_language'] = languageCode;
 
     return parsed;
   } catch (error) {
@@ -824,16 +842,22 @@ export async function generateVideoWithKIE(
   const basePrompt = videoPromptText;
 
   const resolvedModel = options?.model === 'kling_3' ? 'kling_3' : DEFAULT_VIDEO_MODEL;
-  const lang = (language || 'en') as LanguageCode;
+  const promptLanguage = typeof (prompt as { resolved_spoken_language?: unknown }).resolved_spoken_language === 'string'
+    ? (prompt as { resolved_spoken_language?: string }).resolved_spoken_language
+    : null;
+  const lang = resolveAvatarSpokenLanguage({
+    scriptSource: typeof (prompt as { dialog?: unknown }).dialog === 'string'
+      ? (prompt as { dialog?: string }).dialog
+      : null,
+    configuredLanguage: promptLanguage || language || 'en',
+  });
   const languageName = getLanguagePromptName(lang);
   if (!languageName) {
     throw new Error(`Invalid language code: ${lang}`);
   }
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
   const callBackUrl = siteUrl ? `${siteUrl}/api/avatar-ads/webhooks/video` : undefined;
-  const finalPrompt = languageName !== 'English'
-    ? `"language": "${languageName}"\n\n${basePrompt}`
-    : basePrompt;
+  const finalPrompt = `Spoken Language: ${languageName}\n\n${basePrompt}`;
   const durationSeconds = options?.durationSeconds && options.durationSeconds > 0
     ? options.durationSeconds
     : UNIT_SECONDS;
@@ -1157,6 +1181,9 @@ export async function processAvatarAdsProject(
           }
         );
         const resolvedVideoModel = resolveAvatarAdsVideoModel(project);
+        const resolvedSpokenLanguage = typeof (prompts as { resolved_spoken_language?: unknown }).resolved_spoken_language === 'string'
+          ? (prompts as { resolved_spoken_language?: string }).resolved_spoken_language
+          : project.language;
         const plannedDurationSeconds = getAvatarPlannedTotalDurationSeconds(
           prompts as Record<string, unknown>,
           resolvedVideoModel,
@@ -1195,6 +1222,7 @@ export async function processAvatarAdsProject(
           .update({
             generated_prompts: prompts,
             image_prompt: (prompts as { image_prompt?: string }).image_prompt, // Store project-level image prompt
+            language: typeof resolvedSpokenLanguage === 'string' ? resolvedSpokenLanguage : project.language,
             video_duration_seconds: plannedDurationSeconds,
             credits_cost: plannedCreditsCost,
             status: 'generating_image',

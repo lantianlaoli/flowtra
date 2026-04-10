@@ -50,6 +50,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Calculate computed fields
     const has_analysis_result = !!project.image_analysis_result;
     const has_generated_prompts = !!project.generated_prompts;
+    const generatedPrompts = project.generated_prompts && typeof project.generated_prompts === 'object'
+      ? project.generated_prompts as Record<string, unknown>
+      : null;
+    const plannedSceneDurationSeconds = Array.isArray(generatedPrompts?.planned_scene_duration_seconds)
+      ? generatedPrompts.planned_scene_duration_seconds
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value > 0)
+      : [];
+    const plannedTotalDurationSeconds = typeof generatedPrompts?.planned_total_duration_seconds === 'number'
+      ? generatedPrompts.planned_total_duration_seconds
+      : project.video_duration_seconds;
+    const resolvedSpokenLanguage = typeof generatedPrompts?.resolved_spoken_language === 'string'
+      ? generatedPrompts.resolved_spoken_language
+      : project.language;
     const generated_video_count = scenes?.filter(scene =>
       scene.scene_number > 0 && scene.status === 'completed'  // All scenes are videos now (scene_type removed)
     ).length || 0;
@@ -62,8 +76,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         current_step: project.current_step,
         progress_percentage: project.progress_percentage,
         video_duration_seconds: project.video_duration_seconds,
+        planned_total_duration_seconds: plannedTotalDurationSeconds,
+        planned_scene_duration_seconds: plannedSceneDurationSeconds,
         video_model: project.video_model || 'veo3_fast',
         credits_cost: project.credits_cost,
+        resolved_spoken_language: resolvedSpokenLanguage,
         person_image_urls: project.person_image_urls,
         product_image_urls: project.product_image_urls,
         image_analysis_result: project.image_analysis_result,

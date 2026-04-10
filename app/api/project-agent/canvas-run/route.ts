@@ -152,7 +152,7 @@ const assertAvatarCredits = async (userId: string, body: CanvasRunRequestBody) =
     ? buildAvatarGeneratedPrompts({
         imagePrompt: null,
         scriptSource: payload.customDialogue,
-        language: payload.language,
+        language: payload.resolvedSpokenLanguage,
         avatarName: avatar.name,
         productName: product?.name || null,
       }).totalDurationSeconds
@@ -282,6 +282,7 @@ const startAvatarAds = async (origin: string, userId: string, body: CanvasRunReq
     video_duration_seconds: String(payload.videoDurationSeconds),
     video_aspect_ratio: payload.videoAspectRatio,
     language: payload.language,
+    resolved_spoken_language: payload.resolvedSpokenLanguage,
     video_model: payload.videoModel,
   });
 

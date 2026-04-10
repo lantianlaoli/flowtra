@@ -68,3 +68,27 @@ test('Avatar planner only merges a short tail when the merged scene still has sa
 
   assert.equal(estimated <= 14, true);
 });
+
+test('Avatar planner detects Chinese script language and creates multi-scene Kling timing', () => {
+  const script = '这款草本清风包，甄选天然植物配方，清香淡雅不刺鼻，帮助舒缓身心、放松压力。无论居家还是出行随身携带，都能随时享受自然气息，让生活更轻松惬意，带来安心舒适的使用体验。';
+
+  const result = buildAvatarGeneratedPrompts({
+    imagePrompt: null,
+    scriptSource: script,
+    language: 'en',
+    avatarName: 'Default Male',
+    productName: 'Herbal Breeze Bag',
+  });
+
+  assert.equal(result.generatedPrompts.resolved_spoken_language, 'zh');
+  assert.equal(result.scenes.length > 1, true);
+  assert.equal(result.totalDurationSeconds > 3, true);
+  assert.deepEqual(result.generatedPrompts.planned_scene_duration_seconds.length, result.scenes.length);
+
+  result.scenes.forEach((scene) => {
+    const duration = Number(scene.prompt.duration_seconds);
+    assert.equal(duration >= 3, true);
+    assert.equal(duration <= 15, true);
+    assert.match(String(scene.prompt.voice_type || ''), /Chinese/);
+  });
+});
