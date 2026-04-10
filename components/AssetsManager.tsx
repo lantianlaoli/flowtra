@@ -5,6 +5,7 @@ import { Search, Loader2, Package, ExternalLink, Plus, UserCircle, Video } from 
 import { UserProduct, UserAvatar } from '@/lib/supabase';
 import type { SystemAvatar } from '@/lib/default-avatars';
 import { useToast } from '@/contexts/ToastContext';
+import { useI18n } from '@/providers/I18nProvider';
 import ProductCard from './ProductCard';
 import EditProductModal from './EditProductModal';
 import CreateProductModal from './CreateProductModal';
@@ -84,6 +85,8 @@ const dedupeVideoAssets = (videos: VideoAsset[]): VideoAsset[] => {
 };
 
 export default function AssetsManager() {
+  const { messages } = useI18n();
+  const assetsMessages = messages.dashboard.assets;
   const { showSuccess, showError } = useToast();
   const [assetsData, setAssetsData] = useState<AssetsData>({
     creatorSources: [],
@@ -500,7 +503,7 @@ export default function AssetsManager() {
             `}
           >
             <Package className="w-4 h-4" />
-            <span>Products</span>
+            <span>{assetsMessages.tabs.products}</span>
           </button>
           <button
             onClick={() => setActiveTab('avatars')}
@@ -512,7 +515,7 @@ export default function AssetsManager() {
             `}
           >
             <UserCircle className="w-4 h-4" />
-            <span>Avatars</span>
+            <span>{assetsMessages.tabs.avatars}</span>
           </button>
           <button
             onClick={() => setActiveTab('videos')}
@@ -524,7 +527,7 @@ export default function AssetsManager() {
             `}
           >
             <Video className="w-4 h-4" />
-            <span>Videos</span>
+            <span>{assetsMessages.tabs.videos}</span>
           </button>
         </div>
       </div>
@@ -557,7 +560,7 @@ export default function AssetsManager() {
                     <Plus className="h-7 w-7" />
                   </div>
                   <span className="text-sm font-semibold text-gray-700 transition-colors group-hover:text-black">
-                    Upload
+                    {assetsMessages.actions.upload}
                   </span>
                 </div>
               </button>
@@ -587,7 +590,7 @@ export default function AssetsManager() {
                     <Plus className="h-7 w-7" />
                   </div>
                   <span className="text-sm font-semibold text-gray-700 transition-colors group-hover:text-black">
-                    Upload
+                    {assetsMessages.actions.upload}
                   </span>
                 </div>
               </button>
@@ -601,7 +604,7 @@ export default function AssetsManager() {
                 <Search className="assets-search-icon w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search videos..."
+                  placeholder={assetsMessages.search.videos}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="assets-search-input w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
@@ -615,15 +618,15 @@ export default function AssetsManager() {
                   className="assets-secondary-button flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium whitespace-nowrap"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  <span className="hidden sm:inline">Download Viral Videos</span>
-                  <span className="sm:hidden">Videos</span>
+                  <span className="hidden sm:inline">{assetsMessages.actions.downloadViralVideos}</span>
+                  <span className="sm:hidden">{assetsMessages.tabs.videos}</span>
                 </a>
                 <button
                   onClick={() => setShowVideoImportModal(true)}
                   className="assets-primary-button flex-1 lg:flex-none flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium whitespace-nowrap"
                 >
                   <Video className="w-4 h-4" />
-                  Import Videos
+                  {assetsMessages.actions.importVideos}
                 </button>
               </div>
             </div>
@@ -632,8 +635,8 @@ export default function AssetsManager() {
             {filteredVideos.length === 0 && normalizedSearch ? (
               <div className="assets-empty py-12 text-center">
                 <Search className="assets-empty-icon w-12 h-12 mx-auto mb-4 text-gray-200" />
-                <h3 className="assets-empty-title text-lg font-medium text-gray-900 mb-2">No results found</h3>
-                <p className="assets-empty-copy text-gray-500">Try adjusting your search terms</p>
+                <h3 className="assets-empty-title text-lg font-medium text-gray-900 mb-2">{assetsMessages.empty.noResults}</h3>
+                <p className="assets-empty-copy text-gray-500">{assetsMessages.empty.adjustSearch}</p>
               </div>
             ) : filteredVideos.length > 0 ? (
               <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -652,14 +655,14 @@ export default function AssetsManager() {
             ) : (
               <div className="assets-empty py-12 text-center border-2 border-dashed border-gray-200 rounded-xl">
                 <Video className="assets-empty-icon w-12 h-12 mx-auto mb-4 text-gray-200" />
-                <h3 className="assets-empty-title text-lg font-medium text-gray-900 mb-2">No videos yet</h3>
-                <p className="assets-empty-copy text-gray-500 mb-6">Import TikTok videos to reuse them across projects.</p>
+                <h3 className="assets-empty-title text-lg font-medium text-gray-900 mb-2">{assetsMessages.empty.noVideosTitle}</h3>
+                <p className="assets-empty-copy text-gray-500 mb-6">{assetsMessages.empty.noVideosDescription}</p>
                 <button
                   onClick={() => setShowVideoImportModal(true)}
                   className="assets-primary-button inline-flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
                 >
                   <Video className="w-4 h-4" />
-                  Import Videos
+                  {assetsMessages.actions.importVideos}
                 </button>
               </div>
             )}

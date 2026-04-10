@@ -29,6 +29,7 @@ type AssetCreationFieldsProps = {
   highlightReferenceRequirement: boolean;
   isGeneratingReferences: boolean;
   isPrimaryBusy?: boolean;
+  nameLabel: string;
   nameInputId: string;
   namePlaceholder: string;
   nameValue: string;
@@ -47,16 +48,22 @@ type AssetCreationFieldsProps = {
   primaryImage: PreviewImage | null;
   primaryPreviewLabel: string;
   primaryTitle: string;
+  requiredLabel: string;
   referenceColumns?: 'responsive' | 2 | 3;
   referenceGenerateDisabled?: boolean;
+  referenceMinimumLabel: string;
   referenceHelpAriaLabel: string;
   referenceHelpContent?: ReactNode;
   referenceItems: ReferenceGridItem[];
   referenceRemoveDisabled?: boolean;
   referenceSlots: ReferenceGridSlot[];
   referenceTitle: string;
+  generateLabel: string;
+  generatingLabel: string;
   saveDisabled: boolean;
   saveBusy: boolean;
+  cancelLabel: string;
+  saveLabel: string;
 };
 
 export default function AssetCreationFields({
@@ -65,6 +72,7 @@ export default function AssetCreationFields({
   highlightReferenceRequirement,
   isGeneratingReferences,
   isPrimaryBusy = false,
+  nameLabel,
   nameInputId,
   namePlaceholder,
   nameValue,
@@ -83,16 +91,22 @@ export default function AssetCreationFields({
   primaryImage,
   primaryPreviewLabel,
   primaryTitle,
+  requiredLabel,
   referenceColumns = 'responsive',
   referenceGenerateDisabled = false,
+  referenceMinimumLabel,
   referenceHelpAriaLabel,
   referenceHelpContent,
   referenceItems,
   referenceRemoveDisabled = false,
   referenceSlots,
   referenceTitle,
+  generateLabel,
+  generatingLabel,
   saveDisabled,
   saveBusy,
+  cancelLabel,
+  saveLabel,
 }: AssetCreationFieldsProps) {
   return (
     <form onSubmit={onSubmit} className="assets-modal-body space-y-4 px-6 py-5">
@@ -104,7 +118,7 @@ export default function AssetCreationFields({
       ) : null}
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-2">
-        <label htmlFor={nameInputId} className="assets-modal-label block text-sm font-medium text-gray-700">Name</label>
+        <label htmlFor={nameInputId} className="assets-modal-label block text-sm font-medium text-gray-700">{nameLabel}</label>
         <input
           id={nameInputId}
           type="text"
@@ -121,7 +135,7 @@ export default function AssetCreationFields({
           <div className="flex items-center gap-2">
             <p className="text-sm font-medium leading-5 text-gray-900">{primaryTitle}</p>
             <span className={`${fieldBadgeClassName} border-black/10 bg-black/[0.04] text-black/75`}>
-              Required
+              {requiredLabel}
             </span>
             {primaryHelpContent ? (
               <div className="relative group">
@@ -189,11 +203,11 @@ export default function AssetCreationFields({
               <div className="flex items-center gap-2">
                 <p className="text-sm font-medium text-gray-900">{referenceTitle}</p>
                 <motion.span
-                  className={`${fieldBadgeClassName} ${highlightReferenceRequirement ? 'border-black/20 bg-black text-white shadow-[0_8px_24px_rgba(0,0,0,0.14)]' : 'border-gray-200 bg-gray-50 text-gray-600'}`}
-                  animate={highlightReferenceRequirement ? { scale: [1, 1.08, 1], x: [0, -3, 3, 0] } : { scale: 1, x: 0 }}
-                  transition={{ duration: 0.45, ease: 'easeInOut' }}
-                >
-                  Min 1
+                className={`${fieldBadgeClassName} ${highlightReferenceRequirement ? 'border-black/20 bg-black text-white shadow-[0_8px_24px_rgba(0,0,0,0.14)]' : 'border-gray-200 bg-gray-50 text-gray-600'}`}
+                animate={highlightReferenceRequirement ? { scale: [1, 1.08, 1], x: [0, -3, 3, 0] } : { scale: 1, x: 0 }}
+                transition={{ duration: 0.45, ease: 'easeInOut' }}
+              >
+                  {referenceMinimumLabel}
                 </motion.span>
               </div>
               {referenceHelpContent ? (
@@ -222,7 +236,7 @@ export default function AssetCreationFields({
               ) : (
                 <Sparkles className="h-3.5 w-3.5" />
               )}
-              {isGeneratingReferences ? 'Generating…' : 'AI Generate'}
+              {isGeneratingReferences ? generatingLabel : generateLabel}
             </button>
           </div>
 
@@ -247,7 +261,7 @@ export default function AssetCreationFields({
           className="assets-modal-secondary flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-50"
         >
           <X className="h-4 w-4" />
-          Cancel
+          {cancelLabel}
         </button>
         <button
           type="submit"
@@ -255,7 +269,7 @@ export default function AssetCreationFields({
           className="assets-modal-primary flex flex-1 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saveBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-          Save
+          {saveLabel}
         </button>
       </div>
     </form>

@@ -1,6 +1,7 @@
 import {
   KLING_MAX_TASK_DURATION_SECONDS,
   KLING_MIN_TASK_DURATION_SECONDS,
+  getLanguagePromptName,
   type LanguageCode
 } from '@/lib/constants';
 import { estimateDialogueDuration } from '@/lib/dialogue-duration-estimator';
@@ -9,6 +10,11 @@ import {
   MENTION_TOKEN_REGEX,
   parseMentionToken
 } from '@/lib/prompt-mention-tokens';
+import {
+  buildAvatarVoiceType,
+  inferAvatarVoiceGender,
+  resolveAvatarSpokenLanguage,
+} from '@/lib/avatar-spoken-language';
 
 type AvatarPromptScene = {
   sceneIndex: number;
@@ -32,7 +38,8 @@ const DEFAULT_VISUAL_PROMPT = {
   camera_motion_positioning: 'Stable medium shot with gentle handheld realism',
   composition: 'Avatar centered with strong face visibility and clear focal separation',
   ambiance_color_lighting: 'Bright commercial lighting with crisp contrast',
-  audio: 'Natural room tone under clean spoken dialogue'
+  audio: 'Natural room tone under clean spoken dialogue',
+  voice_type: 'Warm natural voice speaking natural English.',
 };
 
 const KLING_SAFE_DURATION_BUFFER_SECONDS = 1;
@@ -232,7 +239,10 @@ export const buildAvatarScenesFromScript = (input: {
   language?: string | null;
 }): AvatarPromptScene[] => {
   const scriptSource = normalizeWhitespace(input.scriptSource || '');
-  const language = ((input.language || 'en') as LanguageCode);
+  const language = resolveAvatarSpokenLanguage({
+    scriptSource,
+    configuredLanguage: input.language || 'en',
+  });
 
   if (!scriptSource) {
     return (input.existingScenes || []).map((scene, index) => ({
@@ -241,7 +251,11 @@ export const buildAvatarScenesFromScript = (input: {
         ...DEFAULT_VISUAL_PROMPT,
         ...(scene.prompt || {}),
         dialog: typeof scene.prompt?.dialog === 'string' ? normalizeWhitespace(scene.prompt.dialog) : '',
-        duration_seconds: normalizeAvatarPromptDuration(scene.prompt?.duration_seconds)
+        duration_seconds: normalizeAvatarPromptDuration(scene.prompt?.duration_seconds),
+        voice_type: buildAvatarVoiceType(
+          language,
+          inferAvatarVoiceGender(scene.prompt?.voice_type, scene.prompt?.subject)
+        ),
       }
     }));
   }
@@ -289,7 +303,11 @@ export const buildAvatarScenesFromScript = (input: {
       prompt: {
         ...template,
         dialog,
-        duration_seconds: getKlingTargetDurationSeconds(dialog, language)
+        duration_seconds: getKlingTargetDurationSeconds(dialog, language),
+        voice_type: buildAvatarVoiceType(
+          language,
+          inferAvatarVoiceGender(template.voice_type, template.subject)
+        ),
       }
     };
   });
@@ -315,6 +333,16 @@ export const buildAvatarGeneratedPrompts = (input: BuildAvatarGeneratedPromptsIn
   return {
     generatedPrompts: {
       image_prompt: imagePrompt,
+      language: getLanguagePromptName(resolveAvatarSpokenLanguage({
+        scriptSource: input.scriptSource,
+        configuredLanguage: input.language || 'en',
+      })),
+      resolved_spoken_language: resolveAvatarSpokenLanguage({
+        scriptSource: input.scriptSource,
+        configuredLanguage: input.language || 'en',
+      }),
+      planned_total_duration_seconds: Math.max(totalDurationSeconds, KLING_MIN_TASK_DURATION_SECONDS),
+      planned_scene_duration_seconds: scenes.map((scene) => normalizeAvatarPromptDuration(scene.prompt.duration_seconds)),
       scenes: scenes.map((scene) => ({
         prompt: scene.prompt
       }))

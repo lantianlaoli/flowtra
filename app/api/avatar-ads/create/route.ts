@@ -13,6 +13,7 @@ import { AVATAR_ADS_DURATION_OPTIONS } from '@/lib/avatar-ads-dialogue';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
 import { verifyInternalUserRequest } from '@/lib/security/internal-request';
+import { resolveAvatarSpokenLanguage } from '@/lib/avatar-spoken-language';
 
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const AVATAR_ADS_PERSISTED_IMAGE_MODEL = 'nano-banana-2' as const;
@@ -56,7 +57,12 @@ export async function POST(request: NextRequest) {
     const videoAspectRatio = (formData.get('video_aspect_ratio') as '16:9' | '9:16') || '16:9';
     const selectedPersonPhotoUrl = formData.get('selected_person_photo_url') as string;
     const selectedProductId = formData.get('selected_product_id') as string;
-    const language = (formData.get('language') as string) || 'en';
+    const configuredLanguage = (formData.get('language') as string) || 'en';
+    const providedResolvedSpokenLanguage = (formData.get('resolved_spoken_language') as string | null) || null;
+    const resolvedSpokenLanguage = resolveAvatarSpokenLanguage({
+      scriptSource: customDialogue,
+      configuredLanguage: providedResolvedSpokenLanguage || configuredLanguage,
+    });
     const clientProjectIdRaw = formData.get('project_id');
     const clientProjectId = typeof clientProjectIdRaw === 'string' ? clientProjectIdRaw.trim() : null;
     const talkingHeadModeFlag = formData.get('talking_head_mode');
@@ -80,7 +86,8 @@ export async function POST(request: NextRequest) {
       videoAspectRatio,
       selectedPersonPhotoUrl,
       selectedProductId,
-      language,
+      configuredLanguage,
+      resolvedSpokenLanguage,
       clientProjectId
     });
 
@@ -296,7 +303,7 @@ export async function POST(request: NextRequest) {
       video_aspect_ratio: normalizedAspectRatio,
       image_size: enforcedImageSize,
       custom_dialogue: customDialogue || null,
-      language: language, // Language for AI-generated content
+      language: resolvedSpokenLanguage, // Language used for spoken dialogue generation
       credits_cost: totalCredits,
       generation_credits_used: generationCreditsUsed,
       status: 'pending',
@@ -354,6 +361,7 @@ export async function POST(request: NextRequest) {
         workflow: talkingHeadMode ? 'talking_head' : 'product_avatar_ads',
         video_model: resolvedVideoModel,
         duration_seconds: videoDurationSeconds,
+        spoken_language: resolvedSpokenLanguage,
         aspect_ratio: normalizedAspectRatio,
         credits_cost: totalCredits,
       }

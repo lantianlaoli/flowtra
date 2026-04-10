@@ -60,6 +60,18 @@ test('buildAvatarAdsStartPayload keeps strict avatar and product requirements', 
   assert.equal(payload.videoModel, 'kling_3');
 });
 
+test('buildAvatarAdsStartPayload resolves spoken language from custom dialogue', () => {
+  const payload = buildAvatarAdsStartPayload({
+    avatar: { id: 'avatar-1', name: 'Avatar', imageUrl: 'https://example.com/avatar.png' },
+    product: { id: 'product-1', name: 'Product' },
+    text: { id: 'text-1', name: 'Text', content: '这款草本清风包，清香淡雅，帮助舒缓压力。' },
+    config: { videoDuration: '16', aspectRatio: '9:16', language: 'en', videoModel: 'kling_3' },
+  });
+
+  assert.equal(payload.language, 'zh');
+  assert.equal(payload.resolvedSpokenLanguage, 'zh');
+});
+
 test('buildMotionCloneStartPayload keeps creator video linkage', () => {
   const payload = buildMotionCloneStartPayload({
     avatar: { id: 'avatar-1', name: 'Avatar' },

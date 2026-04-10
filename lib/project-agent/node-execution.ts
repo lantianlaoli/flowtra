@@ -5,6 +5,7 @@ import type {
   ProjectAgentFeatureNodeConfig,
   ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
+import { resolveAvatarSpokenLanguage } from '@/lib/avatar-spoken-language';
 
 export type ProjectAgentConnectedFeatureInputs = {
   avatar?: ProjectAgentCanvasAssetRef | null;
@@ -293,16 +294,25 @@ export const buildAvatarAdsStartPayload = (input: {
   product?: ProjectAgentCanvasAssetRef | null;
   text?: ProjectAgentCanvasAssetRef | null;
   config?: ProjectAgentFeatureNodeConfig | null;
-}) => ({
-  selectedPersonPhotoUrl: input.avatar.imageUrl || '',
-  selectedProductId: input.product?.id || '',
-  customDialogue: input.text?.content?.trim() || '',
-  talkingHeadMode: !input.product?.id,
-  videoDurationSeconds: Number(input.config?.videoDuration || '16'),
-  videoAspectRatio: input.config?.aspectRatio || '9:16',
-  language: input.config?.language || 'en',
-  videoModel: 'kling_3' as const,
-});
+}) => {
+  const customDialogue = input.text?.content?.trim() || '';
+  const resolvedSpokenLanguage = resolveAvatarSpokenLanguage({
+    scriptSource: customDialogue,
+    configuredLanguage: input.config?.language || 'en',
+  });
+
+  return {
+    selectedPersonPhotoUrl: input.avatar.imageUrl || '',
+    selectedProductId: input.product?.id || '',
+    customDialogue,
+    talkingHeadMode: !input.product?.id,
+    videoDurationSeconds: Number(input.config?.videoDuration || '16'),
+    videoAspectRatio: input.config?.aspectRatio || '9:16',
+    language: resolvedSpokenLanguage,
+    resolvedSpokenLanguage,
+    videoModel: 'kling_3' as const,
+  };
+};
 
 export const buildVideoCloneStartPayload = (input: {
   avatar?: ProjectAgentCanvasAssetRef | null;

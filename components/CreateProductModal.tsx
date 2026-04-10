@@ -8,7 +8,7 @@ import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import { waitForAiReferenceAngleJobs } from '@/lib/ai-reference-angle-jobs-client';
 import type { AiReferenceAngleCreateJobResponse } from '@/lib/ai-reference-angle-jobs';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
-import { PRODUCT_REFERENCE_SLOTS } from './ReferenceImageGrid';
+import { useI18n } from '@/providers/I18nProvider';
 import AssetCreationFields from './AssetCreationFields';
 
 interface CreateProductModalProps {
@@ -27,6 +27,10 @@ export default function CreateProductModal({
   onClose,
   onProductCreated
 }: CreateProductModalProps) {
+  const { messages } = useI18n();
+  const assetsMessages = messages.dashboard.assets;
+  const createProductMessages = assetsMessages.createProduct;
+  const createFieldsMessages = assetsMessages.createFields;
   const supabase = useSupabaseBrowserClient();
   const fieldBadgeClassName = 'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]';
   const [productName, setProductName] = useState('');
@@ -84,7 +88,7 @@ export default function CreateProductModal({
       const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
         const img = document.createElement('img');
         img.onload = () => resolve({ width: img.width, height: img.height });
-        img.onerror = () => reject(new Error('Failed to load image. Please try a different file.'));
+        img.onerror = () => reject(new Error(`${createProductMessages.errors.loadFailed} Please try a different file.`));
         img.src = objectUrl;
       });
 
@@ -112,7 +116,7 @@ export default function CreateProductModal({
       setFrontalImage({ file, preview });
       setFormError(null);
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Failed to load image.');
+      setFormError(error instanceof Error ? error.message : createProductMessages.errors.loadFailed);
     } finally {
       if (event.target) event.target.value = '';
     }
@@ -123,7 +127,7 @@ export default function CreateProductModal({
     if (!file) return;
 
     if (referenceImages.length >= 3) {
-      setFormError('You can upload up to 3 reference images.');
+      setFormError(createProductMessages.errors.uploadCountLimit);
       if (event.target) event.target.value = '';
       return;
     }
@@ -134,7 +138,7 @@ export default function CreateProductModal({
       setFormError(null);
       setHighlightReferenceRequirement(false);
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Failed to load image.');
+      setFormError(error instanceof Error ? error.message : createProductMessages.errors.loadFailed);
     } finally {
       if (event.target) event.target.value = '';
     }
@@ -147,7 +151,7 @@ export default function CreateProductModal({
   const buildPreviewFileFromUrl = async (imageUrl: string, fileName: string): Promise<PreviewFile> => {
     const response = await fetch(imageUrl);
     if (!response.ok) {
-      throw new Error('Failed to download generated reference image.');
+      throw new Error(createProductMessages.errors.downloadGeneratedFailed);
     }
 
     const blob = await response.blob();
@@ -158,13 +162,13 @@ export default function CreateProductModal({
 
   const handleGenerateReferences = async () => {
     if (!frontalImage) {
-      setFormError('Upload a frontal image first.');
+      setFormError(createProductMessages.errors.frontalFirst);
       return;
     }
 
     const missingCount = 3 - referenceImages.length;
     if (missingCount <= 0) {
-      setFormError('Reference images are already full (3/3).');
+      setFormError(createProductMessages.errors.referencesFull);
       return;
     }
 
@@ -186,7 +190,7 @@ export default function CreateProductModal({
 
       const createPayload = await createResponse.json().catch(() => ({}));
       if (!createResponse.ok || !Array.isArray(createPayload?.jobs) || createPayload.jobs.length !== missingCount) {
-        throw new Error(createPayload?.error || 'Failed to start AI reference generation.');
+        throw new Error(createPayload?.error || createProductMessages.errors.generationStartFailed);
       }
 
       const jobs = createPayload.jobs as AiReferenceAngleCreateJobResponse[];
@@ -224,7 +228,7 @@ export default function CreateProductModal({
       });
       await appendCompletedReferences(resolvedJobs);
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Failed to generate AI references.');
+      setFormError(error instanceof Error ? error.message : createProductMessages.errors.generationFailed);
     } finally {
       setIsGeneratingReferences(false);
     }
@@ -273,17 +277,17 @@ export default function CreateProductModal({
     event.preventDefault();
 
     if (!frontalImage) {
-      setFormError('Upload one frontal product image to continue.');
+      setFormError(createProductMessages.errors.frontalRequired);
       return;
     }
 
     if (!productName.trim()) {
-      setFormError('Product name is required.');
+      setFormError(createProductMessages.errors.nameRequired);
       return;
     }
 
     if (referenceImages.length < 1) {
-      setFormError('Upload at least one reference image to continue.');
+      setFormError(createProductMessages.errors.referenceRequired);
       triggerReferenceRequirementHint();
       return;
     }
@@ -332,7 +336,7 @@ export default function CreateProductModal({
       onClose();
     } catch (error) {
       console.error('Error creating product:', error);
-      setFormError(error instanceof Error ? error.message : 'Failed to create product. Please try again.');
+      setFormError(error instanceof Error ? error.message : createProductMessages.errors.createFailed);
     } finally {
       setIsCreating(false);
     }
@@ -385,8 +389,8 @@ export default function CreateProductModal({
                   <Package className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="assets-modal-title text-xl font-semibold text-gray-900">Create New Product</p>
-                  <p className="assets-modal-subtitle text-sm text-gray-600">Add 1 frontal image and 1-3 reference images.</p>
+                  <p className="assets-modal-title text-xl font-semibold text-gray-900">{createProductMessages.title}</p>
+                  <p className="assets-modal-subtitle text-sm text-gray-600">{createProductMessages.subtitle}</p>
                 </div>
               </div>
               <button
@@ -405,8 +409,9 @@ export default function CreateProductModal({
               highlightReferenceRequirement={highlightReferenceRequirement}
               isGeneratingReferences={isGeneratingReferences}
               isPrimaryBusy={isCreating}
+              nameLabel={createFieldsMessages.nameLabel}
               nameInputId="product-name-input"
-              namePlaceholder="Enter product name"
+              namePlaceholder={createProductMessages.namePlaceholder}
               nameValue={productName}
               onCancel={onClose}
               onGenerateReferences={handleGenerateReferences}
@@ -416,33 +421,39 @@ export default function CreateProductModal({
               onReferenceAdd={referenceImages.length < 3 ? () => referenceInputRef.current?.click() : undefined}
               onReferenceRemove={removeReferenceImage}
               onSubmit={handleSubmit}
-              primaryEmptyCopy="PNG or JPG, up to 8MB"
-              primaryEmptyTitle="Upload the frontal product image"
-              primaryHelpAriaLabel="Frontal image recommendation"
+              primaryEmptyCopy={createProductMessages.frontalEmptyCopy}
+              primaryEmptyTitle={createProductMessages.frontalEmptyTitle}
+              primaryHelpAriaLabel={createProductMessages.frontalHelpLabel}
               primaryHelpContent={(
                 <div className="rounded-lg border border-black/8 bg-[#fafaf9] px-3 py-2">
                   <p className="text-[11px] leading-5 text-gray-600">
-                    Use a clear front-facing product shot on a clean background.
+                    {createProductMessages.frontalHelpContent}
                   </p>
                 </div>
               )}
               primaryImage={frontalImage ? { src: frontalImage.preview, alt: 'Frontal preview' } : null}
-              primaryPreviewLabel="Frontal"
-              primaryTitle="Frontal Image"
+              primaryPreviewLabel={createProductMessages.frontalPreviewLabel}
+              primaryTitle={createProductMessages.frontalTitle}
+              requiredLabel={createFieldsMessages.required}
               referenceColumns={2}
               referenceGenerateDisabled={referenceImages.length >= 3 || isCreating || isUploading || isGeneratingReferences}
-              referenceHelpAriaLabel="Reference angle recommendation"
+              referenceMinimumLabel={createFieldsMessages.minimumOne}
+              referenceHelpAriaLabel={createProductMessages.referencesHelpLabel}
               referenceHelpContent={(
                 <p className="text-xs text-gray-700">
-                  Recommendation: upload one 45° front-angle shot and up to two extra detail shots for function or structure.
+                  {createProductMessages.referencesHelpContent}
                 </p>
               )}
               referenceItems={referenceGridItems}
               referenceRemoveDisabled={isCreating || isGeneratingReferences}
-              referenceSlots={PRODUCT_REFERENCE_SLOTS}
-              referenceTitle="Reference Images"
+              referenceSlots={createProductMessages.referenceSlots}
+              referenceTitle={createProductMessages.referencesTitle}
+              generateLabel={createFieldsMessages.aiGenerate}
+              generatingLabel={createFieldsMessages.generating}
               saveDisabled={!canSubmit}
               saveBusy={isCreating || isUploading}
+              cancelLabel={createFieldsMessages.cancel}
+              saveLabel={createFieldsMessages.save}
             />
             <input
               ref={frontalInputRef}

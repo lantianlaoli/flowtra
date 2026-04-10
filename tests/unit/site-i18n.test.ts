@@ -66,6 +66,12 @@ test('site locale options and dashboard/tool dictionaries stay aligned', () => {
   );
   assert.equal(siteMessages.en.dashboard.sidebar.assets, 'Assets');
   assert.equal(siteMessages.zh.dashboard.sidebar.assets, '素材库');
+  assert.equal(siteMessages.en.dashboard.assets.createProduct.title, 'Create New Product');
+  assert.equal(siteMessages.zh.dashboard.assets.createProduct.title, '创建新产品');
+  assert.equal(siteMessages.en.dashboard.assets.createAvatar.title, 'Create New Avatar');
+  assert.equal(siteMessages.zh.dashboard.assets.createAvatar.title, '创建新角色');
+  assert.equal(siteMessages.en.dashboard.assets.createFields.aiGenerate, 'AI Generate');
+  assert.equal(siteMessages.zh.dashboard.assets.createFields.aiGenerate, 'AI 生成');
   assert.equal(siteMessages.en.tools.index.title, 'Marketing Utilities');
   assert.equal(siteMessages.zh.tools.index.title, '营销工具箱');
 });

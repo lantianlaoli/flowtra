@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Package, Search, Loader2 } from 'lucide-react';
 import { UserProduct } from '@/lib/supabase';
+import { useI18n } from '@/providers/I18nProvider';
 import ProductCard from './ProductCard';
 import CreateProductModal from './CreateProductModal';
 
@@ -17,6 +18,8 @@ export default function ProductManager({
   selectedProductId,
   selectable = false
 }: ProductManagerProps) {
+  const { messages } = useI18n();
+  const assetsMessages = messages.dashboard.assets;
   const [products, setProducts] = useState<UserProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -164,7 +167,7 @@ export default function ProductManager({
           <div className="flex items-center gap-2">
             <Package className="w-5 h-5 text-gray-600" />
             <h2 className="text-lg font-semibold text-gray-900">
-              {selectable ? 'Select Product' : 'My Products'}
+              {selectable ? assetsMessages.productManager.selectTitle : assetsMessages.productManager.libraryTitle}
             </h2>
           </div>
           {!selectable && (
@@ -173,7 +176,7 @@ export default function ProductManager({
               className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors"
             >
               <Plus className="w-4 h-4" />
-              Add Product
+              {assetsMessages.productManager.addProduct}
             </button>
           )}
         </div>
@@ -183,7 +186,7 @@ export default function ProductManager({
           <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search products..."
+            placeholder={assetsMessages.search.products}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
@@ -197,9 +200,9 @@ export default function ProductManager({
         {filteredProducts.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-medium mb-2">No products found</h3>
+            <h3 className="text-lg font-medium mb-2">{assetsMessages.productManager.noProductsTitle}</h3>
             <p className="text-sm">
-              {searchTerm ? 'Try adjusting your search terms' : 'Create your first product to get started'}
+              {searchTerm ? assetsMessages.productManager.noProductsSearchDescription : assetsMessages.productManager.noProductsEmptyDescription}
             </p>
           </div>
         ) : (

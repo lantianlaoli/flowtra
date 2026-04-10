@@ -62,6 +62,110 @@ type SiteMessages = {
     assets: {
       title: string;
       description: string;
+      tabs: {
+        products: string;
+        avatars: string;
+        videos: string;
+      };
+      actions: {
+        upload: string;
+        importVideos: string;
+        downloadViralVideos: string;
+      };
+      search: {
+        products: string;
+        videos: string;
+      };
+      empty: {
+        noResults: string;
+        adjustSearch: string;
+        noVideosTitle: string;
+        noVideosDescription: string;
+      };
+      productManager: {
+        selectTitle: string;
+        libraryTitle: string;
+        addProduct: string;
+        noProductsTitle: string;
+        noProductsSearchDescription: string;
+        noProductsEmptyDescription: string;
+      };
+      createFields: {
+        nameLabel: string;
+        required: string;
+        minimumOne: string;
+        aiGenerate: string;
+        generating: string;
+        cancel: string;
+        save: string;
+      };
+        createProduct: {
+          title: string;
+          subtitle: string;
+          namePlaceholder: string;
+        frontalTitle: string;
+        frontalPreviewLabel: string;
+        frontalEmptyTitle: string;
+        frontalEmptyCopy: string;
+        frontalHelpLabel: string;
+        frontalHelpContent: string;
+          referencesTitle: string;
+          referencesHelpLabel: string;
+          referencesHelpContent: string;
+          referenceSlots: Array<{
+            label: string;
+            description: string;
+          }>;
+          errors: {
+          frontalFirst: string;
+          referencesFull: string;
+          generationStartFailed: string;
+          generationFailed: string;
+          frontalRequired: string;
+          nameRequired: string;
+          referenceRequired: string;
+          createFailed: string;
+          loadFailed: string;
+          uploadCountLimit: string;
+          downloadGeneratedFailed: string;
+        };
+      };
+      createAvatar: {
+        title: string;
+        subtitle: string;
+        namePlaceholder: string;
+        primaryTitle: string;
+        primaryPreviewLabel: string;
+        primaryEmptyTitle: string;
+        primaryEmptyCopy: string;
+        primaryHelpLabel: string;
+        examplesTitle: string;
+        goodExample: string;
+        badExample: string;
+        primaryHelpContent: string;
+        referencesTitle: string;
+        referencesHelpLabel: string;
+        referencesHelpContent: string;
+        referenceSlots: Array<{
+          label: string;
+          description: string;
+        }>;
+        errors: {
+          sizeLimit: string;
+          loadFailed: string;
+          referenceCountLimit: string;
+          primaryFirst: string;
+          referencesFull: string;
+          generationStartFailed: string;
+          generationFailed: string;
+          nameRequired: string;
+          primaryRequired: string;
+          referenceRequired: string;
+          createFailed: string;
+          uploadReferenceFailed: string;
+          downloadGeneratedFailed: string;
+        };
+      };
     };
     support: {
       title: string;
@@ -248,6 +352,130 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
       assets: {
         title: 'Assets',
         description: 'Manage your products, avatars, and videos in one unified place',
+        tabs: {
+          products: 'Products',
+          avatars: 'Avatars',
+          videos: 'Videos',
+        },
+        actions: {
+          upload: 'Upload',
+          importVideos: 'Import Videos',
+          downloadViralVideos: 'Download Viral Videos',
+        },
+        search: {
+          products: 'Search products...',
+          videos: 'Search videos...',
+        },
+        empty: {
+          noResults: 'No results found',
+          adjustSearch: 'Try adjusting your search terms',
+          noVideosTitle: 'No videos yet',
+          noVideosDescription: 'Import TikTok videos to reuse them across projects.',
+        },
+        productManager: {
+          selectTitle: 'Select Product',
+          libraryTitle: 'My Products',
+          addProduct: 'Add Product',
+          noProductsTitle: 'No products found',
+          noProductsSearchDescription: 'Try adjusting your search terms',
+          noProductsEmptyDescription: 'Create your first product to get started',
+        },
+        createFields: {
+          nameLabel: 'Name',
+          required: 'Required',
+          minimumOne: 'Min 1',
+          aiGenerate: 'AI Generate',
+          generating: 'Generating…',
+          cancel: 'Cancel',
+          save: 'Save',
+        },
+        createProduct: {
+          title: 'Create New Product',
+          subtitle: 'Add 1 frontal image and 1-3 reference images.',
+          namePlaceholder: 'Enter product name',
+          frontalTitle: 'Frontal Image',
+          frontalPreviewLabel: 'Frontal',
+          frontalEmptyTitle: 'Upload the frontal product image',
+          frontalEmptyCopy: 'PNG or JPG, up to 8MB',
+          frontalHelpLabel: 'Frontal image recommendation',
+          frontalHelpContent: 'Use a clear front-facing product shot on a clean background.',
+          referencesTitle: 'Reference Images',
+          referencesHelpLabel: 'Reference angle recommendation',
+          referencesHelpContent: 'Recommendation: upload one 45° front-angle shot and up to two extra detail shots for function or structure.',
+          referenceSlots: [
+            {
+              label: '45° Front Left',
+              description: 'Show the left-front plane and product depth.',
+            },
+            {
+              label: '45° Front Right',
+              description: 'Show the right-front plane and structure balance.',
+            },
+            {
+              label: 'Back View',
+              description: 'Reveal the rear label, packaging details, or instructions.',
+            },
+          ],
+          errors: {
+            frontalFirst: 'Upload a frontal image first.',
+            referencesFull: 'Reference images are already full (3/3).',
+            generationStartFailed: 'Failed to start AI reference generation.',
+            generationFailed: 'Failed to generate AI references.',
+            frontalRequired: 'Upload one frontal product image to continue.',
+            nameRequired: 'Product name is required.',
+            referenceRequired: 'Upload at least one reference image to continue.',
+            createFailed: 'Failed to create product. Please try again.',
+            loadFailed: 'Failed to load image.',
+            uploadCountLimit: 'You can upload up to 3 reference images.',
+            downloadGeneratedFailed: 'Failed to download generated reference image.',
+          },
+        },
+        createAvatar: {
+          title: 'Create New Avatar',
+          subtitle: 'Add 1 primary portrait and 1-3 reference photos.',
+          namePlaceholder: 'Enter avatar name',
+          primaryTitle: 'Primary Portrait',
+          primaryPreviewLabel: 'Primary',
+          primaryEmptyTitle: 'Upload primary portrait',
+          primaryEmptyCopy: 'PNG or JPG, up to 8MB',
+          primaryHelpLabel: 'Photo examples',
+          examplesTitle: 'Portrait Photo Examples',
+          goodExample: 'Good Example',
+          badExample: 'Bad (Blurry)',
+          primaryHelpContent: 'Use a front-facing, well-lit portrait on a clean background.',
+          referencesTitle: 'Reference Photos',
+          referencesHelpLabel: 'Reference angle recommendation',
+          referencesHelpContent: 'Recommended: one 45° side angle and 1–2 detail/profile shots.',
+          referenceSlots: [
+            {
+              label: '45° Front Left',
+              description: 'Show the left-front facial angle and shoulder line.',
+            },
+            {
+              label: '45° Front Right',
+              description: 'Show the right-front facial angle and silhouette.',
+            },
+            {
+              label: 'Back View',
+              description: 'Show the rear profile, hair, or outfit details.',
+            },
+          ],
+          errors: {
+            sizeLimit: 'Image file size must be less than 8MB',
+            loadFailed: 'Failed to load image.',
+            referenceCountLimit: 'You can add up to 3 reference photos.',
+            primaryFirst: 'Upload a primary portrait first.',
+            referencesFull: 'Reference photos are already full (3/3).',
+            generationStartFailed: 'Failed to start AI reference generation.',
+            generationFailed: 'Failed to generate AI references.',
+            nameRequired: 'Avatar name is required',
+            primaryRequired: 'Upload one primary avatar photo to continue.',
+            referenceRequired: 'Upload at least one reference photo to continue.',
+            createFailed: 'Failed to create avatar. Please try again.',
+            uploadReferenceFailed: 'Failed to upload reference photo',
+            downloadGeneratedFailed: 'Failed to download generated reference image.',
+          },
+        },
       },
       support: {
         title: 'Support & Contact',
@@ -550,6 +778,130 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
       assets: {
         title: '素材库',
         description: '在一个统一空间中管理你的产品、角色和视频素材',
+        tabs: {
+          products: '产品',
+          avatars: '角色',
+          videos: '视频',
+        },
+        actions: {
+          upload: '上传',
+          importVideos: '导入视频',
+          downloadViralVideos: '下载爆款视频',
+        },
+        search: {
+          products: '搜索产品...',
+          videos: '搜索视频...',
+        },
+        empty: {
+          noResults: '没有找到结果',
+          adjustSearch: '试试调整搜索关键词',
+          noVideosTitle: '还没有视频',
+          noVideosDescription: '导入 TikTok 视频后，你就可以在不同项目中重复使用它们。',
+        },
+        productManager: {
+          selectTitle: '选择产品',
+          libraryTitle: '我的产品',
+          addProduct: '添加产品',
+          noProductsTitle: '没有找到产品',
+          noProductsSearchDescription: '试试调整搜索关键词',
+          noProductsEmptyDescription: '创建你的第一个产品开始使用',
+        },
+        createFields: {
+          nameLabel: '名称',
+          required: '必填',
+          minimumOne: '至少 1 张',
+          aiGenerate: 'AI 生成',
+          generating: '生成中…',
+          cancel: '取消',
+          save: '保存',
+        },
+        createProduct: {
+          title: '创建新产品',
+          subtitle: '添加 1 张正面图和 1-3 张参考图。',
+          namePlaceholder: '输入产品名称',
+          frontalTitle: '正面图',
+          frontalPreviewLabel: '正面',
+          frontalEmptyTitle: '上传产品正面图',
+          frontalEmptyCopy: 'PNG 或 JPG，最大 8MB',
+          frontalHelpLabel: '正面图建议',
+          frontalHelpContent: '请使用背景干净、正面清晰的产品照片。',
+          referencesTitle: '参考图',
+          referencesHelpLabel: '参考角度建议',
+          referencesHelpContent: '建议上传一张 45° 前侧角图片，并补充最多两张展示功能或结构细节的参考图。',
+          referenceSlots: [
+            {
+              label: '左前 45°',
+              description: '展示产品左前侧平面与纵深。',
+            },
+            {
+              label: '右前 45°',
+              description: '展示产品右前侧平面与结构平衡。',
+            },
+            {
+              label: '背面视角',
+              description: '展示背面标签、包装细节或说明信息。',
+            },
+          ],
+          errors: {
+            frontalFirst: '请先上传正面图。',
+            referencesFull: '参考图已满（3/3）。',
+            generationStartFailed: '启动 AI 参考图生成失败。',
+            generationFailed: 'AI 参考图生成失败。',
+            frontalRequired: '请先上传 1 张产品正面图。',
+            nameRequired: '产品名称为必填项。',
+            referenceRequired: '请至少上传 1 张参考图。',
+            createFailed: '创建产品失败，请重试。',
+            loadFailed: '图片加载失败。',
+            uploadCountLimit: '最多只能上传 3 张参考图。',
+            downloadGeneratedFailed: '下载生成的参考图失败。',
+          },
+        },
+        createAvatar: {
+          title: '创建新角色',
+          subtitle: '添加 1 张主肖像图和 1-3 张参考照片。',
+          namePlaceholder: '输入角色名称',
+          primaryTitle: '主肖像图',
+          primaryPreviewLabel: '主图',
+          primaryEmptyTitle: '上传主肖像图',
+          primaryEmptyCopy: 'PNG 或 JPG，最大 8MB',
+          primaryHelpLabel: '照片示例',
+          examplesTitle: '肖像照片示例',
+          goodExample: '优质示例',
+          badExample: '较差示例（模糊）',
+          primaryHelpContent: '请使用正面、光线充足、背景干净的人像照片。',
+          referencesTitle: '参考照片',
+          referencesHelpLabel: '参考角度建议',
+          referencesHelpContent: '建议上传一张 45° 侧角照片，并补充 1-2 张细节或侧面照片。',
+          referenceSlots: [
+            {
+              label: '左前 45°',
+              description: '展示面部左前侧角度和肩线。',
+            },
+            {
+              label: '右前 45°',
+              description: '展示面部右前侧轮廓和外形。',
+            },
+            {
+              label: '背面视角',
+              description: '展示背面轮廓、发型或服装细节。',
+            },
+          ],
+          errors: {
+            sizeLimit: '图片文件大小必须小于 8MB',
+            loadFailed: '图片加载失败。',
+            referenceCountLimit: '最多只能添加 3 张参考照片。',
+            primaryFirst: '请先上传主肖像图。',
+            referencesFull: '参考照片已满（3/3）。',
+            generationStartFailed: '启动 AI 参考图生成失败。',
+            generationFailed: 'AI 参考图生成失败。',
+            nameRequired: '角色名称为必填项',
+            primaryRequired: '请先上传 1 张主角色照片。',
+            referenceRequired: '请至少上传 1 张参考照片。',
+            createFailed: '创建角色失败，请重试。',
+            uploadReferenceFailed: '上传参考照片失败',
+            downloadGeneratedFailed: '下载生成的参考图失败。',
+          },
+        },
       },
       support: {
         title: '支持与联系',

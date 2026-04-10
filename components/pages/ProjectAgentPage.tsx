@@ -47,6 +47,7 @@ import {
   isProjectAgentAssetNode,
   isProjectAgentFeatureNode,
   isProjectAgentOutputNode,
+  isProjectAgentRuntimeActive,
   normalizeCanvasState,
   removeCanvasEdge,
   removeCanvasNode,
@@ -660,7 +661,12 @@ export default function ProjectAgentPage() {
         const blockedReason = getFeatureStartBlockedReason(current, node.id);
         const canStart = missingInputs.length === 0 && !blockedReason;
         const executionState = node.runtime?.executionState;
-        const preservedState = executionState === 'running' || executionState === 'completed' || executionState === 'failed';
+        const preservedState = (
+          isProjectAgentRuntimeActive(node.runtime) ||
+          executionState === 'completed' ||
+          executionState === 'failed'
+        );
+        const preservedExecutionState = executionState ?? 'running';
         const nextState: 'ready' | 'invalid' = canStart ? 'ready' : 'invalid';
         const nextStatusLabel = canStart
           ? 'Ready to start'
@@ -670,7 +676,7 @@ export default function ProjectAgentPage() {
           missingInputs,
           canStart,
           blockedReason,
-          executionState: preservedState ? executionState : nextState,
+          executionState: preservedState ? preservedExecutionState : nextState,
           statusLabel: preservedState ? node.runtime?.statusLabel : nextStatusLabel,
         };
         if (
@@ -907,7 +913,7 @@ export default function ProjectAgentPage() {
       isProjectAgentFeatureNode(node.type) &&
       typeof node.runtime?.projectId === 'string' &&
       node.runtime.projectId.length > 0 &&
-      node.runtime.executionState === 'running'
+      isProjectAgentRuntimeActive(node.runtime)
     ));
 
     if (activeRuntimeNodes.length === 0) return;
