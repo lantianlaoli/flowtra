@@ -7,6 +7,7 @@ export type LandingMessages = {
     pricing: string;
     blog: string;
     faq: string;
+    academy: string;
     dashboard: string;
     signUpDesktop: string;
     signUpMobile: string;
@@ -194,6 +195,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       pricing: 'Pricing',
       blog: 'Blog',
       faq: 'FAQ',
+      academy: 'Academy',
       dashboard: 'Dashboard',
       signUpDesktop: 'Sign up · Get 100 free credits',
       signUpMobile: 'Get 100 Credits',
@@ -506,6 +508,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       pricing: '价格',
       blog: '博客',
       faq: '常见问题',
+      academy: 'Academy',
       dashboard: '控制台',
       signUpDesktop: '注册 · 获得 100 免费积分',
       signUpMobile: '领取 100 积分',

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState, type MouseEvent, type PointerEvent } from 'react';
-import { Check, ChevronUp, Globe, Home, Moon, Sun, User } from 'lucide-react';
+import { BookOpen, Check, ChevronUp, Globe, Home, Moon, Sun, User } from 'lucide-react';
 import { SITE_LOCALE_OPTIONS } from '@/lib/i18n/site';
 import { useI18n } from '@/providers/I18nProvider';
 
@@ -165,6 +165,14 @@ export default function SidebarUtilityDock({
           </div>
         ) : null}
       </div>
+
+      <UtilityAction
+        icon={BookOpen}
+        label={utilityMessages.academy}
+        href="/academy"
+        onNavigateTo={onNavigateTo}
+        onNavigate={onNavigate}
+      />
 
       <UtilityAction
         icon={isDarkMode ? Sun : Moon}

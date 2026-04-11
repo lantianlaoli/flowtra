@@ -35,6 +35,7 @@ type SiteMessages = {
     utilityDock: {
       account: string;
       language: string;
+      academy: string;
       lightMode: string;
       darkMode: string;
       backToLanding: string;
@@ -280,6 +281,20 @@ type SiteMessages = {
       threads: { description: string; cta: string };
     };
   };
+  academy: {
+    eyebrow: string;
+    title: string;
+    description: string;
+    playlistTitle: string;
+    playlistDescription: string;
+    bilibiliTitle: string;
+    bilibiliDescription: string;
+    watchOnYoutube: string;
+    watchOnBilibili: string;
+    openExternal: string;
+    localeBadgeYoutube: string;
+    localeBadgeBilibili: string;
+  };
   error: {
     title: string;
     description: string;
@@ -324,6 +339,7 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
       utilityDock: {
         account: 'Account',
         language: 'Language',
+        academy: 'Academy',
         lightMode: 'Light Mode',
         darkMode: 'Dark Mode',
         backToLanding: 'Back to Landing',
@@ -708,6 +724,20 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
         },
       },
     },
+    academy: {
+      eyebrow: 'Academy',
+      title: 'Learn the Flowtra workflow',
+      description: 'Watch the Academy resources that match your current language and get up to speed faster.',
+      playlistTitle: 'YouTube Academy Playlist',
+      playlistDescription: 'A curated YouTube playlist covering product setup, workflow walkthroughs, and AI video creation tips.',
+      bilibiliTitle: 'Bilibili Academy Video',
+      bilibiliDescription: 'A featured Bilibili tutorial for Chinese-speaking users who want a quick walkthrough of the product and workflow.',
+      watchOnYoutube: 'Open in YouTube',
+      watchOnBilibili: 'Open in Bilibili',
+      openExternal: 'Open external resource',
+      localeBadgeYoutube: 'English resource',
+      localeBadgeBilibili: 'Chinese resource',
+    },
     error: {
       title: 'Unexpected Error',
       description:
@@ -751,6 +781,7 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
       utilityDock: {
         account: '账户',
         language: '语言',
+        academy: 'Academy',
         lightMode: '浅色模式',
         darkMode: '深色模式',
         backToLanding: '返回首页',
@@ -1121,6 +1152,20 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
           cta: '加入讨论',
         },
       },
+    },
+    academy: {
+      eyebrow: '教程中心',
+      title: '学习 Flowtra 的使用流程',
+      description: '根据你当前的语言，查看对应的 Academy 教程内容，更快上手完整工作流。',
+      playlistTitle: 'YouTube Academy 播放列表',
+      playlistDescription: '精选 YouTube 教程合集，涵盖产品设置、工作流演示和 AI 视频制作技巧。',
+      bilibiliTitle: 'Bilibili Academy 视频',
+      bilibiliDescription: '适合中文用户的精选教学视频，帮助你快速理解产品能力与带货视频制作流程。',
+      watchOnYoutube: '在 YouTube 打开',
+      watchOnBilibili: '在 Bilibili 打开',
+      openExternal: '打开外部资源',
+      localeBadgeYoutube: '英文资源',
+      localeBadgeBilibili: '中文资源',
     },
     error: {
       title: '发生了意外错误',

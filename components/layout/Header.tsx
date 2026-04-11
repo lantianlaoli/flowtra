@@ -165,6 +165,9 @@ export default function Header({
             <Link href="/#pricing" className={navButtonClass}>
               {headerMessages.pricing}
             </Link>
+            <Link href="/academy" className={navButtonClass}>
+              {headerMessages.academy}
+            </Link>
             <Link href="/#blog" className={navButtonClass}>
               {headerMessages.blog}
             </Link>
@@ -245,6 +248,13 @@ export default function Header({
             onClick={() => setMobileMenuOpen(false)}
           >
             {headerMessages.pricing}
+          </Link>
+          <Link
+            href="/academy"
+            className="rounded-[18px] px-3 py-2 text-[16px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            {headerMessages.academy}
           </Link>
           <Link
             href="/#blog"
