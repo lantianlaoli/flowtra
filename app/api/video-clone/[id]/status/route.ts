@@ -141,7 +141,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         videoTaskId: record.video_task_id || null,
         errorMessage: record.error_message || null,
         creditsUsed: record.generation_credits_used || 0,
-        videoModel: record.video_model || 'veo3_fast',
+        videoModel: record.video_model || 'seedance_2_fast',
         videoDuration: record.video_duration || null,
         segmentCount: record.segment_count || null,
         segmentDurationSeconds: record.segment_duration_seconds || null,

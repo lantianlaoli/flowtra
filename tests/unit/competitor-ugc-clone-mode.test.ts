@@ -72,7 +72,7 @@ test('returns non-clone mode when no metadata or legacy source exists', () => {
 
 test('buildManualCloneSeedPrompts preserves reference shots for segmented non-Kling clone projects', () => {
   const prompts = buildManualCloneSeedPrompts({
-    videoModel: 'veo3_fast',
+    videoModel: 'seedance_2_fast',
     segmentCount: 2,
     videoDuration: '16',
     language: 'en',

@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, Package, CheckCircle, Heart, Sparkles } from 'lucide-react';
+import { Download, Package, CheckCircle, Heart, Sparkles, Coins, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { VideoModel } from '@/lib/constants';
 
 interface DownloadButtonProps {
   historyId: string;
-  videoModel: 'veo3' | 'veo3_fast';
-  onDownload: (historyId: string, videoModel: 'veo3' | 'veo3_fast') => Promise<void>;
+  videoModel: VideoModel;
+  onDownload: (historyId: string, videoModel: VideoModel) => Promise<void>;
   downloadCost: number;
   isDownloading: boolean;
   hasDownloaded: boolean;
@@ -249,20 +250,4 @@ export default function DownloadButton({
     </motion.button>
   );
 }
-
-// Missing icon components
-const Coins = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-  </svg>
-);
-
-const AlertCircle = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-
-
 

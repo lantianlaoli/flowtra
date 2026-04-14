@@ -4,10 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Check, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-export type LanguageCode =
-  | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'nl' | 'sv' | 'no' | 'da'
-  | 'fi' | 'pl' | 'ru' | 'el' | 'tr' | 'cs' | 'ro' | 'zh' | 'ur' | 'pa' | 'id' | 'ar';
+import type { LanguageCode } from '@/lib/constants';
+export type { LanguageCode } from '@/lib/constants';
 
 interface LanguageSelectorProps {
   selectedLanguage: LanguageCode;
@@ -24,27 +22,13 @@ const LANGUAGE_OPTIONS: Array<{
   flag: string;
 }> = [
   { value: 'en', label: 'English', nativeName: 'English', flag: '🇺🇸' },
-  { value: 'ar', label: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
-  { value: 'zh', label: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
-  { value: 'cs', label: 'Czech', nativeName: 'Čeština', flag: '🇨🇿' },
-  { value: 'da', label: 'Danish', nativeName: 'Dansk', flag: '🇩🇰' },
-  { value: 'nl', label: 'Dutch', nativeName: 'Nederlands', flag: '🇳🇱' },
-  { value: 'fi', label: 'Finnish', nativeName: 'Suomi', flag: '🇫🇮' },
+  { value: 'zh', label: 'Chinese (Mandarin)', nativeName: '中文（普通话）', flag: '🇨🇳' },
+  { value: 'ja', label: 'Japanese', nativeName: '日本語', flag: '🇯🇵' },
+  { value: 'ko', label: 'Korean', nativeName: '한국어', flag: '🇰🇷' },
+  { value: 'es', label: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
   { value: 'fr', label: 'French', nativeName: 'Français', flag: '🇫🇷' },
   { value: 'de', label: 'German', nativeName: 'Deutsch', flag: '🇩🇪' },
-  { value: 'el', label: 'Greek', nativeName: 'Ελληνικά', flag: '🇬🇷' },
-  { value: 'it', label: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' },
-  { value: 'id', label: 'Indonesian', nativeName: 'Bahasa Indonesia', flag: '🇮🇩' },
-  { value: 'no', label: 'Norwegian', nativeName: 'Norsk', flag: '🇳🇴' },
-  { value: 'pl', label: 'Polish', nativeName: 'Polski', flag: '🇵🇱' },
   { value: 'pt', label: 'Portuguese', nativeName: 'Português', flag: '🇵🇹' },
-  { value: 'pa', label: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ', flag: '🇮🇳' },
-  { value: 'ro', label: 'Romanian', nativeName: 'Română', flag: '🇷🇴' },
-  { value: 'ru', label: 'Russian', nativeName: 'Русский', flag: '🇷🇺' },
-  { value: 'es', label: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
-  { value: 'sv', label: 'Swedish', nativeName: 'Svenska', flag: '🇸🇪' },
-  { value: 'tr', label: 'Turkish', nativeName: 'Türkçe', flag: '🇹🇷' },
-  { value: 'ur', label: 'Urdu', nativeName: 'اردو', flag: '🇵🇰' },
 ];
 
 export default function LanguageSelector({

@@ -53,10 +53,12 @@ export async function POST(request: NextRequest) {
 
 
     // Check if project has downloadable video
-    // Accept single generated video when only one scene is generated (8s for veo3_fast)
+    // Accept single generated scene video when merge output is not required
     let videoUrl = project.merged_video_url;
-    const UNIT_SECONDS = 8; // Avatar Ads only supports veo3_fast (8 second unit duration)
-    const totalScenes = (project.video_duration_seconds || 8) / UNIT_SECONDS;
+    const { count: totalScenes } = await supabase
+      .from('avatar_ads_scenes')
+      .select('id', { count: 'exact', head: true })
+      .eq('project_id', historyId);
     if (!videoUrl && totalScenes === 1) {
       // Query single video from scenes table
       const { data: scene } = await supabase
@@ -83,7 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ===== VERSION 2.0: UNIFIED GENERATION-TIME BILLING =====
-    // Avatar Ads (veo3_fast): Download is FREE (already paid at generation)
+    // Avatar Ads: Download is FREE (already paid at generation)
     const isFirstDownload = !project.downloaded;
 
     if (isFirstDownload) {

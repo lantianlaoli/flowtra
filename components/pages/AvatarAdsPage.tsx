@@ -8,14 +8,13 @@ import { useToast } from '@/contexts/ToastContext';
 import Sidebar from '@/components/layout/Sidebar';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import { LanguageCode } from '@/components/ui/LanguageSelector';
-import MaintenanceMessage from '@/components/MaintenanceMessage';
 import GenerationProgressDisplay, { type Generation } from '@/components/ui/GenerationProgressDisplay';
 import { User, ShoppingBag, ChevronDown, ChevronUp } from 'lucide-react';
 import BottomComposerBar from '@/components/ui/BottomComposerBar';
 import ConfigPopover from '@/components/ui/ConfigPopover';
 import BottomBarDropdown from '@/components/ui/BottomBarDropdown';
 import { UserProduct, UserAvatar } from '@/lib/supabase';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   getGenerationCost,
   getSegmentDurationForModel,
@@ -42,8 +41,14 @@ interface KieCreditsStatus {
   threshold?: number;
 }
 
+const isMaintenanceModeError = (payload: unknown) => (
+  typeof payload === 'object' &&
+  payload !== null &&
+  (payload as { code?: unknown }).code === 'MAINTENANCE_MODE'
+);
 
-const DEFAULT_VIDEO_MODEL = 'veo3_fast' as const;
+
+const DEFAULT_VIDEO_MODEL = 'seedance_2_fast' as const;
 const SESSION_STORAGE_KEY = 'flowtra_avatar_ads_generations';
 const AVATAR_ADS_TUTORIAL_EMBED_URL = 'https://www.youtube.com/embed/B_UjnFsbitk?rel=0';
 
@@ -167,7 +172,7 @@ export default function AvatarAdsPage() {
   const [selectedPersonPhotoUrl, setSelectedPersonPhotoUrl] = useState<string>('');
   const [avatarOptions, setAvatarOptions] = useState<Array<UserAvatar & { isSystem?: boolean }>>([]);
   const [productOptions, setProductOptions] = useState<UserProduct[]>([]);
-  const [format, setFormat] = useState<Format>('9:16');
+  const format: Format = '9:16';
   const [customDialogue, setCustomDialogue] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
@@ -368,13 +373,21 @@ const formatDurationLabel = (seconds: number) => {
     return (userCredits || 0) < requiredCredits;
   }, [userCredits, requiredCredits]);
 
-  const canStartGeneration = !!selectedPersonPhotoUrl && !hasInsufficientCredits;
+  const isMaintenanceMode = !kieCreditsStatus.loading && !kieCreditsStatus.sufficient;
+  const canStartGeneration = !!selectedPersonPhotoUrl && !hasInsufficientCredits && !isMaintenanceMode;
 
   // Check KIE credits on page load
   useEffect(() => {
     const checkKieCredits = async () => {
       try {
         const response = await fetch('/api/check-kie-credits');
+        if (!response.ok) {
+          setKieCreditsStatus({
+            sufficient: true,
+            loading: false,
+          });
+          return;
+        }
         const result = await response.json();
 
         setKieCreditsStatus({
@@ -386,7 +399,7 @@ const formatDurationLabel = (seconds: number) => {
       } catch (error) {
         console.error('Failed to check KIE credits:', error);
         setKieCreditsStatus({
-          sufficient: false,
+          sufficient: true,
           loading: false
         });
       }
@@ -477,10 +490,18 @@ const formatDurationLabel = (seconds: number) => {
         body: formData,
       })
         .then(async (response) => {
+          const payload = await response.json().catch(() => ({}));
           if (!response.ok) {
-            throw new Error('Failed to start generation');
+            if (isMaintenanceModeError(payload)) {
+              setKieCreditsStatus({ sufficient: false, loading: false });
+            }
+            throw new Error(
+              (payload as { message?: string; error?: string }).message ||
+              (payload as { error?: string }).error ||
+              'Failed to start generation'
+            );
           }
-          return response.json();
+          return payload;
         })
         .then((project) => {
           if (!project?.id) return;
@@ -516,9 +537,6 @@ const formatDurationLabel = (seconds: number) => {
 
   const selectedProductName = selectedProduct?.product_name;
   const hasPersonPhoto = Boolean(selectedPersonPhotoUrl);
-  const showMaintenance = !kieCreditsStatus.loading && !kieCreditsStatus.sufficient;
-  const composerVisible = !showMaintenance;
-  const composerDisabled = !canStartGeneration;
 
   const canUseDialogueAI = !!selectedProduct && productPhotoUrls.length > 0;
 
@@ -1042,62 +1060,48 @@ const formatDurationLabel = (seconds: number) => {
 
       <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
         <div className="flex-1 flex flex-col min-h-0">
-          <AnimatePresence mode="wait">
-            {showMaintenance ? (
-              <motion.div
-                key="maintenance"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-                className="flex-1 flex items-center justify-center px-8 md:px-12 lg:px-16"
-              >
-                <MaintenanceMessage />
-              </motion.div>
-            ) : (
-              <motion.section
-                key="preview"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-                className="flex-1 flex px-6 sm:px-8 lg:px-10 pb-48 min-h-0"
-              >
-                <div className="dashboard-main-shell flex-1 flex min-h-0">
-                  <div className="rounded-[26px] bg-background border border-border shadow-lg flex-1 flex flex-col overflow-hidden min-h-0">
-                    <div className="flex-1 overflow-hidden min-h-0">
-                        <GenerationProgressDisplay
-                        generations={displayedGenerations}
-                        onDownload={handleDownloadGeneration}
-                        emptyStateSteps={CHARACTER_EMPTY_STEPS}
-                        emptyStateRightContent={
-                          <div className="w-full max-w-[605px] overflow-hidden rounded-[24px] border border-border bg-black shadow-[0_18px_40px_rgba(0,0,0,0.06)]">
-                            <div className="aspect-video w-full">
-                              <iframe
-                                className="h-full w-full"
-                                src={AVATAR_ADS_TUTORIAL_EMBED_URL}
-                                title="Flowtra Avatar Ads tutorial"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                referrerPolicy="strict-origin-when-cross-origin"
-                                allowFullScreen
-                              />
-                            </div>
-                          </div>
-                        }
-                        onReview={(generation) => setInspectorProjectId((generation as AvatarGeneration).projectId!)}
-                        projectType="avatar-ads"
-                      />
-                    </div>
-                  </div>
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex-1 flex px-6 sm:px-8 lg:px-10 pb-24 md:pb-28 min-h-0"
+          >
+            <div className="dashboard-main-shell flex-1 flex min-h-0">
+              <div className="rounded-[26px] bg-background border border-border shadow-lg flex-1 flex flex-col overflow-hidden min-h-0">
+                <div className="flex-1 overflow-hidden min-h-0">
+                    <GenerationProgressDisplay
+                    generations={displayedGenerations}
+                    onDownload={handleDownloadGeneration}
+                    emptyStateSteps={CHARACTER_EMPTY_STEPS}
+                    emptyStateRightContent={
+                      <div className="w-full max-w-[605px] overflow-hidden rounded-[24px] border border-border bg-black shadow-[0_18px_40px_rgba(0,0,0,0.06)]">
+                        <div className="aspect-video w-full">
+                          <iframe
+                            className="h-full w-full"
+                            src={AVATAR_ADS_TUTORIAL_EMBED_URL}
+                            title="Flowtra Avatar Ads tutorial"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            referrerPolicy="strict-origin-when-cross-origin"
+                            allowFullScreen
+                          />
+                        </div>
+                      </div>
+                    }
+                    onReview={(generation) => {
+                      const avatarGeneration = generation as AvatarGeneration;
+                      setInspectorProjectId(avatarGeneration.projectId ?? generation.id);
+                    }}
+                    reviewCtaLabel="Edit"
+                    projectType="avatar-ads"
+                  />
                 </div>
-              </motion.section>
-            )}
-          </AnimatePresence>
+              </div>
+            </div>
+          </motion.section>
         </div>
       </DashboardContentTransition>
 
-      {composerVisible && (
-        <BottomComposerBar
+      <BottomComposerBar
           compact={false}
           surfaceClassName="max-w-[var(--dashboard-content-max-width)]"
           centerInputClassName="flex-1 min-w-[280px] max-w-none"
@@ -1111,12 +1115,30 @@ const formatDurationLabel = (seconds: number) => {
                 disabled={isLoadingAssets || avatarOptions.length === 0}
                 trigger={
                   <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                    <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
-                      <User className="h-4 w-4 text-black" />
-                    </div>
-                    <p className="truncate text-sm font-semibold tracking-tight text-black">
-                      Character
-                    </p>
+                    {selectedAvatar ? (
+                      <>
+                        <div className="relative h-5 w-5 flex-shrink-0 overflow-hidden rounded-full border border-black/10">
+                          <Image
+                            src={selectedAvatar.photo_url}
+                            alt={selectedAvatar.avatar_name || 'Character'}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <p className="truncate text-sm font-semibold tracking-tight text-black">
+                          {selectedAvatar.avatar_name || 'Character'}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+                          <User className="h-4 w-4 text-black" />
+                        </div>
+                        <p className="truncate text-sm font-semibold tracking-tight text-black">
+                          Character
+                        </p>
+                      </>
+                    )}
                   </div>
                 }
               >
@@ -1166,12 +1188,36 @@ const formatDurationLabel = (seconds: number) => {
                 disabled={isLoadingAssets || productOptions.length === 0}
                 trigger={
                   <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                    <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
-                      <ShoppingBag className="h-4 w-4 text-black" />
-                    </div>
-                    <p className="truncate text-sm font-semibold tracking-tight text-black">
-                      Product
-                    </p>
+                    {selectedProduct ? (
+                      <>
+                        <div className="relative h-5 w-5 flex-shrink-0 overflow-hidden rounded-full border border-black/10">
+                          {getProductCover(selectedProduct) ? (
+                            <Image
+                              src={getProductCover(selectedProduct)}
+                              alt={selectedProduct.product_name || 'Product'}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-[#f4f4f1]">
+                              <ShoppingBag className="h-3 w-3 text-[#7a7a74]" />
+                            </div>
+                          )}
+                        </div>
+                        <p className="truncate text-sm font-semibold tracking-tight text-black">
+                          {selectedProduct.product_name || 'Product'}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+                          <ShoppingBag className="h-4 w-4 text-black" />
+                        </div>
+                        <p className="truncate text-sm font-semibold tracking-tight text-black">
+                          Product
+                        </p>
+                      </>
+                    )}
                   </div>
                 }
               >
@@ -1319,8 +1365,7 @@ const formatDurationLabel = (seconds: number) => {
               hideDurationSelector={true}
               selectedLanguage={selectedLanguage}
               onLanguageChange={setSelectedLanguage}
-              format={format}
-              onFormatChange={setFormat}
+              hideFormatSelector={true}
               variant="minimal"
             />
           }
@@ -1329,9 +1374,10 @@ const formatDurationLabel = (seconds: number) => {
           isGenerating={false}
           generationCost={requiredCredits}
           userCredits={userCredits || 0}
+          maintenanceMode={isMaintenanceMode}
+          maintenanceLabel="Maintenance"
           generateButtonText="Start"
         />
-      )}
 
       {/* Character Ad Inspector */}
       {inspectorProjectId && (

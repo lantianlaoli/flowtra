@@ -1,10 +1,10 @@
-# Seedance 1.5 Pro API Documentation
+# Seedance 2 Fast API Documentation
 
-> Generate content using the Seedance 1.5 Pro model
+> Generate content using the Seedance 2 Fast model
 
 ## Overview
 
-This document describes how to use the Seedance 1.5 Pro model for content generation. The process consists of two steps:
+This document describes how to use the Seedance 2 Fast model for content generation. The process consists of two steps:
 1. Create a generation task
 2. Query task status and results
 
@@ -32,7 +32,7 @@ Get API Key:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| model | string | Yes | Model name, format: `bytedance/seedance-1.5-pro` |
+| model | string | Yes | Model name, format: `bytedance/seedance-2-fast` |
 | input | object | Yes | Input parameters object |
 | callBackUrl | string | No | Callback URL for task completion notifications. If provided, the system will send POST requests to this URL when the task completes (success or fail). If not provided, no callback notifications will be sent. Example: `"https://your-domain.com/api/callback"` |
 
@@ -42,7 +42,7 @@ The `model` parameter specifies which AI model to use for content generation.
 
 | Property | Value | Description |
 |----------|-------|-------------|
-| **Format** | `bytedance/seedance-1.5-pro` | The exact model identifier for this API |
+| **Format** | `bytedance/seedance-2-fast` | The exact model identifier for this API |
 | **Type** | string | Must be passed as a string value |
 | **Required** | Yes | This parameter is mandatory for all requests |
 
@@ -70,76 +70,101 @@ The `callBackUrl` parameter allows you to receive automatic notifications when y
 
 #### prompt
 - **Type**: `string`
-- **Required**: Yes
-- **Description**: Enter video description (3-2500 characters)...
-- **Max Length**: 2500 characters
-- **Default Value**: `"Medium shot, premium cinematic realism. Inside a lively Portuguese tavern, a middle-aged bartender warmly greets customers in English: \"Welcome, friends! What can I get for you?\" The customers reply, \"We want a jug of beer and some snacks. And don't forget the olives, please!\" The bartender nods, \"Absolutely, right away!\""`
+- **Required**: No
+- **Description**: The text prompt or description for the video.
+- **Max Length**: 1536 characters
+- **Default Value**: `"Fixed camera shot, a girl is elegantly hanging clothes to dry. After one piece is hung, she takes another from the bucket and gives it a vigorous shake."`
 
-#### input_urls
+#### reference_image_urls
 - **Type**: `array`
 - **Required**: No
-- **Description**: Please provide the URL of the uploaded file,Upload 0-2 images. Leave empty to generate video from text only.
-- **Max File Size**: 10MB
-- **Accepted File Types**: image/jpeg, image/png, image/webp
+- **Description**: Please provide the URL of the uploaded file,A list of input image URLs.  Currently, assetId is not supported for use in the playground page. You can pass the assetId directly through the API interface.
+- **Max File Size**: 30MB
+- **Accepted File Types**: image/jpeg, image/png, image/webp, image/jpg, image/gif
 - **Multiple Files**: Yes
-- **Default Value**: `["https://static.aiquickdraw.com/tools/example/1769406035762_2pO5HHYO.png"]`
+- **Default Value**: `["https://static.aiquickdraw.com/tools/example/1775188742460_VfFGmaNa.png"]`
 
-#### aspect_ratio
-- **Type**: `string`
-- **Required**: Yes
-- **Description**: Select the frame dimensions. Default is 1:1.
-- **Options**:
-  - `1:1`: 1:1
-  - `21:9`: 21:9
-  - `4:3`: 4:3
-  - `3:4`: 3:4
-  - `16:9`: 16:9
-  - `9:16`: 9:16
-- **Default Value**: `"16:9"`
-
-#### resolution
-- **Type**: `string`
+#### reference_video_urls
+- **Type**: `array`
 - **Required**: No
-- **Description**: Standard (480p) / High (720p)
-- **Options**:
-  - `480p`: 480p
-  - `720p`: 720p
-  - `1080p`: 1080p
-- **Default Value**: `"720p"`
+- **Description**: Please provide the URL of the uploaded file,A list of input video URLs. Furthermore, the total length of the three videos must not exceed 15 seconds.  Currently, assetId is not supported for use in the playground page. You can pass the assetId directly through the API interface.
+- **Max File Size**: 50MB
+- **Accepted File Types**: video/mp4, video/quicktime, video/x-matroska
+- **Multiple Files**: Yes
+- **Default Value**: `[""]`
 
-#### duration
-- **Type**: `string`
-- **Required**: Yes
-- **Description**: 4s / 8s / 12s
-- **Options**:
-  - `4`: 4s
-  - `8`: 8s
-  - `12`: 12s
-- **Default Value**: `"8"`
-
-#### fixed_lens
-- **Type**: `boolean`
+#### reference_audio_urls
+- **Type**: `array`
 - **Required**: No
-- **Description**: Enable to keep the camera view static and stable. Disable for dynamic camera movement.
+- **Description**: Please provide the URL of the uploaded file,A list of input audio URLs.  Currently, assetId is not supported for use in the playground page. You can pass the assetId directly through the API interface.
+- **Max File Size**: 10MB
+- **Accepted File Types**: audio/mpeg, audio/wav
+- **Multiple Files**: Yes
+- **Default Value**: `[""]`
 
 #### generate_audio
 - **Type**: `boolean`
 - **Required**: No
-- **Description**: Enable to create sound effects for the video (Additional cost applies).
+- **Description**: Whether to generate AI audio synchronized with the video.
+- **Default Value**: `true`
+
+#### resolution
+- **Type**: `string`
+- **Required**: No
+- **Description**: The output video resolution.
+- **Options**:
+  - `480p`: 480p
+  - `720p`: 720p
+- **Default Value**: `"720p"`
+
+#### aspect_ratio
+- **Type**: `string`
+- **Required**: No
+- **Description**: The aspect ratio of the generated video.
+- **Options**:
+  - `16:9`: 16:9
+  - `4:3`: 4:3
+  - `1:1`: 1:1
+  - `3:4`: 3:4
+  - `9:16`: 9:16
+  - `21:9`: 21:9
+- **Default Value**: `"16:9"`
+
+#### duration
+- **Type**: `number`
+- **Required**: No
+- **Description**: Video duration in seconds. 
+- **Range**: 4 - 15 (step: 1)
+- **Default Value**: `15`
+
+#### web_search
+- **Type**: `boolean`
+- **Required**: No
+- **Description**: Use online search
+- **Default Value**: `false`
+
+#### nsfw_checker
+- **Type**: `boolean`
+- **Required**: No
+- **Description**: A configurable parameter. Defaults to true in the Playground.
+- **Default Value**: `true`
 
 ### Request Example
 
 ```json
 {
-  "model": "bytedance/seedance-1.5-pro",
+  "model": "bytedance/seedance-2-fast",
   "input": {
-    "prompt": "Medium shot, premium cinematic realism. Inside a lively Portuguese tavern, a middle-aged bartender warmly greets customers in English: \"Welcome, friends! What can I get for you?\" The customers reply, \"We want a jug of beer and some snacks. And don't forget the olives, please!\" The bartender nods, \"Absolutely, right away!\"",
-    "input_urls": ["https://static.aiquickdraw.com/tools/example/1769406035762_2pO5HHYO.png"],
-    "aspect_ratio": "16:9",
+    "prompt": "Fixed camera shot, a girl is elegantly hanging clothes to dry. After one piece is hung, she takes another from the bucket and gives it a vigorous shake.",
+    "reference_image_urls": ["https://static.aiquickdraw.com/tools/example/1775188742460_VfFGmaNa.png"],
+    "reference_video_urls": [""],
+    "reference_audio_urls": [""],
+    "generate_audio": true,
     "resolution": "720p",
-    "duration": "8",
-    "fixed_lens": true,
-    "generate_audio": true
+    "aspect_ratio": "16:9",
+    "duration": 15,
+    "web_search": false,
+    "nsfw_checker": true
   }
 }
 ```
@@ -184,10 +209,10 @@ GET https://api.kie.ai/api/v1/jobs/recordInfo?taskId=281e5b0********************
   "msg": "success",
   "data": {
     "taskId": "281e5b0*********************f39b9",
-    "model": "bytedance/seedance-1.5-pro",
+    "model": "bytedance/seedance-2-fast",
     "state": "waiting",
-    "param": "{\"model\":\"bytedance/seedance-1.5-pro\",\"input\":{\"prompt\":\"Medium shot, premium cinematic realism. Inside a lively Portuguese tavern, a middle-aged bartender warmly greets customers in English: \\"Welcome, friends! What can I get for you?\\" The customers reply, \\"We want a jug of beer and some snacks. And don't forget the olives, please!\\" The bartender nods, \\"Absolutely, right away!\\"\",\"input_urls\":[\"https://static.aiquickdraw.com/tools/example/1769406035762_2pO5HHYO.png\"],\"aspect_ratio\":\"16:9\",\"resolution\":\"720p\",\"duration\":\"8\",\"fixed_lens\":true,\"generate_audio\":true}}",
-    "resultJson": "{\"resultUrls\":[\"https://static.aiquickdraw.com/tools/example/1769405865699_AVQF2PYV.mp4\"]}",
+    "param": "{\"model\":\"bytedance/seedance-2-fast\",\"input\":{\"prompt\":\"Fixed camera shot, a girl is elegantly hanging clothes to dry. After one piece is hung, she takes another from the bucket and gives it a vigorous shake.\",\"reference_image_urls\":[\"https://static.aiquickdraw.com/tools/example/1775188742460_VfFGmaNa.png\"],\"reference_video_urls\":[\"\"],\"reference_audio_urls\":[\"\"],\"generate_audio\":true,\"resolution\":\"720p\",\"aspect_ratio\":\"16:9\",\"duration\":15,\"web_search\":false,\"nsfw_checker\":true}}",
+    "resultJson": "{\"resultUrls\":[\"https://static.aiquickdraw.com/tools/example/1775188761712_tHGAgzLy.mp4\"]}",
     "failCode": null,
     "failMsg": null,
     "costTime": null,

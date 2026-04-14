@@ -178,14 +178,10 @@ export default function CreditsPage() {
 
   // Model name mapping: technical name → user-friendly name
   const modelNameMap: Record<string, string> = {
-    'veo3': 'Veo 3',
-    'veo3_fast': 'Veo 3 Fast',
-    'sora2': 'Sora 2',
-    'sora2_pro': 'Sora 2 Pro',
-    'grok': 'Grok',
+    'seedance_2_fast': 'Seedance 2 Fast',
+    'seedance_2': 'Seedance 2',
     'kling_3': 'Kling 3.0',
     'nano-banana-2': 'Nano Banana 2',
-    'seedance_1_5_pro': 'Seedance 1.5 Pro',
   };
 
   // Parse transaction description to extract feature, action, model, and duration
@@ -463,7 +459,7 @@ export default function CreditsPage() {
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                         <div>
-                          <p className="text-sm font-medium text-foreground">Purchased Credits (Legacy)</p>
+                          <p className="text-sm font-medium text-foreground">Purchased Credits</p>
                           <p className="text-xs text-muted-foreground">
                             From one-time purchases before subscription system. These credits never expire.
                           </p>

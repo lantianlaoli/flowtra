@@ -14,7 +14,7 @@ test('buildVideoCloneStartPayload maps connected assets into clone request field
   const payload = buildVideoCloneStartPayload({
     avatar: { id: 'avatar-1', name: 'Avatar' },
     video: { id: 'video-1', name: 'Video', sourceType: 'creator', analysisLanguage: 'en' },
-    config: { videoDuration: '16', videoModel: 'veo3', videoQuality: '720p', aspectRatio: '9:16', language: 'en' },
+    config: { videoDuration: '16', videoModel: 'seedance_2', videoQuality: '720p', aspectRatio: '9:16', language: 'en' },
   });
 
   assert.equal(payload.creatorSourceVideoId, 'video-1');
@@ -51,7 +51,7 @@ test('buildAvatarAdsStartPayload keeps strict avatar and product requirements', 
   const payload = buildAvatarAdsStartPayload({
     avatar: { id: 'avatar-1', name: 'Avatar', imageUrl: 'https://example.com/avatar.png' },
     product: { id: 'product-1', name: 'Product' },
-    config: { videoDuration: '16', aspectRatio: '9:16', language: 'en', videoModel: 'veo3_fast' },
+    config: { videoDuration: '16', aspectRatio: '9:16', language: 'en', videoModel: 'seedance_2_fast' },
   });
 
   assert.equal(payload.selectedPersonPhotoUrl, 'https://example.com/avatar.png');

@@ -5,6 +5,8 @@ import {
   NON_AGENT_IMAGE_MODEL,
   NON_AGENT_IMAGE_OUTPUT_FORMAT,
   NON_AGENT_IMAGE_RESOLUTION,
+  SEEDANCE_MAX_TASK_DURATION_SECONDS,
+  SEEDANCE_MIN_TASK_DURATION_SECONDS,
   getGenerationCost,
   getLanguagePromptName,
   getSegmentVideoGenerationCost,
@@ -27,9 +29,7 @@ import {
 } from '@/lib/avatar-spoken-language';
 // Events table removed: no tracking imports
 
-const UNIT_SECONDS = 8;
-const DEFAULT_VIDEO_MODEL = 'veo3_fast' as const;
-const VEO_VIDEO_API_ENDPOINT = 'https://api.kie.ai/api/v1/veo/generate';
+const DEFAULT_VIDEO_MODEL = 'seedance_2_fast' as const;
 
 interface AvatarAdsProject {
   id: string;
@@ -111,18 +111,16 @@ export const getAvatarPromptScenes = (generatedPrompts: Record<string, unknown> 
 
 export const getAvatarSceneDurationSeconds = (
   prompt: Record<string, unknown> | null | undefined,
-  model: 'veo3_fast' | 'kling_3'
+  model: 'seedance_2_fast' | 'kling_3'
 ) => {
-  if (model !== 'kling_3') {
-    return UNIT_SECONDS;
-  }
-
-  return normalizeAvatarPromptDuration(prompt?.duration_seconds);
+  const normalized = normalizeAvatarPromptDuration(prompt?.duration_seconds);
+  if (model === 'kling_3') return normalized;
+  return Math.max(SEEDANCE_MIN_TASK_DURATION_SECONDS, Math.min(SEEDANCE_MAX_TASK_DURATION_SECONDS, normalized));
 };
 
 export const getAvatarPlannedTotalDurationSeconds = (
   generatedPrompts: Record<string, unknown> | null | undefined,
-  model: 'veo3_fast' | 'kling_3',
+  model: 'seedance_2_fast' | 'kling_3',
   fallbackDurationSeconds: number
 ) => {
   const promptScenes = getAvatarPromptScenes(generatedPrompts);
@@ -266,7 +264,7 @@ async function generatePrompts(
   videoDurationSeconds: number,
   language?: string,
   userDialogue?: string,
-  options?: { talkingHeadMode?: boolean; model?: 'veo3_fast' | 'kling_3' }
+  options?: { talkingHeadMode?: boolean; model?: 'seedance_2_fast' | 'kling_3' }
 ): Promise<Record<string, unknown>> {
   const result = await _generatePromptsInternal(
     productContext,
@@ -291,7 +289,7 @@ async function _generatePromptsInternal(
   videoDurationSeconds: number,
   language?: string,
   userDialogue?: string,
-  options?: { talkingHeadMode?: boolean; model?: 'veo3_fast' | 'kling_3' }
+  options?: { talkingHeadMode?: boolean; model?: 'seedance_2_fast' | 'kling_3' }
 ): Promise<Record<string, unknown>> {
   // Get language name for prompts
   const languageCode = resolveAvatarSpokenLanguage({
@@ -304,26 +302,19 @@ async function _generatePromptsInternal(
   const estimatedDialogueDurationSeconds = userDialogue
     ? estimateDialogueDuration(userDialogue, languageCode)
     : 0;
-  const isKlingDurationPlanning = resolvedModel === 'kling_3';
+  const supportsFlexibleDuration = true;
   const targetSceneDuration = resolvedModel === 'kling_3'
     ? KLING_MAX_TASK_DURATION_SECONDS
-    : UNIT_SECONDS;
-  const videoScenes = resolvedModel === 'kling_3'
+    : SEEDANCE_MAX_TASK_DURATION_SECONDS;
+  const videoScenes = supportsFlexibleDuration
     ? (
         userDialogue && estimatedDialogueDurationSeconds > 0
-          ? Math.max(1, Math.ceil(estimatedDialogueDurationSeconds / KLING_MAX_TASK_DURATION_SECONDS))
-          : Math.max(1, Math.ceil(videoDurationSeconds / KLING_MAX_TASK_DURATION_SECONDS))
+          ? Math.max(1, Math.ceil(estimatedDialogueDurationSeconds / targetSceneDuration))
+          : Math.max(1, Math.ceil(videoDurationSeconds / targetSceneDuration))
       )
-    : Math.max(1, Math.ceil(videoDurationSeconds / UNIT_SECONDS));
+    : Math.max(1, Math.ceil(videoDurationSeconds / targetSceneDuration));
 
-  const dialogueLengthGuidance = isKlingDurationPlanning
-    ? `KLING 3 TIMING CONSTRAINTS:
-- Each scene duration must be set between 3 and 15 seconds
-- Plan scene count around natural speaking speed, not a fixed 8-second template
-- If the full spoken script fits inside 15 seconds, keep it as ONE scene
-- Only split into multiple scenes when the estimated spoken runtime exceeds 15 seconds
-- Split only at natural sentence or clause boundaries so the delivery feels continuous`
-    : generateDialogueLengthGuidance(videoScenes, targetSceneDuration, languageCode);
+  const dialogueLengthGuidance = generateDialogueLengthGuidance(videoScenes, targetSceneDuration, languageCode);
 
   if (!personImageUrl) {
     throw new Error('Person image URL is required for prompt generation');
@@ -758,7 +749,7 @@ export async function generateVideoWithKIE(
   referenceImageUrls: string[],
   videoAspectRatio?: '16:9' | '9:16',
   language?: string,
-  options?: { hasProductContext?: boolean; model?: 'veo3_fast' | 'kling_3'; durationSeconds?: number }
+  options?: { hasProductContext?: boolean; model?: 'seedance_2_fast' | 'kling_3'; durationSeconds?: number }
 ): Promise<{ taskId: string }> {
   // ✅ Validate prompt parameter
   if (!prompt || typeof prompt !== 'object') {
@@ -858,10 +849,20 @@ export async function generateVideoWithKIE(
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
   const callBackUrl = siteUrl ? `${siteUrl}/api/avatar-ads/webhooks/video` : undefined;
   const finalPrompt = `Spoken Language: ${languageName}\n\n${basePrompt}`;
-  const durationSeconds = options?.durationSeconds && options.durationSeconds > 0
-    ? options.durationSeconds
-    : UNIT_SECONDS;
+  const durationSeconds = (() => {
+    const inputDuration = options?.durationSeconds && options.durationSeconds > 0
+      ? options.durationSeconds
+      : (resolvedModel === 'kling_3' ? KLING_MAX_TASK_DURATION_SECONDS : SEEDANCE_MAX_TASK_DURATION_SECONDS);
+    const minDuration = resolvedModel === 'kling_3' ? 3 : SEEDANCE_MIN_TASK_DURATION_SECONDS;
+    const maxDuration = resolvedModel === 'kling_3' ? KLING_MAX_TASK_DURATION_SECONDS : SEEDANCE_MAX_TASK_DURATION_SECONDS;
+    return Math.max(minDuration, Math.min(maxDuration, Math.round(inputDuration)));
+  })();
   const selectedReferenceImages = getAvatarVideoReferenceImages(referenceImageUrls, durationSeconds);
+  const validReferenceUrls = referenceImageUrls.filter(
+    (url) => typeof url === 'string' && url.trim().length > 0
+  );
+  const firstFrameUrl = validReferenceUrls[0];
+  const lastFrameUrl = validReferenceUrls[1] || validReferenceUrls[0];
 
   const requestBody = resolvedModel === 'kling_3'
     ? {
@@ -873,27 +874,28 @@ export async function generateVideoWithKIE(
           prompt: finalPrompt,
           sound: true,
           duration: String(durationSeconds),
-          aspect_ratio: videoAspectRatio || '16:9',
+          aspect_ratio: '9:16',
           multi_shots: false
         }
       }
     : {
-        prompt: finalPrompt,
-        model: DEFAULT_VIDEO_MODEL,
-        aspectRatio: videoAspectRatio || '16:9',
-        imageUrls: selectedReferenceImages,
-        generationType: selectedReferenceImages.length >= 1 ? 'FIRST_AND_LAST_FRAMES_2_VIDEO' : 'TEXT_2_VIDEO',
-        enableAudio: true,
-        audioEnabled: true,
-        generateVoiceover: false,
-        includeDialogue: true,
-        enableTranslation: false,
-        ...(callBackUrl ? { callBackUrl } : {})
+        model: resolvedModel === 'seedance_2_fast' ? 'bytedance/seedance-2-fast' : 'bytedance/seedance-2',
+        ...(callBackUrl ? { callBackUrl } : {}),
+        input: {
+          prompt: finalPrompt,
+          ...(firstFrameUrl ? { first_frame_url: firstFrameUrl } : {}),
+          ...(lastFrameUrl ? { last_frame_url: lastFrameUrl } : {}),
+          aspect_ratio: videoAspectRatio || '16:9',
+          duration: durationSeconds,
+          resolution: '720p',
+          generate_audio: true,
+          web_search: true,
+        }
       };
 
   const promptInBody = resolvedModel === 'kling_3'
     ? ((requestBody as { input?: { prompt?: string } }).input?.prompt)
-    : ((requestBody as { prompt?: string }).prompt);
+    : ((requestBody as { input?: { prompt?: string } }).input?.prompt);
 
   if (!promptInBody || typeof promptInBody !== 'string' || promptInBody.trim() === '' || promptInBody === '{}') {
     console.error('❌❌❌ CRITICAL: Attempting to call KIE API with empty/invalid prompt!');
@@ -901,7 +903,7 @@ export async function generateVideoWithKIE(
     throw new Error(`STOPPING WORKFLOW: Cannot call KIE API with empty prompt "${promptInBody}"`);
   }
 
-  const response = await fetchWithRetry(resolvedModel === 'kling_3' ? 'https://api.kie.ai/api/v1/jobs/createTask' : VEO_VIDEO_API_ENDPOINT, {
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
@@ -919,8 +921,19 @@ export async function generateVideoWithKIE(
   const data = await response.json();
 
   if (data.code !== 200) {
-    console.error('❌ KIE API returned error code:', data.code, data.message);
-    throw new Error(`KIE video generation failed: ${data.message || 'Unknown error'}`);
+    const apiMessage =
+      (typeof data.message === 'string' && data.message) ||
+      (typeof data.msg === 'string' && data.msg) ||
+      (typeof data.error === 'string' && data.error) ||
+      (typeof data.error?.message === 'string' && data.error.message) ||
+      'Unknown error';
+
+    console.error('❌ KIE API returned error:', {
+      code: data.code,
+      message: apiMessage,
+      raw: data,
+    });
+    throw new Error(`KIE video generation failed [${data.code}]: ${apiMessage}`);
   }
 
   return { taskId: data.data.taskId };
@@ -999,7 +1012,7 @@ async function checkKIEImageTaskStatus(taskId: string): Promise<{
 
 export async function checkKIEVideoTaskStatus(
   taskId: string,
-  model: 'veo3_fast' | 'kling_3' = DEFAULT_VIDEO_MODEL
+  model: 'seedance_2_fast' | 'kling_3' = DEFAULT_VIDEO_MODEL
 ): Promise<{
   status: string;
   result_url?: string;
@@ -1008,9 +1021,7 @@ export async function checkKIEVideoTaskStatus(
   isRetryable?: boolean; // NEW: Flag for retryable errors
 }> {
   const response = await fetchWithRetry(
-    model === 'kling_3'
-      ? `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`
-      : `https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`,
+    `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`,
     {
       headers: {
         'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
@@ -1216,7 +1227,7 @@ export async function processAvatarAdsProject(
 
         if (sceneError) throw sceneError;
 
-        // Update project with prompts AND image_prompt
+        // Update project with prompts and stop at edit-ready state
         const { data: updatedProject, error } = await supabase
           .from('avatar_ads_projects')
           .update({
@@ -1225,9 +1236,9 @@ export async function processAvatarAdsProject(
             language: typeof resolvedSpokenLanguage === 'string' ? resolvedSpokenLanguage : project.language,
             video_duration_seconds: plannedDurationSeconds,
             credits_cost: plannedCreditsCost,
-            status: 'generating_image',
-            current_step: 'generating_image',
-            progress_percentage: 40,
+            status: 'awaiting_review',
+            current_step: 'reviewing',
+            progress_percentage: 60,
             last_processed_at: new Date().toISOString()
           })
           .eq('id', project.id)
@@ -1240,8 +1251,8 @@ export async function processAvatarAdsProject(
 
         return {
           project: updatedProject,
-          message: 'Prompts generated successfully',
-          nextStep: 'generate_image'
+          message: 'Prompts generated successfully, project is ready for manual edit',
+          nextStep: undefined
         };
       }
 
@@ -1252,11 +1263,11 @@ export async function processAvatarAdsProject(
         }
 
         if (project.generated_image_url) {
-          // Already generated, skip to next step
+          // Already generated, keep manual flow at edit state
           return {
             project,
             message: 'Cover image already generated',
-            nextStep: 'generate_videos'
+            nextStep: undefined
           };
         }
 

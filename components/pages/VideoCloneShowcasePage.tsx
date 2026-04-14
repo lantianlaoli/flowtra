@@ -70,16 +70,14 @@ export default function VideoCloneShowcasePage() {
     {
       icon: Film,
       title: 'Multiple AI Models',
-      description: 'Choose from Veo3, Veo3 Fast, Sora2, and Sora2 Pro to match your quality and budget needs.',
+      description: 'Choose from Seedance 2 Fast, Seedance 2, and Kling 3.0 to match your quality and budget needs.',
     },
   ];
 
   const pricingOptions = [
-    { model: 'Veo3', credits: 150, type: 'Paid Generation', quality: 'Premium quality, 8s video' },
-    { model: 'Veo3 Fast', credits: 20, type: 'Paid Download', quality: 'Fast generation, 8s video' },
-    { model: 'Sora2', credits: 6, type: 'Paid Download', quality: 'Standard quality, 10s video' },
-    { model: 'Sora2 Pro', credits: '36-160', type: 'Paid Generation', quality: 'Dynamic pricing based on duration & quality' },
-    { model: 'Grok', credits: 20, type: 'Per Segment Download', quality: '6-second segments, billed only when you download' },
+    { model: 'Seedance 2 Fast', credits: 33, type: 'Paid Generation', quality: 'Native 720p, billed per second' },
+    { model: 'Seedance 2', credits: 41, type: 'Paid Generation', quality: 'Higher quality, billed per second' },
+    { model: 'Kling 3.0', credits: 35, type: 'Paid Generation', quality: 'Cinematic generation, billed per second' },
     { model: 'Replica Photo', credits: '6', type: 'Paid Generation', quality: '1K output with Nano Banana 2 scene replica' },
   ];
 

@@ -12,7 +12,7 @@ import type { ReactNode } from 'react';
 const pricingPlanItems = {
   lite: [
     { key: 'credits', content: (videos: number) => <><span className="font-bold text-gray-900">1,930</span> credits/month</> },
-    { key: 'videos', content: (videos: number) => <>≈ <span className="font-bold text-gray-900">{videos}</span> Veo3 Fast videos</> },
+    { key: 'videos', content: (videos: number) => <>≈ <span className="font-bold text-gray-900">{videos}</span> Seedance 2 Fast videos</> },
     {
       key: 'agent',
       content: () => (
@@ -29,7 +29,7 @@ const pricingPlanItems = {
   ],
   basic: [
     { key: 'credits', content: () => <><span className="font-bold text-gray-900">3,930</span> credits/month</> },
-    { key: 'videos', content: (videos: number) => <>≈ <span className="font-bold text-gray-900">{videos}</span> Veo3 Fast videos</> },
+    { key: 'videos', content: (videos: number) => <>≈ <span className="font-bold text-gray-900">{videos}</span> Seedance 2 Fast videos</> },
     {
       key: 'agent',
       content: () => (
@@ -46,7 +46,7 @@ const pricingPlanItems = {
   ],
   pro: [
     { key: 'credits', content: () => <><span className="font-bold text-gray-900">6,600</span> credits/month</> },
-    { key: 'videos', content: (videos: number) => <>≈ <span className="font-bold text-gray-900">{videos}</span> Veo3 Fast videos</> },
+    { key: 'videos', content: (videos: number) => <>≈ <span className="font-bold text-gray-900">{videos}</span> Seedance 2 Fast videos</> },
     {
       key: 'agent',
       content: () => (
@@ -73,9 +73,9 @@ export default function PricingPage() {
   const [loadingPackage, setLoadingPackage] = useState<string | null>(null);
 
   // Video generation estimates (generation-time billing)
-  const liteVideos = Math.floor(500 / CREDIT_COSTS.veo3_fast);
-  const basicVideos = Math.floor(2000 / CREDIT_COSTS.veo3_fast);
-  const proVideos = Math.floor(3500 / CREDIT_COSTS.veo3_fast);
+  const liteVideos = Math.floor(500 / CREDIT_COSTS.seedance_2_fast);
+  const basicVideos = Math.floor(2000 / CREDIT_COSTS.seedance_2_fast);
+  const proVideos = Math.floor(3500 / CREDIT_COSTS.seedance_2_fast);
 
   const handlePurchase = async (packageName: 'lite' | 'basic' | 'pro') => {
     if (!isLoaded) {

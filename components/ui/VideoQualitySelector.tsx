@@ -6,7 +6,6 @@ import { Check, ChevronDown, CircleHelp, Lock, MonitorPlay } from 'lucide-react'
 import { cn } from '@/lib/utils';
 import {
   GENERATION_COSTS,
-  HIGH_RES_DOWNLOAD_COSTS,
   normalizeCloneVideoQualityForModel,
   type CloneVideoQuality,
   type VideoModel
@@ -29,8 +28,6 @@ type QualityOption = {
   disabledReason?: string;
 };
 
-const VEO_EXPORT_HINT = 'Export 1080p or 4K from My Ads after generation.';
-
 function formatCreditsPerSecondLabel(totalCredits: number, seconds = 8): string {
   const perSecond = totalCredits / seconds;
   const formatted = Number.isInteger(perSecond) ? String(perSecond) : perSecond.toFixed(2);
@@ -45,35 +42,14 @@ function getQualityOptions(model: VideoModel): QualityOption[] {
     ];
   }
 
-  if (model === 'seedance_1_5_pro') {
+  if (model === 'seedance_2_fast') {
     return [
-      { value: '480p', label: '480p', creditsPerSecondLabel: '3.5 credits / s' },
-      { value: '720p', label: '720p', creditsPerSecondLabel: '7 credits / s' },
-      { value: '1080p', label: '1080p', creditsPerSecondLabel: '15 credits / s' }
+      { value: '720p', label: '720p', creditsPerSecondLabel: '33 credits / s' }
     ];
   }
 
-  const veoCreditsPerSecond = GENERATION_COSTS[model] / 8;
-  const veoCreditsPerSecondLabel = formatCreditsPerSecondLabel(GENERATION_COSTS[model]);
-  const veo1080pTotal = GENERATION_COSTS[model] + HIGH_RES_DOWNLOAD_COSTS['1080p'];
-  const veo4kTotal = GENERATION_COSTS[model] + HIGH_RES_DOWNLOAD_COSTS['4k'];
-
   return [
-    { value: '720p', label: '720p', creditsPerSecondLabel: veoCreditsPerSecondLabel },
-    {
-      value: '1080p',
-      label: '1080p',
-      creditsPerSecondLabel: formatCreditsPerSecondLabel(veo1080pTotal),
-      disabled: true,
-      disabledReason: VEO_EXPORT_HINT
-    },
-    {
-      value: '4k',
-      label: '4K',
-      creditsPerSecondLabel: formatCreditsPerSecondLabel(veo4kTotal),
-      disabled: true,
-      disabledReason: VEO_EXPORT_HINT
-    }
+    { value: '720p', label: '720p', creditsPerSecondLabel: `${GENERATION_COSTS[model]} credits / s` }
   ];
 }
 

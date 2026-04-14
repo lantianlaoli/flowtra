@@ -14,27 +14,13 @@ import { LanguageCode, LANGUAGE_NAMES, LANGUAGE_NATIVE_NAMES } from '@/lib/const
  */
 const LANGUAGE_FLAG_MAP: Record<LanguageCode, string> = {
   'en': '🇺🇸', // English - United States
+  'zh': '🇨🇳', // Chinese (Mandarin) - China
+  'ja': '🇯🇵', // Japanese - Japan
+  'ko': '🇰🇷', // Korean - South Korea
   'es': '🇪🇸', // Spanish - Spain
   'fr': '🇫🇷', // French - France
   'de': '🇩🇪', // German - Germany
-  'it': '🇮🇹', // Italian - Italy
   'pt': '🇵🇹', // Portuguese - Portugal
-  'nl': '🇳🇱', // Dutch - Netherlands
-  'sv': '🇸🇪', // Swedish - Sweden
-  'no': '🇳🇴', // Norwegian - Norway
-  'da': '🇩🇰', // Danish - Denmark
-  'fi': '🇫🇮', // Finnish - Finland
-  'pl': '🇵🇱', // Polish - Poland
-  'ru': '🇷🇺', // Russian - Russia
-  'el': '🇬🇷', // Greek - Greece
-  'tr': '🇹🇷', // Turkish - Turkey
-  'cs': '🇨🇿', // Czech - Czech Republic
-  'ro': '🇷🇴', // Romanian - Romania
-  'zh': '🇨🇳', // Chinese - China
-  'ur': '🇵🇰', // Urdu - Pakistan
-  'pa': '🇮🇳', // Punjabi - India
-  'id': '🇮🇩', // Indonesian - Indonesia
-  'ar': '🇸🇦', // Arabic - Saudi Arabia
 };
 
 /**

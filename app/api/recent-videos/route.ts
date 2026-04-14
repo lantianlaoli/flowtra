@@ -71,18 +71,14 @@ export async function GET() {
 
       const modelUsed = (() => {
         switch (item.video_model) {
-          case 'veo3':
-            return 'Veo3 High Quality';
-          case 'sora2':
-            return 'Sora2';
-          case 'sora2_pro':
-            return 'Sora2 Pro';
-          case 'grok':
-            return 'Grok Imagine';
+          case 'seedance_2_fast':
+            return 'Seedance 2 Fast';
+          case 'seedance_2':
+            return 'Seedance 2';
           case 'kling_3':
             return 'Kling 3.0';
           default:
-            return 'Veo3 Fast';
+            return 'Seedance 2 Fast';
         }
       })();
 

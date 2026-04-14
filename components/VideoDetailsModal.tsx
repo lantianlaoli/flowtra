@@ -52,7 +52,7 @@ interface AvatarAdsItem {
   downloaded?: boolean;
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
-  videoModel: 'veo3' | 'veo3_fast' | 'sora2';
+  videoModel: VideoModel;
   creditsUsed: number;
   status: 'processing' | 'completed' | 'failed';
   createdAt: string;
@@ -116,13 +116,9 @@ const isMotionClone = (item: HistoryItem | null): item is MotionCloneItem => {
 
 const getModelDisplayName = (model: string): string => {
   const modelNames: Record<string, string> = {
-    'veo3': 'Veo3.1',
-    'veo3_fast': 'Veo3.1 fast',
-    'seedance_1_5_pro': 'Seedance 1.5 Pro',
-    'kling_3': 'Kling 3.0',
-    'sora2': 'Sora2 (Legacy)',
-    'sora2_pro': 'Sora2 Pro (Legacy)',
-    'grok': 'Grok (Legacy)'
+    'seedance_2_fast': 'Seedance 2 Fast',
+    'seedance_2': 'Seedance 2',
+    'kling_3': 'Kling 3.0'
   };
   return modelNames[model] || model;
 };
@@ -170,7 +166,7 @@ const formatDuration = (item: HistoryItem): string => {
     return `${item.videoDurationSeconds || 8}s`;
   }
   if (isVideoClone(item)) {
-    return `${item.videoDuration || (item.isSegmented && item.segmentCount ? item.segmentCount * 8 : 8)}s`;
+    return `${item.videoDuration || (item.isSegmented && item.segmentCount ? item.segmentCount * 15 : 8)}s`;
   }
   if (isMotionClone(item)) {
     return `${item.videoDurationSeconds || 8}s`;
@@ -209,10 +205,10 @@ const getVideoDurationSeconds = (item: HistoryItem | null): number | null => {
     return item.videoDurationSeconds ?? 8;
   }
   if (isVideoClone(item)) {
-    if (item.isSegmented && item.segmentCount) {
-      return item.segmentCount * 8;
-    }
-    return parseDurationSeconds(item.videoDuration) ?? 8;
+    const explicitDuration = parseDurationSeconds(item.videoDuration);
+    if (explicitDuration) return explicitDuration;
+    if (item.isSegmented && item.segmentCount) return item.segmentCount * 15;
+    return 8;
   }
   if (isMotionClone(item)) {
     return item.videoDurationSeconds ?? 8;
@@ -226,8 +222,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
   const [resolutionMenuOpen, setResolutionMenuOpen] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
   const [showTikTokPanel, setShowTikTokPanel] = useState(false);
-  const supportsUpgradeableExport = item?.videoModel === 'veo3_fast';
-  const isSeedanceModel = item?.videoModel === 'seedance_1_5_pro';
+  const isNativeOnlyModel = item?.videoModel === 'seedance_2_fast' || item?.videoModel === 'seedance_2' || item?.videoModel === 'kling_3';
 
   const toggleShot = (shotKey: string) => {
     setExpandedShots(prev => {
@@ -569,8 +564,8 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
   };
   const supportsHighRes = useMemo(() => {
     if (!item) return false;
-    return (isVideoClone(item) || isCharacterAds(item)) && supportsUpgradeableExport;
-  }, [item, supportsUpgradeableExport]);
+    return false;
+  }, [item]);
 
   const segmentCount = useMemo(() => {
     if (!item) return 1;
@@ -592,12 +587,12 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
 
   useEffect(() => {
     if (!item) return;
-    if (isSeedanceModel) {
-      setSelectedResolution('1080p');
+    if (isNativeOnlyModel) {
+      setSelectedResolution('720p');
       return;
     }
     setSelectedResolution('720p');
-  }, [item?.id, isSeedanceModel]);
+  }, [item, isNativeOnlyModel]);
 
   const canDownload = !!item && item.status === 'completed' && item.videoUrl && !isExpired;
   const canPublishToTikTok = useMemo(() => {
@@ -625,10 +620,9 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
     icon: React.ComponentType<{ className?: string }>;
     disabled?: boolean;
     note?: string;
-  }> = isSeedanceModel
+  }> = isNativeOnlyModel
     ? [
-        { value: '1080p', label: '1080p', icon: Maximize },
-        { value: '4k', label: '4K Ultra', icon: Sparkles, disabled: true, note: 'Not supported for Seedance 1.5 Pro' }
+        { value: '720p', label: '720p Native', icon: Film, note: 'Native export only' }
       ]
     : [
         { value: '720p', label: '720p Original', icon: Film },

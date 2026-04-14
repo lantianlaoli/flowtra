@@ -53,6 +53,18 @@ const getOrigin = (request: NextRequest) => {
   return url.origin;
 };
 
+class CanvasRunApiError extends Error {
+  status: number;
+  code: string | null;
+
+  constructor(message: string, status: number, code?: string | null) {
+    super(message);
+    this.name = 'CanvasRunApiError';
+    this.status = status;
+    this.code = code ?? null;
+  }
+}
+
 const fetchJson = async (input: string, init?: RequestInit) => {
   const response = await fetch(input, init);
   const payload = await response.json().catch(() => ({}));
@@ -60,7 +72,8 @@ const fetchJson = async (input: string, init?: RequestInit) => {
     const message = typeof payload?.error === 'string'
       ? payload.error
       : `Request failed with status ${response.status}`;
-    throw new Error(message);
+    const code = typeof payload?.code === 'string' ? payload.code : null;
+    throw new CanvasRunApiError(message, response.status, code);
   }
   return payload as Record<string, unknown>;
 };
@@ -864,6 +877,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, execution });
   } catch (error) {
     console.error('[Project Agent Canvas Run] Error:', error);
+    if (error instanceof CanvasRunApiError) {
+      const errorInfo = getProjectAgentCanvasErrorInfo(error.message, {
+        code: error.code,
+      });
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+          maintenanceMode: errorInfo.maintenanceMode,
+        },
+        { status: error.status || 500 }
+      );
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }

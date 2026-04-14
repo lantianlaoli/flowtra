@@ -480,7 +480,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       if (!shouldRegeneratePhoto && hasFreshFirstFrame) {
         const segmentVideoCost = getSegmentPromptVideoGenerationCost(
-          projectModel || 'veo3_fast',
+          projectModel || 'seedance_2_fast',
           mergedPrompt.shots,
           segmentDurationSeconds,
           (project.video_quality as PersistedVideoQuality | null | undefined) || undefined
@@ -491,7 +491,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         );
         const videoChargeDescription = projectModel === 'kling_3'
           ? `Video Clone - Segment ${index + 1} video generation (KLING_3, ${effectiveSegmentDurationSeconds}s)`
-          : `Video Clone - Segment ${index + 1} video generation (${String(project.video_model || 'veo3_fast').toUpperCase()})`;
+          : `Video Clone - Segment ${index + 1} video generation (${String(project.video_model || 'seedance_2_fast').toUpperCase()})`;
 
         await ensureCredits(segmentVideoCost, videoChargeDescription);
 

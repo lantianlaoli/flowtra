@@ -1,22 +1,13 @@
-export const AVATAR_ADS_DURATION_OPTIONS = [
-  8,
-  16,
-  24,
-  32,
-  40,
-  48,
-  56,
-  64,
-  72,
-  80
-] as const;
+export const AVATAR_ADS_DURATION_OPTIONS = Array.from(
+  { length: 57 },
+  (_, index) => index + 4
+) as number[];
 
-export type AvatarAdsDuration = typeof AVATAR_ADS_DURATION_OPTIONS[number];
+export type AvatarAdsDuration = number;
 
 const DEFAULT_WORDS_PER_SECOND = 2.1; // ~126 wpm (Safe speaking pace for short clips)
 
-// Preserve legacy explicit limits for historical durations so older projects remain consistent
-// Updated to reflect safer speaking speeds (approx 17 words per 8s block)
+// Explicit limits for frequently used durations
 const LEGACY_WORD_LIMITS: Record<number, number> = {
   8: 17,
   16: 34,

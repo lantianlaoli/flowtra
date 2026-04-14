@@ -18,27 +18,23 @@ export default function ModelPricingSection() {
 
   const models = [
     {
-      name: 'Veo3.1 fast',
-      description: 'Fast generation with balanced quality and cost',
-      icon: Google,
-      durationRange: '8-64s',
+      name: 'Seedance 2 Fast',
+      description: 'Fastest Seedance model for avatar ads and video clone generation',
+      icon: ByteDance,
+      durationRange: '4-15s',
       billingType: 'generation' as const,
       pricingOptions: [
-        { resolution: '720p', credits: 150 },
-        { resolution: '1080p', credits: 187.5 },
-        { resolution: '4K', credits: 450 },
+        { resolution: '720p', credits: 1980 },
       ] as PricingOption[],
     },
     {
-      name: 'Veo3.1',
-      description: 'Premium quality generation',
-      icon: Google,
-      durationRange: '8-64s',
+      name: 'Seedance 2',
+      description: 'Higher quality Seedance model for premium generation',
+      icon: ByteDance,
+      durationRange: '4-15s',
       billingType: 'generation' as const,
       pricingOptions: [
-        { resolution: '720p', credits: 1125 },
-        { resolution: '1080p', credits: 1162.5 },
-        { resolution: '4K', credits: 1425 },
+        { resolution: '720p', credits: 2460 },
       ] as PricingOption[],
     },
     {
@@ -73,28 +69,6 @@ export default function ModelPricingSection() {
       pricingOptions: [
         { resolution: '720p', credits: 1200 },
         { resolution: '1080p', credits: 1620 },
-      ] as PricingOption[],
-    },
-    {
-      name: 'Seedance 1.5 Pro',
-      description: 'ByteDance model with built-in audio generation',
-      icon: ByteDance,
-      durationRange: '8-64s',
-      billingType: 'generation' as const,
-      pricingOptions: [
-        { resolution: '480p', credits: 210 },
-        { resolution: '720p', credits: 420 },
-        { resolution: '1080p', credits: 900 },
-      ] as PricingOption[],
-    },
-    {
-      name: 'Seedance 2',
-      description: 'Next-generation Seedance model. Coming soon.',
-      icon: ByteDance,
-      durationRange: '-',
-      billingType: 'generation' as const,
-      pricingOptions: [
-        { resolution: '1080p', credits: 0, comingSoon: true },
       ] as PricingOption[],
     },
   ];

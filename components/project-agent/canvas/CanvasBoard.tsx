@@ -438,6 +438,7 @@ export default function CanvasBoard({
           const missingInputs = isFeatureNode ? (node.runtime?.missingInputs || []) : [];
           const canStart = isFeatureNode ? Boolean(node.runtime?.canStart) : false;
           const blockedReason = isFeatureNode ? (node.runtime?.blockedReason || null) : null;
+          const maintenanceBlocked = isFeatureNode ? Boolean(node.runtime?.maintenanceBlocked) : false;
           const executionState = node.runtime?.executionState || 'invalid';
           const retryableFailure = executionState === 'failed' && Boolean(node.runtime?.retryable);
           const userFacingError = node.runtime?.userFacingError || null;
@@ -715,7 +716,7 @@ export default function CanvasBoard({
                     <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#3d3c38]">
                       {getProjectAgentFeatureDisplayName(node.type as ProjectAgentFeatureNodeType)}
                     </span>
-                    {userFacingError ? (
+                    {userFacingError && !maintenanceBlocked ? (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
@@ -746,11 +747,13 @@ export default function CanvasBoard({
                         className={`project-agent-press-button flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${
                           retryableFailure || canStart
                             ? 'project-agent-press-button--active cursor-pointer'
+                            : maintenanceBlocked
+                              ? 'cursor-not-allowed border border-amber-200 bg-amber-50 text-amber-700'
                             : blockedReason
                               ? 'cursor-not-allowed border border-amber-200 bg-amber-50 text-amber-700'
                               : executionState === 'failed'
                                 ? 'cursor-not-allowed border border-red-200 bg-red-50 text-red-500'
-                              : 'cursor-not-allowed bg-[#f3f1ea] text-[#b8b5ad]'
+                                : 'cursor-not-allowed bg-[#f3f1ea] text-[#b8b5ad]'
                         }`}
                         disabled={!retryableFailure && !canStart}
                         onClick={(event) => {
@@ -769,6 +772,8 @@ export default function CanvasBoard({
                           <RefreshCcw className="h-2.5 w-2.5" />
                         ) : canStart ? (
                           <Play className="h-2.5 w-2.5 fill-white text-white" />
+                        ) : maintenanceBlocked ? (
+                          <AlertTriangle className="h-2.5 w-2.5 text-amber-700" />
                         ) : blockedReason ? (
                           <AlertTriangle className="h-2.5 w-2.5 text-amber-700" />
                         ) : executionState === 'failed' ? (
@@ -776,7 +781,7 @@ export default function CanvasBoard({
                         ) : (
                           <Play className="h-2.5 w-2.5 fill-[#b8b5ad] text-[#b8b5ad]" />
                         )}
-                        {retryableFailure ? 'Retry' : blockedReason ? 'Warning' : executionState === 'failed' ? 'Failed' : 'Start'}
+                        {retryableFailure ? 'Retry' : maintenanceBlocked ? 'Maintenance' : blockedReason ? 'Warning' : executionState === 'failed' ? 'Failed' : 'Start'}
                       </button>
                     )}
                   </div>

@@ -90,27 +90,13 @@ interface SegmentFormColumnProps {
 
 const LANGUAGE_OPTIONS: Array<{ value: LanguageCode; label: string; native: string }> = [
   { value: 'en', label: 'English', native: 'English' },
-  { value: 'ar', label: 'Arabic', native: 'العربية' },
-  { value: 'zh', label: 'Chinese', native: '中文' },
+  { value: 'zh', label: 'Chinese (Mandarin)', native: '中文（普通话）' },
+  { value: 'ja', label: 'Japanese', native: '日本語' },
+  { value: 'ko', label: 'Korean', native: '한국어' },
   { value: 'es', label: 'Spanish', native: 'Español' },
   { value: 'fr', label: 'French', native: 'Français' },
   { value: 'de', label: 'German', native: 'Deutsch' },
-  { value: 'it', label: 'Italian', native: 'Italiano' },
-  { value: 'id', label: 'Indonesian', native: 'Bahasa Indonesia' },
   { value: 'pt', label: 'Portuguese', native: 'Português' },
-  { value: 'nl', label: 'Dutch', native: 'Nederlands' },
-  { value: 'sv', label: 'Swedish', native: 'Svenska' },
-  { value: 'no', label: 'Norwegian', native: 'Norsk' },
-  { value: 'da', label: 'Danish', native: 'Dansk' },
-  { value: 'fi', label: 'Finnish', native: 'Suomi' },
-  { value: 'pl', label: 'Polish', native: 'Polski' },
-  { value: 'ru', label: 'Russian', native: 'Русский' },
-  { value: 'el', label: 'Greek', native: 'Ελληνικά' },
-  { value: 'tr', label: 'Turkish', native: 'Türkçe' },
-  { value: 'cs', label: 'Czech', native: 'Čeština' },
-  { value: 'ro', label: 'Romanian', native: 'Română' },
-  { value: 'ur', label: 'Urdu', native: 'اردو' },
-  { value: 'pa', label: 'Punjabi', native: 'ਪੰਜਾਬੀ' }
 ];
 
 const DEFAULT_LANGUAGE: LanguageCode = 'en';

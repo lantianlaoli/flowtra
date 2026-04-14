@@ -4,8 +4,8 @@ import { DEFAULT_SOCIAL_IMAGE_PATH } from '@/lib/social-image';
 
 export const metadata: Metadata = {
   title: 'Avatar Ads - AI Character-Driven Video Ads | Flowtra',
-  description: 'Create character-driven video advertisements with AI. Custom characters, dialogue, and realistic performances powered by Google Veo3. Perfect for brand storytelling and product demos.',
-  keywords: 'AI avatar ads, character animation, video spokesperson, brand ambassador, AI video characters, Google Veo3',
+  description: 'Create character-driven video advertisements with AI. Custom characters, dialogue, and realistic performances powered by Seedance 2 Fast. Perfect for brand storytelling and product demos.',
+  keywords: 'AI avatar ads, character animation, video spokesperson, brand ambassador, AI video characters, Seedance 2 Fast',
   authors: [{ name: 'Flowtra Team' }],
   creator: 'Flowtra',
   publisher: 'Flowtra',
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'Avatar Ads - AI Character-Driven Video Ads | Flowtra',
-    description: 'Create character-driven video advertisements with realistic AI characters powered by Google Veo3. Custom dialogue and natural performances.',
+    description: 'Create character-driven video advertisements with realistic AI characters powered by Seedance 2 Fast. Custom dialogue and natural performances.',
     url: 'https://www.flowtra.store/features/avatar-ads',
     siteName: 'Flowtra',
     images: [
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Avatar Ads - AI Character-Driven Video Ads | Flowtra',
-    description: 'Create realistic AI character-driven video ads with Google Veo3. Custom dialogue and professional quality.',
+    description: 'Create realistic AI character-driven video ads with Seedance 2 Fast. Custom dialogue and professional quality.',
     images: [DEFAULT_SOCIAL_IMAGE_PATH],
     creator: '@flowtra',
   },
@@ -58,21 +58,21 @@ export default function Page() {
             '@context': 'https://schema.org',
             '@type': 'SoftwareApplication',
             name: 'Avatar Ads - AI Character Video Generator',
-            description: 'Create character-driven video advertisements with AI. Custom characters, dialogue, and realistic performances powered by Google Veo3. Perfect for brand storytelling and product demos.',
+            description: 'Create character-driven video advertisements with AI. Custom characters, dialogue, and realistic performances powered by Seedance 2 Fast. Perfect for brand storytelling and product demos.',
             url: 'https://www.flowtra.store/features/avatar-ads',
             applicationCategory: 'BusinessApplication',
             operatingSystem: 'Web',
             offers: {
               '@type': 'Offer',
-              price: '2.70',
+              price: '3.96',
               priceCurrency: 'USD',
-              description: '150 credits per 8-second video, powered by Google Veo3',
+              description: '33 credits per second with Seedance 2 Fast generation',
             },
             featureList: [
               'Custom character settings',
               'Custom dialogue content',
               'Realistic performance with natural movements',
-              'Professional quality powered by Google Veo3',
+              'Professional quality powered by Seedance 2 Fast',
               'Natural lip-sync with dialogue',
               'Premium character animation',
             ],

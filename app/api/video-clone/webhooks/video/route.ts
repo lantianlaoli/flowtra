@@ -39,8 +39,8 @@ async function refreshProjectSegmentStatus(
 
 /**
  * Unified Video Webhook Payload
- * Supports both Veo3 format and Seedance format (generic jobs API)
- * Documentation: docs/kie/callback.md (Veo3), docs/kie/seedance1.5pro.md (Seedance)
+ * Supports callback info format and generic jobs format.
+ * Documentation: docs/kie/callback.md, docs/kie/seedance_2_doc.md
  */
 interface KIEVideoWebhookPayload {
   code: number;
@@ -48,7 +48,7 @@ interface KIEVideoWebhookPayload {
   data: {
     taskId: string;
 
-    // Veo3 format
+    // Callback info format
     info?: {
       resultUrls?: string[];
       originUrls?: string[];
@@ -56,7 +56,7 @@ interface KIEVideoWebhookPayload {
     };
     fallbackFlag?: boolean;
 
-    // Seedance/Generic jobs format (same as frame webhook)
+    // Generic jobs format (same as frame webhook)
     state?: 'waiting' | 'success' | 'fail';
     resultJson?: string; // JSON string: {resultUrls: [...]}
     failCode?: string;
@@ -181,17 +181,17 @@ export async function POST(request: NextRequest) {
     // Extract video URL from either format
     let videoUrl: string | undefined;
 
-    // Format 1: Veo3 format (info.resultUrls)
+    // Format 1: info.resultUrls
     if (info?.resultUrls?.[0]) {
       videoUrl = info.resultUrls[0];
-      console.log('[UGC Video Webhook] Extracted videoUrl from Veo3 format');
+      console.log('[UGC Video Webhook] Extracted videoUrl from callback info format');
     }
-    // Format 2: Seedance format (resultJson)
+    // Format 2: generic jobs resultJson
     else if (resultJson) {
       try {
         const parsed = JSON.parse(resultJson);
         videoUrl = parsed.resultUrls?.[0];
-        console.log('[UGC Video Webhook] Extracted videoUrl from Seedance format');
+        console.log('[UGC Video Webhook] Extracted videoUrl from generic jobs resultJson');
       } catch (parseError) {
         console.error('[UGC Video Webhook] Failed to parse resultJson:', parseError);
       }

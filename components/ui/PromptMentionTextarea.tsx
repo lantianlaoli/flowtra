@@ -298,8 +298,8 @@ export default function PromptMentionTextarea({
     <div ref={rootRef} className="prompt-mention-root flex h-full min-w-0 min-h-0 flex-col">
       <div
         className={clsx(
-          'relative flex min-h-0 flex-1 flex-col rounded-lg border bg-white transition-colors',
-          hasError ? 'border-red-500 focus-within:border-red-500' : 'border-gray-200 focus-within:border-black',
+          'relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-colors',
+          hasError ? 'border-red-500 focus-within:border-red-500' : 'focus-within:border-black',
           readOnly || disabled ? 'bg-gray-50' : ''
         )}
       >

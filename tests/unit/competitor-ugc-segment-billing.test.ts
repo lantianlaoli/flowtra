@@ -9,10 +9,9 @@ import {
 } from '@/lib/video-clone-segment-billing';
 import { getGenerationCost, getSegmentVideoGenerationCost } from '@/lib/constants';
 
-test('getSegmentVideoGenerationCost returns fixed non-Kling segment pricing', () => {
-  assert.equal(getSegmentVideoGenerationCost('veo3_fast', 8), 20);
-  assert.equal(getSegmentVideoGenerationCost('veo3', 8), 150);
-  assert.equal(getSegmentVideoGenerationCost('seedance_1_5_pro', 8), 56);
+test('getSegmentVideoGenerationCost returns per-second Seedance pricing', () => {
+  assert.equal(getSegmentVideoGenerationCost('seedance_2_fast', 8), 264);
+  assert.equal(getSegmentVideoGenerationCost('seedance_2', 8), 328);
 });
 
 test('getSegmentVideoGenerationCost returns per-second Kling pricing', () => {
@@ -20,10 +19,10 @@ test('getSegmentVideoGenerationCost returns per-second Kling pricing', () => {
   assert.equal(getSegmentVideoGenerationCost('kling_3', 12, '1080p'), 324);
 });
 
-test('getSegmentVideoGenerationCost returns Seedance resolution pricing', () => {
-  assert.equal(getSegmentVideoGenerationCost('seedance_1_5_pro', 4, '480p'), 14);
-  assert.equal(getSegmentVideoGenerationCost('seedance_1_5_pro', 8, '720p'), 56);
-  assert.equal(getSegmentVideoGenerationCost('seedance_1_5_pro', 12, '1080p'), 180);
+test('getSegmentVideoGenerationCost keeps Seedance quality fixed to native 720p pricing', () => {
+  assert.equal(getSegmentVideoGenerationCost('seedance_2_fast', 4, '720p'), 132);
+  assert.equal(getSegmentVideoGenerationCost('seedance_2_fast', 8, '1080p'), 264);
+  assert.equal(getSegmentVideoGenerationCost('seedance_2', 12, '1080p'), 492);
 });
 
 test('parseTimecodeToSeconds supports mm:ss and hh:mm:ss formats', () => {
@@ -75,5 +74,5 @@ test('getSegmentPromptVideoGenerationCost uses parsed segment duration', () => {
 test('getGenerationCost maps clone-quality pricing for Kling and Seedance', () => {
   assert.equal(getGenerationCost('kling_3', '10', '720p'), 200);
   assert.equal(getGenerationCost('kling_3', '10', '1080p'), 270);
-  assert.equal(getGenerationCost('seedance_1_5_pro', '16', '720p'), 112);
+  assert.equal(getGenerationCost('seedance_2_fast', '16', '720p'), 528);
 });

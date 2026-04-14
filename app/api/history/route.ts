@@ -47,7 +47,7 @@ interface CharacterAdsItem {
   downloaded?: boolean;
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
-  videoModel: 'veo3' | 'veo3_fast' | 'sora2';
+  videoModel: VideoModel;
   creditsUsed: number;
   status: 'processing' | 'completed' | 'failed';
   createdAt: string;
@@ -116,21 +116,13 @@ const resolveCoverAspectRatio = (ratio?: string | null): SupportedAspectRatio | 
   return normalizeAspectRatio(ratio);
 };
 
-const ALLOWED_VIDEO_CLONE_MODELS: VideoModel[] = ['veo3', 'veo3_fast', 'seedance_1_5_pro', 'kling_3'];
-const LEGACY_MODELS = ['sora2', 'sora2_pro', 'grok'];
+const ALLOWED_VIDEO_CLONE_MODELS: VideoModel[] = ['seedance_2_fast', 'seedance_2', 'kling_3'];
 
 const normalizeVideoCloneModel = (model?: string | null): VideoModel => {
-  if (model === 'seedance-1.5-pro' || model === 'bytedance/seedance-1.5-pro') {
-    return 'seedance_1_5_pro';
-  }
   if (ALLOWED_VIDEO_CLONE_MODELS.includes(model as VideoModel)) {
     return model as VideoModel;
   }
-  return 'veo3_fast'; // Default for invalid/null models
-};
-
-const isLegacyModel = (model?: string | null): boolean => {
-  return LEGACY_MODELS.includes(model as string);
+  return 'seedance_2_fast'; // Default for invalid/null models
 };
 
 export async function GET() {
@@ -213,7 +205,6 @@ export async function GET() {
     // Transform Video Clone data
     const transformedVideoCloneHistory: VideoCloneItem[] = (videoCloneItems || []).map(item => {
       const videoModel = normalizeVideoCloneModel(item.video_model);
-      const isLegacy = isLegacyModel(item.video_model);
 
       // Parse segment_status to extract cover image from segment[0]
       let parsedSegmentStatus: any = null;
@@ -235,7 +226,7 @@ export async function GET() {
         generationCreditsUsed: item.generation_credits_used || 0,
         imagePrompt: item.image_prompt,
         coverAspectRatio: resolveCoverAspectRatio(item.cover_image_aspect_ratio),
-        videoModel: isLegacy ? `${item.video_model} (Legacy)` as VideoModel : videoModel,
+        videoModel,
         creditsUsed: item.generation_credits_used || 0,
         status: mapWorkflowStatus(item.status),
         createdAt: item.created_at,
@@ -263,20 +254,17 @@ export async function GET() {
         if (item.error_message && mappedStatus !== 'completed') {
           mappedStatus = 'failed';
         }
-        const storedVideoModel = item.video_model as 'veo3' | 'veo3_fast' | 'sora2';
-        const resolvedVideoModel = item.error_message === 'SORA2_MODEL_SELECTED' ? 'sora2' : storedVideoModel;
+        const storedVideoModel = item.video_model as CharacterAdsItem['videoModel'];
+        const resolvedVideoModel: VideoModel =
+          storedVideoModel === 'seedance_2' || storedVideoModel === 'seedance_2_fast' || storedVideoModel === 'kling_3'
+            ? storedVideoModel
+            : 'seedance_2_fast';
 
         // For completed items, ensure we have the correct video URL
         let videoUrl: string | undefined;
         if (mappedStatus === 'completed') {
-          // Prefer single generated video when only one scene is expected (8s for VEO*, 10s for Sora2)
-          const unitSeconds = resolvedVideoModel === 'sora2' ? 10 : 8;
-          const totalScenes = (item.video_duration_seconds || 8) / unitSeconds;
-          if (totalScenes === 1) {
-            videoUrl = item.merged_video_url || (item.generated_video_urls?.[0]);
-          } else {
-            videoUrl = item.merged_video_url;
-          }
+          // Prefer merged output, fallback to single-scene output.
+          videoUrl = item.merged_video_url || (Array.isArray(item.generated_video_urls) ? item.generated_video_urls[0] : undefined);
         }
 
         return {

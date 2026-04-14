@@ -278,25 +278,27 @@ export default function GenerationProgressDisplay({
   }
 
   return (
-    <div className="h-full overflow-y-auto p-4 space-y-4">
-      {generations.map((generation) => (
-        <GenerationCard
-          key={generation.id}
-          generation={generation}
-          onDownload={onDownload}
-          primaryActionLabel={primaryActionLabel}
-          onPrimaryAction={onPrimaryAction}
-          expandedGenerationId={expandedGenerationId}
-          onToggleSegments={onToggleSegments}
-          onSegmentSelect={onSegmentSelect}
-          onMerge={onMerge}
-          onReview={onReview}
-          reviewCtaLabel={reviewCtaLabel}
-          onSegmentRegenerate={onSegmentRegenerate}
-          projectType={projectType}
-          selectedLanguage={selectedLanguage}
-        />
-      ))}
+    <div className="h-full overflow-y-auto p-4">
+      <div className="min-h-full space-y-4">
+        {generations.map((generation) => (
+          <GenerationCard
+            key={generation.id}
+            generation={generation}
+            onDownload={onDownload}
+            primaryActionLabel={primaryActionLabel}
+            onPrimaryAction={onPrimaryAction}
+            expandedGenerationId={expandedGenerationId}
+            onToggleSegments={onToggleSegments}
+            onSegmentSelect={onSegmentSelect}
+            onMerge={onMerge}
+            onReview={onReview}
+            reviewCtaLabel={reviewCtaLabel}
+            onSegmentRegenerate={onSegmentRegenerate}
+            projectType={projectType}
+            selectedLanguage={selectedLanguage}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -519,10 +521,15 @@ function GenerationCard({
     (displayStatus === 'failed' && Boolean(errorMessage)) ||
     hasSegments ||
     (status === 'completed' && (Boolean(videoUrl) || Boolean(coverUrl)));
+  const canReviewInAvatarAds =
+    projectType === 'avatar-ads' &&
+    (displayStatus === 'awaiting_review' ||
+      displayStatus === 'processing' ||
+      displayStatus === 'failed' ||
+      status === 'completed');
   const showPreviewAction =
-    Boolean(coverUrl) &&
     Boolean(onReview) &&
-    (displayStatus === 'awaiting_review' || status === 'completed');
+    (canReviewInAvatarAds || (Boolean(coverUrl) && (displayStatus === 'awaiting_review' || status === 'completed')));
 
   const MetaTag = ({ icon: Icon, text }: { icon?: React.ElementType; text: string }) => (
     <div className="generation-progress-meta inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-50 border border-gray-100 rounded-lg text-[11px] font-medium text-gray-600">
@@ -560,7 +567,7 @@ function GenerationCard({
             {showPreviewAction && (
               <button
                 onClick={() => onReview?.(generation)}
-                className={`generation-progress-action ${ACTION_BUTTON_DARK}`}
+                className="generation-progress-action landing-press-button landing-press-button--compact text-sm font-semibold"
               >
                 <PencilLine className="w-3.5 h-3.5" />
                 {resolvedReviewCtaLabel}
@@ -582,7 +589,7 @@ function GenerationCard({
                     setEditorReadOnly(false);
                     setShowSegmentEditor(true);
                   }}
-                  className={`generation-progress-edit ${ACTION_BUTTON_DARK}`}
+                  className="generation-progress-edit landing-press-button landing-press-button--compact text-sm font-semibold"
                 >
                   <PencilLine className="w-3.5 h-3.5" />
                   <span>{copy.reviewEdit}</span>

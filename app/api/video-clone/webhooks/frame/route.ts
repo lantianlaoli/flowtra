@@ -303,7 +303,7 @@ export async function POST(request: NextRequest) {
                   ...cloneReferenceAssets.productImageUrls
                 ], 8);
                 const cloneMode = resolveCloneModeFromProject(fullProject as Record<string, unknown>);
-                const videoModel = (fullProject.video_model || 'veo3_fast') as VideoModel;
+                const videoModel = (fullProject.video_model || 'seedance_2_fast') as VideoModel;
                 const workflowSource = (
                   fullProject.selected_inputs
                   && typeof fullProject.selected_inputs === 'object'
@@ -446,7 +446,7 @@ export async function POST(request: NextRequest) {
             ...cloneReferenceAssets.productImageUrls
           ], 8);
           const cloneMode = resolveCloneModeFromProject(fullProject as Record<string, unknown>);
-          const videoModel = (fullProject.video_model || 'veo3_fast') as VideoModel;
+          const videoModel = (fullProject.video_model || 'seedance_2_fast') as VideoModel;
           const workflowSource = (
             fullProject.selected_inputs
             && typeof fullProject.selected_inputs === 'object'

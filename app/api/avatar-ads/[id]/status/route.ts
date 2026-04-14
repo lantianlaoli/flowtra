@@ -78,7 +78,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         video_duration_seconds: project.video_duration_seconds,
         planned_total_duration_seconds: plannedTotalDurationSeconds,
         planned_scene_duration_seconds: plannedSceneDurationSeconds,
-        video_model: project.video_model || 'veo3_fast',
+        video_model: project.video_model || 'seedance_2_fast',
         credits_cost: project.credits_cost,
         resolved_spoken_language: resolvedSpokenLanguage,
         person_image_urls: project.person_image_urls,

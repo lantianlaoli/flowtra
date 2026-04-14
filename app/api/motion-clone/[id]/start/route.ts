@@ -15,6 +15,7 @@ import {
 } from '@/lib/kling-elements';
 import { replaceMentionsForPlainText } from '@/lib/video-clone-prompt-compiler';
 import { verifyInternalUserRequest } from '@/lib/security/internal-request';
+import { validateKieCredits } from '@/lib/kie-credits-check';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -42,6 +43,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const kieValidation = await validateKieCredits();
+    if (kieValidation) {
+      return kieValidation;
     }
 
     const { id } = await context.params;

@@ -18,7 +18,7 @@ interface VideoAspectRatioSelectorProps {
 export default function VideoAspectRatioSelector({
   selectedAspectRatio,
   onAspectRatioChange,
-  videoModel = 'veo3_fast',
+  videoModel = 'seedance_2_fast',
   label = 'Video Format',
   className,
   showIcon = false

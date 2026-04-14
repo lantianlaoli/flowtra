@@ -649,7 +649,7 @@ const convertReferenceVideoShotToSegmentShot = (
 ): SegmentShot => {
   // Each segment is independent with 0-8s timing (segment-relative, not source-video absolute timing)
   const startSeconds = 0;
-  const durationSeconds = fallbackDuration; // Use segment duration directly (e.g., 8s for veo3_fast)
+  const durationSeconds = fallbackDuration; // Use segment duration directly (model-relative duration)
   const endSeconds = startSeconds + durationSeconds;
   return {
     id,
@@ -1981,8 +1981,8 @@ async function startAIWorkflow(
 
       if (
         parsedTimeline.videoDurationSeconds &&
-        (request.resolvedVideoModel === 'veo3' ||
-          request.resolvedVideoModel === 'veo3_fast' ||
+        (request.resolvedVideoModel === 'seedance_2' ||
+          request.resolvedVideoModel === 'seedance_2_fast' ||
           request.resolvedVideoModel === 'kling_3')
       ) {
         const snappedDuration = snapDurationToModel(request.resolvedVideoModel, parsedTimeline.videoDurationSeconds);
@@ -3950,7 +3950,7 @@ export async function startSegmentVideoTask(
   segmentIndex: number,
   totalSegments: number
 ): Promise<string> {
-  const videoModel = (project.video_model || 'veo3_fast') as VideoModel;
+  const videoModel = (project.video_model || 'seedance_2_fast') as VideoModel;
   const promptCompilation = compilePromptForExecution(segmentPrompt, videoModel);
   const compiledSegmentPrompt = promptCompilation.compiledValue;
 
@@ -3960,9 +3960,9 @@ export async function startSegmentVideoTask(
     compile_mode: promptCompilation.compileMode
   });
 
-  const supportedSegmentModels: VideoModel[] = ['veo3', 'veo3_fast', 'seedance_1_5_pro', 'kling_3'];
+  const supportedSegmentModels: VideoModel[] = ['seedance_2_fast', 'seedance_2', 'kling_3'];
   if (!supportedSegmentModels.includes(videoModel)) {
-    throw new Error(`Segmented workflow only supports Veo3, Seedance 1.5 Pro, or Kling 3.0. Received ${videoModel}`);
+    throw new Error(`Segmented workflow only supports Seedance 2 Fast, Seedance 2, or Kling 3.0. Received ${videoModel}`);
   }
 
   const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
@@ -3990,14 +3990,15 @@ export async function startSegmentVideoTask(
     music
   );
 
-  if (videoModel === 'seedance_1_5_pro') {
+  if (videoModel === 'seedance_2_fast' || videoModel === 'seedance_2') {
     return await startSegmentVideoTaskSeedance(
       project,
       compiledSegmentPrompt,
       firstFrameUrl,
       closingFrameUrl,
       segmentIndex,
-      totalSegments
+      totalSegments,
+      videoModel
     );
   }
 
@@ -4845,9 +4846,8 @@ function buildKlingVideoRequestBody(input: {
 }
 
 /**
- * Start video generation task using Seedance 1.5 Pro API
- * Uses generic jobs/createTask endpoint (same as frame generation)
- * Documentation: docs/kie/seedance1.5pro.md
+ * Start video generation task using Seedance 2 / Seedance 2 Fast API.
+ * Uses generic jobs/createTask endpoint (same as frame generation).
  */
 async function startSegmentVideoTaskSeedance(
   project: SingleVideoProject,
@@ -4855,7 +4855,8 @@ async function startSegmentVideoTaskSeedance(
   firstFrameUrl: string,
   closingFrameUrl: string | null | undefined,
   segmentIndex: number,
-  totalSegments: number
+  totalSegments: number,
+  model: 'seedance_2_fast' | 'seedance_2'
 ): Promise<string> {
   const KIE_API_KEY = process.env.KIE_API_KEY;
   if (!KIE_API_KEY) {
@@ -4867,7 +4868,7 @@ async function startSegmentVideoTaskSeedance(
   const inputUrls = hasClosingFrame ? [firstFrameUrl, closingFrameUrl] : [firstFrameUrl];
   const segmentDuration = resolveTaskDurationSeconds(
     project,
-    'seedance_1_5_pro',
+    model,
     segmentIndex,
     totalSegments
   );
@@ -4955,15 +4956,16 @@ async function startSegmentVideoTaskSeedance(
   const promptText = promptParts.join('. ').substring(0, 2500); // Max 2500 chars per Seedance API
 
   const requestBody = {
-    model: 'bytedance/seedance-1.5-pro',
+    model: model === 'seedance_2_fast' ? 'bytedance/seedance-2-fast' : 'bytedance/seedance-2',
     input: {
       prompt: promptText,
       input_urls: inputUrls,
       aspect_ratio: aspectRatio, // '16:9' or '9:16'
       resolution,
-      duration: String(segmentDuration),
+      duration: segmentDuration,
       fixed_lens: false, // Allow dynamic camera movement
-      generate_audio: true // Enable audio generation
+      generate_audio: true, // Enable audio generation
+      web_search: true
     },
     callBackUrl: buildSegmentVideoWebhookUrl(project.id, segmentIndex)
   };
@@ -4979,16 +4981,16 @@ async function startSegmentVideoTaskSeedance(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Seedance API error: ${response.status} - ${errorText}`);
+    throw new Error(`Seedance 2 API error: ${response.status} - ${errorText}`);
   }
 
   const result = await response.json();
 
   if (result.code !== 200 || !result.data?.taskId) {
-    throw new Error(`Seedance API failed: ${result.msg || 'Unknown error'}`);
+    throw new Error(`Seedance 2 API failed: ${result.msg || 'Unknown error'}`);
   }
 
-  console.log(`✅ Seedance task created: ${result.data.taskId} for segment ${segmentIndex + 1}`);
+  console.log(`✅ Seedance 2 task created: ${result.data.taskId} for segment ${segmentIndex + 1}`);
   return result.data.taskId;
 }
 

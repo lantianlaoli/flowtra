@@ -37,7 +37,7 @@ export interface WorkflowState {
 
 export const useVideoCloneWorkflow = (
   userId?: string | null,
-  selectedModel: VideoModel = 'veo3_fast',
+  selectedModel: VideoModel = 'seedance_2_fast',
   updateCredits?: (newCredits: number) => void,
   refetchCredits?: () => Promise<void>,
   elementsCount: number = 1,
@@ -49,8 +49,8 @@ export const useVideoCloneWorkflow = (
   customScript: string = ''
 ) => {
   // Initialize guest usage limits
-  const maxGuestUsage = 1; // Guest users: 1 VEO3_fast
-  const maxUserUsage = 2;   // Logged users: 2 VEO3_fast
+  const maxGuestUsage = 1; // Guest users: 1 generation
+  const maxUserUsage = 2;   // Logged users: 2 generations
   
   const [guestUsageCount, setGuestUsageCount] = useState(0);
   
@@ -272,7 +272,11 @@ export const useVideoCloneWorkflow = (
       const result = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to start workflow');
+        return {
+          success: false,
+          error: result.message || result.error || 'Failed to start workflow',
+          code: typeof result.code === 'string' ? result.code : null,
+        };
       }
 
       const normalizedHistoryId = result.historyId || result.projectId || null;
@@ -314,7 +318,10 @@ export const useVideoCloneWorkflow = (
       // This prevents projectId from being undefined on the page
       return {
         success: false,
-        error: message
+        error: message,
+        code: typeof (error as { code?: unknown })?.code === 'string'
+          ? (error as { code: string }).code
+          : null,
       };
     }
   }, [

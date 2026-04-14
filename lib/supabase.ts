@@ -107,7 +107,7 @@ export interface SingleVideoProject {
   video_url?: string
   video_prompts?: Record<string, unknown>
   image_prompt?: Record<string, unknown> // JSONB field containing the prompt used for cover generation
-  video_model: 'veo3' | 'veo3_fast' | 'seedance_1_5_pro' | 'kling_3' | 'sora2' | 'sora2_pro' | 'grok'
+  video_model: 'seedance_2_fast' | 'seedance_2' | 'kling_3'
   credits_cost: number
   status: 'processing' | 'completed' | 'failed' | 'upload_complete' | 'description_complete' | 'prompts_complete' | 'cover_complete'
   error_message?: string

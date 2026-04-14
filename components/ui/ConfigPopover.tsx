@@ -50,10 +50,11 @@ interface ConfigPopoverProps {
   hideLanguageSelector?: boolean;
 
   // Format props
-  format: Format;
-  onFormatChange: (format: Format) => void;
+  format?: Format;
+  onFormatChange?: (format: Format) => void;
   formatDisabled?: boolean;
   formatHelperText?: string;
+  hideFormatSelector?: boolean;
 
   disabled?: boolean;
   variant?: 'default' | 'minimal';
@@ -93,6 +94,7 @@ export default function ConfigPopover({
   onFormatChange,
   formatDisabled = false,
   formatHelperText,
+  hideFormatSelector = false,
   disabled = false,
   variant = 'default',
   mode = 'video',
@@ -289,57 +291,69 @@ export default function ConfigPopover({
     </div>
   );
 
-  const renderVideoOptions = () => (
-    <div className="space-y-4">
-      <FormatSelector
-        outputMode="video"
-        selectedFormat={format}
-        onFormatChange={onFormatChange}
-        label={copy.aspectRatio}
-        disabled={formatDisabled}
-      />
-      {formatHelperText && (
-        <p className="text-xs text-gray-500">{formatHelperText}</p>
-      )}
+  const renderVideoOptions = () => {
+    const hasFormat = !hideFormatSelector && format && onFormatChange;
+    const hasModel = !hideModelSelector && selectedModel && onModelChange && videoDuration;
+    const hasQuality = !hideVideoQualitySelector && selectedModel && selectedVideoQuality && onVideoQualityChange && videoDuration;
+    const hasDuration = !hideDurationSelector && videoDuration && onDurationChange;
+    if (!hasFormat && !hasModel && !hasQuality && !hasDuration) return null;
 
-      {!hideModelSelector && selectedModel && onModelChange && videoDuration && (
-        <VideoModelSelector
-          credits={userCredits}
-          selectedModel={selectedModel}
-          onModelChange={onModelChange}
-          videoDuration={videoDuration}
-          videoQuality={selectedVideoQuality}
-          disabledModels={disabledModels}
-          disabledModelReasons={disabledModelReasons}
-          label={copy.videoModel}
-          showIcon
-        />
-      )}
+    return (
+      <div className="space-y-4">
+        {hasFormat && (
+          <>
+            <FormatSelector
+              outputMode="video"
+              selectedFormat={format}
+              onFormatChange={onFormatChange}
+              label={copy.aspectRatio}
+              disabled={formatDisabled}
+            />
+            {formatHelperText && (
+              <p className="text-xs text-gray-500">{formatHelperText}</p>
+            )}
+          </>
+        )}
 
-      {!hideVideoQualitySelector && selectedModel && selectedVideoQuality && onVideoQualityChange && videoDuration && (
-        <VideoQualitySelector
-          selectedModel={selectedModel}
-          selectedQuality={selectedVideoQuality}
-          onQualityChange={onVideoQualityChange}
-          disabled={disabled}
-          qualityOptionsOverride={videoQualityOptions}
-        />
-      )}
+        {hasModel && (
+          <VideoModelSelector
+            credits={userCredits}
+            selectedModel={selectedModel}
+            onModelChange={onModelChange}
+            videoDuration={videoDuration}
+            videoQuality={selectedVideoQuality}
+            disabledModels={disabledModels}
+            disabledModelReasons={disabledModelReasons}
+            label={copy.videoModel}
+            showIcon
+          />
+        )}
 
-      {!hideDurationSelector && videoDuration && onDurationChange && (
-        <VideoDurationSelector
-          selectedDuration={videoDuration}
-          onDurationChange={onDurationChange}
-          disabledDurations={disabledDurations}
-          recommendedDuration={recommendedDuration}
-          label={copy.duration}
-          showIcon
-          disabled={disabled}
-          options={durationOptions}
-        />
-      )}
-    </div>
-  );
+        {hasQuality && (
+          <VideoQualitySelector
+            selectedModel={selectedModel}
+            selectedQuality={selectedVideoQuality}
+            onQualityChange={onVideoQualityChange}
+            disabled={disabled}
+            qualityOptionsOverride={videoQualityOptions}
+          />
+        )}
+
+        {hasDuration && (
+          <VideoDurationSelector
+            selectedDuration={videoDuration}
+            onDurationChange={onDurationChange}
+            disabledDurations={disabledDurations}
+            recommendedDuration={recommendedDuration}
+            label={copy.duration}
+            showIcon
+            disabled={disabled}
+            options={durationOptions}
+          />
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="relative">

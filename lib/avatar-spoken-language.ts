@@ -3,10 +3,8 @@ import { isLanguageCode } from '@/lib/language';
 
 const SCRIPT_RANGES: Array<{ code: LanguageCode; pattern: RegExp }> = [
   { code: 'zh', pattern: /[\u3400-\u9FFF]/g },
-  { code: 'ar', pattern: /[\u0600-\u06FF]/g },
-  { code: 'ru', pattern: /[\u0400-\u04FF]/g },
-  { code: 'el', pattern: /[\u0370-\u03FF]/g },
-  { code: 'pa', pattern: /[\u0A00-\u0A7F]/g },
+  { code: 'ja', pattern: /[\u3040-\u30FF]/g },
+  { code: 'ko', pattern: /[\uAC00-\uD7AF]/g },
 ];
 
 const normalizeConfiguredLanguage = (value?: string | null): LanguageCode | null => {

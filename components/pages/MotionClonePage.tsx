@@ -111,6 +111,19 @@ interface MotionClonePromptDraft {
   videoPrompt: string;
 }
 
+interface KieCreditsStatus {
+  sufficient: boolean;
+  loading: boolean;
+  currentCredits?: number;
+  threshold?: number;
+}
+
+const isMaintenanceModeError = (payload: unknown) => (
+  typeof payload === "object" &&
+  payload !== null &&
+  (payload as { code?: unknown }).code === "MAINTENANCE_MODE"
+);
+
 const MOTION_CLONE_TUTORIAL_EMBED_URL =
   "https://www.youtube.com/embed/d_pzzXUj-Lw?rel=0";
 const SESSION_STORAGE_KEY = "motion_clone_session_state";
@@ -179,6 +192,10 @@ export default function MotionClonePage() {
   const [products, setProducts] = useState<UserProduct[]>([]);
   const [selectedVideoId, setSelectedVideoId] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [kieCreditsStatus, setKieCreditsStatus] = useState<KieCreditsStatus>({
+    sufficient: true,
+    loading: true,
+  });
   const [projects, setProjects] = useState<MotionCloneProject[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
@@ -204,6 +221,30 @@ export default function MotionClonePage() {
       surface: "motion_clone_page",
     });
   }, [user?.id]);
+
+  useEffect(() => {
+    const checkKieCredits = async () => {
+      try {
+        const response = await fetch("/api/check-kie-credits");
+        if (!response.ok) {
+          setKieCreditsStatus({ sufficient: true, loading: false });
+          return;
+        }
+        const data = await response.json();
+        setKieCreditsStatus({
+          sufficient: Boolean(data?.sufficient),
+          loading: false,
+          currentCredits: data?.currentCredits,
+          threshold: data?.threshold,
+        });
+      } catch (error) {
+        console.error("[Motion Clone] Failed to check KIE credits:", error);
+        setKieCreditsStatus({ sufficient: true, loading: false });
+      }
+    };
+
+    checkKieCredits();
+  }, []);
 
   const selectedVideo = useMemo(
     () => videos.find((video) => video.id === selectedVideoId),
@@ -628,6 +669,9 @@ export default function MotionClonePage() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (isMaintenanceModeError(data)) {
+          setKieCreditsStatus({ sufficient: false, loading: false });
+        }
         throw new Error(data.error || "Failed to start Motion Clone");
       }
 
@@ -646,7 +690,8 @@ export default function MotionClonePage() {
     }
   };
 
-  const canGenerate = !isGenerating;
+  const isMaintenanceMode = !kieCreditsStatus.loading && !kieCreditsStatus.sufficient;
+  const canGenerate = !isGenerating && !isMaintenanceMode;
   const canEditProject = projects.length > 0;
 
   const editFirstFrameUrl =
@@ -867,6 +912,9 @@ export default function MotionClonePage() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (isMaintenanceModeError(data)) {
+          setKieCreditsStatus({ sufficient: false, loading: false });
+        }
         throw new Error(data.error || "Failed to start Motion Clone");
       }
 
@@ -1026,7 +1074,7 @@ export default function MotionClonePage() {
         />
         <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
           <div className="flex-1 flex flex-col min-h-0">
-            <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0">
+            <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-24 md:pb-28 min-h-0">
               <div className="dashboard-main-shell flex-1 flex min-h-0">
                 <div className="rounded-[26px] bg-background border border-border shadow-[0_20px_40px_rgba(0,0,0,0.05)] flex-1 flex flex-col overflow-hidden min-h-0">
                   <div className="flex-1 overflow-hidden min-h-0 flex items-center justify-center">
@@ -1051,7 +1099,7 @@ export default function MotionClonePage() {
       />
       <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
         <div className="flex-1 flex flex-col min-h-0">
-          <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0">
+          <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-24 md:pb-28 min-h-0">
             <div className="dashboard-main-shell flex-1 flex min-h-0">
               <div className="rounded-[26px] bg-background border border-border shadow-[0_20px_40px_rgba(0,0,0,0.05)] flex-1 flex flex-col overflow-hidden min-h-0">
                 <div className="flex-1 overflow-hidden min-h-0">
@@ -1137,6 +1185,8 @@ export default function MotionClonePage() {
           isGenerating={isGenerating}
           generationCost={estimatedCredits || 0}
           userCredits={userCredits}
+          maintenanceMode={isMaintenanceMode}
+          maintenanceLabel="Maintenance"
           generateButtonText="Start"
         />
 

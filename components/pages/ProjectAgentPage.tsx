@@ -659,7 +659,8 @@ export default function ProjectAgentPage() {
           ) ? anyOfGroup : [];
         const missingInputs = [...strictMissing, ...anyOfMissing];
         const blockedReason = getFeatureStartBlockedReason(current, node.id);
-        const canStart = missingInputs.length === 0 && !blockedReason;
+        const maintenanceBlocked = Boolean(node.runtime?.maintenanceBlocked);
+        const canStart = missingInputs.length === 0 && !blockedReason && !maintenanceBlocked;
         const executionState = node.runtime?.executionState;
         const preservedState = (
           isProjectAgentRuntimeActive(node.runtime) ||
@@ -670,12 +671,15 @@ export default function ProjectAgentPage() {
         const nextState: 'ready' | 'invalid' = canStart ? 'ready' : 'invalid';
         const nextStatusLabel = canStart
           ? 'Ready to start'
-          : blockedReason || `Need ${formatMissingFeatureInputsLabel(featureType, missingInputs)}`;
+          : maintenanceBlocked
+            ? 'Maintenance'
+            : blockedReason || `Need ${formatMissingFeatureInputsLabel(featureType, missingInputs)}`;
         const runtime = {
           ...(node.runtime || {}),
           missingInputs,
           canStart,
           blockedReason,
+          maintenanceBlocked,
           executionState: preservedState ? preservedExecutionState : nextState,
           statusLabel: preservedState ? node.runtime?.statusLabel : nextStatusLabel,
         };
@@ -684,7 +688,8 @@ export default function ProjectAgentPage() {
           node.runtime?.statusLabel === runtime.statusLabel &&
           JSON.stringify(node.runtime?.missingInputs || []) === JSON.stringify(missingInputs) &&
           node.runtime?.canStart === canStart &&
-          node.runtime?.blockedReason === blockedReason
+          node.runtime?.blockedReason === blockedReason &&
+          Boolean(node.runtime?.maintenanceBlocked) === maintenanceBlocked
         ) {
           return node;
         }
@@ -725,6 +730,7 @@ export default function ProjectAgentPage() {
         ) ? anyOfGroup2 : [];
       const missingInputs = [...strictMissing2, ...anyOfMissing2];
       const blockedReason = getFeatureStartBlockedReason(current, node.id);
+      const canStart = missingInputs.length === 0 && !blockedReason;
       let next = upsertCanvasNode(current, {
         ...node,
         runtime: {
@@ -741,8 +747,9 @@ export default function ProjectAgentPage() {
           milestones: execution.milestones,
           currentMilestoneKey: execution.currentMilestoneKey,
           missingInputs,
-          canStart: missingInputs.length === 0 && !blockedReason,
+          canStart,
           blockedReason,
+          maintenanceBlocked: false,
         },
       });
 
@@ -1666,6 +1673,7 @@ export default function ProjectAgentPage() {
           retryable: false,
           canStart: true,
           missingInputs: [],
+          maintenanceBlocked: false,
         },
       });
     });
@@ -1683,11 +1691,14 @@ export default function ProjectAgentPage() {
 
     const payload = await response.json().catch(() => ({})) as {
       error?: string;
+      code?: string;
       execution?: ProjectAgentCanvasExecutionStatus;
     };
 
     if (!response.ok || !payload.execution) {
-      const errorInfo = getProjectAgentCanvasErrorInfo(payload.error || 'Run failed.');
+      const errorInfo = getProjectAgentCanvasErrorInfo(payload.error || 'Run failed.', {
+        code: payload.code,
+      });
       updateCanvas((current) => {
         const nextNode = getProjectAgentCanvasNodeById(current, nodeId);
         if (!nextNode) return current;
@@ -1696,10 +1707,12 @@ export default function ProjectAgentPage() {
           runtime: {
             ...(nextNode.runtime || {}),
             executionState: 'failed',
-            statusLabel: 'Failed',
             error: payload.error || 'Run failed.',
             userFacingError: errorInfo.userFacingError,
             retryable: errorInfo.retryable,
+            maintenanceBlocked: errorInfo.maintenanceMode,
+            canStart: false,
+            statusLabel: errorInfo.maintenanceMode ? 'Maintenance' : 'Failed',
           },
         });
       });
@@ -1728,6 +1741,7 @@ export default function ProjectAgentPage() {
           userFacingError: null,
           error: null,
           retryable: false,
+          maintenanceBlocked: false,
         },
       });
     });
@@ -1746,11 +1760,14 @@ export default function ProjectAgentPage() {
 
     const payload = await response.json().catch(() => ({})) as {
       error?: string;
+      code?: string;
       execution?: ProjectAgentCanvasExecutionStatus;
     };
 
     if (!response.ok || !payload.execution) {
-      const errorInfo = getProjectAgentCanvasErrorInfo(payload.error || 'Retry failed.');
+      const errorInfo = getProjectAgentCanvasErrorInfo(payload.error || 'Retry failed.', {
+        code: payload.code,
+      });
       updateCanvas((current) => {
         const nextNode = getProjectAgentCanvasNodeById(current, nodeId);
         if (!nextNode) return current;
@@ -1759,10 +1776,12 @@ export default function ProjectAgentPage() {
           runtime: {
             ...(nextNode.runtime || {}),
             executionState: 'failed',
-            statusLabel: 'Failed',
             error: payload.error || 'Retry failed.',
             userFacingError: errorInfo.userFacingError,
             retryable: errorInfo.retryable,
+            maintenanceBlocked: errorInfo.maintenanceMode,
+            canStart: false,
+            statusLabel: errorInfo.maintenanceMode ? 'Maintenance' : 'Failed',
           },
         });
       });

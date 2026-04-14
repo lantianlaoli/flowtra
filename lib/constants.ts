@@ -1,12 +1,11 @@
 // ===== VERSION 2.0: UNIFIED GENERATION-TIME BILLING =====
-// Simplified model selection: veo3 and veo3_fast only
+// Active dashboard model selection: Seedance 2 Fast, Seedance 2, Kling 3.0
 // ALL models: PAID generation, FREE download
 
 // Generation costs (ALL models charge at generation time)
 export const GENERATION_COSTS = {
-  'veo3': 150,           // Veo3.1: 150 credits per 8s segment
-  'veo3_fast': 20,       // Veo3.1 fast: 20 credits per 8s segment
-  'seedance_1_5_pro': 120, // Seedance 1.5 Pro: 120 credits per 8s segment (1080p with audio)
+  'seedance_2_fast': 33, // Seedance 2 Fast: 33 credits per second
+  'seedance_2': 41, // Seedance 2: 41 credits per second
   'kling_3': 27 // Kling 3.0 Pro (1080p + audio): 27 credits per second
 } as const;
 
@@ -20,28 +19,10 @@ export const MOTION_CLONE_QUALITY_COSTS = {
   '1080p': 27
 } as const;
 
-export const SEEDANCE_AUDIO_ENABLED_COSTS = {
-  '480p': {
-    4: 14,
-    8: 28,
-    12: 38
-  },
-  '720p': {
-    4: 28,
-    8: 56,
-    12: 84
-  },
-  '1080p': {
-    4: 60,
-    8: 120,
-    12: 180
-  }
-} as const;
-
 // DEPRECATED: Legacy CREDIT_COSTS for backwards compatibility
 export const CREDIT_COSTS = {
-  'veo3_fast': 20,
-  'veo3': 150
+  'seedance_2_fast': 33,
+  'seedance_2': 41
 } as const;
 
 export const HIGH_RES_DOWNLOAD_COSTS = {
@@ -60,16 +41,14 @@ export const NON_AGENT_IMAGE_OUTPUT_FORMAT = 'png' as const;
 
 // Video aspect ratio options for different models
 export const VIDEO_ASPECT_RATIO_OPTIONS = {
-  'veo3': ['16:9', '9:16'],
-  'veo3_fast': ['16:9', '9:16'],
-  'seedance_1_5_pro': ['16:9', '9:16'],
+  'seedance_2_fast': ['16:9', '9:16'],
+  'seedance_2': ['16:9', '9:16'],
   'kling_3': ['16:9', '9:16']
 } as const
 // Processing times for different video models
 export const MODEL_PROCESSING_TIMES = {
-  'veo3_fast': '2-3 min',         // Veo3.1 fast: 2-3 minutes processing time
-  'veo3': '5-8 min',              // Veo3.1: 5-8 minutes processing time
-  'seedance_1_5_pro': '1-2 min',  // Seedance 1.5 Pro: 1-2 minutes processing time
+  'seedance_2_fast': '1-2 min',
+  'seedance_2': '2-4 min',
   'kling_3': '2-4 min'            // Kling 3.0 Pro: 2-4 minutes processing time
 } as const
 // Replica photo generation credits (reference photo mode)
@@ -90,13 +69,13 @@ export const PACKAGES = {
     description: 'Entry Creator Pack',
     features: [
       '1,930 credits',
-      '≈ 96 Veo3.1 fast videos (8s)',
-      'or ≈ 12 Veo3.1 videos (8s)',
+      '≈ 58s of Seedance 2 Fast video',
+      'or ≈ 47s of Seedance 2 video',
       'AI-powered video generation'
     ],
     videoEstimates: {
-      veo3_fast: 96,   // 1930 / 20 ≈ 96
-      veo3: 12         // 1930 / 150 ≈ 12
+      seedance_2_fast: 58,
+      seedance_2: 47
     }
   },
   basic: {
@@ -107,13 +86,13 @@ export const PACKAGES = {
     description: 'Content Creator\'s Choice',
     features: [
       '3,930 credits',
-      '≈ 196 Veo3.1 fast videos (8s)',
-      'or ≈ 26 Veo3.1 videos (8s)',
+      '≈ 119s of Seedance 2 Fast video',
+      'or ≈ 95s of Seedance 2 video',
       'AI-powered video generation'
     ],
     videoEstimates: {
-      veo3_fast: 196,  // 3930 / 20 ≈ 196
-      veo3: 26         // 3930 / 150 ≈ 26
+      seedance_2_fast: 119,
+      seedance_2: 95
     }
   },
   pro: {
@@ -124,14 +103,14 @@ export const PACKAGES = {
     description: 'Pro Video Production',
     features: [
       '6,600 credits',
-      '≈ 330 Veo3.1 fast videos (8s)',
-      'or ≈ 44 Veo3.1 videos (8s)',
+      '≈ 200s of Seedance 2 Fast video',
+      'or ≈ 160s of Seedance 2 video',
       'AI-powered video generation',
       'Priority processing queue'
     ],
     videoEstimates: {
-      veo3_fast: 330,  // 6600 / 20 = 330
-      veo3: 44         // 6600 / 150 = 44
+      seedance_2_fast: 200,
+      seedance_2: 160
     }
   }
 } as const
@@ -167,17 +146,18 @@ export function getGenerationCost(
     return Math.ceil(duration) * perSecondCost;
   }
 
-  if (model === 'seedance_1_5_pro') {
-    const segmentCount = getSegmentCountFromDuration(videoDuration, model);
-    return segmentCount * getCloneSegmentVideoGenerationCost(model, DEFAULT_SEGMENT_DURATION_SECONDS, normalizedCloneQuality);
+  if (model === 'seedance_2_fast' || model === 'seedance_2') {
+    if (!Number.isFinite(duration) || duration <= 0) {
+      return GENERATION_COSTS[model] * DEFAULT_SEGMENT_DURATION_SECONDS;
+    }
+    return Math.ceil(duration) * GENERATION_COSTS[model];
   }
 
   if (!Number.isFinite(duration) || duration <= 0) {
-    return GENERATION_COSTS[model]; // One segment (8s)
+    return GENERATION_COSTS[model] * DEFAULT_SEGMENT_DURATION_SECONDS;
   }
 
-  const segments = Math.ceil(duration / 8); // All veo3 models use 8-second segments
-  return GENERATION_COSTS[model] * segments;
+  return Math.ceil(duration) * GENERATION_COSTS[model];
 }
 
 export function getSegmentVideoGenerationCost(
@@ -198,11 +178,11 @@ export function getSegmentVideoGenerationCost(
     return Math.ceil(duration) * perSecondCost;
   }
 
-  if (model === 'seedance_1_5_pro') {
+  if (model === 'seedance_2_fast' || model === 'seedance_2') {
     return getCloneSegmentVideoGenerationCost(model, segmentDurationSeconds, normalizedCloneQuality);
   }
 
-  return GENERATION_COSTS[model];
+  return GENERATION_COSTS[model] * DEFAULT_SEGMENT_DURATION_SECONDS;
 }
 
 // Get download cost (ALL downloads are FREE in Version 2.0)
@@ -282,9 +262,9 @@ export const KIE_CREDIT_THRESHOLD = (() => {
 // - Image description: ~1-2 credits (AI Gateway model call) - FREE for users
 // - Prompt generation: ~1-2 credits (AI Gateway model call) - FREE for users
 // - Cover generation: 0 credits (Nano Banana 2) - FREE
-// - Video generation: 20 credits (Veo3.1 fast, per 8s segment) or 150 credits (Veo3.1, per 8s segment)
+// - Video generation: model-specific per-second pricing
 // - Video download: FREE (no credits charged)
-// Total for complete workflow: 20-1200 credits depending on model and duration
+// Total for complete workflow varies by model and duration
 // New users receive a 100-credit welcome bonus.
 
 // Get video aspect ratio options for a specific model
@@ -297,13 +277,12 @@ export type VideoQuality = 'standard' | 'high';
 export type CloneVideoQuality = '480p' | '720p' | '1080p' | '4k';
 export type PersistedVideoQuality = VideoQuality | CloneVideoQuality;
 export type VideoDuration = `${number}`;
-export type VideoModel = 'veo3' | 'veo3_fast' | 'seedance_1_5_pro' | 'kling_3';
+export type VideoModel = 'seedance_2_fast' | 'seedance_2' | 'kling_3';
 
 // Video model display names for UI
 export const VIDEO_MODEL_DISPLAY_NAMES: Record<VideoModel, string> = {
-  'veo3': 'Veo3.1',
-  'veo3_fast': 'Veo3.1 fast',
-  'seedance_1_5_pro': 'Seedance 1.5 Pro',
+  'seedance_2_fast': 'Seedance 2 Fast',
+  'seedance_2': 'Seedance 2',
   'kling_3': 'Kling 3.0'
 } as const;
 
@@ -312,9 +291,8 @@ export function getVideoModelDisplayName(model: VideoModel): string {
 }
 
 export const LANDING_PRICING_VIDEO_MODELS: readonly VideoModel[] = [
-  'veo3_fast',
-  'veo3',
-  'seedance_1_5_pro',
+  'seedance_2_fast',
+  'seedance_2',
   'kling_3'
 ] as const;
 
@@ -354,10 +332,7 @@ export function getPackageModelDurationRows(
 }
 
 export function getDefaultCloneVideoQuality(model: VideoModel): CloneVideoQuality {
-  if (model === 'seedance_1_5_pro') {
-    return '720p';
-  }
-  if (model === 'kling_3') {
+  if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2') {
     return '720p';
   }
   return '720p';
@@ -373,18 +348,11 @@ export function normalizeCloneVideoQualityForModel(
       ? '1080p'
       : quality;
 
-  if (model === 'veo3' || model === 'veo3_fast') {
-    return '720p';
-  }
-
   if (model === 'kling_3') {
     return normalized === '1080p' ? '1080p' : '720p';
   }
 
-  if (model === 'seedance_1_5_pro') {
-    if (normalized === '480p' || normalized === '720p' || normalized === '1080p') {
-      return normalized;
-    }
+  if (model === 'seedance_2_fast' || model === 'seedance_2') {
     return '720p';
   }
 
@@ -398,20 +366,8 @@ export function mapCloneQualityToKlingMode(quality?: PersistedVideoQuality | nul
 
 export function mapCloneQualityToSeedanceResolution(
   quality?: PersistedVideoQuality | null
-): '480p' | '720p' | '1080p' {
-  const normalized = normalizeCloneVideoQualityForModel('seedance_1_5_pro', quality);
-  return normalized === '480p' ? '480p' : normalized === '1080p' ? '1080p' : '720p';
-}
-
-export function getSeedanceAudioEnabledCostForResolution(
-  resolution: '480p' | '720p' | '1080p',
-  durationSeconds: number
-): number {
-  const normalizedDuration = Number.isFinite(durationSeconds) && durationSeconds > 0
-    ? durationSeconds
-    : DEFAULT_SEGMENT_DURATION_SECONDS;
-  const bucket = normalizedDuration <= 4 ? 4 : normalizedDuration <= 8 ? 8 : 12;
-  return SEEDANCE_AUDIO_ENABLED_COSTS[resolution][bucket];
+): '720p' {
+  return '720p';
 }
 
 export function getCloneSegmentVideoGenerationCost(
@@ -432,15 +388,15 @@ export function getCloneSegmentVideoGenerationCost(
     return effectiveDuration * perSecondCost;
   }
 
-  if (model === 'seedance_1_5_pro') {
-    const resolution = mapCloneQualityToSeedanceResolution(normalizedQuality);
-    return getSeedanceAudioEnabledCostForResolution(
-      resolution,
-      segmentDurationSeconds ?? DEFAULT_SEGMENT_DURATION_SECONDS
-    );
+  if (model === 'seedance_2_fast' || model === 'seedance_2') {
+    const duration = Number(segmentDurationSeconds);
+    const effectiveDuration = Number.isFinite(duration) && duration > 0
+      ? Math.ceil(duration)
+      : DEFAULT_SEGMENT_DURATION_SECONDS;
+    return effectiveDuration * GENERATION_COSTS[model];
   }
 
-  return GENERATION_COSTS[model];
+  return GENERATION_COSTS[model] * DEFAULT_SEGMENT_DURATION_SECONDS;
 }
 
 export type MotionCloneQuality = keyof typeof MOTION_CLONE_QUALITY_COSTS;
@@ -473,19 +429,14 @@ interface ModelCapabilities {
 // Define which models support which quality/duration combinations
 export const MODEL_CAPABILITIES: ModelCapabilities[] = [
   {
-    model: 'veo3',
+    model: 'seedance_2_fast',
     supportedQualities: ['standard'],
-    supportedDurations: ['8', '16', '24', '32', '40', '48', '56', '64']
+    supportedDurations: Array.from({ length: 12 }, (_, index) => String(index + 4) as VideoDuration)
   },
   {
-    model: 'veo3_fast',
+    model: 'seedance_2',
     supportedQualities: ['standard'],
-    supportedDurations: ['8', '16', '24', '32', '40', '48', '56', '64']
-  },
-  {
-    model: 'seedance_1_5_pro',
-    supportedQualities: ['standard'],
-    supportedDurations: ['8', '16', '24', '32', '40', '48', '56', '64']
+    supportedDurations: Array.from({ length: 12 }, (_, index) => String(index + 4) as VideoDuration)
   },
   {
     model: 'kling_3',
@@ -573,17 +524,19 @@ export const DEFAULT_SEGMENT_DURATION_SECONDS = 8;
 export const KLING_MAX_TASK_DURATION_SECONDS = 15;
 export const KLING_MIN_TASK_DURATION_SECONDS = 3;
 export const KLING_MAX_PROJECT_DURATION_SECONDS = 60;
+export const SEEDANCE_MIN_TASK_DURATION_SECONDS = 4;
+export const SEEDANCE_MAX_TASK_DURATION_SECONDS = 15;
+export const SEEDANCE_MAX_PROJECT_DURATION_SECONDS = 60;
 
 export function getSegmentDurationForModel(model?: VideoModel | null): number {
-  if (model === 'kling_3') {
+  if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2') {
     return KLING_MAX_TASK_DURATION_SECONDS;
   }
-  // All non-Kling models use 8-second segments
   return DEFAULT_SEGMENT_DURATION_SECONDS;
 }
 
 export function getSegmentCountFromDuration(videoDuration?: string | null, model?: VideoModel): number {
-  if (model === 'kling_3') {
+  if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2') {
     const klingDuration = Number(videoDuration);
     if (!Number.isFinite(klingDuration) || klingDuration <= KLING_MAX_TASK_DURATION_SECONDS) {
       return 1;
@@ -604,9 +557,10 @@ export function getSegmentCountFromDuration(videoDuration?: string | null, model
 }
 
 export function snapDurationToModel(model: VideoModel, targetSeconds: number): VideoDuration {
-  if (model === 'kling_3') {
+  if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2') {
     const normalized = Math.round(targetSeconds);
-    const bounded = Math.max(KLING_MIN_TASK_DURATION_SECONDS, Math.min(KLING_MAX_PROJECT_DURATION_SECONDS, normalized));
+    const minDuration = model === 'kling_3' ? KLING_MIN_TASK_DURATION_SECONDS : SEEDANCE_MIN_TASK_DURATION_SECONDS;
+    const bounded = Math.max(minDuration, Math.min(KLING_MAX_PROJECT_DURATION_SECONDS, normalized));
     return String(bounded) as VideoDuration;
   }
 
@@ -655,90 +609,46 @@ export function getRecommendedModel(
 // ===== LANGUAGE SUPPORT =====
 
 export type LanguageCode =
-  | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'nl' | 'sv' | 'no' | 'da'
-  | 'fi' | 'pl' | 'ru' | 'el' | 'tr' | 'cs' | 'ro' | 'zh' | 'ur' | 'pa' | 'id' | 'ar';
+  | 'en' | 'zh' | 'ja' | 'ko' | 'es' | 'fr' | 'de' | 'pt';
 
 export const SUPPORTED_LANGUAGE_CODES: LanguageCode[] = [
-  'en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'sv', 'no', 'da',
-  'fi', 'pl', 'ru', 'el', 'tr', 'cs', 'ro', 'zh', 'ur', 'pa', 'id', 'ar'
+  'en', 'zh', 'ja', 'ko', 'es', 'fr', 'de', 'pt'
 ];
 
 // Language code to display name mapping
 export const LANGUAGE_NAMES: Record<LanguageCode, string> = {
   'en': 'English',
+  'zh': 'Chinese (Mandarin)',
+  'ja': 'Japanese',
+  'ko': 'Korean',
   'es': 'Spanish',
   'fr': 'French',
   'de': 'German',
-  'it': 'Italian',
-  'pt': 'Portuguese',
-  'nl': 'Dutch',
-  'sv': 'Swedish',
-  'no': 'Norwegian',
-  'da': 'Danish',
-  'fi': 'Finnish',
-  'pl': 'Polish',
-  'ru': 'Russian',
-  'el': 'Greek',
-  'tr': 'Turkish',
-  'cs': 'Czech',
-  'ro': 'Romanian',
-  'zh': 'Chinese',
-  'ur': 'Urdu',
-  'pa': 'Punjabi',
-  'id': 'Indonesian',
-  'ar': 'Arabic'
+  'pt': 'Portuguese'
 } as const;
 
 // Language code to native name mapping
 export const LANGUAGE_NATIVE_NAMES: Record<LanguageCode, string> = {
   'en': 'English',
+  'zh': '中文（普通话）',
+  'ja': '日本語',
+  'ko': '한국어',
   'es': 'Español',
   'fr': 'Français',
   'de': 'Deutsch',
-  'it': 'Italiano',
-  'pt': 'Português',
-  'nl': 'Nederlands',
-  'sv': 'Svenska',
-  'no': 'Norsk',
-  'da': 'Dansk',
-  'fi': 'Suomi',
-  'pl': 'Polski',
-  'ru': 'Русский',
-  'el': 'Ελληνικά',
-  'tr': 'Türkçe',
-  'cs': 'Čeština',
-  'ro': 'Română',
-  'zh': '中文',
-  'ur': 'اردو',
-  'pa': 'ਪੰਜਾਬੀ',
-  'id': 'Bahasa Indonesia',
-  'ar': 'العربية'
+  'pt': 'Português'
 } as const;
 
 // Language code to natural language name for AI prompts
 export const LANGUAGE_PROMPT_NAMES: Record<LanguageCode, string> = {
   'en': 'English',
+  'zh': 'Chinese (Mandarin)',
+  'ja': 'Japanese (日本語)',
+  'ko': 'Korean (한국어)',
   'es': 'Spanish (Español)',
   'fr': 'French (Français)',
   'de': 'German (Deutsch)',
-  'it': 'Italian (Italiano)',
-  'pt': 'Portuguese (Português)',
-  'nl': 'Dutch (Nederlands)',
-  'sv': 'Swedish (Svenska)',
-  'no': 'Norwegian (Norsk)',
-  'da': 'Danish (Dansk)',
-  'fi': 'Finnish (Suomi)',
-  'pl': 'Polish (Polski)',
-  'ru': 'Russian (Русский)',
-  'el': 'Greek (Ελληνικά)',
-  'tr': 'Turkish (Türkçe)',
-  'cs': 'Czech (Čeština)',
-  'ro': 'Romanian (Română)',
-  'zh': 'Chinese (中文)',
-  'ur': 'Urdu (اردو)',
-  'pa': 'Punjabi (ਪੰਜਾਬੀ)',
-  'id': 'Indonesian (Bahasa Indonesia)',
-  'ar': 'Arabic (العربية)'
+  'pt': 'Portuguese (Português)'
 } as const;
 
 // Get language display name
@@ -773,27 +683,13 @@ export function getLanguagePromptName(code: LanguageCode): string {
 export function getLanguageVoiceStyle(code: LanguageCode): string {
   const voiceStyleMap: Record<LanguageCode, string> = {
     'en': 'English accent',
+    'zh': 'Mandarin Chinese accent',
+    'ja': 'Japanese accent',
+    'ko': 'Korean accent',
     'es': 'Spanish accent',
     'fr': 'French accent',
     'de': 'German accent',
-    'it': 'Italian accent',
-    'pt': 'Portuguese accent',
-    'nl': 'Dutch accent',
-    'sv': 'Swedish accent',
-    'no': 'Norwegian accent',
-    'da': 'Danish accent',
-    'fi': 'Finnish accent',
-    'pl': 'Polish accent',
-    'ru': 'Russian accent',
-    'el': 'Greek accent',
-    'tr': 'Turkish accent',
-    'cs': 'Czech accent',
-    'ro': 'Romanian accent',
-    'zh': 'Chinese accent',
-    'ur': 'Urdu accent',
-    'pa': 'Punjabi accent',
-    'id': 'Indonesian accent',
-    'ar': 'Arabic accent'
+    'pt': 'Portuguese accent'
   };
 
   return voiceStyleMap[code] || 'English accent'; // fallback to English

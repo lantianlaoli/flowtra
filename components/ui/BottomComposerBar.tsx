@@ -1,6 +1,6 @@
 'use client';
 
-import { Sparkles } from 'lucide-react';
+import { AlertTriangle, Sparkles } from 'lucide-react';
 import { ReactNode } from 'react';
 import { useI18n } from '@/providers/I18nProvider';
 
@@ -22,6 +22,8 @@ interface BottomComposerBarProps {
   generationCost?: number;
   userCredits?: number;
   generateButtonText?: string;
+  maintenanceMode?: boolean;
+  maintenanceLabel?: string;
 
   // Container props
   className?: string;
@@ -30,11 +32,23 @@ interface BottomComposerBarProps {
 }
 
 export function resolveBottomComposerButtonLabel(input: {
+  maintenanceMode: boolean;
   showInsufficientCredits: boolean;
   isGenerating: boolean;
   generateButtonText?: string;
+  maintenanceLabel?: string;
 }) {
-  const { showInsufficientCredits, isGenerating, generateButtonText = 'Generate' } = input;
+  const {
+    maintenanceMode,
+    showInsufficientCredits,
+    isGenerating,
+    generateButtonText = 'Generate',
+    maintenanceLabel = 'Maintenance',
+  } = input;
+
+  if (maintenanceMode) {
+    return maintenanceLabel;
+  }
 
   if (showInsufficientCredits) {
     return 'Insufficient';
@@ -60,6 +74,8 @@ export default function BottomComposerBar({
   generationCost = 0,
   userCredits = 0,
   generateButtonText = 'Generate',
+  maintenanceMode = false,
+  maintenanceLabel = 'Maintenance',
   className = '',
   compact = false,
   surfaceClassName = ''
@@ -67,7 +83,7 @@ export default function BottomComposerBar({
   const { locale } = useI18n();
   const canAfford = userCredits >= generationCost;
   const showInsufficientCredits = !canAfford && generationCost > 0;
-  const isButtonDisabled = !canGenerate || isGenerating || showInsufficientCredits;
+  const isButtonDisabled = maintenanceMode || !canGenerate || isGenerating || showInsufficientCredits;
   const localizedGenerateButtonText =
     generateButtonText === 'Start'
       ? (locale === 'zh' ? '开始' : 'Start')
@@ -75,10 +91,14 @@ export default function BottomComposerBar({
         ? (locale === 'zh' ? '生成' : 'Generate')
         : generateButtonText;
   const buttonLabel = resolveBottomComposerButtonLabel({
+    maintenanceMode,
     showInsufficientCredits,
     isGenerating,
+    maintenanceLabel,
     generateButtonText:
-      showInsufficientCredits
+      maintenanceMode
+        ? maintenanceLabel
+        : showInsufficientCredits
         ? (locale === 'zh' ? '积分不足' : 'Insufficient')
         : isGenerating
           ? (localizedGenerateButtonText === (locale === 'zh' ? '开始' : 'Start')
@@ -118,17 +138,23 @@ export default function BottomComposerBar({
               data-generating={isGenerating}
               className={`
                 bottom-composer-generate
-                my-ads-button ${!isButtonDisabled ? 'my-ads-button--primary' : ''}
+                my-ads-button ${!isButtonDisabled && !maintenanceMode ? 'my-ads-button--primary' : ''}
                 rounded-[14px] flex items-center justify-center gap-1.5 px-3 h-11 cursor-pointer
                 font-semibold text-sm whitespace-nowrap min-w-[108px]
                 transition-all duration-200
-                ${!isButtonDisabled
+                ${maintenanceMode
+                  ? 'border border-amber-300 bg-amber-50 text-amber-800 cursor-not-allowed shadow-none'
+                  : !isButtonDisabled
                   ? 'border border-black bg-black text-white'
                   : 'bg-[#F7F7F7] text-[#999999] cursor-not-allowed border border-[#E5E5E5] shadow-none'
                 }
               `}
             >
-              <Sparkles className="w-4 h-4 flex-shrink-0" />
+              {maintenanceMode ? (
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              ) : (
+                <Sparkles className="w-4 h-4 flex-shrink-0" />
+              )}
               <span>{buttonLabel}</span>
             </button>
           </div>

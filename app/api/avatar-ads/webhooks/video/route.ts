@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 /**
- * KIE Video Generation Webhook Payload (Veo3)
+ * KIE Video Generation Webhook Payload
  * Documentation: docs/kie/callback.md
  */
 interface KIEVideoWebhookPayload {

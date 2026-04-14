@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, Check, Lock, Coins, Video, Zap, AlertTriangle } from 'lucide-react';
-import { Google, ByteDance, Kling } from '@lobehub/icons';
+import { ChevronDown, Check, Lock, Coins, Video, AlertTriangle } from 'lucide-react';
+import { ByteDance, Kling } from '@lobehub/icons';
 import { cn } from '@/lib/utils';
 import {
   GENERATION_COSTS,
@@ -30,17 +30,6 @@ interface VideoModelSelectorProps {
   hiddenModels?: VideoModel[];
   adsCount?: number;
   videoDurationSeconds?: number;
-}
-
-const VEO_SAFETY_BADGE_LABEL = 'No kids in video';
-
-function VeoSafetyBadge() {
-  return (
-    <span className="pointer-events-none inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium leading-none text-amber-800">
-      <AlertTriangle className="h-3 w-3" />
-      <span>{VEO_SAFETY_BADGE_LABEL}</span>
-    </span>
-  );
 }
 
 function ModelConstraintBadge({ label }: { label: string }) {
@@ -84,13 +73,11 @@ export default function VideoModelSelector({
         // Fallback to base cost if no config provided
         return GENERATION_COSTS[model] || 0;
       }
-      if (model === 'kling_3') {
-        return Math.ceil(videoDurationSeconds) * (GENERATION_COSTS.kling_3 || 0);
+      if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2') {
+        return Math.ceil(videoDurationSeconds) * (GENERATION_COSTS[model] || 0);
       }
-      // Segment-priced models use 8s units
-      const unitSeconds = 8;
       const baseCost = GENERATION_COSTS[model] || 0;
-      return Math.round((videoDurationSeconds / unitSeconds) * baseCost);
+      return Math.ceil(videoDurationSeconds) * baseCost;
     };
 
     // Check if model is supported by current quality config or disabledModels list
@@ -99,34 +86,34 @@ export default function VideoModelSelector({
       if (disabledModels.includes(model)) {
         return false;
       }
-      // All veo3 models support 'standard' quality only
+      // Models currently use standard quality handling
       return true;
     };
 
-    return [
+      return [
       {
-        value: 'veo3_fast' as const,
-        label: getVideoModelDisplayName('veo3_fast'),
-        description: 'Fast generation, balanced quality',
-        icon: Google,
-        cost: calculateDurationCost('veo3_fast'),
-        processingTime: getProcessingTime('veo3_fast'),
-        affordable: credits >= calculateDurationCost('veo3_fast'),
-        features: 'Fast processing, 2-3 min',
-        supported: isModelSupported('veo3_fast'),
+        value: 'seedance_2_fast' as const,
+        label: getVideoModelDisplayName('seedance_2_fast'),
+        description: 'Fast ByteDance generation with native audio',
+        icon: ByteDance,
+        cost: calculateDurationCost('seedance_2_fast'),
+        processingTime: getProcessingTime('seedance_2_fast'),
+        affordable: credits >= calculateDurationCost('seedance_2_fast'),
+        features: 'Native 720p, 1-2 min',
+        supported: isModelSupported('seedance_2_fast'),
         badge: 'Popular'
       },
       {
-        value: 'seedance_1_5_pro' as const,
-        label: getVideoModelDisplayName('seedance_1_5_pro'),
-        description: 'ByteDance model with audio',
+        value: 'seedance_2' as const,
+        label: getVideoModelDisplayName('seedance_2'),
+        description: 'Higher-fidelity ByteDance generation',
         icon: ByteDance,
-        cost: calculateDurationCost('seedance_1_5_pro'),
-        processingTime: getProcessingTime('seedance_1_5_pro'),
-        affordable: credits >= calculateDurationCost('seedance_1_5_pro'),
-        features: 'Built-in audio, 1-2 min',
-        supported: isModelSupported('seedance_1_5_pro'),
-        badge: 'Audio'
+        cost: calculateDurationCost('seedance_2'),
+        processingTime: getProcessingTime('seedance_2'),
+        affordable: credits >= calculateDurationCost('seedance_2'),
+        features: 'Native 720p, richer motion',
+        supported: isModelSupported('seedance_2'),
+        badge: 'Pro'
       },
       {
         value: 'kling_3' as const,
@@ -139,18 +126,6 @@ export default function VideoModelSelector({
         features: '720p std or 1080p pro',
         supported: isModelSupported('kling_3'),
         badge: 'New'
-      },
-      {
-        value: 'veo3' as const,
-        label: getVideoModelDisplayName('veo3'),
-        description: 'Premium quality generation',
-        icon: Google,
-        cost: calculateDurationCost('veo3'),
-        processingTime: getProcessingTime('veo3'),
-        affordable: credits >= calculateDurationCost('veo3'),
-        features: 'Premium quality, 5-8 min',
-        supported: isModelSupported('veo3'),
-        badge: 'Premium'
       }
     ];
   }, [credits, videoDurationSeconds, videoQuality, videoDuration, disabledModels]);
@@ -239,9 +214,6 @@ export default function VideoModelSelector({
             {selectedOption && disabledModels.includes(selectedOption.value) && disabledModelReasons[selectedOption.value] && (
               <ModelConstraintBadge label={disabledModelReasons[selectedOption.value] as string} />
             )}
-            {(selectedOption?.value === 'veo3' || selectedOption?.value === 'veo3_fast') && (
-              <VeoSafetyBadge />
-            )}
           </div>
           <div className={`w-4 h-4 flex items-center justify-center transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}>
             <ChevronDown className="config-select-icon h-3 w-3 text-gray-600" />
@@ -286,9 +258,6 @@ export default function VideoModelSelector({
                   <span className="font-medium">{option.label}</span>
                   {disabledByConstraint && disabledReason && (
                     <ModelConstraintBadge label={disabledReason} />
-                  )}
-                  {(option.value === 'veo3' || option.value === 'veo3_fast') && (
-                    <VeoSafetyBadge />
                   )}
                   {isDisabled && (
                     <Lock className="config-select-icon w-3 h-3 text-gray-400" />

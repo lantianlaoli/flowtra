@@ -1,15 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, X, Loader2,
-  Image as ImageIcon, Film, Coins, MessageSquare, RefreshCw, CheckCircle
+  X, Loader2,
+  Image as ImageIcon, Film, Coins, MessageSquare, RefreshCw, CheckCircle, PencilLine, ArrowRight
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { countDialogueWords } from '@/lib/avatar-ads-dialogue';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
@@ -95,8 +94,6 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   const [isRegeneratingImage, setIsRegeneratingImage] = useState(false);
   const [editedImagePrompt, setEditedImagePrompt] = useState<string>('');
   const [editedScenes, setEditedScenes] = useState<StructuredVideoPrompt[]>([]);
-  const [activeSceneIndex, setActiveSceneIndex] = useState<number>(0);
-  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const isInitialized = useRef(false);
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -104,11 +101,11 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   
   const scenes = project?.generated_prompts?.scenes ?? [];
   const totalScenes = scenes.length;
-  const activeScenePrompt = editedScenes[activeSceneIndex] || scenes[activeSceneIndex]?.prompt || null;
   const previewVideoUrl =
     project?.merged_video_url ||
     (Array.isArray(project?.generated_video_urls) ? project?.generated_video_urls[0] : undefined) ||
     undefined;
+  const hasGeneratedImage = Boolean(project?.generated_image_url);
 
   const fetchProjectDetails = useCallback(async ({ isInitialLoad = false }: { isInitialLoad?: boolean } = {}) => {
     if (!projectId) return;
@@ -208,19 +205,10 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
       } else {
         setEditedScenes([]);
       }
-      setActiveSceneIndex(0);
       isInitialized.current = true;
       previousProjectIdRef.current = projectId;
     }
   }, [project, projectId]);
-
-  useEffect(() => {
-    if (!totalScenes) {
-      setActiveSceneIndex(0);
-      return;
-    }
-    setActiveSceneIndex((prev) => Math.min(prev, totalScenes - 1));
-  }, [totalScenes]);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -236,10 +224,8 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
       setProject(null);
       setEditedImagePrompt('');
       setEditedScenes([]);
-      setActiveSceneIndex(0);
       setIsRegeneratingImage(false);
       isInitialized.current = false;
-      setFocusedField(null);
     }
   }, [open, fetchProjectDetails]);
 
@@ -253,21 +239,22 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [open, onClose]);
 
-  const handleFieldChange = useCallback((field: keyof StructuredVideoPrompt, value: string) => {
-    setEditedScenes(prev => {
-      const next = [...prev];
-      const fallback = normalizeScenePromptForEditor(project?.generated_prompts?.scenes?.[activeSceneIndex]?.prompt);
-      const current = next[activeSceneIndex] ?? fallback;
-      next[activeSceneIndex] = {
-        ...current,
-        [field]: value,
-      };
-      return next;
-    });
-  }, [activeSceneIndex, project]);
-
   const handleImagePromptChange = useCallback((value: string) => {
     setEditedImagePrompt(value);
+  }, []);
+
+  const combinedDialogue = useMemo(() => {
+    return editedScenes.map(s => s.dialog || '').join('\n\n');
+  }, [editedScenes]);
+
+  const handleCombinedDialogueChange = useCallback((value: string) => {
+    const parts = value.split(/\n\n+/);
+    setEditedScenes(prev =>
+      prev.map((scene, index) => ({
+        ...scene,
+        dialog: parts[index] ?? '',
+      }))
+    );
   }, []);
 
   const handleRegenerateImageClick = async () => {
@@ -397,11 +384,22 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
             >
               {/* Header */}
               <div className="avatar-ads-editor-header px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
-                <div className="flex items-center gap-4">
-                  <h3 className="avatar-ads-editor-title text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    Review & Edit Ad
-                    <p className="avatar-ads-editor-subtitle text-xs font-normal text-gray-500 ml-2">Please check image, adjust photos, and confirm video elements before generating.</p>
+                <div className="flex items-center gap-8">
+                  <h3 className="avatar-ads-editor-title text-lg font-semibold text-gray-900 flex items-center gap-2 whitespace-nowrap">
+                    <PencilLine className="h-4 w-4" />
+                    Edit
                   </h3>
+                  <div className="hidden lg:flex items-start gap-3 text-xs">
+                    <div className="flex items-start gap-2 max-w-[320px]">
+                      <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black text-[11px] font-semibold text-white shrink-0">1</span>
+                      <p className="leading-4 font-semibold text-gray-900">Edit image and generate image</p>
+                    </div>
+                    <ArrowRight className="h-3 w-3 text-gray-300 mt-1 shrink-0" />
+                    <div className="flex items-start gap-2 max-w-[320px]">
+                      <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black text-[11px] font-semibold text-white shrink-0">2</span>
+                      <p className="leading-4 font-semibold text-gray-900">Check dialogue and generate video</p>
+                    </div>
+                  </div>
                   {/* Auto-save status indicator */}
                   {autoSaveStatus !== 'idle' && (
                     <div className="avatar-ads-editor-status flex items-center gap-1.5">
@@ -506,123 +504,50 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                     </div>
 
                     {/* RIGHT: Editors (Scrollable) */}
-                    <div className="avatar-ads-editor-form flex-1 overflow-y-auto bg-white custom-scrollbar">
-                      <div className="max-w-3xl mx-auto p-6 space-y-8">
-
+                    <div className="avatar-ads-editor-form flex-1 overflow-hidden bg-white custom-scrollbar">
+                      <div className="max-w-3xl mx-auto p-6 h-full flex flex-col gap-6">
                         {/* Image Prompt Edit Section */}
-                        <div className="avatar-ads-editor-card space-y-3">
-                          <div className="flex items-start justify-between">
-                            <div className="space-y-0.5">
-                              <div className="avatar-ads-editor-section-title flex items-center gap-2 text-sm font-semibold text-gray-900">
-                                <ImageIcon className="w-4 h-4" />
-                                Image Prompt
-                              </div>
-                              <p className="avatar-ads-editor-helper text-[11px] text-gray-500 pl-6">
-                                Adjust prompt to match expectations.
-                              </p>
+                        <div className="avatar-ads-editor-card flex-[2] min-h-0 flex flex-col gap-3">
+                          <div className="flex items-start justify-between shrink-0">
+                            <div className="avatar-ads-editor-section-title flex items-center gap-2 text-base font-semibold text-gray-900">
+                              <ImageIcon className="w-5 h-5" />
+                              Image Prompt
                             </div>
                           </div>
-                          <PromptMentionTextarea
-                            value={editedImagePrompt}
-                            onChange={handleImagePromptChange}
-                            rows={3}
-                            resizable="vertical"
-                            characterMentions={characterMentions}
-                            productMentions={productMentions}
-                            className={`avatar-ads-editor-textarea text-sm p-3 transition-all duration-200 ${
-                              focusedField === 'image_prompt' ? 'min-h-32 bg-gray-50' : 'min-h-[88px] bg-white'
-                            }`}
-                            preventHorizontalScroll
-                            placeholder="Describe the character and setting..."
-                          />
+                          <div className="flex-1 min-h-0">
+                            <PromptMentionTextarea
+                              value={editedImagePrompt}
+                              onChange={handleImagePromptChange}
+                              rows={3}
+                              characterMentions={characterMentions}
+                              productMentions={productMentions}
+                              className="text-sm p-3 bg-white"
+                              preventHorizontalScroll
+                              placeholder="Describe the character and setting..."
+                            />
+                          </div>
                         </div>
 
-                        <hr className="avatar-ads-editor-divider border-gray-100" />
-
-                        {/* Video Scenes Section */}
-                        <div className="avatar-ads-editor-card space-y-4">
-                           <div className="flex items-start justify-between mb-1">
-                             <div className="space-y-0.5">
-                               <div className="avatar-ads-editor-section-title flex items-center gap-2 text-sm font-semibold text-gray-900">
-                                 <Film className="w-4 h-4" />
-                                 Scene Dialogue
-                               </div>
-                               <p className="avatar-ads-editor-helper text-[11px] text-gray-500 pl-6">
-                                 Edit what the character says in each segment.
-                               </p>
-                             </div>
-                           </div>
-
-                           {/* Scene Tabs */}
-                           {totalScenes > 0 && (
-                             <div className="avatar-ads-editor-tabs flex flex-wrap gap-1 border-b border-gray-100 pb-1">
-                               {scenes.map((_, index) => (
-                                 <button
-                                   key={`scene-tab-${index}`}
-                                   onClick={() => setActiveSceneIndex(index)}
-                                   className={`avatar-ads-editor-tab px-4 py-2 text-sm font-medium transition-colors relative ${
-                                     activeSceneIndex === index
-                                       ? 'text-black'
-                                       : 'text-gray-500 hover:text-gray-800'
-                                   }`}
-                                 >
-                                   Scene {index + 1}
-                                   {activeSceneIndex === index && (
-                                     <motion.div
-                                       layoutId="activeTab"
-                                       className="avatar-ads-editor-tab-indicator absolute bottom-0 left-0 right-0 h-0.5 bg-black"
-                                     />
-                                   )}
-                                 </button>
-                               ))}
-                             </div>
-                           )}
-
-                           {/* Scene Fields */}
-                           <div className="pt-2 space-y-4">
-                             {totalScenes === 0 ? (
-                             <p className="avatar-ads-editor-helper text-sm text-gray-400 italic">No scenes to edit.</p>
-                           ) : (
-                             <div className="grid grid-cols-1 gap-4">
-                               {(() => {
-                                 const field = 'dialog' as const;
-                                 const isFocused = focusedField === field;
-                                 const fieldValue = activeScenePrompt?.dialog || '';
-                                 const dialogueWordCount = countDialogueWords(fieldValue);
-                                 const dialogueWarning = dialogueWordCount > 0 && dialogueWordCount < 17
-                                   ? `Only ${dialogueWordCount} words. Recommended: 17-20 words per 8-second segment to avoid pauses.`
-                                   : null;
-
-                                 return (
-                                   <div key={field} className="avatar-ads-editor-field group space-y-1.5">
-                                     <label
-                                       htmlFor={`field_${field}`}
-                                       className="avatar-ads-editor-label flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wider group-focus-within:text-black transition-colors"
-                                     >
-                                       <MessageSquare className="w-3.5 h-3.5" />
-                                       Dialogue
-                                     </label>
-                                     <textarea
-                                       id={`field_${field}`}
-                                       className={`avatar-ads-editor-textarea block w-full rounded-md border-gray-200 shadow-sm focus:border-black focus:ring-black text-sm resize-y p-3 transition-all duration-200 ${
-                                         isFocused ? 'min-h-32 bg-gray-50' : 'min-h-[96px] bg-white'
-                                       }`}
-                                       value={fieldValue}
-                                       onChange={(e) => handleFieldChange(field, e.target.value)}
-                                       onFocus={() => setFocusedField(field)}
-                                       onBlur={() => setFocusedField(null)}
-                                     />
-                                     {dialogueWarning && (
-                                       <p className="avatar-ads-editor-warning text-[11px] text-amber-600 mt-1">
-                                         {dialogueWarning}
-                                       </p>
-                                     )}
-                                   </div>
-                                 );
-                               })()}
-                              </div>
+                        {/* Dialogue Section */}
+                        <div className="avatar-ads-editor-card flex-[3] min-h-0 flex flex-col gap-3">
+                          <div className="flex items-start justify-between shrink-0">
+                            <div className="avatar-ads-editor-section-title flex items-center gap-2 text-base font-semibold text-gray-900">
+                              <MessageSquare className="w-5 h-5" />
+                              Dialogue
+                            </div>
+                          </div>
+                          <div className="flex-1 min-h-0">
+                            {totalScenes === 0 ? (
+                              <p className="text-sm text-gray-400 italic">No scenes to edit.</p>
+                            ) : (
+                              <textarea
+                                className="block h-full w-full min-h-0 rounded-lg border border-gray-200 bg-white shadow-sm focus:border-black focus:outline-none focus:ring-0 text-sm resize-none p-3 overflow-y-auto transition-colors"
+                                value={combinedDialogue}
+                                onChange={(e) => handleCombinedDialogueChange(e.target.value)}
+                                placeholder="Enter the dialogue for all segments..."
+                              />
                             )}
-                           </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -636,11 +561,11 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                 <button
                    onClick={handleRegenerateImageClick}
                    disabled={submitting || isRegeneratingImage}
-                   className="avatar-ads-editor-secondary h-12 px-5 rounded-lg border border-gray-300 text-base font-semibold text-gray-900 hover:bg-gray-50 transition-colors flex items-center gap-2 shadow-sm"
+                   className="landing-press-button landing-press-button--secondary landing-press-button--compact text-sm font-semibold"
                 >
                    <RefreshCw className={`w-4 h-4 ${isRegeneratingImage ? 'animate-spin' : ''}`} />
-                   Regenerate Image
-                   <span className="ml-1 inline-flex items-center rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                   {hasGeneratedImage ? 'Regenerate Image' : 'Generate Image'}
+                   <span className="ml-1 inline-flex items-center rounded-lg border border-emerald-900 bg-emerald-800 px-2 py-0.5 text-[11px] font-bold text-white">
                      FREE
                    </span>
                 </button>
@@ -648,7 +573,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                 <button
                   onClick={handleConfirm}
                   disabled={submitting || loading || !project}
-                  className="avatar-ads-editor-primary h-12 px-6 rounded-lg bg-black text-base font-semibold text-white hover:bg-gray-800 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+                  className="landing-press-button landing-press-button--compact text-sm font-semibold"
                 >
                   {submitting ? (
                     <>
@@ -659,7 +584,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                     <>
                       <Film className="w-4 h-4" />
                       Generate Video
-                      <span className="ml-1 inline-flex items-center gap-1 rounded-lg border border-emerald-900 bg-emerald-800 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                      <span className="ml-1 inline-flex items-center gap-1 rounded-lg border border-emerald-900 bg-emerald-800 px-2 py-0.5 text-[11px] font-bold text-white">
                         <Coins className="h-3 w-3" />
                         {project?.credits_cost ?? 0}
                       </span>

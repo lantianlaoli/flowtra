@@ -5,6 +5,7 @@ import { resolveBottomComposerButtonLabel } from '@/components/ui/BottomComposer
 
 test('bottom composer keeps Start label while idle', () => {
   assert.equal(resolveBottomComposerButtonLabel({
+    maintenanceMode: false,
     showInsufficientCredits: false,
     isGenerating: false,
     generateButtonText: 'Start',
@@ -13,6 +14,7 @@ test('bottom composer keeps Start label while idle', () => {
 
 test('bottom composer shows Processing while busy for Start flows', () => {
   assert.equal(resolveBottomComposerButtonLabel({
+    maintenanceMode: false,
     showInsufficientCredits: false,
     isGenerating: true,
     generateButtonText: 'Start',
@@ -21,6 +23,7 @@ test('bottom composer shows Processing while busy for Start flows', () => {
 
 test('bottom composer keeps Generate label while idle', () => {
   assert.equal(resolveBottomComposerButtonLabel({
+    maintenanceMode: false,
     showInsufficientCredits: false,
     isGenerating: false,
     generateButtonText: 'Generate',
@@ -29,6 +32,7 @@ test('bottom composer keeps Generate label while idle', () => {
 
 test('bottom composer shows Generating while busy for Generate flows', () => {
   assert.equal(resolveBottomComposerButtonLabel({
+    maintenanceMode: false,
     showInsufficientCredits: false,
     isGenerating: true,
     generateButtonText: 'Generate',
@@ -37,6 +41,7 @@ test('bottom composer shows Generating while busy for Generate flows', () => {
 
 test('bottom composer prioritizes insufficient credits label', () => {
   assert.equal(resolveBottomComposerButtonLabel({
+    maintenanceMode: false,
     showInsufficientCredits: true,
     isGenerating: true,
     generateButtonText: 'Start',

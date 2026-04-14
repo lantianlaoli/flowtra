@@ -175,7 +175,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           segmentDurationSeconds
         );
         const segmentCost = getSegmentPromptVideoGenerationCost(
-          projectModel || 'veo3_fast',
+          projectModel || 'seedance_2_fast',
           segmentPrompt.shots,
           segmentDurationSeconds,
           (project.video_quality as PersistedVideoQuality | null | undefined) || undefined
@@ -226,8 +226,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
 
       chargeDescription = project.is_segmented
-        ? `Video Clone - Remaining segment video generation (${String(project.video_model || 'veo3_fast').toUpperCase()})`
-        : `Video Clone - Video generation (${String(project.video_model || 'veo3_fast').toUpperCase()})`;
+        ? `Video Clone - Remaining segment video generation (${String(project.video_model || 'seedance_2_fast').toUpperCase()})`
+        : `Video Clone - Video generation (${String(project.video_model || 'seedance_2_fast').toUpperCase()})`;
       const transaction = await recordCreditTransaction(
         userId,
         'usage',

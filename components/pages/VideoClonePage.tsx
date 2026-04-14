@@ -54,6 +54,12 @@ interface KieCreditsStatus {
   threshold?: number;
 }
 
+const isMaintenanceModeError = (payload: unknown) => (
+  typeof payload === "object" &&
+  payload !== null &&
+  (payload as { code?: unknown }).code === "MAINTENANCE_MODE"
+);
+
 type ReplicaAspectRatio =
   | "1:1"
   | "2:3"
@@ -201,9 +207,8 @@ const getStageLabel = (
 };
 
 const ALL_VIDEO_MODELS: VideoModel[] = [
-  "veo3",
-  "veo3_fast",
-  "seedance_1_5_pro",
+  "seedance_2_fast",
+  "seedance_2",
   "kling_3",
 ];
 const SESSION_STORAGE_KEY = "flowtra_video_clone_generations";
@@ -253,9 +258,9 @@ export default function VideoClonePage() {
   >({});
 
   // Video configuration states
-  const [selectedModel, setSelectedModel] = useState<VideoModel>("veo3_fast");
+  const [selectedModel, setSelectedModel] = useState<VideoModel>("seedance_2_fast");
   const [selectedVideoQuality, setSelectedVideoQuality] =
-    useState<CloneVideoQuality>(getDefaultCloneVideoQuality("veo3_fast"));
+    useState<CloneVideoQuality>(getDefaultCloneVideoQuality("seedance_2_fast"));
   const [format, setFormat] = useState<Format>("9:16");
 
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>("en");
@@ -1716,11 +1721,12 @@ export default function VideoClonePage() {
             threshold: data.threshold,
           });
         } else {
-          setKieCreditsStatus({ sufficient: false, loading: false });
+          // Keep features usable when status endpoint is temporarily unavailable.
+          setKieCreditsStatus({ sufficient: true, loading: false });
         }
       } catch (error) {
         console.error("Failed to check KIE credits:", error);
-        setKieCreditsStatus({ sufficient: false, loading: false });
+        setKieCreditsStatus({ sufficient: true, loading: false });
       }
     };
 
@@ -1867,6 +1873,15 @@ export default function VideoClonePage() {
         replicaOptions: replicaPayload,
       });
 
+      if (!workflowResult?.success) {
+        if (isMaintenanceModeError(workflowResult)) {
+          setKieCreditsStatus({ sufficient: false, loading: false });
+        }
+        throw new Error(
+          workflowResult?.error || "Failed to start generation",
+        );
+      }
+
       console.log("🔍 [Workflow Result] workflowResult:", {
         ...workflowResult,
         // Don't log sensitive data, just the structure
@@ -1964,29 +1979,8 @@ export default function VideoClonePage() {
     !isGenerating &&
     Boolean(selectedReferenceVideo) &&
     replicaSelectionValid &&
-    canAfford;
-
-  // Render insufficient credits or maintenance message
-  if (!kieCreditsStatus.loading && !kieCreditsStatus.sufficient) {
-    return (
-      <div className="flex h-screen bg-muted">
-        <Sidebar {...sidebarProps} />
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-6xl mx-auto px-4 py-8">
-            <div className="bg-background rounded-lg shadow-lg p-8 text-center">
-              <h2 className="text-2xl font-bold text-foreground mb-4">
-                System Maintenance
-              </h2>
-              <p className="text-muted-foreground">
-                Our system is currently under maintenance. Please try again
-                later.
-              </p>
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
+    canAfford &&
+    !(!kieCreditsStatus.loading && !kieCreditsStatus.sufficient);
 
   return (
     <>
@@ -1995,7 +1989,7 @@ export default function VideoClonePage() {
         <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
           <div className="flex-1 flex flex-col min-h-0">
             {/* Main Content Area - Progress Display */}
-            <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-32 min-h-0">
+            <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-24 md:pb-28 min-h-0">
               <div className="dashboard-main-shell flex-1 flex min-h-0">
                 <div className="rounded-[26px] bg-background border border-border shadow-[0_20px_40px_rgba(0,0,0,0.05)] flex-1 flex flex-col overflow-hidden min-h-0">
                   <div className="flex-1 overflow-hidden min-h-0">
@@ -2140,6 +2134,8 @@ export default function VideoClonePage() {
         isGenerating={isGenerating}
         generationCost={composerGenerationCost}
         userCredits={userCredits || 0}
+        maintenanceMode={!kieCreditsStatus.loading && !kieCreditsStatus.sufficient}
+        maintenanceLabel="Maintenance"
         generateButtonText={isReferencePhotoMode ? (locale === "zh" ? "生成" : "Generate") : (locale === "zh" ? "开始" : "Start")}
       />
 

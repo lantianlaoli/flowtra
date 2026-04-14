@@ -298,11 +298,11 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         },
         {
           title: 'Avatar Ads',
-          description: 'Create avatar-driven video advertisements with realistic AI characters powered by Google Veo3.',
+          description: 'Create avatar-driven video advertisements with realistic AI characters powered by Seedance 2 Fast.',
           href: '/features/avatar-ads',
           mediaLabels: [],
           bullets: [
-            '$0.3 per 8 seconds',
+            '33 credits per second',
             'Supports English, Spanish, and 10+ languages',
             'Generate up to 80 seconds',
             'Supports custom scripts',
@@ -611,11 +611,11 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         },
         {
           title: '数字人广告',
-          description: '用 Google Veo3 驱动真实感 AI 数字人，生成可直接投放的视频广告。',
+          description: '用 Seedance 2 Fast 驱动真实感 AI 数字人，生成可直接投放的视频广告。',
           href: '/features/avatar-ads',
           mediaLabels: [],
           bullets: [
-            '每 8 秒仅需 $0.3',
+            '每秒仅需 33 积分',
             '支持英文、西班牙语及 10 多种语言',
             '最长可生成 80 秒',
             '支持自定义脚本',

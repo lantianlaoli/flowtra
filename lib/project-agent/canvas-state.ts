@@ -55,7 +55,7 @@ export type ProjectAgentFeatureNodeConfig = {
   aspectRatio?: '16:9' | '9:16';
   language?: string;
   videoDuration?: '8' | '16' | '24' | '32';
-  videoModel?: 'veo3_fast' | 'veo3' | 'seedance_1_5_pro' | 'kling_3';
+  videoModel?: 'seedance_2_fast' | 'seedance_2' | 'kling_3';
   videoQuality?: '720p' | '1080p';
 };
 
@@ -75,6 +75,7 @@ export type ProjectAgentCanvasNodeRuntime = {
   missingInputs?: ProjectAgentAssetNodeType[] | null;
   canStart?: boolean;
   blockedReason?: string | null;
+  maintenanceBlocked?: boolean;
 };
 
 export const isProjectAgentRuntimeActive = (

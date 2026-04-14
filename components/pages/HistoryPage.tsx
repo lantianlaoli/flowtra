@@ -63,7 +63,7 @@ interface AvatarAdsItem {
   downloaded?: boolean;
   downloadCreditsUsed?: number;
   generationCreditsUsed?: number;
-  videoModel: 'veo3' | 'veo3_fast' | 'sora2';
+  videoModel: VideoModel;
   creditsUsed: number;
   status: 'processing' | 'completed' | 'failed';
   createdAt: string;

@@ -41,7 +41,7 @@ export async function POST(
     }
     const nextTotalDurationSeconds = totalDurationSeconds ?? getAvatarPlannedTotalDurationSeconds(
       nextPrompts as Record<string, unknown> | null | undefined,
-      project.video_model === 'kling_3' ? 'kling_3' : 'veo3_fast',
+      project.video_model === 'kling_3' ? 'kling_3' : 'seedance_2_fast',
       project.video_duration_seconds
     );
 

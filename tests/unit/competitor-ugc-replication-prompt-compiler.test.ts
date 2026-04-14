@@ -20,7 +20,7 @@ test('kling mode preserves @mentions for mapping path', () => {
   assert.equal(result.compiledValue.shots[0].subject, '@(Default Male)');
 });
 
-test('veo/seedance mode compiles mentions to plain text recursively', () => {
+test('seedance mode compiles mentions to plain text recursively', () => {
   const source = {
     first_frame_description: '@(Default Male) holds @(book) in frame.',
     subject: 'A @(Default Male) looking at camera.',
@@ -35,7 +35,7 @@ test('veo/seedance mode compiles mentions to plain text recursively', () => {
     ]
   };
 
-  const result = compilePromptForExecution(source, 'veo3_fast');
+  const result = compilePromptForExecution(source, 'seedance_2_fast');
   assert.equal(result.compileMode, 'plain_text');
   assert.equal(result.mentionCount, 7);
   assert.equal(result.compiledValue.first_frame_description, 'Default Male holds book in frame.');
@@ -48,7 +48,7 @@ test('plain text prompt stays unchanged in non-kling compile', () => {
   const source = {
     first_frame_description: 'A man smiles while holding a product in warm sunlight.'
   };
-  const result = compilePromptForExecution(source, 'seedance_1_5_pro');
+  const result = compilePromptForExecution(source, 'seedance_2');
 
   assert.equal(result.mentionCount, 0);
   assert.equal(result.compiledValue.first_frame_description, source.first_frame_description);

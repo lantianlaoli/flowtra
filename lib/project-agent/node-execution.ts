@@ -45,6 +45,7 @@ const toProgress = (value: unknown, fallback: number) => (
 type CanvasErrorInfo = {
   retryable: boolean;
   userFacingError: string | null;
+  maintenanceMode: boolean;
 };
 
 const RETRYABLE_ERROR_PATTERNS = [
@@ -84,11 +85,23 @@ const NON_RETRYABLE_INPUT_PATTERNS = [
   'prompt validation',
 ];
 
-export const getProjectAgentCanvasErrorInfo = (error: string | null | undefined): CanvasErrorInfo => {
+export const getProjectAgentCanvasErrorInfo = (
+  error: string | null | undefined,
+  options?: { code?: string | null }
+): CanvasErrorInfo => {
+  if (options?.code === 'MAINTENANCE_MODE') {
+    return {
+      retryable: false,
+      userFacingError: 'System maintenance is in progress.',
+      maintenanceMode: true,
+    };
+  }
+
   if (!error) {
     return {
       retryable: false,
       userFacingError: null,
+      maintenanceMode: false,
     };
   }
 
@@ -102,6 +115,7 @@ export const getProjectAgentCanvasErrorInfo = (error: string | null | undefined)
       userFacingError: isRetryable
         ? "We couldn't finish combining the video clips right now. Please try again."
         : 'We could not combine the video clips with the current project setup.',
+      maintenanceMode: false,
     };
   }
 
@@ -109,6 +123,7 @@ export const getProjectAgentCanvasErrorInfo = (error: string | null | undefined)
     return {
       retryable: true,
       userFacingError: 'The generation took too long to respond. Please try again.',
+      maintenanceMode: false,
     };
   }
 
@@ -122,6 +137,19 @@ export const getProjectAgentCanvasErrorInfo = (error: string | null | undefined)
     return {
       retryable: true,
       userFacingError: 'We lost connection to the video service. Please try again.',
+      maintenanceMode: false,
+    };
+  }
+
+  if (
+    normalized.includes('maintenance_mode') ||
+    normalized.includes('system maintenance') ||
+    normalized.includes('under maintenance')
+  ) {
+    return {
+      retryable: false,
+      userFacingError: 'System maintenance is in progress.',
+      maintenanceMode: true,
     };
   }
 
@@ -135,6 +163,7 @@ export const getProjectAgentCanvasErrorInfo = (error: string | null | undefined)
     return {
       retryable: true,
       userFacingError: 'The video service is temporarily unavailable. Please try again.',
+      maintenanceMode: false,
     };
   }
 
@@ -146,6 +175,7 @@ export const getProjectAgentCanvasErrorInfo = (error: string | null | undefined)
     return {
       retryable: false,
       userFacingError: 'This request could not be completed because it did not pass the provider review.',
+      maintenanceMode: false,
     };
   }
 
@@ -158,6 +188,7 @@ export const getProjectAgentCanvasErrorInfo = (error: string | null | undefined)
     return {
       retryable: false,
       userFacingError: 'This run could not continue with the current media or settings.',
+      maintenanceMode: false,
     };
   }
 
@@ -166,6 +197,7 @@ export const getProjectAgentCanvasErrorInfo = (error: string | null | undefined)
     userFacingError: isRetryable
       ? 'Something went wrong with the video service. Please try again.'
       : 'This run could not be completed. Please review the setup and try again.',
+    maintenanceMode: false,
   };
 };
 

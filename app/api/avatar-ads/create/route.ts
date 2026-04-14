@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     const imageSize = (formData.get('image_size') as string | null)?.trim() || null;
     const videoModel = formData.get('video_model') as string;
     const customDialogue = (formData.get('custom_dialogue') as string) || '';
-    const videoAspectRatio = (formData.get('video_aspect_ratio') as '16:9' | '9:16') || '16:9';
+    const videoAspectRatio = '9:16';
     const selectedPersonPhotoUrl = formData.get('selected_person_photo_url') as string;
     const selectedProductId = formData.get('selected_product_id') as string;
     const configuredLanguage = (formData.get('language') as string) || 'en';
@@ -69,8 +69,6 @@ export async function POST(request: NextRequest) {
     let talkingHeadMode = typeof talkingHeadModeFlag === 'string' && talkingHeadModeFlag.toLowerCase() === 'true';
     const prebuiltPromptsRaw = formData.get('prebuilt_prompts');
     const prebuiltImagePromptRaw = formData.get('prebuilt_image_prompt');
-    const startAtStepRaw = formData.get('start_at_step');
-    const startAtStep = typeof startAtStepRaw === 'string' ? startAtStepRaw.trim() : '';
     const prebuiltPrompts = typeof prebuiltPromptsRaw === 'string' && prebuiltPromptsRaw.trim()
       ? JSON.parse(prebuiltPromptsRaw) as Record<string, unknown>
       : null;
@@ -142,7 +140,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate models
-    const validVideoModels = isInternalAgentRequest ? ['veo3_fast', 'kling_3'] : ['veo3_fast'];
+    const validVideoModels = isInternalAgentRequest ? ['seedance_2_fast', 'kling_3'] : ['seedance_2_fast'];
 
     if (!validVideoModels.includes(videoModel)) {
       return NextResponse.json(
@@ -279,9 +277,9 @@ export async function POST(request: NextRequest) {
       productImageUrls.push(uploadResult.publicUrl);
     }
 
-    const resolvedVideoModel: 'kling_3' | 'veo3_fast' = videoModel === 'kling_3' && isInternalAgentRequest
+    const resolvedVideoModel: 'kling_3' | 'seedance_2_fast' = videoModel === 'kling_3' && isInternalAgentRequest
       ? 'kling_3'
-      : 'veo3_fast';
+      : 'seedance_2_fast';
     const totalCredits = getGenerationCost(resolvedVideoModel, String(videoDurationSeconds));
 
     const generationCreditsUsed = 0;
@@ -307,7 +305,7 @@ export async function POST(request: NextRequest) {
       credits_cost: totalCredits,
       generation_credits_used: generationCreditsUsed,
       status: 'pending',
-      current_step: startAtStep === 'generate_image' && prebuiltPrompts ? 'generating_image' : 'generating_prompts',
+      current_step: 'generating_prompts',
       progress_percentage: 10,
     };
     if (prebuiltPrompts) {
@@ -350,7 +348,7 @@ export async function POST(request: NextRequest) {
     // Vercel terminates serverless functions immediately after API response
     // Fire-and-forget IIFE would be killed before processAvatarAdsProject executes
     console.log(`✅ Avatar Ads project ${project.id} created with status='pending'`);
-    console.log(`Starting workflow: generate_prompts → generate_image → awaiting_review...`);
+    console.log(`Starting workflow: generate_prompts → awaiting_review...`);
     captureServerEvent(ANALYTICS_EVENTS.avatar_ads_project_created, {
       distinctId: userId,
       request,
@@ -371,39 +369,8 @@ export async function POST(request: NextRequest) {
     try {
       const { processAvatarAdsProject } = await import('@/lib/avatar-ads-workflow');
 
-      // Start with generate_prompts and continue with subsequent steps
-      let currentStep = startAtStep === 'generate_image' && prebuiltPrompts ? 'generate_image' : 'generate_prompts';
-      let result = await processAvatarAdsProject(project, currentStep);
-      console.log(`✅ ${currentStep} completed for project ${project.id}`);
-
-      // Continue with next steps automatically until we hit a stopping point
-      // Stop at 'check_image_status' (user review) or when no nextStep
-      while (result.nextStep) {
-        currentStep = result.nextStep;
-        console.log(`⏭️ Triggering next step: ${currentStep} for project ${project.id}`);
-
-        // Get fresh project data before next step
-        const { data: freshProject } = await workflowSupabase
-          .from('avatar_ads_projects')
-          .select('*')
-          .eq('id', project.id)
-          .single();
-
-        if (!freshProject) {
-          throw new Error('Project not found');
-        }
-
-        result = await processAvatarAdsProject(freshProject, currentStep);
-        console.log(`✅ ${currentStep} completed for project ${project.id}`);
-
-        // Stop at 'awaiting_review' - user needs to review cover image
-        if (freshProject.status === 'awaiting_review') {
-          console.log(`⏸️ Workflow paused at 'awaiting_review' - waiting for user action`);
-          break;
-        }
-      }
-
-      console.log(`✅ Workflow initialization completed for project ${project.id}`);
+      await processAvatarAdsProject(project, 'generate_prompts');
+      console.log(`✅ Workflow initialization completed for project ${project.id} (ready for edit)`);
     } catch (error) {
       console.error(`❌ Workflow failed for project ${project.id}:`, error);
       console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack available');
