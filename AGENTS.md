@@ -4,6 +4,7 @@
 
 - **Package Manager**: ALWAYS use `pnpm` for ALL dependency operations
 - **Lock File**: EVERY pnpm operation must update `pnpm-lock.yaml` - commit it
+- **Git Branching**: DO NOT create new branches unless the user explicitly requests one; default delivery is direct to `master`
 - **Database Schema Verification**: ALWAYS use Supabase MCP to verify schema BEFORE any database code
 - **RLS**: For CRUD features, do NOT configure Supabase RLS policies. User identity and access are handled by Clerk.
 - **RLS**: Do NOT configure RLS when building CRUD features; user identity and access are handled by Clerk
