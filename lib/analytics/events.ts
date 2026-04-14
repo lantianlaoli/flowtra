@@ -29,7 +29,6 @@ export const ANALYTICS_EVENTS = {
   reference_video_analysis_failed: 'reference_video_analysis_failed',
   avatar_ads_generation_requested: 'avatar_ads_generation_requested',
   avatar_ads_project_created: 'avatar_ads_project_created',
-  avatar_ads_dialogue_generated: 'avatar_ads_dialogue_generated',
   avatar_ads_cover_generated: 'avatar_ads_cover_generated',
   avatar_ads_cover_regenerated: 'avatar_ads_cover_regenerated',
   avatar_ads_cover_confirmed: 'avatar_ads_cover_confirmed',

@@ -244,6 +244,14 @@ export async function POST(request: NextRequest) {
 
     const hasProductAssets = productImageUrls.length > 0 || productFiles.length > 0 || !!selectedProductId;
     talkingHeadMode = !hasProductAssets;
+    const trimmedDialogue = (customDialogue || '').trim();
+
+    if (!trimmedDialogue) {
+      return NextResponse.json(
+        { error: 'Dialogue is required.' },
+        { status: 400 }
+      );
+    }
 
     if (!talkingHeadMode && productImageUrls.length === 0 && productFiles.length === 0) {
       return NextResponse.json(
@@ -261,11 +269,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (talkingHeadMode && !productContext) {
-      const trimmedDialogue = (customDialogue || '').trim();
       productContext = {
-        talking_head_script: trimmedDialogue
-          ? `Talking head delivery. Have the character speak directly to camera and read this script verbatim: ${trimmedDialogue}`
-          : 'Talking head delivery. Have the character speak directly to camera about their experience or advice without showing a specific product.'
+        talking_head_script: `Talking head delivery. Have the character speak directly to camera and read this script verbatim: ${trimmedDialogue}`
       };
     }
 
@@ -300,7 +305,7 @@ export async function POST(request: NextRequest) {
       video_model: resolvedVideoModel,
       video_aspect_ratio: normalizedAspectRatio,
       image_size: enforcedImageSize,
-      custom_dialogue: customDialogue || null,
+      custom_dialogue: trimmedDialogue,
       language: resolvedSpokenLanguage, // Language used for spoken dialogue generation
       credits_cost: totalCredits,
       generation_credits_used: generationCreditsUsed,

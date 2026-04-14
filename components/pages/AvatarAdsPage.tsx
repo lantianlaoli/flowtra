@@ -21,12 +21,7 @@ import {
   snapDurationToModel,
   type VideoDuration
 } from '@/lib/constants';
-import { AVATAR_ADS_DURATION_OPTIONS } from '@/lib/avatar-ads-dialogue';
 import { AvatarAdInspector, StructuredVideoPrompt } from '@/components/avatar-ads/AvatarAdInspector';
-import {
-  clampDialogueToWordLimit,
-  getAvatarAdsDialogueWordLimit
-} from '@/lib/avatar-ads-dialogue';
 import { estimateDialogueDuration } from '@/lib/dialogue-duration-estimator';
 import { resolveAvatarSpokenLanguage } from '@/lib/avatar-spoken-language';
 import { type Format } from '@/components/ui/FormatSelector';
@@ -74,15 +69,15 @@ const sortGenerations = (items: AvatarGeneration[]) =>
 const CHARACTER_EMPTY_STEPS = [
   {
     number: 1,
-    description: 'Upload custom character portrait (optional)',
+    description: 'Upload custom character portrait',
   },
   {
     number: 2,
-    description: 'Select product (optional)',
+    description: 'Select product',
   },
   {
     number: 3,
-    description: 'Enter character dialogue (optional)',
+    description: 'Enter character dialogue',
   },
   {
     number: 4,
@@ -179,9 +174,7 @@ export default function AvatarAdsPage() {
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
   const [personDropdownOpen, setPersonDropdownOpen] = useState(false);
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
-  const [isGeneratingDialogue, setIsGeneratingDialogue] = useState(false);
   const [dialogueError, setDialogueError] = useState<string | null>(null);
-  const [hasAIGeneratedDialogue, setHasAIGeneratedDialogue] = useState(false);
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const userHasManuallyCollapsed = useRef(false);
@@ -231,8 +224,6 @@ export default function AvatarAdsPage() {
     setInspectorProjectId(null);
   }, []);
 
-  const maxDurationOption = AVATAR_ADS_DURATION_OPTIONS[AVATAR_ADS_DURATION_OPTIONS.length - 1];
-const maxWordLimit = getAvatarAdsDialogueWordLimit(maxDurationOption);
 const formatDurationLabel = (seconds: number) => {
   if (seconds >= 60) {
     const minutes = Math.floor(seconds / 60);
@@ -284,14 +275,6 @@ const formatDurationLabel = (seconds: number) => {
     });
   }, [selectedProduct?.id]);
 
-  const productPhotoUrls = useMemo(() => {
-    if (!selectedProduct?.user_product_photos?.length) return [] as string[];
-    return selectedProduct.user_product_photos
-      .map((photo) => photo.photo_url)
-      .filter((url): url is string => typeof url === 'string' && /^https?:\/\//i.test(url))
-      .slice(0, 3);
-  }, [selectedProduct]);
-  const primaryProductPhoto = useMemo(() => productPhotoUrls[0] || '', [productPhotoUrls]);
   const selectedAvatar = useMemo(
     () => avatarOptions.find(avatar => avatar.photo_url === selectedPersonPhotoUrl) || null,
     [avatarOptions, selectedPersonPhotoUrl]
@@ -360,11 +343,6 @@ const formatDurationLabel = (seconds: number) => {
       Math.max(baseSegmentDuration, Math.ceil(estimatedSeconds))
     );
   }, [baseSegmentDuration, customDialogue, resolvedDialogueLanguage]);
-  const dialogueWordLimit = useMemo(
-    () => getAvatarAdsDialogueWordLimit(Number(videoDuration)),
-    [videoDuration]
-  );
-
   // Calculate required credits for the current duration selection
   const requiredCredits = useMemo(() => {
     const actualModel = DEFAULT_VIDEO_MODEL;
@@ -380,7 +358,8 @@ const formatDurationLabel = (seconds: number) => {
   }, [userCredits, requiredCredits]);
 
   const isMaintenanceMode = !kieCreditsStatus.loading && !kieCreditsStatus.sufficient;
-  const canStartGeneration = !!selectedPersonPhotoUrl && !hasInsufficientCredits && !isMaintenanceMode;
+  const hasRequiredDialogue = customDialogue.trim().length > 0;
+  const canStartGeneration = !!selectedPersonPhotoUrl && hasRequiredDialogue && !hasInsufficientCredits && !isMaintenanceMode;
 
   // Check KIE credits on page load
   useEffect(() => {
@@ -437,6 +416,10 @@ const formatDurationLabel = (seconds: number) => {
       const productId = selectedProduct?.id;
       // Read directly from textarea at submit time to avoid any React state sync lag.
       const scriptToSubmit = (textareaRef.current?.value ?? customDialogue).trim();
+      if (!scriptToSubmit) {
+        setDialogueError('Dialogue is required before starting generation.');
+        return;
+      }
 
       // Create optimistic generation immediately with a client-side project ID
       const clientProjectId = generateClientProjectId();
@@ -545,8 +528,6 @@ const formatDurationLabel = (seconds: number) => {
 
   const selectedProductName = selectedProduct?.product_name;
   const hasPersonPhoto = Boolean(selectedPersonPhotoUrl);
-
-  const canUseDialogueAI = !!selectedProduct && productPhotoUrls.length > 0;
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -991,66 +972,9 @@ const formatDurationLabel = (seconds: number) => {
     })),
   [generations, downloadingProjects]);
 
-  const handleGenerateAIDialogue = async () => {
-    if (!selectedProduct) {
-      setDialogueError('Select a product before generating a dialogue.');
-      return;
-    }
-
-    if (productPhotoUrls.length === 0) {
-      setDialogueError('Please add product photos first so AI can understand your item.');
-      return;
-    }
-
-    setDialogueError(null);
-    setIsGeneratingDialogue(true);
-
-    const productName = selectedProduct.product_name || '';
-    try {
-      const response = await fetch('/api/avatar-ads/dialogue', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          productName,
-          productImageUrls: productPhotoUrls,
-          language: selectedLanguage,
-          videoDurationSeconds: baseSegmentDuration
-        })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result?.success) {
-        throw new Error(result?.error || 'Failed to generate dialogue.');
-      }
-
-      const limitedDialogue = clampDialogueToWordLimit(result.dialogue || '', maxWordLimit);
-      setCustomDialogue(limitedDialogue);
-      setHasAIGeneratedDialogue(true);
-      trackEvent(ANALYTICS_EVENTS.avatar_ads_dialogue_generated, {
-        feature: 'avatar_ads',
-        surface: 'avatar_ads_page',
-        duration_seconds: Number(videoDuration),
-        language: selectedLanguage,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to generate dialogue.';
-      setDialogueError(message);
-      setHasAIGeneratedDialogue(false);
-    } finally {
-      setIsGeneratingDialogue(false);
-    }
-  };
-
   const handleCustomDialogueChange = (value: string) => {
     setCustomDialogue(value);
     setDialogueError(null);
-
-    if (hasAIGeneratedDialogue) {
-      setHasAIGeneratedDialogue(false);
-    }
   };
 
   if (!isLoaded) {
@@ -1327,7 +1251,7 @@ const formatDurationLabel = (seconds: number) => {
                                         value={customDialogue}
                                         onChange={(e) => handleCustomDialogueChange(e.target.value)}
                                         onInput={adjustDialogueTextareaHeight}
-                                        placeholder="Type your custom script here (AI will generate if left blank)"
+                                        placeholder="Type your custom script here"
                                         rows={1}
                                         onFocus={() => {
                                           if (hasMultiLineDialogue()) {
