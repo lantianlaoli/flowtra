@@ -101,7 +101,7 @@ export default function FloatingPreferences() {
   return (
     <div
       ref={containerRef}
-      className="fixed right-4 top-4 z-[80] md:right-6 md:top-6"
+      className="fixed bottom-4 right-4 z-[80] md:bottom-6 md:right-6"
     >
       <div className="rounded-[22px] border border-[#E5E5E5] bg-white/92 p-1.5 shadow-[0_16px_44px_rgba(0,0,0,0.08)] backdrop-blur-xl">
         <div className="flex items-center gap-1.5">

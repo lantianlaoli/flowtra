@@ -3,7 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { getNetworkErrorResponse } from '@/lib/fetchWithRetry';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
 import { clampDialogueToWordLimit, getAvatarAdsDialogueWordLimit } from '@/lib/avatar-ads-dialogue';
-import { extractAIGatewayTextContent, sendAIGatewayChat } from '@/lib/ai-gateway';
+import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 import { enforceRateLimit, getRequestIp, RateLimitError } from '@/lib/security/rate-limit';
 
 interface DialogueRequestPayload {
@@ -26,9 +26,9 @@ export async function POST(request: NextRequest) {
       windowMs: 60 * 1000,
     });
 
-    if (!process.env.AI_GATEWAY_API_KEY && !process.env.VERCEL_OIDC_TOKEN) {
+    if (!process.env.OPENROUTER_API_KEY) {
       return NextResponse.json(
-        { error: 'AI Gateway API key is not configured.' },
+        { error: 'OpenRouter API key is not configured.' },
         { status: 500 }
       );
     }
@@ -71,8 +71,8 @@ Requirements:\n- Return exactly one spoken line capped at ${dialogueWordLimit} w
       });
     }
 
-    const data = await sendAIGatewayChat({
-      model: process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash',
+    const data = await sendOpenRouterChat({
+      model: process.env.OPENROUTER_MODEL || process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash',
       messages: [
         { role: 'system', content: [{ type: 'text', text: systemPrompt }] },
         { role: 'user', content: userContent }
@@ -86,11 +86,11 @@ Requirements:\n- Return exactly one spoken line capped at ${dialogueWordLimit} w
       xTitle: 'Flowtra'
     });
 
-    const rawContent = extractAIGatewayTextContent(data?.choices?.[0]?.message?.content) ?? undefined;
+    const rawContent = extractOpenRouterTextContent(data?.choices?.[0]?.message?.content) ?? undefined;
 
     if (!rawContent) {
       return NextResponse.json(
-        { error: 'No dialogue returned from AI Gateway.' },
+        { error: 'No dialogue returned from OpenRouter.' },
         { status: 502 }
       );
     }

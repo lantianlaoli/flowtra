@@ -29,13 +29,14 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Preserve review state during image regeneration - only clear webhook flag
+    // Preserve review state during image regeneration - only clear webhook flag.
+    // Note: current_step must satisfy DB check constraint; use existing enum value.
     const updateData: any = {
       // Keep generated_image_url to preserve preview button visibility
       kie_image_task_id: null,
       webhook_received_at: null,
       // Keep status as 'awaiting_review' to maintain UI state
-      current_step: 'regenerating_image',
+      current_step: 'generating_image',
       // Ensure progress stays at 60% (never regress)
       progress_percentage: 60,
       last_processed_at: new Date().toISOString()

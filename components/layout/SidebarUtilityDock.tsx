@@ -22,12 +22,13 @@ interface UtilityActionProps {
 }
 
 const utilityButtonClassName =
-  'sidebar-utility-button flex h-10 w-10 items-center justify-center rounded-[20px] border border-[#ECECE8] bg-[linear-gradient(180deg,#FFFFFF_0%,#FCFCFB_100%)] text-[#444444] shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_3px_0_rgba(232,232,228,0.98),0_10px_18px_rgba(15,23,42,0.035)] transition-all duration-150 hover:translate-y-[2px] hover:border-[#E7E7E2] hover:bg-[linear-gradient(180deg,#FDFDFC_0%,#F8F8F6_100%)] hover:text-[#111111] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_1px_0_rgba(232,232,228,0.98),0_7px_12px_rgba(15,23,42,0.028)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_0px_0_rgba(232,232,228,0.98),0_4px_8px_rgba(15,23,42,0.022)]';
+  'sidebar-utility-button flex h-10 w-full min-w-[172px] items-center justify-start gap-2.5 rounded-[20px] border border-[#ECECE8] bg-[linear-gradient(180deg,#FFFFFF_0%,#FCFCFB_100%)] px-3 text-[#444444] shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_3px_0_rgba(232,232,228,0.98),0_10px_18px_rgba(15,23,42,0.035)] transition-all duration-150 hover:translate-y-[2px] hover:border-[#E7E7E2] hover:bg-[linear-gradient(180deg,#FDFDFC_0%,#F8F8F6_100%)] hover:text-[#111111] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_1px_0_rgba(232,232,228,0.98),0_7px_12px_rgba(15,23,42,0.028)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_0px_0_rgba(232,232,228,0.98),0_4px_8px_rgba(15,23,42,0.022)]';
 
 function UtilityAction({ icon: Icon, label, onClick, href, onNavigateTo, onNavigate }: UtilityActionProps) {
   const content = (
     <span className={utilityButtonClassName}>
-      <Icon className="h-4.5 w-4.5 shrink-0" />
+      <Icon className="sidebar-utility-icon h-4.5 w-4.5 shrink-0" />
+      <span className="sidebar-utility-label truncate text-[13px] font-medium">{label}</span>
     </span>
   );
 
@@ -110,7 +111,7 @@ export default function SidebarUtilityDock({
   }, []);
 
   return (
-    <div className="flex items-center justify-center gap-1.5 bg-transparent p-0">
+    <div className="flex min-w-[172px] flex-col items-stretch gap-1.5 bg-transparent p-0">
       <UtilityAction
         icon={User}
         label={utilityMessages.account}
@@ -119,7 +120,7 @@ export default function SidebarUtilityDock({
         onNavigate={onNavigate}
       />
 
-      <div ref={languageContainerRef} className="relative">
+      <div ref={languageContainerRef} className="relative w-full">
         <button
           type="button"
           onPointerUp={handleLanguageToggle}
@@ -129,7 +130,8 @@ export default function SidebarUtilityDock({
           title={`${utilityMessages.language}: ${selectedOption.nativeName}`}
           className={utilityButtonClassName}
         >
-          <Globe className="h-4.5 w-4.5 shrink-0" />
+          <Globe className="sidebar-utility-icon h-4.5 w-4.5 shrink-0" />
+          <span className="sidebar-utility-label truncate text-[13px] font-medium">{utilityMessages.language}</span>
         </button>
 
         {isLanguageOpen ? (

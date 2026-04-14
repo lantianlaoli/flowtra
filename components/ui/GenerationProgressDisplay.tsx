@@ -45,8 +45,10 @@ const ACTION_BUTTON_BASE =
   'inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/35';
 const ACTION_BUTTON_DARK =
   `${ACTION_BUTTON_BASE} border border-zinc-900 bg-gradient-to-b from-zinc-900 to-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_3px_8px_rgba(0,0,0,0.18)] hover:from-black hover:to-zinc-900 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_6px_12px_rgba(0,0,0,0.2)] hover:-translate-y-[1px]`;
-const ACTION_BUTTON_DARK_DISABLED =
-  `${ACTION_BUTTON_BASE} border border-zinc-900/60 bg-zinc-900/75 text-white/75 cursor-not-allowed shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]`;
+const ACTION_BUTTON_PRESS =
+  'generation-progress-action landing-press-button landing-press-button--compact text-sm font-semibold';
+const ACTION_BUTTON_PRESS_DISABLED =
+  `${ACTION_BUTTON_PRESS} cursor-not-allowed opacity-70`;
 
 export interface Generation {
   id: string;
@@ -603,8 +605,8 @@ function GenerationCard({
                   disabled={isDownloading}
                   className={`${
                     isDownloading
-                      ? `${ACTION_BUTTON_DARK_DISABLED} animate-pulse`
-                      : `${ACTION_BUTTON_DARK} cursor-pointer`
+                      ? `${ACTION_BUTTON_PRESS_DISABLED} animate-pulse`
+                      : ACTION_BUTTON_PRESS
                   }`}
                 >
                   <Download className={`w-3.5 h-3.5 ${isDownloading ? 'animate-pulse' : ''}`} />
@@ -1024,7 +1026,7 @@ function FeedbackButtons({
       <button
         onClick={() => handleFeedback('positive')}
         disabled={submitting !== null}
-        className={`${submitting !== null ? ACTION_BUTTON_DARK_DISABLED : ACTION_BUTTON_DARK}`}
+        className={submitting !== null ? ACTION_BUTTON_PRESS_DISABLED : ACTION_BUTTON_PRESS}
       >
         {submitting === 'positive' ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1036,7 +1038,7 @@ function FeedbackButtons({
       <button
         onClick={() => handleFeedback('negative')}
         disabled={submitting !== null}
-        className={`${submitting !== null ? ACTION_BUTTON_DARK_DISABLED : ACTION_BUTTON_DARK}`}
+        className={submitting !== null ? ACTION_BUTTON_PRESS_DISABLED : ACTION_BUTTON_PRESS}
       >
         {submitting === 'negative' ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin" />

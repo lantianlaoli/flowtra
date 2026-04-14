@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { uploadProductPhotoToStorage, deleteProductPhotoFromStorage } from '@/lib/supabase';
 import { validateImageFormat } from '@/lib/image-validation';
-import { extractAIGatewayJsonContent, sendAIGatewayChat } from '@/lib/ai-gateway';
+import { extractOpenRouterJsonContent, sendOpenRouterChat } from '@/lib/openrouter';
 
-const MODEL = process.env.AI_GATEWAY_MODEL || 'google/gemini-2.0-flash-lite';
+const MODEL = process.env.OPENROUTER_MODEL || process.env.AI_GATEWAY_MODEL || 'google/gemini-2.0-flash-lite';
 
 export async function POST(request: NextRequest) {
   try {
@@ -92,7 +92,7 @@ async function analyzeProductImage(imageUrl: string): Promise<{ productName: str
     ]
   };
 
-  const data = await sendAIGatewayChat(payload, {
+  const data = await sendOpenRouterChat(payload, {
     maxRetries: 3,
     timeoutMs: 20000
   });
@@ -109,7 +109,7 @@ async function analyzeProductImage(imageUrl: string): Promise<{ productName: str
     );
   };
 
-  const parsed = extractAIGatewayJsonContent<ProductMetadataSchema>(content);
+  const parsed = extractOpenRouterJsonContent<ProductMetadataSchema>(content);
 
   if (!isProductMetadata(parsed)) {
     console.error('Unexpected AI response for product metadata:', data);

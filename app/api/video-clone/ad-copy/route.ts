@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getNetworkErrorResponse } from '@/lib/fetchWithRetry';
 import { getLanguagePromptName, type LanguageCode } from '@/lib/constants';
-import { extractAIGatewayTextContent, sendAIGatewayChat } from '@/lib/ai-gateway';
+import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 
 interface AdCopyRequestPayload {
   productName?: string;
@@ -10,13 +10,13 @@ interface AdCopyRequestPayload {
 }
 
 // Use unified model for both text and vision tasks
-const MODEL = process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash';
+const MODEL = process.env.OPENROUTER_MODEL || process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash';
 
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.AI_GATEWAY_API_KEY && !process.env.VERCEL_OIDC_TOKEN) {
+    if (!process.env.OPENROUTER_API_KEY) {
       return NextResponse.json(
-        { error: 'AI Gateway API key is not configured.' },
+        { error: 'OpenRouter API key is not configured.' },
         { status: 500 }
       );
     }
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const data = await sendAIGatewayChat({
+    const data = await sendOpenRouterChat({
       model: MODEL,
       messages: [
         { role: 'system', content: systemPrompt },
@@ -71,11 +71,11 @@ export async function POST(request: NextRequest) {
       xTitle: 'Flowtra'
     });
 
-    const rawContent = extractAIGatewayTextContent(data?.choices?.[0]?.message?.content) ?? undefined;
+    const rawContent = extractOpenRouterTextContent(data?.choices?.[0]?.message?.content) ?? undefined;
 
     if (!rawContent) {
       return NextResponse.json(
-        { error: 'No ad copy returned from AI Gateway.' },
+        { error: 'No ad copy returned from OpenRouter.' },
         { status: 502 }
       );
     }

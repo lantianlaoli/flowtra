@@ -106,6 +106,9 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
     (Array.isArray(project?.generated_video_urls) ? project?.generated_video_urls[0] : undefined) ||
     undefined;
   const hasGeneratedImage = Boolean(project?.generated_image_url);
+  const isGeneratingVideo =
+    project?.status === 'generating_videos' ||
+    project?.current_step === 'generating_videos';
 
   const fetchProjectDetails = useCallback(async ({ isInitialLoad = false }: { isInitialLoad?: boolean } = {}) => {
     if (!projectId) return;
@@ -133,6 +136,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
 
         // Show spinner for both initial generation and regeneration
         const shouldShowImageSpinner =
+          data.project.current_step === 'generating_image' ||
           data.project.current_step === 'regenerating_image' ||
           (data.project.status === 'generating_image' && !data.project.generated_image_url);
         setIsRegeneratingImage(shouldShowImageSpinner);
@@ -179,6 +183,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
 
           // Show spinner for both initial generation and regeneration
           const shouldShowImageSpinner =
+            updatedProject.current_step === 'generating_image' ||
             updatedProject.current_step === 'regenerating_image' ||
             (updatedProject.status === 'generating_image' && !updatedProject.generated_image_url);
           setIsRegeneratingImage(shouldShowImageSpinner);
@@ -353,6 +358,14 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
       };
 
       await onConfirmGeneration(projectId, updatedGeneratedPrompts);
+      // Optimistic update: make generation state visible immediately,
+      // then Realtime/status polling will keep it in sync.
+      setProject((prev) => (
+        prev
+          ? { ...prev, status: 'generating_videos', current_step: 'generating_videos' }
+          : prev
+      ));
+      await fetchProjectDetails();
     } catch (error) {
       console.error('Error confirming generation:', error);
     } finally {
@@ -389,14 +402,14 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                     <PencilLine className="h-4 w-4" />
                     Edit
                   </h3>
-                  <div className="hidden lg:flex items-start gap-3 text-xs">
-                    <div className="flex items-start gap-2 max-w-[320px]">
-                      <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black text-[11px] font-semibold text-white shrink-0">1</span>
+                  <div className="hidden lg:flex items-center gap-3 text-xs">
+                    <div className="flex items-center gap-2 max-w-[320px]">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-black text-[11px] font-semibold text-white shrink-0">1</span>
                       <p className="leading-4 font-semibold text-gray-900">Edit image and generate image</p>
                     </div>
-                    <ArrowRight className="h-3 w-3 text-gray-300 mt-1 shrink-0" />
-                    <div className="flex items-start gap-2 max-w-[320px]">
-                      <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black text-[11px] font-semibold text-white shrink-0">2</span>
+                    <ArrowRight className="h-3 w-3 text-gray-300 shrink-0" />
+                    <div className="flex items-center gap-2 max-w-[320px]">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-black text-[11px] font-semibold text-white shrink-0">2</span>
                       <p className="leading-4 font-semibold text-gray-900">Check dialogue and generate video</p>
                     </div>
                   </div>
@@ -464,9 +477,16 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                                   poster={project.generated_image_url}
                                 />
                               ) : (
-                                <div className="flex h-full items-center justify-center text-gray-400 text-xs">
-                                  Video not ready yet
-                                </div>
+                                isGeneratingVideo ? (
+                                  <div className="flex h-full flex-col items-center justify-center gap-2 text-gray-300 text-xs">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <span>Generating video...</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex h-full items-center justify-center text-gray-400 text-xs">
+                                    Video not ready yet
+                                  </div>
+                                )
                               )}
                             </div>
                           </div>
@@ -572,10 +592,10 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
 
                 <button
                   onClick={handleConfirm}
-                  disabled={submitting || loading || !project}
+                  disabled={submitting || loading || !project || isGeneratingVideo}
                   className="landing-press-button landing-press-button--compact text-sm font-semibold"
                 >
-                  {submitting ? (
+                  {submitting || isGeneratingVideo ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Generating Video...

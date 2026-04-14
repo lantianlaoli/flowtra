@@ -1,7 +1,7 @@
 import { getSupabaseAdmin, type VideoCloneSegment, type SingleVideoProject } from '@/lib/supabase';
 import type { VideoCloneSelectedInputs } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { extractAIGatewayTextContent, sendAIGatewayChat } from '@/lib/ai-gateway';
+import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 import {
   GENERATION_COSTS,
   NON_AGENT_IMAGE_MODEL,
@@ -2421,8 +2421,8 @@ export async function analyzeReferenceVideoWithLanguage(
     }
   };
 
-  const data = await sendAIGatewayChat({
-    model: options?.model || process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash',
+  const data = await sendOpenRouterChat({
+    model: options?.model || process.env.OPENROUTER_MODEL || process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash',
     response_format: responseFormat,
     messages: [
       {
@@ -2532,7 +2532,7 @@ EXAMPLE OUTPUT STRUCTURE:
 
   const apiResponse = data as { choices?: Array<{ message?: { content?: unknown } }> };
   const rawContent = apiResponse.choices?.[0]?.message?.content;
-  const normalizedContent = extractAIGatewayTextContent(rawContent);
+  const normalizedContent = extractOpenRouterTextContent(rawContent);
 
   if (!normalizedContent) {
     console.error('[analyzeReferenceVideoWithLanguage] Invalid API response structure:', data);
@@ -2766,7 +2766,7 @@ No other top-level keys or metadata.`;
 
   // Define JSON schema for Structured Outputs - IMPORTANT: This must return a SINGLE object
   const requestPayload = JSON.stringify({
-    model: process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash',
+    model: process.env.OPENROUTER_MODEL || process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash',
     response_format: responseFormat,
     messages: referenceVideoDescription
       ? // === REFERENCE VIDEO MODE (Step 2) ===
@@ -2896,7 +2896,7 @@ ${strictSegmentFormat}`
     try {
       console.log(`[generateImageBasedPrompts] Attempt ${attempt}/${MAX_PROMPT_GENERATION_ATTEMPTS}`);
 
-      const data = await sendAIGatewayChat(JSON.parse(requestPayload) as Record<string, unknown>, {
+      const data = await sendOpenRouterChat(JSON.parse(requestPayload) as Record<string, unknown>, {
         maxRetries: 10,
         timeoutMs: 120000
       });

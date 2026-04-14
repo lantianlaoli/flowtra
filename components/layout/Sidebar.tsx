@@ -242,7 +242,7 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
       </div>
 
       <div className="shrink-0 px-3 py-4">
-        <div className="sidebar-utility-panel inline-flex rounded-[26px] border border-[#E7E7E4] bg-white/90 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-xl">
+        <div className="sidebar-utility-panel flex rounded-[26px] border border-[#E7E7E4] bg-white/90 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-xl">
           <SidebarUtilityDock
             isDarkMode={isDarkMode}
             onToggleDarkMode={toggleDarkMode}

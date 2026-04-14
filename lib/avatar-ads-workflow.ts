@@ -16,7 +16,7 @@ import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { estimateDialogueDuration, generateDialogueLengthGuidance, validateSceneDurations } from '@/lib/dialogue-duration-estimator';
-import { extractAIGatewayJsonContent, extractAIGatewayTextContent, sendAIGatewayChat } from '@/lib/ai-gateway';
+import { extractOpenRouterJsonContent, extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 import { MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
 import {
   buildAvatarGeneratedPrompts,
@@ -236,9 +236,9 @@ Provide a concise product name (max 80 characters).`;
     }
   ];
 
-  const requestedModel = process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash';
+  const requestedModel = process.env.OPENROUTER_MODEL || process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash';
 
-  const data = await sendAIGatewayChat({
+  const data = await sendOpenRouterChat({
     model: requestedModel,
     messages,
     max_tokens: 200,
@@ -250,7 +250,7 @@ Provide a concise product name (max 80 characters).`;
     xTitle: 'Flowtra'
   });
 
-  return extractAIGatewayTextContent(data.choices?.[0]?.message?.content) || 'Product name unavailable';
+  return extractOpenRouterTextContent(data.choices?.[0]?.message?.content) || 'Product name unavailable';
 }
 
 // Generate prompts without retry logic
@@ -541,8 +541,8 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
     }
   ];
 
-  const data = await sendAIGatewayChat({
-    model: process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash',
+  const data = await sendOpenRouterChat({
+    model: process.env.OPENROUTER_MODEL || process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash',
     messages,
     max_tokens: 2000,
     temperature: 0.3
@@ -557,7 +557,7 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
       image_prompt?: string;
       scenes?: Array<{ scene?: number | string; prompt?: Record<string, unknown> }>;
       language?: string;
-    } | null = extractAIGatewayJsonContent(data.choices?.[0]?.message?.content);
+    } | null = extractOpenRouterJsonContent(data.choices?.[0]?.message?.content);
 
     if (!parsed) {
       throw new Error('AI did not return valid JSON');
