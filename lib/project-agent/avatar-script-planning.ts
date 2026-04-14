@@ -1,6 +1,8 @@
 import {
   KLING_MAX_TASK_DURATION_SECONDS,
   KLING_MIN_TASK_DURATION_SECONDS,
+  SEEDANCE_MAX_TASK_DURATION_SECONDS,
+  SEEDANCE_MIN_TASK_DURATION_SECONDS,
   getLanguagePromptName,
   type LanguageCode
 } from '@/lib/constants';
@@ -26,9 +28,12 @@ type BuildAvatarGeneratedPromptsInput = {
   scriptSource: string | null | undefined;
   existingScenes?: AvatarPromptScene[] | null | undefined;
   language?: string | null;
+  model?: AvatarDurationModel;
   avatarName?: string | null;
   productName?: string | null;
 };
+
+export type AvatarDurationModel = 'seedance_2_fast' | 'seedance_2' | 'kling_3';
 
 const DEFAULT_VISUAL_PROMPT = {
   subject: 'Confident spokesperson from the selected avatar',
@@ -134,11 +139,11 @@ const splitBySentence = (value: string) => {
   return sentences.length > 0 ? sentences : [normalized];
 };
 
-const splitLongSentence = (sentence: string, language: string) => {
+const splitLongSentence = (sentence: string, language: string, model: AvatarDurationModel) => {
   const normalized = normalizeWhitespace(sentence);
   if (!normalized) return [] as string[];
 
-  if (estimateDialogueDuration(normalized, language) <= getKlingScenePlanningLimitSeconds(normalized, language)) {
+  if (estimateDialogueDuration(normalized, language) <= getScenePlanningLimitSeconds(normalized, language, model)) {
     return [normalized];
   }
 
@@ -149,9 +154,10 @@ const splitLongSentence = (sentence: string, language: string) => {
 
   const sourceParts = clauseParts.length > 1 ? clauseParts : [normalized];
   const expanded: string[] = [];
+  const bounds = getDurationBoundsByModel(model);
 
   sourceParts.forEach((part) => {
-    if (estimateDialogueDuration(part, language) <= KLING_MAX_TASK_DURATION_SECONDS) {
+    if (estimateDialogueDuration(part, language) <= bounds.maxDurationSeconds) {
       expanded.push(part);
       return;
     }
@@ -167,7 +173,7 @@ const splitLongSentence = (sentence: string, language: string) => {
       const candidate = current ? `${current} ${word}` : word;
       if (
         current &&
-        estimateDialogueDuration(candidate, language) > getKlingScenePlanningLimitSeconds(candidate, language)
+        estimateDialogueDuration(candidate, language) > getScenePlanningLimitSeconds(candidate, language, model)
       ) {
         expanded.push(current);
         current = word;
@@ -183,21 +189,50 @@ const splitLongSentence = (sentence: string, language: string) => {
   return expanded;
 };
 
-export const normalizeAvatarPromptDuration = (value: unknown) => {
+const getDurationBoundsByModel = (model: AvatarDurationModel) => {
+  if (model === 'kling_3') {
+    return {
+      minDurationSeconds: KLING_MIN_TASK_DURATION_SECONDS,
+      maxDurationSeconds: KLING_MAX_TASK_DURATION_SECONDS,
+      planningLimitSeconds: KLING_MAX_TASK_DURATION_SECONDS - KLING_SAFE_DURATION_BUFFER_SECONDS
+    };
+  }
+
+  return {
+    minDurationSeconds: SEEDANCE_MIN_TASK_DURATION_SECONDS,
+    maxDurationSeconds: SEEDANCE_MAX_TASK_DURATION_SECONDS,
+    planningLimitSeconds: SEEDANCE_MAX_TASK_DURATION_SECONDS
+  };
+};
+
+export const normalizeAvatarPromptDuration = (
+  value: unknown,
+  model: AvatarDurationModel = 'kling_3'
+) => {
+  const bounds = getDurationBoundsByModel(model);
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
-    return KLING_MIN_TASK_DURATION_SECONDS;
+    return bounds.minDurationSeconds;
   }
 
   return Math.max(
-    KLING_MIN_TASK_DURATION_SECONDS,
-    Math.min(KLING_MAX_TASK_DURATION_SECONDS, Math.round(numeric))
+    bounds.minDurationSeconds,
+    Math.min(bounds.maxDurationSeconds, Math.round(numeric))
   );
 };
 
-const getKlingScenePlanningLimitSeconds = (dialogue: string, language: string) => {
+const getScenePlanningLimitSeconds = (
+  dialogue: string,
+  language: string,
+  model: AvatarDurationModel
+) => {
+  const bounds = getDurationBoundsByModel(model);
+  if (model !== 'kling_3') {
+    return bounds.planningLimitSeconds;
+  }
+
   const baseLimit = language === 'en'
-    ? KLING_MAX_TASK_DURATION_SECONDS - KLING_SAFE_DURATION_BUFFER_SECONDS
+    ? bounds.planningLimitSeconds
     : KLING_MAX_TASK_DURATION_SECONDS - 0.5;
 
   if (language === 'en' && RISKY_DIALOGUE_PATTERN.test(dialogue)) {
@@ -207,13 +242,18 @@ const getKlingScenePlanningLimitSeconds = (dialogue: string, language: string) =
   return Math.max(KLING_MIN_TASK_DURATION_SECONDS, baseLimit);
 };
 
-const getKlingTargetDurationSeconds = (dialogue: string, language: string) => {
+const getTargetDurationSeconds = (
+  dialogue: string,
+  language: string,
+  model: AvatarDurationModel
+) => {
+  const bounds = getDurationBoundsByModel(model);
   const estimated = estimateDialogueDuration(dialogue, language);
   const bufferedEstimate = estimated + (language === 'en' ? 0.6 : 0.3);
-  const planningLimit = getKlingScenePlanningLimitSeconds(dialogue, language);
+  const planningLimit = getScenePlanningLimitSeconds(dialogue, language, model);
 
   return Math.max(
-    KLING_MIN_TASK_DURATION_SECONDS,
+    bounds.minDurationSeconds,
     Math.min(Math.ceil(bufferedEstimate), Math.floor(planningLimit))
   );
 };
@@ -237,8 +277,10 @@ export const buildAvatarScenesFromScript = (input: {
   scriptSource: string | null | undefined;
   existingScenes?: AvatarPromptScene[] | null | undefined;
   language?: string | null;
+  model?: AvatarDurationModel;
 }): AvatarPromptScene[] => {
   const scriptSource = normalizeWhitespace(input.scriptSource || '');
+  const model: AvatarDurationModel = input.model || 'seedance_2_fast';
   const language = resolveAvatarSpokenLanguage({
     scriptSource,
     configuredLanguage: input.language || 'en',
@@ -251,7 +293,7 @@ export const buildAvatarScenesFromScript = (input: {
         ...DEFAULT_VISUAL_PROMPT,
         ...(scene.prompt || {}),
         dialog: typeof scene.prompt?.dialog === 'string' ? normalizeWhitespace(scene.prompt.dialog) : '',
-        duration_seconds: normalizeAvatarPromptDuration(scene.prompt?.duration_seconds),
+        duration_seconds: normalizeAvatarPromptDuration(scene.prompt?.duration_seconds, model),
         voice_type: buildAvatarVoiceType(
           language,
           inferAvatarVoiceGender(scene.prompt?.voice_type, scene.prompt?.subject)
@@ -261,7 +303,7 @@ export const buildAvatarScenesFromScript = (input: {
   }
 
   const sentenceParts = splitBySentence(scriptSource)
-    .flatMap((sentence) => splitLongSentence(sentence, language))
+    .flatMap((sentence) => splitLongSentence(sentence, language, model))
     .filter(Boolean);
 
   const buckets: string[] = [];
@@ -271,7 +313,7 @@ export const buildAvatarScenesFromScript = (input: {
     const candidate = currentBucket ? `${currentBucket} ${part}` : part;
     if (
       currentBucket &&
-      estimateDialogueDuration(candidate, language) > getKlingScenePlanningLimitSeconds(candidate, language)
+      estimateDialogueDuration(candidate, language) > getScenePlanningLimitSeconds(candidate, language, model)
     ) {
       buckets.push(currentBucket);
       currentBucket = part;
@@ -289,8 +331,8 @@ export const buildAvatarScenesFromScript = (input: {
     const lastBucket = buckets[buckets.length - 1];
     const previousBucket = buckets[buckets.length - 2];
     if (
-      estimateDialogueDuration(lastBucket, language) < KLING_MIN_TASK_DURATION_SECONDS &&
-      estimateDialogueDuration(`${previousBucket} ${lastBucket}`, language) <= getKlingScenePlanningLimitSeconds(`${previousBucket} ${lastBucket}`, language)
+      estimateDialogueDuration(lastBucket, language) < getDurationBoundsByModel(model).minDurationSeconds &&
+      estimateDialogueDuration(`${previousBucket} ${lastBucket}`, language) <= getScenePlanningLimitSeconds(`${previousBucket} ${lastBucket}`, language, model)
     ) {
       buckets.splice(buckets.length - 2, 2, `${previousBucket} ${lastBucket}`);
     }
@@ -303,7 +345,7 @@ export const buildAvatarScenesFromScript = (input: {
       prompt: {
         ...template,
         dialog,
-        duration_seconds: getKlingTargetDurationSeconds(dialog, language),
+        duration_seconds: getTargetDurationSeconds(dialog, language, model),
         voice_type: buildAvatarVoiceType(
           language,
           inferAvatarVoiceGender(template.voice_type, template.subject)
@@ -314,10 +356,12 @@ export const buildAvatarScenesFromScript = (input: {
 };
 
 export const buildAvatarGeneratedPrompts = (input: BuildAvatarGeneratedPromptsInput) => {
+  const model: AvatarDurationModel = input.model || 'seedance_2_fast';
   const scenes = buildAvatarScenesFromScript({
     scriptSource: input.scriptSource,
     existingScenes: input.existingScenes,
-    language: input.language
+    language: input.language,
+    model
   });
 
   const imagePrompt = ensureAvatarImagePromptMentions({
@@ -326,9 +370,10 @@ export const buildAvatarGeneratedPrompts = (input: BuildAvatarGeneratedPromptsIn
     productName: input.productName
   });
   const totalDurationSeconds = scenes.reduce(
-    (sum, scene) => sum + normalizeAvatarPromptDuration(scene.prompt.duration_seconds),
+    (sum, scene) => sum + normalizeAvatarPromptDuration(scene.prompt.duration_seconds, model),
     0
   );
+  const minDurationSeconds = getDurationBoundsByModel(model).minDurationSeconds;
 
   return {
     generatedPrompts: {
@@ -341,13 +386,13 @@ export const buildAvatarGeneratedPrompts = (input: BuildAvatarGeneratedPromptsIn
         scriptSource: input.scriptSource,
         configuredLanguage: input.language || 'en',
       }),
-      planned_total_duration_seconds: Math.max(totalDurationSeconds, KLING_MIN_TASK_DURATION_SECONDS),
-      planned_scene_duration_seconds: scenes.map((scene) => normalizeAvatarPromptDuration(scene.prompt.duration_seconds)),
+      planned_total_duration_seconds: Math.max(totalDurationSeconds, minDurationSeconds),
+      planned_scene_duration_seconds: scenes.map((scene) => normalizeAvatarPromptDuration(scene.prompt.duration_seconds, model)),
       scenes: scenes.map((scene) => ({
         prompt: scene.prompt
       }))
     },
     scenes,
-    totalDurationSeconds: Math.max(totalDurationSeconds, KLING_MIN_TASK_DURATION_SECONDS)
+    totalDurationSeconds: Math.max(totalDurationSeconds, minDurationSeconds)
   };
 };

@@ -3,7 +3,7 @@
  * Estimates TTS (Text-to-Speech) duration for dialogue to ensure it fits within video segment duration.
  *
  * This module solves the choppy video transition problem by ensuring dialogue length
- * matches the allocated segment duration (typically 8 seconds).
+ * matches the allocated segment duration (dynamic 4-15 seconds depending on model/scenario).
  */
 
 export interface LanguageSpeedConfig {
@@ -17,18 +17,18 @@ export interface LanguageSpeedConfig {
  * Based on linguistic research and TTS benchmarks
  */
 export const LANGUAGE_SPEECH_RATES: Record<string, LanguageSpeedConfig> = {
-  'en': { wordsPerMinute: 150, pauseMultiplier: 1.15 }, // English: ~150 words/min with 15% pause
-  'es': { wordsPerMinute: 160, pauseMultiplier: 1.12 }, // Spanish: slightly faster
-  'fr': { wordsPerMinute: 145, pauseMultiplier: 1.18 }, // French: with liaison pauses
-  'de': { wordsPerMinute: 140, pauseMultiplier: 1.20 }, // German: compound words slow down
-  'it': { wordsPerMinute: 155, pauseMultiplier: 1.15 }, // Italian: moderate pace
-  'pt': { wordsPerMinute: 150, pauseMultiplier: 1.15 }, // Portuguese: similar to English
-  'zh': { charactersPerMinute: 280, pauseMultiplier: 1.10 }, // Chinese: ~280 chars/min
-  'ja': { charactersPerMinute: 300, pauseMultiplier: 1.12 }, // Japanese: ~300 chars/min
-  'ko': { charactersPerMinute: 320, pauseMultiplier: 1.10 }, // Korean: slightly faster
-  'ar': { wordsPerMinute: 130, pauseMultiplier: 1.25 }, // Arabic: slower with pauses
-  'hi': { wordsPerMinute: 140, pauseMultiplier: 1.20 }, // Hindi: moderate pace
-  'default': { wordsPerMinute: 150, pauseMultiplier: 1.15 } // Fallback to English
+  'en': { wordsPerMinute: 138, pauseMultiplier: 1.22 }, // Natural-slow conversational pace
+  'es': { wordsPerMinute: 146, pauseMultiplier: 1.20 },
+  'fr': { wordsPerMinute: 136, pauseMultiplier: 1.24 },
+  'de': { wordsPerMinute: 130, pauseMultiplier: 1.26 },
+  'it': { wordsPerMinute: 142, pauseMultiplier: 1.21 },
+  'pt': { wordsPerMinute: 138, pauseMultiplier: 1.22 },
+  'zh': { charactersPerMinute: 240, pauseMultiplier: 1.20 }, // Slower Mandarin pacing
+  'ja': { charactersPerMinute: 255, pauseMultiplier: 1.18 },
+  'ko': { charactersPerMinute: 270, pauseMultiplier: 1.16 },
+  'ar': { wordsPerMinute: 122, pauseMultiplier: 1.30 },
+  'hi': { wordsPerMinute: 130, pauseMultiplier: 1.24 },
+  'default': { wordsPerMinute: 138, pauseMultiplier: 1.22 }
 };
 
 const ENGLISH_SENTENCE_PAUSE_REGEX = /[.!?]+/g;
@@ -135,7 +135,7 @@ export function validateDialogueDuration(
   dialogue: string,
   targetDurationSeconds: number,
   languageCode: string = 'en',
-  tolerance: number = 0.2 // Stricter tolerance (was 0.5): enforces 16-18 words minimum for 8s
+  tolerance: number = 0.45
 ): {
   isValid: boolean;
   estimatedDuration: number;
@@ -183,36 +183,41 @@ export function generateDialogueLengthGuidance(
   const config = LANGUAGE_SPEECH_RATES[languageCode] || LANGUAGE_SPEECH_RATES['default'];
 
   if (maxLength.maxWords) {
-    const minWords = maxLength.maxWords; // Enforce minimum at current "max" (17 words for 8s)
-    const maxWords = Math.ceil(maxLength.maxWords * 1.18); // ~20 words for 8s
+    const capWords = maxLength.maxWords;
+    const minWords = Math.max(3, Math.floor(capWords * 0.68));
+    const targetWords = Math.max(minWords + 1, Math.round(capWords * 0.82));
+    const maxWords = Math.max(targetWords + 1, Math.ceil(capWords * 0.92));
 
     return `CRITICAL DIALOGUE LENGTH CONSTRAINT:
 - Each scene is EXACTLY ${segmentDuration} seconds long
 - Natural speaking rate: ~${config.wordsPerMinute} words per minute
-- MANDATORY minimum dialogue per scene: ${minWords} words
-- RECOMMENDED range: ${minWords}-${maxWords} words
+- Recommended pacing target: around ${targetWords} words per scene
+- Recommended range: ${minWords}-${maxWords} words (leave room for natural pauses)
 - Total scenes: ${segmentCount}
 
-IMPORTANT: Dialogue MUST fit naturally within ${segmentDuration} seconds AND meet word count minimum.
-- Aim for ${minWords}-${maxWords} words per scene for optimal pacing
-- If a sentence is <${minWords} words, COMBINE it with the next sentence before splitting
-- Only split at punctuation boundaries (. ! ?) that result in ≥${minWords} words
+IMPORTANT: Dialogue MUST fit naturally within ${segmentDuration} seconds.
+- Prioritize conversational rhythm and intelligibility over packing in more words
+- If a sentence is too short to stand alone, COMBINE with the next sentence
+- Only split at punctuation boundaries (. ! ?) and keep complete thoughts together
 - Preserve complete thoughts - do NOT split solutions from problems
 
-If user provides a script longer than ${maxWords * segmentCount} words total, you MUST condense or split intelligently while maintaining semantic completeness.`;
+If user provides a script longer than ${maxWords * segmentCount} words total, condense or split intelligently while preserving semantic completeness.`;
   } else if (maxLength.maxCharacters) {
-    const minChars = maxLength.maxCharacters; // Enforce minimum at current "max"
-    const maxChars = Math.ceil(maxLength.maxCharacters * 1.18); // ~18% more for upper range
+    const capChars = maxLength.maxCharacters;
+    const minChars = Math.max(8, Math.floor(capChars * 0.70));
+    const targetChars = Math.max(minChars + 2, Math.round(capChars * 0.83));
+    const maxChars = Math.max(targetChars + 2, Math.ceil(capChars * 0.92));
 
     return `CRITICAL DIALOGUE LENGTH CONSTRAINT:
 - Each scene is EXACTLY ${segmentDuration} seconds long
 - Natural speaking rate: ~${config.charactersPerMinute} characters per minute
-- MINIMUM dialogue per scene: ${minChars} characters (excluding spaces)
-- RECOMMENDED range: ${minChars}-${maxChars} characters
+- Recommended pacing target: around ${targetChars} characters (excluding spaces)
+- Recommended range: ${minChars}-${maxChars} characters (leave room for natural pauses)
 - Total scenes: ${segmentCount}
 
-IMPORTANT: Dialogue MUST fit naturally within ${segmentDuration} seconds. Aim for ${minChars}-${maxChars} characters per scene for optimal pacing.
-If user provides a script longer than ${maxChars * segmentCount} characters total, you MUST condense or split intelligently.`;
+IMPORTANT: Dialogue MUST fit naturally within ${segmentDuration} seconds.
+Prioritize natural cadence and clear phrasing over packing in extra characters.
+If user provides a script longer than ${maxChars * segmentCount} characters total, condense or split intelligently.`;
   }
 
   return '';

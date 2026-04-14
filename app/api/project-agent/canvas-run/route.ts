@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { getGenerationCost, getMotionCloneGenerationCost, getSegmentVideoGenerationCost } from '@/lib/constants';
 import {
+  getAvatarPlannedSceneDurations,
   generateVideoWithKIE,
   getAvatarPlannedTotalDurationSeconds,
   getAvatarPromptScenes,
@@ -545,6 +546,7 @@ const retryAvatarAds = async (origin: string, userId: string, projectId: string)
   if (failedScenes.length > 0 && project.generated_image_url) {
     const resolvedVideoModel = resolveAvatarAdsVideoModel(project);
     const promptScenes = getAvatarPromptScenes(project.generated_prompts);
+    const plannedSceneDurations = getAvatarPlannedSceneDurations(project.generated_prompts);
     const retryCost = failedScenes.reduce((sum, scene) => {
       const prompt = (
         scene.scene_prompt && typeof scene.scene_prompt === 'object'
@@ -554,7 +556,11 @@ const retryAvatarAds = async (origin: string, userId: string, projectId: string)
       if (!prompt) return sum;
       return sum + getSegmentVideoGenerationCost(
         resolvedVideoModel,
-        getAvatarSceneDurationSeconds(prompt, resolvedVideoModel)
+        getAvatarSceneDurationSeconds(prompt, resolvedVideoModel, {
+          plannedDurationSeconds: plannedSceneDurations[(scene.scene_number || 1) - 1],
+          totalScenes: promptScenes.length,
+          language: project.language
+        })
       );
     }, 0);
 
@@ -592,7 +598,11 @@ const retryAvatarAds = async (origin: string, userId: string, projectId: string)
           {
             hasProductContext: Boolean(project.product_context?.product_name || project.product_image_urls?.length),
             model: resolvedVideoModel,
-            durationSeconds: getAvatarSceneDurationSeconds(prompt, resolvedVideoModel),
+            durationSeconds: getAvatarSceneDurationSeconds(prompt, resolvedVideoModel, {
+              plannedDurationSeconds: plannedSceneDurations[(scene.scene_number || 1) - 1],
+              totalScenes: promptScenes.length,
+              language: project.language
+            }),
           }
         );
 

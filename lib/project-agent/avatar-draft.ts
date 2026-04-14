@@ -154,7 +154,8 @@ export async function draftProjectAgentAvatarPrompts(input: {
         ...fallbackScenePrompt(dialog),
         ...promptRecord,
         duration_seconds: normalizeAvatarPromptDuration(
-          source.duration_seconds ?? promptDurationSeconds
+          source.duration_seconds ?? promptDurationSeconds,
+          'seedance_2_fast'
         )
       }
     };
@@ -178,6 +179,7 @@ export async function draftProjectAgentAvatarPrompts(input: {
     scriptSource,
     existingScenes: parsedScenes,
     language: input.language,
+    model: 'seedance_2_fast',
     avatarName: input.avatar.name,
     productName: input.product?.name
   });

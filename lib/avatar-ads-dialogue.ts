@@ -5,28 +5,13 @@ export const AVATAR_ADS_DURATION_OPTIONS = Array.from(
 
 export type AvatarAdsDuration = number;
 
-const DEFAULT_WORDS_PER_SECOND = 2.1; // ~126 wpm (Safe speaking pace for short clips)
-
-// Explicit limits for frequently used durations
-const LEGACY_WORD_LIMITS: Record<number, number> = {
-  8: 17,
-  16: 34,
-  24: 51,
-  32: 68,
-  40: 85,
-  48: 102,
-  56: 119,
-  64: 136,
-  72: 153,
-  80: 170
-};
+const DEFAULT_WORDS_PER_SECOND = 1.85; // ~111 wpm for natural, non-rushed delivery
 
 export function getAvatarAdsDialogueWordLimit(durationSeconds: number): number {
-  if (LEGACY_WORD_LIMITS[durationSeconds]) {
-    return LEGACY_WORD_LIMITS[durationSeconds];
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    return 16;
   }
-
-  return Math.round(durationSeconds * DEFAULT_WORDS_PER_SECOND);
+  return Math.max(8, Math.round(durationSeconds * DEFAULT_WORDS_PER_SECOND));
 }
 
 export function countDialogueWords(content: string): number {

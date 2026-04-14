@@ -72,7 +72,11 @@ interface ProcessResult {
 }
 
 export const resolveAvatarAdsVideoModel = (project: Pick<AvatarAdsProject, 'video_model'>) => (
-  project.video_model === 'kling_3' ? 'kling_3' : DEFAULT_VIDEO_MODEL
+  project.video_model === 'kling_3'
+    ? 'kling_3'
+    : project.video_model === 'seedance_2'
+      ? 'seedance_2'
+      : DEFAULT_VIDEO_MODEL
 );
 
 const isAvatarAdsKlingProject = (project: Pick<AvatarAdsProject, 'video_model'>) => (
@@ -109,18 +113,62 @@ export const getAvatarPromptScenes = (generatedPrompts: Record<string, unknown> 
     : []
 );
 
+export const getAvatarPlannedSceneDurations = (
+  generatedPrompts: Record<string, unknown> | null | undefined
+) => (
+  Array.isArray(generatedPrompts?.planned_scene_duration_seconds)
+    ? generatedPrompts.planned_scene_duration_seconds.map((value) => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : null;
+    })
+    : []
+);
+
 export const getAvatarSceneDurationSeconds = (
   prompt: Record<string, unknown> | null | undefined,
-  model: 'seedance_2_fast' | 'kling_3'
+  model: 'seedance_2_fast' | 'seedance_2' | 'kling_3',
+  options?: {
+    plannedDurationSeconds?: number | null;
+    totalScenes?: number;
+    language?: string | null;
+  }
 ) => {
-  const normalized = normalizeAvatarPromptDuration(prompt?.duration_seconds);
-  if (model === 'kling_3') return normalized;
-  return Math.max(SEEDANCE_MIN_TASK_DURATION_SECONDS, Math.min(SEEDANCE_MAX_TASK_DURATION_SECONDS, normalized));
+  if (model === 'kling_3') {
+    return normalizeAvatarPromptDuration(prompt?.duration_seconds, 'kling_3');
+  }
+
+  const explicitDuration = Number(prompt?.duration_seconds);
+  if (Number.isFinite(explicitDuration) && explicitDuration > 0) {
+    return Math.max(SEEDANCE_MIN_TASK_DURATION_SECONDS, Math.min(SEEDANCE_MAX_TASK_DURATION_SECONDS, Math.round(explicitDuration)));
+  }
+
+  const plannedDuration = Number(options?.plannedDurationSeconds);
+  if (Number.isFinite(plannedDuration) && plannedDuration > 0) {
+    return Math.max(SEEDANCE_MIN_TASK_DURATION_SECONDS, Math.min(SEEDANCE_MAX_TASK_DURATION_SECONDS, Math.round(plannedDuration)));
+  }
+
+  const dialog = typeof prompt?.dialog === 'string' ? prompt.dialog.trim() : '';
+  if (dialog) {
+    const languageCode = resolveAvatarSpokenLanguage({
+      scriptSource: dialog,
+      configuredLanguage: options?.language || 'en',
+    });
+    const estimated = estimateDialogueDuration(dialog, languageCode);
+    if (Number.isFinite(estimated) && estimated > 0) {
+      // Preserve short single-scene projects (4-7s), otherwise keep Seedance scenes in 8-15s.
+      if ((options?.totalScenes ?? 1) <= 1 && estimated <= 7.5) {
+        return Math.max(SEEDANCE_MIN_TASK_DURATION_SECONDS, Math.min(7, Math.ceil(estimated)));
+      }
+      return Math.max(8, Math.min(SEEDANCE_MAX_TASK_DURATION_SECONDS, Math.ceil(estimated + 0.4)));
+    }
+  }
+
+  return 12;
 };
 
 export const getAvatarPlannedTotalDurationSeconds = (
   generatedPrompts: Record<string, unknown> | null | undefined,
-  model: 'seedance_2_fast' | 'kling_3',
+  model: 'seedance_2_fast' | 'seedance_2' | 'kling_3',
   fallbackDurationSeconds: number
 ) => {
   const promptScenes = getAvatarPromptScenes(generatedPrompts);
@@ -264,7 +312,7 @@ async function generatePrompts(
   videoDurationSeconds: number,
   language?: string,
   userDialogue?: string,
-  options?: { talkingHeadMode?: boolean; model?: 'seedance_2_fast' | 'kling_3' }
+  options?: { talkingHeadMode?: boolean; model?: 'seedance_2_fast' | 'seedance_2' | 'kling_3' }
 ): Promise<Record<string, unknown>> {
   const result = await _generatePromptsInternal(
     productContext,
@@ -289,7 +337,7 @@ async function _generatePromptsInternal(
   videoDurationSeconds: number,
   language?: string,
   userDialogue?: string,
-  options?: { talkingHeadMode?: boolean; model?: 'seedance_2_fast' | 'kling_3' }
+  options?: { talkingHeadMode?: boolean; model?: 'seedance_2_fast' | 'seedance_2' | 'kling_3' }
 ): Promise<Record<string, unknown>> {
   // Get language name for prompts
   const languageCode = resolveAvatarSpokenLanguage({
@@ -298,7 +346,11 @@ async function _generatePromptsInternal(
   });
   const languageName = getLanguagePromptName(languageCode);
   const isTalkingHeadMode = options?.talkingHeadMode ?? false;
-  const resolvedModel = options?.model === 'kling_3' ? 'kling_3' : DEFAULT_VIDEO_MODEL;
+  const resolvedModel = options?.model === 'kling_3'
+    ? 'kling_3'
+    : options?.model === 'seedance_2'
+      ? 'seedance_2'
+      : DEFAULT_VIDEO_MODEL;
   const estimatedDialogueDurationSeconds = userDialogue
     ? estimateDialogueDuration(userDialogue, languageCode)
     : 0;
@@ -306,6 +358,9 @@ async function _generatePromptsInternal(
   const targetSceneDuration = resolvedModel === 'kling_3'
     ? KLING_MAX_TASK_DURATION_SECONDS
     : SEEDANCE_MAX_TASK_DURATION_SECONDS;
+  const modelSceneDurationRule = resolvedModel === 'kling_3'
+    ? 'between 3 and 15 seconds'
+    : 'between 4 and 15 seconds';
   const videoScenes = supportsFlexibleDuration
     ? (
         userDialogue && estimatedDialogueDurationSeconds > 0
@@ -331,7 +386,7 @@ async function _generatePromptsInternal(
 
 CRITICAL SCRIPT SPLITTING RULES:
 1. Split the script across ${videoScenes} scene(s) only if needed for natural spoken timing
-2. For KLING 3, each scene should land naturally between 3 and 15 seconds
+2. Each scene should land naturally ${modelSceneDurationRule}
 3. Split at natural phrase/sentence boundaries ONLY
 4. Preserve complete thoughts - do NOT split mid-concept or mid-solution
    - Example: Keep "problem + solution" together in one scene
@@ -392,7 +447,7 @@ VIDEO SCENE REQUIREMENTS:
 - Emotion: "excited, genuine" or similar positive emotions
 ${userDialogue ? `- The user has provided a custom script: "${userDialogue.replace(/"/g, '\\"')}"
 - CRITICAL: You MUST split this script across ${videoScenes} scenes only when required by natural spoken timing
-  1. For KLING 3, keep each scene between 3 and 15 seconds
+  1. Keep each scene ${modelSceneDurationRule}
   2. If the entire script fits within 15 seconds, keep it in one scene
   3. Split only at natural sentence or clause boundaries
   4. Preserve complete thoughts - do NOT split problems from solutions
@@ -577,33 +632,36 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
       parsed.scenes = parsed.scenes.filter((s) => s && Number(s.scene) !== 0);
     }
 
-    if (resolvedModel === 'kling_3') {
-      const scriptSource = userDialogue || productContext?.talking_head_script || '';
-      if (scriptSource) {
-        const normalized = buildAvatarGeneratedPrompts({
-          imagePrompt: parsed.image_prompt,
-          scriptSource,
-          existingScenes: parsed.scenes.map((scene, index) => ({
-            sceneIndex: Number(scene.scene) || index + 1,
-            prompt: scene.prompt || {}
-          })),
-          language: languageCode
-        });
+    const scriptSource = userDialogue
+      || productContext?.talking_head_script
+      || parsed.scenes
+        .map((scene) => (typeof scene.prompt?.dialog === 'string' ? scene.prompt.dialog.trim() : ''))
+        .filter(Boolean)
+        .join(' ');
 
-        parsed.image_prompt = typeof normalized.generatedPrompts.image_prompt === 'string'
-          ? normalized.generatedPrompts.image_prompt
-          : parsed.image_prompt;
-        parsed.scenes = normalized.scenes.map((scene) => ({
-          scene: scene.sceneIndex,
-          prompt: scene.prompt
-        }));
-        Object.assign(parsed as Record<string, unknown>, {
-          resolved_spoken_language: normalized.generatedPrompts.resolved_spoken_language,
-          planned_total_duration_seconds: normalized.generatedPrompts.planned_total_duration_seconds,
-          planned_scene_duration_seconds: normalized.generatedPrompts.planned_scene_duration_seconds,
-        });
-      }
-    }
+    const normalized = buildAvatarGeneratedPrompts({
+      imagePrompt: parsed.image_prompt,
+      scriptSource,
+      existingScenes: parsed.scenes.map((scene, index) => ({
+        sceneIndex: Number(scene.scene) || index + 1,
+        prompt: scene.prompt || {}
+      })),
+      language: languageCode,
+      model: resolvedModel
+    });
+
+    parsed.image_prompt = typeof normalized.generatedPrompts.image_prompt === 'string'
+      ? normalized.generatedPrompts.image_prompt
+      : parsed.image_prompt;
+    parsed.scenes = normalized.scenes.map((scene) => ({
+      scene: scene.sceneIndex,
+      prompt: scene.prompt
+    }));
+    Object.assign(parsed as Record<string, unknown>, {
+      resolved_spoken_language: normalized.generatedPrompts.resolved_spoken_language,
+      planned_total_duration_seconds: normalized.generatedPrompts.planned_total_duration_seconds,
+      planned_scene_duration_seconds: normalized.generatedPrompts.planned_scene_duration_seconds,
+    });
 
     // Ensure language field is set
     (parsed as Record<string, unknown>)['language'] = languageName;
@@ -749,7 +807,7 @@ export async function generateVideoWithKIE(
   referenceImageUrls: string[],
   videoAspectRatio?: '16:9' | '9:16',
   language?: string,
-  options?: { hasProductContext?: boolean; model?: 'seedance_2_fast' | 'kling_3'; durationSeconds?: number }
+  options?: { hasProductContext?: boolean; model?: 'seedance_2_fast' | 'seedance_2' | 'kling_3'; durationSeconds?: number }
 ): Promise<{ taskId: string }> {
   // ✅ Validate prompt parameter
   if (!prompt || typeof prompt !== 'object') {
@@ -832,7 +890,11 @@ export async function generateVideoWithKIE(
 
   const basePrompt = videoPromptText;
 
-  const resolvedModel = options?.model === 'kling_3' ? 'kling_3' : DEFAULT_VIDEO_MODEL;
+  const resolvedModel = options?.model === 'kling_3'
+    ? 'kling_3'
+    : options?.model === 'seedance_2'
+      ? 'seedance_2'
+      : DEFAULT_VIDEO_MODEL;
   const promptLanguage = typeof (prompt as { resolved_spoken_language?: unknown }).resolved_spoken_language === 'string'
     ? (prompt as { resolved_spoken_language?: string }).resolved_spoken_language
     : null;
@@ -885,7 +947,7 @@ export async function generateVideoWithKIE(
           prompt: finalPrompt,
           ...(firstFrameUrl ? { first_frame_url: firstFrameUrl } : {}),
           ...(lastFrameUrl ? { last_frame_url: lastFrameUrl } : {}),
-          aspect_ratio: videoAspectRatio || '16:9',
+          aspect_ratio: '9:16',
           duration: durationSeconds,
           resolution: '720p',
           generate_audio: true,
@@ -1012,7 +1074,7 @@ async function checkKIEImageTaskStatus(taskId: string): Promise<{
 
 export async function checkKIEVideoTaskStatus(
   taskId: string,
-  model: 'seedance_2_fast' | 'kling_3' = DEFAULT_VIDEO_MODEL
+  model: 'seedance_2_fast' | 'seedance_2' | 'kling_3' = DEFAULT_VIDEO_MODEL
 ): Promise<{
   status: string;
   result_url?: string;
@@ -1453,6 +1515,7 @@ export async function processAvatarAdsProject(
         }
 
         const videoTaskIds = [];
+        const plannedSceneDurations = getAvatarPlannedSceneDurations(project.generated_prompts);
 
         // Start video generation for each scene
         for (let i = 1; i <= videoScenes; i++) {
@@ -1484,7 +1547,11 @@ export async function processAvatarAdsProject(
             {
               hasProductContext: Boolean(project.product_context?.product_name || project.product_image_urls?.length),
               model: resolvedVideoModel,
-              durationSeconds: getAvatarSceneDurationSeconds(videoPrompt, resolvedVideoModel)
+              durationSeconds: getAvatarSceneDurationSeconds(videoPrompt, resolvedVideoModel, {
+                plannedDurationSeconds: plannedSceneDurations[i - 1],
+                totalScenes: videoScenes,
+                language: project.language
+              })
             }
           );
 
@@ -1582,7 +1649,11 @@ export async function processAvatarAdsProject(
                   project.language,
                   {
                     model: resolveAvatarAdsVideoModel(project),
-                    durationSeconds: getAvatarSceneDurationSeconds(videoPrompt, resolveAvatarAdsVideoModel(project))
+                    durationSeconds: getAvatarSceneDurationSeconds(videoPrompt, resolveAvatarAdsVideoModel(project), {
+                      plannedDurationSeconds: getAvatarPlannedSceneDurations(project.generated_prompts)[i],
+                      totalScenes: promptScenes.length,
+                      language: project.language
+                    })
                   }
                 );
 
@@ -1772,12 +1843,18 @@ export async function processAvatarAdsProject(
         const promptScenes = getAvatarPromptScenes(project.generated_prompts);
 
         if (permanentlyFailedScenes.length > 0) {
+          const plannedSceneDurations = getAvatarPlannedSceneDurations(project.generated_prompts);
           const refundAmount = permanentlyFailedScenes.reduce((sum, scene) => (
             sum + getSegmentVideoGenerationCost(
               resolveAvatarAdsVideoModel(project),
               getAvatarSceneDurationSeconds(
                 promptScenes[(scene.scene_number || 1) - 1]?.prompt,
-                resolveAvatarAdsVideoModel(project)
+                resolveAvatarAdsVideoModel(project),
+                {
+                  plannedDurationSeconds: plannedSceneDurations[(scene.scene_number || 1) - 1],
+                  totalScenes: promptScenes.length,
+                  language: project.language
+                }
               )
             )
           ), 0);

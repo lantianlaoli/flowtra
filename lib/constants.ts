@@ -298,37 +298,62 @@ export const LANDING_PRICING_VIDEO_MODELS: readonly VideoModel[] = [
 
 export function getApproxVideoMinutesFromCredits(
   credits: number,
-  model: VideoModel
+  model: VideoModel,
+  klingQuality: keyof typeof KLING_QUALITY_COSTS = '1080p'
 ): number {
   if (!Number.isFinite(credits) || credits <= 0) {
     return 0;
   }
 
   if (model === 'kling_3') {
-    return credits / GENERATION_COSTS.kling_3 / 60;
+    return credits / KLING_QUALITY_COSTS[klingQuality] / 60;
   }
 
-  return (credits / GENERATION_COSTS[model]) * DEFAULT_SEGMENT_DURATION_SECONDS / 60;
+  return credits / GENERATION_COSTS[model] / 60;
 }
 
 export function formatApproxVideoMinutesFromCredits(
   credits: number,
-  model: VideoModel
+  model: VideoModel,
+  klingQuality: keyof typeof KLING_QUALITY_COSTS = '1080p'
 ): string {
-  return `≈ ${getApproxVideoMinutesFromCredits(credits, model).toFixed(1)} min`;
+  return `≈ ${getApproxVideoMinutesFromCredits(credits, model, klingQuality).toFixed(1)} min`;
 }
+
+export type PackageModelDurationRow = {
+  model: VideoModel;
+  label: string;
+  durationLabel: string;
+  durationLabels?: string[];
+};
 
 export function getPackageModelDurationRows(
   packageName: keyof typeof PACKAGES,
   models: readonly VideoModel[] = LANDING_PRICING_VIDEO_MODELS
-): { model: VideoModel; label: string; durationLabel: string }[] {
+): PackageModelDurationRow[] {
   const credits = PACKAGES[packageName].credits;
 
-  return models.map((model) => ({
-    model,
-    label: getVideoModelDisplayName(model),
-    durationLabel: formatApproxVideoMinutesFromCredits(credits, model)
-  }));
+  return models.map((model) => {
+    if (model === 'kling_3') {
+      const durationLabels = [
+        `720p ${formatApproxVideoMinutesFromCredits(credits, model, '720p')}`,
+        `1080p ${formatApproxVideoMinutesFromCredits(credits, model, '1080p')}`,
+      ];
+
+      return {
+        model,
+        label: getVideoModelDisplayName(model),
+        durationLabel: durationLabels.join(' / '),
+        durationLabels,
+      };
+    }
+
+    return {
+      model,
+      label: getVideoModelDisplayName(model),
+      durationLabel: formatApproxVideoMinutesFromCredits(credits, model),
+    };
+  });
 }
 
 export function getDefaultCloneVideoQuality(model: VideoModel): CloneVideoQuality {

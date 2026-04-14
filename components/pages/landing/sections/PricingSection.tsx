@@ -38,6 +38,8 @@ export default function PricingSection({
     basic: pricingMessages.planFeatureItems.basic.map((label, index) => ({ label, bold: index < 2 })),
     pro: pricingMessages.planFeatureItems.pro.map((label, index) => ({ label, bold: index < 2 })),
   };
+  const formatModelDuration = (durationLabel: string, durationLabels?: string[]) =>
+    durationLabels?.length ? durationLabels.join(" / ") : durationLabel;
 
   return (
     <section id="pricing" className="py-14 md:py-20">
@@ -165,7 +167,7 @@ export default function PricingSection({
               >
                 <Check className="w-4 h-4 text-black flex-shrink-0" />
                 <span className="font-semibold text-black">
-                  {item.label}: {item.durationLabel}
+                  {item.label}: {formatModelDuration(item.durationLabel, item.durationLabels)}
                 </span>
               </li>
             ))}
@@ -243,7 +245,7 @@ export default function PricingSection({
               >
                 <Check className="w-4 h-4 text-black flex-shrink-0" />
                 <span className="font-semibold text-black">
-                  {item.label}: {item.durationLabel}
+                  {item.label}: {formatModelDuration(item.durationLabel, item.durationLabels)}
                 </span>
               </li>
             ))}
@@ -315,7 +317,7 @@ export default function PricingSection({
               >
                 <Check className="w-4 h-4 text-black flex-shrink-0" />
                 <span className="font-semibold text-black">
-                  {item.label}: {item.durationLabel}
+                  {item.label}: {formatModelDuration(item.durationLabel, item.durationLabels)}
                 </span>
               </li>
             ))}

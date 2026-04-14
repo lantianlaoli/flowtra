@@ -8,6 +8,8 @@ export default function ComparisonSection() {
   const { messages } = useI18n();
   const comparisonMessages = messages.landing.comparison;
   const basicModelDurations = getPackageModelDurationRows("basic");
+  const formatModelDuration = (durationLabel: string, durationLabels?: string[]) =>
+    durationLabels?.length ? durationLabels.join(" / ") : durationLabel;
 
   return (
     <section className="landing-section-surface bg-white py-14 md:py-20 lg:py-24">
@@ -67,7 +69,7 @@ export default function ComparisonSection() {
                     {basicModelDurations.map((item) => (
                       <li key={item.model} className="flex items-center gap-2">
                         <Check className="w-4 h-4 text-black flex-shrink-0" />
-                        <span>{item.label}: {item.durationLabel}</span>
+                        <span>{item.label}: {formatModelDuration(item.durationLabel, item.durationLabels)}</span>
                       </li>
                     ))}
                     <li className="flex items-center gap-2">
@@ -130,7 +132,7 @@ export default function ComparisonSection() {
                   {basicModelDurations.map((item) => (
                     <li key={item.model} className="flex items-center gap-2">
                       <Check className="w-4 h-4 text-black flex-shrink-0" />
-                      <span>{item.label}: {item.durationLabel}</span>
+                      <span>{item.label}: {formatModelDuration(item.durationLabel, item.durationLabels)}</span>
                     </li>
                   ))}
                   <li className="flex items-center gap-2">

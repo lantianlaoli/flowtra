@@ -2,7 +2,14 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { processAvatarAdsProject, checkKIEVideoTaskStatus, generateVideoWithKIE } from '@/lib/avatar-ads-workflow';
+import {
+  processAvatarAdsProject,
+  checkKIEVideoTaskStatus,
+  generateVideoWithKIE,
+  getAvatarSceneDurationSeconds,
+  getAvatarPlannedSceneDurations,
+  resolveAvatarAdsVideoModel
+} from '@/lib/avatar-ads-workflow';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
 export async function POST() {
@@ -427,6 +434,11 @@ async function handleSceneVideoRetries(
   supabase: ReturnType<typeof getSupabaseAdmin>
 ) {
   const MAX_RETRIES = 3;
+  const resolvedVideoModel = resolveAvatarAdsVideoModel(project as { video_model: string });
+  const promptScenes = Array.isArray(project.generated_prompts?.scenes)
+    ? (project.generated_prompts.scenes as Array<{ prompt?: Record<string, unknown> | null }>)
+    : [];
+  const plannedSceneDurations = getAvatarPlannedSceneDurations(project.generated_prompts as Record<string, unknown>);
 
   // Fetch all scenes for this project
   const { data: scenes, error: scenesError } = await supabase
@@ -487,8 +499,7 @@ async function handleSceneVideoRetries(
         console.warn(`   Restarting video generation...`);
 
         // Retrieve prompt for this scene
-        const scenes = project.generated_prompts?.scenes as Array<{prompt: unknown}>;
-        const videoPrompt = scenes?.[scene.scene_number - 1]?.prompt;
+        const videoPrompt = promptScenes?.[scene.scene_number - 1]?.prompt;
 
         if (!videoPrompt) {
           console.error(`❌ Cannot retry scene ${scene.scene_number}: prompt not found`);
@@ -501,7 +512,15 @@ async function handleSceneVideoRetries(
             videoPrompt as Record<string, unknown>,
             [project.generated_image_url!, project.generated_image_url!],
             project.video_aspect_ratio as '16:9' | '9:16' | undefined,
-            project.language
+            project.language,
+            {
+              model: resolvedVideoModel,
+              durationSeconds: getAvatarSceneDurationSeconds(videoPrompt as Record<string, unknown>, resolvedVideoModel, {
+                plannedDurationSeconds: plannedSceneDurations[scene.scene_number - 1],
+                totalScenes: promptScenes.length,
+                language: project.language
+              })
+            }
           );
 
           console.log(`✅ Retried scene ${scene.scene_number} with new task: ${newTaskId}`);

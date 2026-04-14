@@ -28,6 +28,7 @@ import {
   getAvatarAdsDialogueWordLimit
 } from '@/lib/avatar-ads-dialogue';
 import { estimateDialogueDuration } from '@/lib/dialogue-duration-estimator';
+import { resolveAvatarSpokenLanguage } from '@/lib/avatar-spoken-language';
 import { type Format } from '@/components/ui/FormatSelector';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -188,6 +189,11 @@ export default function AvatarAdsPage() {
   const [showExpandCollapseIcon, setShowExpandCollapseIcon] = useState(false);
   const [isLoadingAssets, setIsLoadingAssets] = useState(true);
 
+  const resolvedDialogueLanguage = useMemo(
+    () => resolveAvatarSpokenLanguage({ scriptSource: customDialogue, configuredLanguage: selectedLanguage }),
+    [customDialogue, selectedLanguage]
+  );
+
   useEffect(() => {
     const loadAssets = async () => {
       try {
@@ -344,7 +350,7 @@ const formatDurationLabel = (seconds: number) => {
   const isTalkingHeadMode = !selectedProduct;
   const baseSegmentDuration = getSegmentDurationForModel(DEFAULT_VIDEO_MODEL);
   const videoDuration = useMemo<VideoDuration>(() => {
-    const estimatedSeconds = estimateDialogueDuration(customDialogue, selectedLanguage);
+    const estimatedSeconds = estimateDialogueDuration(customDialogue, resolvedDialogueLanguage);
     if (estimatedSeconds <= 0) {
       return String(baseSegmentDuration) as VideoDuration;
     }
@@ -353,7 +359,7 @@ const formatDurationLabel = (seconds: number) => {
       DEFAULT_VIDEO_MODEL,
       Math.max(baseSegmentDuration, Math.ceil(estimatedSeconds))
     );
-  }, [baseSegmentDuration, customDialogue, selectedLanguage]);
+  }, [baseSegmentDuration, customDialogue, resolvedDialogueLanguage]);
   const dialogueWordLimit = useMemo(
     () => getAvatarAdsDialogueWordLimit(Number(videoDuration)),
     [videoDuration]
@@ -429,6 +435,8 @@ const formatDurationLabel = (seconds: number) => {
 
     try {
       const productId = selectedProduct?.id;
+      // Read directly from textarea at submit time to avoid any React state sync lag.
+      const scriptToSubmit = (textareaRef.current?.value ?? customDialogue).trim();
 
       // Create optimistic generation immediately with a client-side project ID
       const clientProjectId = generateClientProjectId();
@@ -477,9 +485,9 @@ const formatDurationLabel = (seconds: number) => {
       formData.append('video_duration_seconds', videoDuration.toString());
       formData.append('video_model', DEFAULT_VIDEO_MODEL);
       formData.append('video_aspect_ratio', format);
-      formData.append('language', selectedLanguage);
-      if (customDialogue && customDialogue.trim()) {
-        formData.append('custom_dialogue', customDialogue.trim());
+      formData.append('language', resolvedDialogueLanguage);
+      if (scriptToSubmit) {
+        formData.append('custom_dialogue', scriptToSubmit);
       }
       formData.append('user_id', user.id);
       formData.append('project_id', clientProjectId);

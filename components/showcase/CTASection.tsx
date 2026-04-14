@@ -12,8 +12,10 @@ interface CTASectionProps {
 
 export function CTASection({ result }: CTASectionProps) {
   const liteModelDurations = getPackageModelDurationRows('lite');
+  const formatModelDuration = (durationLabel: string, durationLabels?: string[]) =>
+    durationLabels?.length ? durationLabels.join(' / ') : durationLabel;
   const pricingSummary = liteModelDurations
-    .map((item) => `${item.label} ${item.durationLabel}`)
+    .map((item) => `${item.label} ${formatModelDuration(item.durationLabel, item.durationLabels)}`)
     .join(' • ');
   const handleStartCloning = () => {
     // Save analysis to sessionStorage for pre-selection in dashboard
