@@ -180,6 +180,7 @@ export default function AssetsManager() {
   };
 
   const handleEditProduct = (product: UserProduct) => {
+    if (product.isSystem) return;
     setEditingProduct(product);
   };
 
@@ -194,6 +195,12 @@ export default function AssetsManager() {
   };
 
   const handleDeleteProduct = async (productId: string) => {
+    const targetProduct = assetsData.products.find((item) => item.id === productId);
+    if (targetProduct?.isSystem) {
+      showError('System products cannot be deleted', 4000);
+      return;
+    }
+
     if (deletingProductId) {
       return; // Prevent multiple simultaneous deletes
     }
@@ -250,6 +257,12 @@ export default function AssetsManager() {
     file: File,
     photoRole: 'frontal' | 'reference' = 'reference'
   ) => {
+    const targetProduct = assetsData.products.find((item) => item.id === productId);
+    if (targetProduct?.isSystem) {
+      showError('System products cannot be edited', 4000);
+      return;
+    }
+
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -275,6 +288,12 @@ export default function AssetsManager() {
   };
 
   const handleDeletePhoto = async (productId: string, photoId: string) => {
+    const targetProduct = assetsData.products.find((item) => item.id === productId);
+    if (targetProduct?.isSystem) {
+      showError('System products cannot be edited', 4000);
+      return;
+    }
+
     try {
       const response = await fetch(`/api/user-products/${productId}/photos?photoId=${photoId}`, {
         method: 'DELETE'

@@ -51,6 +51,7 @@ export default function ProductCard({
   const isSelectableMode = mode === 'selectable';
   const isFullMode = mode === 'full';
   const isListMode = mode === 'list';
+  const isSystemProduct = Boolean(product.isSystem);
 
   const deletingOverlay = isDeleting ? (
     <motion.div
@@ -72,6 +73,9 @@ export default function ProductCard({
 
   // Click handlers
   const handleCardClick = () => {
+    if (isSystemProduct && isCompactMode) {
+      return;
+    }
     if (isSelectableMode && onSelect) {
       onSelect(product);
     } else if (isCompactMode && onView) {
@@ -83,6 +87,7 @@ export default function ProductCard({
 
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isSystemProduct) return;
     if (isCompactMode && onView) {
       onView(product);
       return;
@@ -97,6 +102,7 @@ export default function ProductCard({
 
   const handleDelete = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    if (isSystemProduct) return;
     if (isDeleting) return;
     onDelete(product.id);
   };
@@ -239,15 +245,24 @@ export default function ProductCard({
             <h4 className="assets-product-card-title min-h-[2rem] line-clamp-2 text-base font-medium text-gray-900">
               {product.product_name}
             </h4>
+            {isSystemProduct && (
+              <div className="mt-1">
+                <span className="inline-flex items-center rounded-full border border-gray-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-600">
+                  Default
+                </span>
+              </div>
+            )}
             <div>
-              <button
-                onClick={handleEditClick}
-                className="assets-product-card-action w-full min-h-[42px] inline-flex items-center justify-center gap-2 rounded-lg border border-black bg-black px-3 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
-                title="View details"
-              >
-                <Eye className="w-4 h-4" />
-                <span>View Details</span>
-              </button>
+              {!isSystemProduct && (
+                <button
+                  onClick={handleEditClick}
+                  className="assets-product-card-action w-full min-h-[42px] inline-flex items-center justify-center gap-2 rounded-lg border border-black bg-black px-3 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+                  title="View details"
+                >
+                  <Eye className="w-4 h-4" />
+                  <span>View Details</span>
+                </button>
+              )}
             </div>
           </div>
           <AnimatePresence>{deletingOverlay}</AnimatePresence>
@@ -295,16 +310,18 @@ export default function ProductCard({
 
             {/* Action Buttons (right side on desktop, bottom on mobile) */}
             <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto justify-end">
-              <button
-                onClick={handleEditClick}
-                className="assets-product-card-action p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
-                title="Edit product"
-              >
-                <Edit2 className="w-4 h-4" />
-              </button>
+              {!isSystemProduct && (
+                <button
+                  onClick={handleEditClick}
+                  className="assets-product-card-action p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Edit product"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+              )}
 
               <AnimatePresence>
-                {(isHovered || isDeleting) && (
+                {!isSystemProduct && (isHovered || isDeleting) && (
                   <motion.button
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -368,14 +385,19 @@ export default function ProductCard({
               ) : (
                 <h3
                   className="assets-product-card-title font-semibold text-gray-900 text-lg mb-1 cursor-pointer hover:text-gray-700 transition-colors"
-                  onClick={isFullMode ? handleEditClick : undefined}
+                  onClick={isFullMode && !isSystemProduct ? handleEditClick : undefined}
                 >
                   {product.product_name}
                 </h3>
               )}
+              {isSystemProduct && (
+                <span className="inline-flex items-center rounded-full border border-gray-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-600">
+                  Default
+                </span>
+              )}
             </div>
 
-            {!isSelectableMode && (
+            {!isSelectableMode && !isSystemProduct && (
               <div className="flex gap-2 ml-3">
                 <button
                   onClick={handleEditClick}
@@ -423,7 +445,7 @@ export default function ProductCard({
                   className="object-cover rounded-lg"
                   sizes="(max-width: 768px) 33vw, 20vw"
                 />
-                {!isSelectableMode && onDeletePhoto && (
+                {!isSelectableMode && !isSystemProduct && onDeletePhoto && (
                   <button
                     onClick={(e) => handlePhotoDelete(photo, e)}
                     className="assets-product-card-thumb-remove absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
@@ -435,7 +457,7 @@ export default function ProductCard({
             ))}
 
             {/* Add Photo Button */}
-            {!isSelectableMode && onPhotoUpload && photos.length < 4 && (
+            {!isSelectableMode && !isSystemProduct && onPhotoUpload && photos.length < 4 && (
               <label className="assets-product-card-add aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors group cursor-pointer">
                 <input
                   type="file"
@@ -458,7 +480,7 @@ export default function ProductCard({
             )}
           </div>
 
-          {photos.length === 0 && !isSelectableMode && onPhotoUpload && (
+          {photos.length === 0 && !isSelectableMode && !isSystemProduct && onPhotoUpload && (
             <div className="assets-product-card-grid grid grid-cols-3 gap-2">
               <label className="assets-product-card-add aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors group cursor-pointer">
                 <input

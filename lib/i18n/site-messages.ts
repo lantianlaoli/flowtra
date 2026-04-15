@@ -220,6 +220,8 @@ type SiteMessages = {
       copyUrl: string;
       copied: string;
       download: string;
+      regenerate: string;
+      reupload: string;
       styleAnchorDescription: string;
       angleSlots: Array<{
         key: string;
@@ -586,6 +588,8 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
         copyUrl: 'Copy URL',
         copied: 'Copied',
         download: 'Save',
+        regenerate: 'Regenerate',
+        reupload: 'Re-upload',
         styleAnchorDescription: 'This image acts as the style anchor for all generated viewing angles.',
         angleSlots: [
           {
@@ -1023,6 +1027,8 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
         copyUrl: 'Copy',
         copied: 'Copied',
         download: 'Save',
+        regenerate: 'Regenerate',
+        reupload: 'Re-upload',
         styleAnchorDescription: '这张图片会作为所有生成视角图的风格锚点。',
         angleSlots: [
           {

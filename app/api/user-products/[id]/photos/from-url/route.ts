@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { parseStorageObjectRefFromPublicUrl } from '@/lib/storage/ops';
+import { isSystemProductId } from '@/lib/default-products';
 
 export async function POST(
   request: NextRequest,
@@ -25,6 +26,9 @@ export async function POST(
     }
 
     const { id: productId } = await params;
+    if (isSystemProductId(productId)) {
+      return NextResponse.json({ error: 'System products cannot be edited' }, { status: 403 });
+    }
 
     // 3. Verify product ownership
     const supabase = getSupabaseAdmin();

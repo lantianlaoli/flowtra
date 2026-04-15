@@ -14,6 +14,8 @@ import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
 import { verifyInternalUserRequest } from '@/lib/security/internal-request';
 import { resolveAvatarSpokenLanguage } from '@/lib/avatar-spoken-language';
+import { isSystemProductId } from '@/lib/default-products';
+import { resolveProductForUser } from '@/lib/product-resolution';
 
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const AVATAR_ADS_PERSISTED_IMAGE_MODEL = 'nano-banana-2' as const;
@@ -192,38 +194,32 @@ export async function POST(request: NextRequest) {
         }
         // For temp products, productContext remains null (will be analyzed during workflow)
       } else {
-        // Schema verified via Supabase MCP (2026-03-01) and migration 20260301_restructure_storage_and_remove_brands:
-        // user_products is product-first and no longer depends on brand tables.
         const supabase = getSupabaseAdmin();
-        const { data: product, error: productError } = await supabase
-          .from('user_products')
-          .select(`
-            *,
-            user_product_photos (*)
-          `)
-          .eq('id', selectedProductId)
-          .eq('user_id', userId)
-          .single();
+        const resolvedProduct = await resolveProductForUser({
+          supabase,
+          userId,
+          productId: selectedProductId,
+          maxPhotos: 8
+        });
 
-        if (productError) {
-          console.error('Error fetching product:', productError);
+        if (!resolvedProduct.found) {
           return NextResponse.json(
             { error: 'Failed to fetch product' },
             { status: 400 }
           );
         }
 
-        if (!product || !product.user_product_photos || product.user_product_photos.length === 0) {
+        if (resolvedProduct.photoUrls.length === 0) {
           return NextResponse.json(
             { error: 'No photos found for selected product' },
             { status: 400 }
           );
         }
 
-        productImageUrls.push(...product.user_product_photos.map((photo: { photo_url: string }) => photo.photo_url));
+        productImageUrls.push(...resolvedProduct.photoUrls);
 
         productContext = {
-          product_name: product.product_name
+          product_name: resolvedProduct.productName || undefined
         };
       }
     } else {
@@ -298,7 +294,12 @@ export async function POST(request: NextRequest) {
       user_id: userId,
       person_image_urls: personImageUrls,
       product_image_urls: productImageUrls, // Still stored for temp products; will be removed in future migration
-      selected_product_id: selectedProductId && !selectedProductId.startsWith('temp') ? selectedProductId : null,
+      selected_product_id:
+        selectedProductId &&
+        !selectedProductId.startsWith('temp') &&
+        !isSystemProductId(selectedProductId)
+          ? selectedProductId
+          : null,
       product_context: productContext,
       video_duration_seconds: videoDurationSeconds,
       image_model: AVATAR_ADS_PERSISTED_IMAGE_MODEL,

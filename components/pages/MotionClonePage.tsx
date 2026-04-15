@@ -133,7 +133,7 @@ const MOTION_CLONE_QUALITY_OPTIONS = [
 ];
 const DEFAULT_FEMALE_MENTION = buildMentionToken({
   type: "character",
-  label: "Default Female",
+  label: "Lin Yuqing",
 });
 const DEFAULT_IMAGE_PROMPT_TEMPLATE = buildMotionClonePreviewPrompt({
   hasAvatar: true,

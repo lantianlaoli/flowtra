@@ -377,7 +377,7 @@ const generateReplacementDraft = async (input: {
             productToken
               ? `Product replacement must explicitly use token in imagePrompt and shot fields: ${productToken}.`
               : 'Do not use any product mention token.',
-            'Never describe replacements as plain-language instructions like "replace the man with Default Male" or "swap the bottle to diet-1".',
+            'Never describe replacements as plain-language instructions like "replace the man with Ethan Walker" or "swap the bottle to diet-1".',
             'Describe the final image and final shot content directly.',
             avatarToken
               ? `When the selected avatar appears, use the exact typed token ${avatarToken}, not the bare asset name without @.`

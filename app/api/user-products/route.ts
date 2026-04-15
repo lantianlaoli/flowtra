@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { SYSTEM_PRODUCTS, toProductLikeWithPhotos } from '@/lib/default-products';
 
 export async function GET() {
   try {
@@ -25,7 +26,12 @@ export async function GET() {
       throw error;
     }
 
-    return NextResponse.json({ success: true, products: data });
+    const mergedProducts = [
+      ...SYSTEM_PRODUCTS.map(toProductLikeWithPhotos),
+      ...(data || [])
+    ];
+
+    return NextResponse.json({ success: true, products: mergedProducts });
   } catch (error) {
     console.error('Error fetching user products:', error);
     return NextResponse.json({

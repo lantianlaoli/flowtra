@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import imageCompression from "browser-image-compression";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { Check, Copy, Download, Loader2, Upload } from "lucide-react";
+import { Check, Copy, Download, Loader2, RefreshCw, Upload } from "lucide-react";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
 import { useI18n } from "@/providers/I18nProvider";
 import { useSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -94,11 +94,23 @@ export default function AiAngleGeneratorPage() {
   const [status, setStatus] = useState<GenerationStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [frontalPreview, setFrontalPreview] = useState<string | null>(null);
+  const [sourceAspect, setSourceAspect] = useState<SourceAspect>("square");
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [copiedTaskId, setCopiedTaskId] = useState<string | null>(null);
+  const [regeneratingSlotKey, setRegeneratingSlotKey] = useState<string | null>(null);
+  const fallbackTimeoutRef = useRef<{ jobId: string; timeoutId: number } | null>(null);
+  const fallbackTriggeredRef = useRef<Set<string>>(new Set());
 
   const isBusy = status === "uploading" || status === "generating";
+
+  useEffect(() => {
+    return () => {
+      if (fallbackTimeoutRef.current) {
+        window.clearTimeout(fallbackTimeoutRef.current.timeoutId);
+      }
+    };
+  }, []);
 
   const helperText = useMemo(() => {
     if (status === "uploading") return toolMessages.uploadingHelper;
@@ -110,6 +122,7 @@ export default function AiAngleGeneratorPage() {
     [generatedImages]
   );
   const angleSlots = toolMessages.angleSlots.length === ANGLE_SLOTS.length ? toolMessages.angleSlots : ANGLE_SLOTS;
+  const allResultsReady = generatedImages.length === angleSlots.length;
 
   const getSourceAspect = (width: number, height: number): SourceAspect => {
     if (height > width) return "portrait";
@@ -220,10 +233,28 @@ export default function AiAngleGeneratorPage() {
       return accumulator;
     }, []), []);
 
+  const triggerFallback = async (jobId: string) => {
+    try {
+      await fetch("/api/assets/ai-reference-angles/fallback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId }),
+      });
+    } catch (err) {
+      console.error("Fallback trigger failed:", err);
+    }
+  };
+
   const resolveGeneration = useCallback(async (jobs: AiReferenceAngleCreateJobResponse[], fileName: string | null) => {
     setStatus("generating");
     setError(null);
     setSelectedFileName(fileName);
+
+    // Clear any stale fallback timeout before starting a new wait cycle.
+    if (fallbackTimeoutRef.current) {
+      window.clearTimeout(fallbackTimeoutRef.current.timeoutId);
+      fallbackTimeoutRef.current = null;
+    }
 
     try {
       const resolvedJobs = await waitForAiReferenceAngleJobs({
@@ -231,6 +262,33 @@ export default function AiAngleGeneratorPage() {
         jobIds: jobs.map((job) => job.id),
         onJobsUpdated: (updatedJobs) => {
           setGeneratedImages(buildGeneratedImages(jobs, updatedJobs));
+
+          const completedCount = updatedJobs.filter((j) => j.status === "completed").length;
+          const processingJobs = updatedJobs.filter((j) => j.status === "processing");
+
+          if (completedCount === 2 && processingJobs.length === 1) {
+            const pendingJob = processingJobs[0];
+            if (!pendingJob) return;
+            if (
+              fallbackTimeoutRef.current?.jobId !== pendingJob.id &&
+              !fallbackTriggeredRef.current.has(pendingJob.id)
+            ) {
+              if (fallbackTimeoutRef.current) {
+                window.clearTimeout(fallbackTimeoutRef.current.timeoutId);
+              }
+              const timeoutId = window.setTimeout(() => {
+                fallbackTriggeredRef.current.add(pendingJob.id);
+                void triggerFallback(pendingJob.id);
+                fallbackTimeoutRef.current = null;
+              }, 10000);
+              fallbackTimeoutRef.current = { jobId: pendingJob.id, timeoutId };
+            }
+          } else if (completedCount === 3) {
+            if (fallbackTimeoutRef.current) {
+              window.clearTimeout(fallbackTimeoutRef.current.timeoutId);
+              fallbackTimeoutRef.current = null;
+            }
+          }
         },
       });
 
@@ -305,6 +363,7 @@ export default function AiAngleGeneratorPage() {
     try {
       const { imageDataUrl, sourceAspect } = await validateAndReadDataUrl(file);
       setFrontalPreview(imageDataUrl);
+      setSourceAspect(sourceAspect);
       setStatus("generating");
 
       const createResponse = await fetch("/api/assets/ai-reference-angles", {
@@ -326,7 +385,9 @@ export default function AiAngleGeneratorPage() {
       }
 
       if (createResponse.status === 429) {
-        throw new Error(createPayload?.error || "Daily limit reached. You can use this tool once per day.");
+        throw new Error(
+          createPayload?.error || "Daily limit reached for free accounts (3 uses/day). Subscribe for unlimited use."
+        );
       }
 
       if (!createResponse.ok || !Array.isArray(createPayload?.jobs) || createPayload.jobs.length !== 3) {
@@ -344,6 +405,81 @@ export default function AiAngleGeneratorPage() {
   };
 
   const needsSignIn = error === "Please sign in to use this tool.";
+
+  const handleRegenerateSlot = async (slot: AngleSlot, slotIndex: number) => {
+    if (!frontalPreview || regeneratingSlotKey || isBusy) return;
+
+    setRegeneratingSlotKey(slot.key);
+    setError(null);
+
+    try {
+      const createResponse = await fetch("/api/assets/ai-reference-angles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assetType: "universal",
+          sourceAspect,
+          imageDataUrl: frontalPreview,
+          existingReferenceCount: slotIndex,
+          count: 1,
+        }),
+      });
+
+      const createPayload = await createResponse.json().catch(() => ({}));
+
+      if (createResponse.status === 401) {
+        throw new Error("Please sign in to use this tool.");
+      }
+
+      if (createResponse.status === 429) {
+        throw new Error(
+          createPayload?.error || "Daily limit reached for free accounts (3 uses/day). Subscribe for unlimited use."
+        );
+      }
+
+      if (!createResponse.ok || !Array.isArray(createPayload?.jobs) || createPayload.jobs.length !== 1) {
+        throw new Error(createPayload?.error || "Failed to start AI regeneration.");
+      }
+
+      const jobs = createPayload.jobs as AiReferenceAngleCreateJobResponse[];
+      const targetJob = jobs[0];
+
+      const resolvedJobs = await waitForAiReferenceAngleJobs({
+        supabase,
+        jobIds: [targetJob.id],
+      });
+
+      const resolvedJob = resolvedJobs.find((item) => item.id === targetJob.id);
+      if (!resolvedJob || !resolvedJob.result_image_url || resolvedJob.status !== "completed") {
+        throw new Error("Failed to regenerate this angle image.");
+      }
+      const regeneratedImageUrl = resolvedJob.result_image_url;
+
+      setGeneratedImages((current) => {
+        const next = [...current];
+        const index = next.findIndex((item) => item.key === slot.key);
+          const updated: GeneratedImage = {
+            jobId: targetJob.id,
+            label: slot.label,
+            key: slot.key,
+            imageUrl: regeneratedImageUrl,
+          };
+
+        if (index >= 0) {
+          next[index] = updated;
+          return next;
+        }
+
+        next.push(updated);
+        return next;
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to regenerate this angle image.";
+      setError(message);
+    } finally {
+      setRegeneratingSlotKey(null);
+    }
+  };
 
   return (
     <>
@@ -395,13 +531,19 @@ export default function AiAngleGeneratorPage() {
                   )}
                 </label>
                 <div className="mt-1.5">
-                  {selectedFileName && (
-                    <p className="truncate text-[11px] text-[#666666]">{selectedFileName}</p>
+                  {allResultsReady && !isBusy && (
+                    <label
+                      htmlFor={imageInputId}
+                      className={`${secondaryButtonClass} mt-1.5 h-7 w-full cursor-pointer justify-center gap-1.5 px-2 text-[11px]`}
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      {toolMessages.reupload}
+                    </label>
                   )}
                 </div>
               </article>
 
-              {angleSlots.map((slot) => {
+              {angleSlots.map((slot, slotIndex) => {
                 const image = generatedImagesByKey.get(slot.key);
 
                 if (!image) {
@@ -442,13 +584,23 @@ export default function AiAngleGeneratorPage() {
                           onClick={() => handleCopyUrl(image.jobId, image.imageUrl)}
                           className={`${primaryButtonClass} h-7 min-w-0 flex-1 justify-center px-2 text-xs`}
                           aria-label={copiedTaskId === image.jobId ? toolMessages.copied : toolMessages.copyUrl}
+                          title={copiedTaskId === image.jobId ? toolMessages.copied : toolMessages.copyUrl}
                         >
                           {copiedTaskId === image.jobId ? (
                             <Check className="h-3.5 w-3.5" />
                           ) : (
                             <Copy className="h-3.5 w-3.5" />
                           )}
-                          <span className="hidden sm:inline">{copiedTaskId === image.jobId ? toolMessages.copied : toolMessages.copyUrl}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRegenerateSlot(slot, slotIndex)}
+                          className={`${secondaryButtonClass} h-7 min-w-0 flex-1 justify-center px-2 text-xs`}
+                          aria-label={toolMessages.regenerate}
+                          title={toolMessages.regenerate}
+                          disabled={isBusy || regeneratingSlotKey === slot.key}
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 ${regeneratingSlotKey === slot.key ? "animate-spin" : ""}`} />
                         </button>
 
                         <a
@@ -460,7 +612,6 @@ export default function AiAngleGeneratorPage() {
                           aria-label={toolMessages.download}
                         >
                           <Download className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline">{toolMessages.download}</span>
                         </a>
                       </div>
                     </div>

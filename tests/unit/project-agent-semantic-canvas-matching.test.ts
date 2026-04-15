@@ -25,12 +25,12 @@ test('resolveSemanticNamedCandidate returns the uniquely matched candidate', () 
 
 test('resolveSemanticAvatarCandidate prefers canonical system defaults over same-name user avatars', () => {
   const result = resolveSemanticAvatarCandidate({
-    names: ['Default Female'],
+    names: ['Lin Yuqing'],
     userCandidates: [
-      { id: 'user-avatar-1', name: 'Default Female' },
+      { id: 'user-avatar-1', name: 'Lin Yuqing' },
     ],
     systemCandidates: [
-      { id: 'system-default-female', name: 'Default Female' },
+      { id: 'system-default-lin', name: 'Lin Yuqing' },
     ],
     getKey: (candidate) => candidate.id,
     getLabels: (candidate) => [candidate.name],
@@ -38,7 +38,7 @@ test('resolveSemanticAvatarCandidate prefers canonical system defaults over same
   });
 
   assert.equal(result.ambiguous, false);
-  assert.equal(result.match?.id, 'system-default-female');
+  assert.equal(result.match?.id, 'system-default-lin');
 });
 
 test('resolveSemanticAvatarCandidate prefers a single user avatar when the name is not a canonical system default', () => {

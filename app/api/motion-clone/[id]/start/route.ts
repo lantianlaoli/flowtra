@@ -16,6 +16,7 @@ import {
 import { replaceMentionsForPlainText } from '@/lib/video-clone-prompt-compiler';
 import { verifyInternalUserRequest } from '@/lib/security/internal-request';
 import { validateKieCredits } from '@/lib/kie-credits-check';
+import { resolveProductForUser } from '@/lib/product-resolution';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -153,34 +154,34 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     let product: { id: string; product_name: string } | null = null;
     let productPhoto: { id: string; photo_url: string; is_primary: boolean } | null = null;
+    let persistableProductId: string | null = null;
+    let persistableProductPhotoId: string | null = null;
     if (hasProduct && resolvedProductId) {
-      // Schema verified via Supabase MCP (2026-02-01): user_products, user_product_photos
-      const { data: productData, error: productError } = await supabase
-        .from('user_products')
-        .select('id, product_name')
-        .eq('id', resolvedProductId)
-        .eq('user_id', userId)
-        .single();
+      const resolvedProduct = await resolveProductForUser({
+        supabase,
+        userId,
+        productId: resolvedProductId,
+        maxPhotos: 1
+      });
 
-      if (productError || !productData) {
+      if (!resolvedProduct.found) {
         return NextResponse.json({ error: 'Product not found' }, { status: 404 });
       }
-      product = productData;
-
-      const { data: productPhotos, error: photoError } = await supabase
-        .from('user_product_photos')
-        .select('id, photo_url, is_primary')
-        .eq('product_id', product.id)
-        .eq('user_id', userId)
-        .order('is_primary', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (photoError || !productPhotos || productPhotos.length === 0) {
+      if (resolvedProduct.photoUrls.length === 0 || !resolvedProduct.frontalPhotoUrl) {
         return NextResponse.json({ error: 'Product photo not found' }, { status: 404 });
       }
 
-      productPhoto = productPhotos[0];
+      product = {
+        id: resolvedProductId,
+        product_name: resolvedProduct.productName || 'Product',
+      };
+      persistableProductId = resolvedProduct.persistableProductId;
+      persistableProductPhotoId = resolvedProduct.frontalPhotoId;
+      productPhoto = {
+        id: resolvedProduct.frontalPhotoId || `${resolvedProductId}-frontal`,
+        photo_url: resolvedProduct.frontalPhotoUrl,
+        is_primary: true,
+      };
     }
     const durationSeconds = referenceVideo.duration_seconds;
 
@@ -318,8 +319,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
             photo_prompt: photoPrompt || project.photo_prompt || null,
             video_prompt: videoPrompt || buildMotionCloneVideoPrompt({ hasAvatar, hasProduct }),
             avatar_id: persistableAvatarId,
-            product_id: product?.id || null,
-            product_photo_id: productPhoto?.id || null,
+            product_id: persistableProductId,
+            product_photo_id: persistableProductPhotoId,
             auto_generate_video: true,
             credits_cost: creditsCost,
             generation_credits_used: creditsCost,
@@ -393,8 +394,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           creator_source_id: referenceVideo.source_id,
           creator_source_video_id: referenceVideo.id,
           avatar_id: persistableAvatarId,
-          product_id: product?.id || null,
-          product_photo_id: productPhoto?.id || null,
+          product_id: persistableProductId,
+          product_photo_id: persistableProductPhotoId,
           reference_video_url: referenceVideo.video_url,
           reference_video_cdn_url: videoCdnUrl,
           reference_cover_url: coverUrl,

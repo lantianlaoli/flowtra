@@ -16,6 +16,7 @@ import {
 import { getSegmentDurationForModel, type PersistedVideoQuality, type VideoModel } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { getAvatarPhotoUrls, SYSTEM_AVATARS } from '@/lib/default-avatars';
+import { getSystemProductPhotoUrls, SYSTEM_PRODUCTS } from '@/lib/default-products';
 import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
 import { normalizeMentionLabel, parseMentionToken, MENTION_TOKEN_REGEX } from '@/lib/prompt-mention-tokens';
 import {
@@ -181,6 +182,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const { mentionNames } = collectMentionNames(mentionSources);
 
       if (requestedProductIds.length === 0 && mentionNames.length > 0) {
+        const matchedSystemProductIds = SYSTEM_PRODUCTS
+          .filter((product) => mentionNames.includes(normalizeMentionLabel(product.product_name || '')))
+          .map((product) => product.id);
         const { data: productsByUser } = await supabase
           .from('user_products')
           .select('id,product_name')
@@ -190,7 +194,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           const matchedProductIds = productsByUser
             .filter(product => mentionNames.includes(normalizeMentionLabel(product.product_name || '')))
             .map(product => product.id);
-          requestedProductIds = Array.from(new Set(matchedProductIds)).slice(0, PRODUCT_REFERENCE_LIMIT);
+          requestedProductIds = Array.from(new Set([
+            ...matchedSystemProductIds,
+            ...matchedProductIds
+          ])).slice(0, PRODUCT_REFERENCE_LIMIT);
+        } else if (matchedSystemProductIds.length > 0) {
+          requestedProductIds = Array.from(new Set(matchedSystemProductIds)).slice(0, PRODUCT_REFERENCE_LIMIT);
         }
       }
 
@@ -316,10 +325,26 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const ensureBrandAndProductAssets = async () => {
       if (requestedProductIds.length > 0) {
+        const systemProductMap = new Map(SYSTEM_PRODUCTS.map((product) => [product.id, product]));
+        const userProductIds = requestedProductIds.filter((id) => !systemProductMap.has(id));
+
+        requestedProductIds.forEach((productId) => {
+          const systemProduct = systemProductMap.get(productId);
+          if (!systemProduct) return;
+          const urls = getSystemProductPhotoUrls(systemProduct, 1);
+          if (urls.length > 0) {
+            addProductPhotoUrl(urls[0]);
+          }
+        });
+
+        if (userProductIds.length === 0) {
+          return;
+        }
+
         const { data: requestedProducts } = await supabase
           .from('user_products')
           .select('id,user_id,user_product_photos(photo_url,is_primary)')
-          .in('id', requestedProductIds)
+          .in('id', userProductIds)
           .eq('user_id', project.user_id);
 
         if (requestedProducts?.length) {

@@ -59,9 +59,8 @@ export const resolveSemanticNamedCandidate = <T,>(input: BaseMatchInput<T> & {
 };
 
 const CANONICAL_SYSTEM_AVATAR_NAMES = new Set([
-  'default male',
-  'default female',
-  'default founder',
+  'ethan walker',
+  'lin yuqing',
 ]);
 
 export const resolveSemanticAvatarCandidate = <T,>(input: BaseMatchInput<T> & {

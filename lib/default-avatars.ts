@@ -114,21 +114,15 @@ export const getAvatarPhotoUrls = (avatar: AvatarPhotoLike | null | undefined, m
 
 export const SYSTEM_AVATARS: SystemAvatar[] = [
   createSystemAvatar({
-    id: 'system-default-male',
-    avatarName: 'Default Male',
-    primaryFileName: 'user_default_male.png',
-    referenceFileNames: ['user_default_male_left.png', 'user_default_male_back.png'],
+    id: 'system-default-ethan',
+    avatarName: 'Ethan Walker',
+    primaryFileName: 'ethan_walker.png',
+    referenceFileNames: ['ethan_walker_left.png', 'ethan_walker_back.png'],
   }),
   createSystemAvatar({
-    id: 'system-default-female',
-    avatarName: 'Default Female',
-    primaryFileName: 'user_default_female.png',
-    referenceFileNames: ['user_default_female_left.png', 'user_default_female_back.png'],
-  }),
-  createSystemAvatar({
-    id: 'system-default-founder',
-    avatarName: 'Default Founder',
-    primaryFileName: 'user_default_founder.png',
-    referenceFileNames: ['user_default_founder_left.png', 'user_default_founder_back.png'],
+    id: 'system-default-lin',
+    avatarName: 'Lin Yuqing',
+    primaryFileName: 'lin_yuqing.png',
+    referenceFileNames: ['lin_yuqing_left.png', 'lin_yuqing_back.png'],
   }),
 ];

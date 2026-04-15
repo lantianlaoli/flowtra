@@ -35,6 +35,7 @@ import {
 } from '@/lib/reference-video-shots';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { getAvatarPhotoUrls, SYSTEM_AVATARS } from '@/lib/default-avatars';
+import { getSystemProductPhotoUrls, isSystemProductId, SYSTEM_PRODUCTS } from '@/lib/default-products';
 import { compilePromptForExecution } from '@/lib/video-clone-prompt-compiler';
 import {
   KLING_PROMPT_MAX_CHARS,
@@ -465,48 +466,79 @@ async function resolveCloneReferenceAssets(
   };
 
   if (selectedProductIds.length > 0) {
-    const { data: selectedProducts, error: productError } = await supabase
-      .from('user_products')
-      .select('id,product_name,user_product_photos(photo_url,is_primary)')
-      .in('id', selectedProductIds)
-      .eq('user_id', request.userId)
-      .limit(16);
+    const systemProductsById = new Map(
+      SYSTEM_PRODUCTS.map((product) => [product.id, product])
+    );
+    const userProductIds = selectedProductIds.filter((id) => !isSystemProductId(id));
 
-    if (productError) {
-      console.warn('[Clone Assets] Failed to resolve selected product:', productError.message);
-    } else {
-      const productRows = Array.isArray(selectedProducts)
-        ? selectedProducts as Array<{
-            id: string;
-            product_name?: string | null;
-            user_product_photos?: Array<{ photo_url?: string; is_primary?: boolean }>;
-          }>
-        : [];
-      const productMap = new Map(productRows.map((product) => [product.id, product]));
-      const orderedProducts = selectedProductIds
-        .map((id) => productMap.get(id))
-        .filter((product): product is NonNullable<typeof product> => Boolean(product));
+    let userProductsById = new Map<string, {
+      id: string;
+      product_name?: string | null;
+      user_product_photos?: Array<{ photo_url?: string; is_primary?: boolean }>;
+    }>();
 
-      if (orderedProducts.length === 0) {
-        console.warn('[Clone Assets] Selected product ids not found for user:', selectedProductIds);
+    if (userProductIds.length > 0) {
+      const { data: selectedProducts, error: productError } = await supabase
+        .from('user_products')
+        .select('id,product_name,user_product_photos(photo_url,is_primary)')
+        .in('id', userProductIds)
+        .eq('user_id', request.userId)
+        .limit(16);
+
+      if (productError) {
+        console.warn('[Clone Assets] Failed to resolve selected product:', productError.message);
       } else {
-        const mergedProductPhotoUrls: Array<string | null> = [];
-        for (const product of orderedProducts) {
-          const photos = Array.isArray(product.user_product_photos)
-            ? product.user_product_photos
-            : [];
-          const orderedPhotos = [
-            ...photos.filter(photo => photo.is_primary),
-            ...photos.filter(photo => !photo.is_primary)
-          ];
-          for (const photo of orderedPhotos) {
-            mergedProductPhotoUrls.push(photo.photo_url || null);
-          }
-        }
-
-        assets.productImageUrls = collectDistinctUrls(mergedProductPhotoUrls, 8);
-        assets.productName = orderedProducts[0]?.product_name || null;
+        const productRows = Array.isArray(selectedProducts)
+          ? selectedProducts as Array<{
+              id: string;
+              product_name?: string | null;
+              user_product_photos?: Array<{ photo_url?: string; is_primary?: boolean }>;
+            }>
+          : [];
+        userProductsById = new Map(productRows.map((product) => [product.id, product]));
       }
+    }
+
+    const mergedProductPhotoUrls: Array<string | null> = [];
+    let primaryProductName: string | null = null;
+
+    for (const selectedProductId of selectedProductIds) {
+      const systemProduct = systemProductsById.get(selectedProductId) || null;
+      if (systemProduct) {
+        if (!primaryProductName) {
+          primaryProductName = systemProduct.product_name || null;
+        }
+        const systemUrls = getSystemProductPhotoUrls(systemProduct, 8);
+        mergedProductPhotoUrls.push(...systemUrls);
+        continue;
+      }
+
+      const userProduct = userProductsById.get(selectedProductId);
+      if (!userProduct) {
+        continue;
+      }
+
+      if (!primaryProductName) {
+        primaryProductName = userProduct.product_name || null;
+      }
+
+      const photos = Array.isArray(userProduct.user_product_photos)
+        ? userProduct.user_product_photos
+        : [];
+      const orderedPhotos = [
+        ...photos.filter((photo) => photo.is_primary),
+        ...photos.filter((photo) => !photo.is_primary)
+      ];
+      for (const photo of orderedPhotos) {
+        mergedProductPhotoUrls.push(photo.photo_url || null);
+      }
+    }
+
+    if (mergedProductPhotoUrls.length === 0) {
+      console.warn('[Clone Assets] Selected product ids not found for user:', selectedProductIds);
+    } else {
+      assets.productImageUrls = collectDistinctUrls(mergedProductPhotoUrls, 8);
+      assets.productName = primaryProductName;
     }
   }
 
@@ -4342,9 +4374,20 @@ async function buildKlingElementsFromMentions(
     console.error('[Kling Elements] Failed to fetch avatars:', avatarResult.error);
   }
 
-  const products = (productResult.data || []).filter(product =>
+  const userProducts = (productResult.data || []).filter(product =>
     mentionNames.includes(normalizeMentionLabel(product.product_name || ''))
   );
+  const systemProducts = SYSTEM_PRODUCTS
+    .filter((product) => mentionNames.includes(normalizeMentionLabel(product.product_name || '')))
+    .map((product) => ({
+      id: product.id,
+      product_name: product.product_name,
+      user_product_photos: product.user_product_photos.map((photo) => ({
+        photo_url: photo.photo_url,
+        is_primary: photo.is_primary
+      }))
+    }));
+  const products = [...systemProducts, ...userProducts];
   const userAvatars = (avatarResult.data || []).filter(avatar =>
     mentionNames.includes(normalizeMentionLabel(avatar.avatar_name || ''))
   );

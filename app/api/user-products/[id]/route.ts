@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin, deleteProductPhotoFromStorage } from '@/lib/supabase';
+import { getSystemProductById, isSystemProductId, toProductLikeWithPhotos } from '@/lib/default-products';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -10,6 +11,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const { id } = await params;
+    const systemProduct = getSystemProductById(id);
+    if (systemProduct) {
+      return NextResponse.json({
+        success: true,
+        product: toProductLikeWithPhotos(systemProduct)
+      });
+    }
     const supabase = getSupabaseAdmin();
     // Schema verified via Supabase MCP (2026-03-01) and migration 20260301_restructure_storage_and_remove_brands:
     // user_products has product_name and no brand dependency.
@@ -53,6 +61,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const { id } = await params;
+    if (isSystemProductId(id)) {
+      return NextResponse.json({ error: 'System products cannot be edited' }, { status: 403 });
+    }
     const body = await req.json();
     const { product_name } = body;
 
@@ -108,6 +119,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
 
     const { id } = await params;
+    if (isSystemProductId(id)) {
+      return NextResponse.json({ error: 'System products cannot be deleted' }, { status: 403 });
+    }
     const supabase = getSupabaseAdmin();
 
     // First, check if the product exists and belongs to the user

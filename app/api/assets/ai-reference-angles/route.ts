@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { hasActiveSubscription } from '@/lib/subscription';
 import type { AiReferenceAngleAssetType, AiReferenceAngleJobStatus } from '@/lib/ai-reference-angle-jobs';
 
 const KIE_UPLOAD_ENDPOINT = 'https://kieai.redpandaai.co/api/file-base64-upload';
@@ -149,29 +150,34 @@ export async function POST(request: NextRequest) {
     // ai_reference_angle_jobs columns: id, user_id, asset_type, source_image_url, preset_key, preset_label,
     // kie_task_id, status, result_image_url, error_message, webhook_received_at, created_at, updated_at.
     const supabase = getSupabaseAdmin();
+    const isSubscriber = await hasActiveSubscription(userId);
 
-    const today = new Date().toISOString().slice(0, 10);
-    const { data: usageRow } = await supabase
-      .from('tool_daily_usage')
-      .select('count')
-      .eq('user_id', userId)
-      .eq('tool_key', 'ai-angle-generator')
-      .eq('usage_date', today)
-      .maybeSingle();
+    if (!isSubscriber) {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: usageRow } = await supabase
+        .from('tool_daily_usage')
+        .select('count')
+        .eq('user_id', userId)
+        .eq('tool_key', 'ai-angle-generator')
+        .eq('usage_date', today)
+        .maybeSingle();
 
-    if (usageRow && usageRow.count >= 1) {
-      return NextResponse.json(
-        { error: 'You have already used this tool today. Daily limit is 1 use per account. Please come back tomorrow.' },
-        { status: 429 }
-      );
+      const currentCount = usageRow?.count ?? 0;
+      const DAILY_LIMIT = 3;
+      if (currentCount >= DAILY_LIMIT) {
+        return NextResponse.json(
+          { error: 'Daily limit reached for free accounts (3 uses/day). Subscribe for unlimited use and try again tomorrow.' },
+          { status: 429 }
+        );
+      }
+
+      await supabase
+        .from('tool_daily_usage')
+        .upsert(
+          { user_id: userId, tool_key: 'ai-angle-generator', usage_date: today, count: currentCount + 1 },
+          { onConflict: 'user_id,tool_key,usage_date' }
+        );
     }
-
-    await supabase
-      .from('tool_daily_usage')
-      .upsert(
-        { user_id: userId, tool_key: 'ai-angle-generator', usage_date: today, count: 1 },
-        { onConflict: 'user_id,tool_key,usage_date' }
-      );
 
     const body = await request.json();
     const imageDataUrl = typeof body?.imageDataUrl === 'string' ? body.imageDataUrl : '';
@@ -244,6 +250,7 @@ export async function POST(request: NextRequest) {
       preset_label: string;
       kie_task_id: string;
       status: AiReferenceAngleJobStatus;
+      aspect_ratio: string;
     }> = [];
 
     for (const preset of presets) {
@@ -285,7 +292,8 @@ export async function POST(request: NextRequest) {
         preset_key: preset.key,
         preset_label: preset.label,
         kie_task_id: taskId,
-        status: 'processing'
+        status: 'processing',
+        aspect_ratio: aspectRatio
       });
     }
 

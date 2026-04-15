@@ -1208,6 +1208,11 @@ const formatDurationLabel = (seconds: number) => {
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-[14px] font-semibold tracking-tight text-black">{product.product_name || 'Untitled product'}</p>
+                              {product.isSystem && (
+                                <span className="mt-1 inline-flex items-center rounded-full border border-[#d7d7d2] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#666661]">
+                                  Default
+                                </span>
+                              )}
                             </div>
                           </div>
                         </button>

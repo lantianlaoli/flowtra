@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin, uploadProductPhotoToStorage, deleteProductPhotoFromStorage } from '@/lib/supabase';
 import sharp from 'sharp';
 import { validateImageFormat } from '@/lib/image-validation';
+import { getSystemProductById, isSystemProductId } from '@/lib/default-products';
 
 type PhotoRole = 'frontal' | 'reference';
 
@@ -42,6 +43,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const { id } = await params;
+    const systemProduct = getSystemProductById(id);
+    if (systemProduct) {
+      return NextResponse.json({
+        success: true,
+        photos: systemProduct.user_product_photos
+      });
+    }
     const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from('user_product_photos')
@@ -76,6 +84,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const { id } = await params;
+    if (isSystemProductId(id)) {
+      return NextResponse.json({ error: 'System products cannot be edited' }, { status: 403 });
+    }
     const supabase = getSupabaseAdmin();
 
     // Verify product exists and belongs to user
@@ -263,6 +274,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
 
     const { id } = await params;
+    if (isSystemProductId(id)) {
+      return NextResponse.json({ error: 'System products cannot be edited' }, { status: 403 });
+    }
     const { searchParams } = new URL(req.url);
     const photoId = searchParams.get('photoId');
 

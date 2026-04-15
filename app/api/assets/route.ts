@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { UserProduct } from '@/lib/supabase';
 import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
+import { SYSTEM_PRODUCTS, toProductLikeWithPhotos } from '@/lib/default-products';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -38,7 +39,10 @@ export async function GET() {
       );
     }
 
-    const products = (allProducts || []) as UserProduct[];
+    const products = [
+      ...SYSTEM_PRODUCTS.map(toProductLikeWithPhotos),
+      ...((allProducts || []) as UserProduct[])
+    ];
 
     // Fetch creator sources (TikTok, etc.)
     // Schema verified via Supabase MCP (2026-01-28): creator_sources, creator_source_platforms, creator_source_videos
@@ -118,7 +122,7 @@ export async function GET() {
       creatorSources: creatorSources || [],
       videos: [...referenceAssetVideos, ...videos],
       stats: {
-        totalProducts: (allProducts?.length || 0),
+        totalProducts: products.length,
         totalCreatorSources: creatorSources?.length || 0,
         totalCreatorVideos: creatorSourceVideoCount + referenceAssetVideos.length
       }

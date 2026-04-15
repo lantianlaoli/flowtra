@@ -246,6 +246,7 @@ export interface UserProduct {
   product_name: string
   created_at: string
   updated_at: string
+  isSystem?: boolean
   user_product_photos?: UserProductPhoto[]
 }
 

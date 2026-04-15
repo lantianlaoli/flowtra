@@ -48,8 +48,8 @@ test('normalizeSelectedIds respects the limit after dedupe', () => {
 });
 
 test('explicit empty avatar selection state blocks fallback founder injection', () => {
-  const founder = SYSTEM_AVATARS.find((avatar) => avatar.id === 'system-default-founder');
-  assert.ok(founder);
+  const defaultAvatar = SYSTEM_AVATARS.find((avatar) => avatar.id === 'system-default-ethan');
+  assert.ok(defaultAvatar);
 
   const draft = {
     selectedAvatars: [],
@@ -63,9 +63,9 @@ test('explicit empty avatar selection state blocks fallback founder injection', 
     selectedItems: draft.selectedAvatars,
     selectedItem: null,
     fallbackSelection: {
-      id: founder.id,
-      name: founder.avatar_name,
-      photoUrl: founder.photo_url
+      id: defaultAvatar.id,
+      name: defaultAvatar.avatar_name,
+      photoUrl: defaultAvatar.photo_url
     },
     allowFallback: !hasExplicitCloneAvatarSelectionState(draft)
   });
@@ -76,20 +76,20 @@ test('explicit empty avatar selection state blocks fallback founder injection', 
 });
 
 test('selection fallback still works when clone draft has no explicit avatar state', () => {
-  const founder = SYSTEM_AVATARS.find((avatar) => avatar.id === 'system-default-founder');
-  assert.ok(founder);
+  const defaultAvatar = SYSTEM_AVATARS.find((avatar) => avatar.id === 'system-default-ethan');
+  assert.ok(defaultAvatar);
 
   const resolved = resolveCloneSelection({
     selectedItems: undefined,
     selectedItem: undefined,
     fallbackSelection: {
-      id: founder.id,
-      name: founder.avatar_name,
-      photoUrl: founder.photo_url
+      id: defaultAvatar.id,
+      name: defaultAvatar.avatar_name,
+      photoUrl: defaultAvatar.photo_url
     },
     allowFallback: true
   });
 
-  assert.equal(resolved.primarySelection?.id, founder.id);
-  assert.deepEqual(resolved.selectedIds, [founder.id]);
+  assert.equal(resolved.primarySelection?.id, defaultAvatar.id);
+  assert.deepEqual(resolved.selectedIds, [defaultAvatar.id]);
 });

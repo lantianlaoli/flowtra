@@ -54,12 +54,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Schema verified via Supabase MCP (2026-04-03):
-    // ai_reference_angle_jobs columns: id, kie_task_id, status, result_image_url, error_message, webhook_received_at.
+    // ai_reference_angle_jobs columns: id, kie_task_id, fallback_kie_task_id, status, result_image_url, error_message, webhook_received_at.
     const supabase = getSupabaseAdmin();
     const { data: job, error: fetchError } = await supabase
       .from('ai_reference_angle_jobs')
       .select('id, kie_task_id, status, webhook_received_at')
-      .eq('kie_task_id', taskId)
+      .or(`kie_task_id.eq.${taskId},fallback_kie_task_id.eq.${taskId}`)
       .single();
 
     if (fetchError || !job) {
@@ -67,8 +67,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Task not found' }, { status: 200 });
     }
 
-    if (job.webhook_received_at) {
-      return NextResponse.json({ success: true, message: 'Already processed' }, { status: 200 });
+    // Race guard: first successful completion wins; ignore later webhooks.
+    if (job.status === 'completed') {
+      return NextResponse.json({ success: true, message: 'Already completed' }, { status: 200 });
     }
 
     const resultImageUrl = parseResultUrl(data);
