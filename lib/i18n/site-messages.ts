@@ -572,8 +572,8 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
         cardTitle: 'Generate 3 additional angles',
         cardDescription:
           'Upload a JPG or PNG frontal image (minimum 300x300). Large images are automatically optimized before upload to avoid production payload limits.',
-        selectImage: 'Select frontal image',
-        chooseImage: 'Choose Image',
+        selectImage: 'Upload',
+        chooseImage: 'Upload',
         noImageSelected: 'No image selected',
         selectedFile: 'Selected file',
         uploadingHelper: 'Optimizing, validating, and uploading your image...',
@@ -585,7 +585,7 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
           'The generated angles stay locked to your reference image style instead of switching to a new rendering look.',
         copyUrl: 'Copy URL',
         copied: 'Copied',
-        download: 'Download',
+        download: 'Save',
         styleAnchorDescription: 'This image acts as the style anchor for all generated viewing angles.',
         angleSlots: [
           {
@@ -1011,8 +1011,8 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
         cardTitle: '生成 3 个额外角度',
         cardDescription:
           '上传 JPG 或 PNG 正面图（最小 300x300）。较大的图片会在上传前自动优化，以避免生产环境请求体超限。',
-        selectImage: '选择正面图片',
-        chooseImage: '选择图片',
+        selectImage: 'Upload',
+        chooseImage: 'Upload',
         noImageSelected: '尚未选择图片',
         selectedFile: '已选文件',
         uploadingHelper: '正在优化、校验并上传你的图片...',
@@ -1020,9 +1020,9 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
         signInAndRetry: '登录后重试',
         photoSetTitle: '图片结果集',
         photoSetDescription: '生成的角度图会尽量保持你的参考图风格，而不会切换成新的渲染风格。',
-        copyUrl: '复制链接',
-        copied: '已复制',
-        download: '下载',
+        copyUrl: 'Copy',
+        copied: 'Copied',
+        download: 'Save',
         styleAnchorDescription: '这张图片会作为所有生成视角图的风格锚点。',
         angleSlots: [
           {

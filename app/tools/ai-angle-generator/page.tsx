@@ -6,7 +6,7 @@ import Image from "next/image";
 import imageCompression from "browser-image-compression";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { Check, Copy, Download, Loader2, Sparkles, Upload } from "lucide-react";
+import { Check, Copy, Download, Loader2, Upload } from "lucide-react";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
 import { useI18n } from "@/providers/I18nProvider";
 import { useSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -60,24 +60,18 @@ function estimateDataUrlRequestSize(fileSize: number, mimeType: string) {
   return dataUrlPrefixLength + base64Size + jsonEnvelopeSize;
 }
 
-function AngleSkeletonCard({ label, description }: AngleSlot) {
-  const lineWidths = ["w-[82%]", "w-[68%]", "w-[74%]", "w-[56%]"];
-
+function AngleSkeletonCard({ label }: { label: string }) {
   return (
-    <article className="overflow-hidden rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-[0_20px_45px_rgba(0,0,0,0.08)]">
+    <article className="rounded-2xl border border-[#E5E5E5] bg-white p-3 shadow-[0_20px_45px_rgba(0,0,0,0.08)]">
       <div className="relative overflow-hidden rounded-xl border border-[#E5E5E5] bg-[#F3F3F3]">
         <div className="absolute inset-0 -translate-x-full bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.85)_50%,transparent_100%)] bg-[length:200%_100%] animate-shimmer" />
         <div className="aspect-square w-full bg-[#F3F3F3]" />
       </div>
-
-      <div className="mt-3 space-y-2">
-        <div className="flex items-center justify-between gap-3">
-          <h4 className="text-sm font-semibold text-black">{label}</h4>
-          <span className="rounded-full border border-[#E5E5E5] bg-[#F7F7F7] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#666666]">
-            Generating
-          </span>
-        </div>
-        <p className="text-xs leading-5 text-[#666666]">{description}</p>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <h4 className="truncate text-xs font-semibold text-black">{label}</h4>
+        <span className="rounded-full border border-[#E5E5E5] bg-[#F7F7F7] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#666666]">
+          Gen
+        </span>
       </div>
     </article>
   );
@@ -343,146 +337,105 @@ export default function AiAngleGeneratorPage() {
     <>
       <Header />
       <main className="bg-white">
-        <section className="mx-auto max-w-[1040px] px-4 sm:px-6 py-14 md:py-20 space-y-8 sm:space-y-10">
+        <section className="mx-auto max-w-[1040px] px-4 py-14 sm:px-6 md:py-20">
           <div className="space-y-4">
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#666666]">{toolMessages.eyebrow}</p>
-            <h1 className="text-3xl sm:text-5xl font-semibold text-black tracking-tight">{toolMessages.title}</h1>
-            <p className="max-w-2xl text-base text-[#666666]">
-              {toolMessages.description}
-            </p>
+            <h1 className="text-3xl font-semibold tracking-tight text-black sm:text-5xl">{toolMessages.title}</h1>
+            <p className="max-w-2xl text-base text-[#666666]">{toolMessages.description}</p>
           </div>
 
-          <section className="rounded-2xl border border-[#E5E5E5] bg-white p-5 sm:p-8 shadow-[0_24px_60px_rgba(0,0,0,0.08)]">
-            <div className="flex flex-col gap-6">
-              <div className="flex items-start gap-4">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[#E5E5E5] bg-[#F7F7F7]">
-                  <Sparkles className="h-5 w-5 text-black" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-black">{toolMessages.cardTitle}</h2>
-                  <p className="text-sm text-[#666666] mt-1">
-                    {toolMessages.cardDescription}
-                  </p>
-                </div>
-              </div>
+          <section className="mt-8 rounded-2xl border border-[#E5E5E5] bg-white p-5 shadow-[0_24px_60px_rgba(0,0,0,0.08)] sm:mt-10 sm:p-8">
+            <input
+              id={imageInputId}
+              type="file"
+              accept={getAcceptedImageFormats()}
+              onChange={handleFileChange}
+              disabled={isBusy}
+              className="sr-only"
+            />
 
-              <div className="flex flex-col gap-3">
-                <span className="text-sm font-medium text-black">{toolMessages.selectImage}</span>
-                <input
-                  id={imageInputId}
-                  type="file"
-                  accept={getAcceptedImageFormats()}
-                  onChange={handleFileChange}
-                  disabled={isBusy}
-                  className="sr-only"
-                />
+            <div className="grid grid-cols-2 items-start gap-4 xl:grid-cols-4">
+              <article className="rounded-2xl border border-[#E5E5E5] bg-white p-3 shadow-[0_20px_45px_rgba(0,0,0,0.08)]">
                 <label
                   htmlFor={imageInputId}
-                  className={`${secondaryButtonClass} w-fit ${isBusy ? "pointer-events-none opacity-60" : ""}`}
+                  className={`group block cursor-pointer overflow-hidden rounded-xl border-2 border-dashed border-[#D8D8D8] bg-[#FAFAFA] ${isBusy ? "pointer-events-none opacity-60" : "hover:border-black"}`}
                 >
-                  <Upload className="h-4 w-4" />
-                  <span>{isBusy ? messages.common.processing : toolMessages.chooseImage}</span>
-                </label>
-                <input
-                  readOnly
-                  value={selectedFileName ?? ""}
-                  placeholder={toolMessages.noImageSelected}
-                  className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none"
-                />
-              </div>
-
-              {selectedFileName && (
-                <p className="text-xs text-[#666666]">{toolMessages.selectedFile}: {selectedFileName}</p>
-              )}
-
-              {helperText && (
-                <div className="rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] px-4 py-3 text-sm text-black">
-                  <div className="flex items-center gap-2">
-                    {status === "uploading" ? (
-                      <Upload className="h-4 w-4 text-black" />
-                    ) : (
-                      <Loader2 className="h-4 w-4 animate-spin text-black" />
-                    )}
-                    <span>{helperText}</span>
-                  </div>
-                </div>
-              )}
-
-              {error && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  <div>{error}</div>
-                  {needsSignIn && (
-                    <Link
-                      href="/sign-in?redirect_url=/tools/ai-angle-generator"
-                      className={`${secondaryButtonClass} mt-3 w-fit`}
-                    >
-                      {toolMessages.signInAndRetry}
-                    </Link>
-                  )}
-                </div>
-              )}
-            </div>
-          </section>
-
-          {frontalPreview && (
-            <section className="space-y-4">
-              <div className="space-y-1">
-                <h3 className="text-2xl font-semibold text-black tracking-tight">{toolMessages.photoSetTitle}</h3>
-                <p className="text-sm text-[#666666]">
-                  {toolMessages.photoSetDescription}
-                </p>
-              </div>
-              <div className="grid items-start gap-5 md:grid-cols-2 xl:grid-cols-4">
-                <article className="rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-[0_20px_45px_rgba(0,0,0,0.08)]">
-                  <div className="overflow-hidden rounded-xl border border-[#E5E5E5] bg-[#F7F7F7]">
+                  {frontalPreview ? (
                     <Image
                       src={frontalPreview}
                       alt="Uploaded frontal preview"
                       width={560}
                       height={560}
-                      className="h-auto w-full object-cover"
+                      className="aspect-square h-auto w-full object-cover"
                       unoptimized
                     />
-                  </div>
-                  <h4 className="mt-3 text-sm font-semibold text-black">{toolMessages.selectImage}</h4>
-                  <p className="mt-1 text-xs leading-5 text-[#666666]">
-                    {toolMessages.styleAnchorDescription}
-                  </p>
-                </article>
+                  ) : (
+                    <div className="flex aspect-square w-full flex-col items-center justify-center gap-2">
+                      {status === "uploading" ? (
+                        <Loader2 className="h-6 w-6 animate-spin text-black" />
+                      ) : (
+                        <Upload className="h-6 w-6 text-black" />
+                      )}
+                      <span className="text-xs font-medium text-black">
+                        {isBusy ? messages.common.processing : toolMessages.chooseImage}
+                      </span>
+                    </div>
+                  )}
+                </label>
+                <div className="mt-2">
+                  <h4 className="truncate text-xs font-semibold text-black">{toolMessages.selectImage}</h4>
+                  {selectedFileName && (
+                    <p className="truncate text-[11px] text-[#666666]">{selectedFileName}</p>
+                  )}
+                </div>
+              </article>
 
-                {angleSlots.map((slot) => {
-                  const image = generatedImagesByKey.get(slot.key);
+              {angleSlots.map((slot) => {
+                const image = generatedImagesByKey.get(slot.key);
 
-                  if (!image) {
-                    return status === "generating" ? (
-                      <AngleSkeletonCard key={slot.key} label={slot.label} description={slot.description} />
-                    ) : null;
-                  }
-
-                  return (
+                if (!image) {
+                  return status === "generating" ? (
+                    <AngleSkeletonCard key={slot.key} label={slot.label} />
+                  ) : (
                     <article
-                      key={image.jobId}
-                      className="rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-[0_20px_45px_rgba(0,0,0,0.08)]"
+                      key={slot.key}
+                      className="rounded-2xl border border-[#E5E5E5] bg-white p-3 shadow-[0_20px_45px_rgba(0,0,0,0.08)]"
                     >
-                      <div className="overflow-hidden rounded-xl border border-[#E5E5E5] bg-[#F7F7F7]">
-                        <Image
-                          src={image.imageUrl}
-                          alt={slot.label}
-                          width={560}
-                          height={560}
-                          className="h-auto w-full object-cover"
-                          unoptimized
-                        />
+                      <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl border border-[#E5E5E5] bg-[#F7F7F7]">
+                        <span className="text-[11px] font-medium text-[#888888]">{slot.label}</span>
                       </div>
-                      <h4 className="mt-3 text-sm font-semibold text-black">{slot.label}</h4>
-                      <p className="mt-1 text-xs leading-5 text-[#666666]">{slot.description}</p>
-                      <div className="mt-4 flex w-full flex-col gap-2">
+                    </article>
+                  );
+                }
+
+                return (
+                  <article
+                    key={image.jobId}
+                    className="rounded-2xl border border-[#E5E5E5] bg-white p-3 shadow-[0_20px_45px_rgba(0,0,0,0.08)]"
+                  >
+                    <div className="overflow-hidden rounded-xl border border-[#E5E5E5] bg-[#F7F7F7]">
+                      <Image
+                        src={image.imageUrl}
+                        alt={slot.label}
+                        width={560}
+                        height={560}
+                        className="aspect-square h-auto w-full object-cover"
+                        unoptimized
+                      />
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <h4 className="truncate text-xs font-semibold text-black">{slot.label}</h4>
+                      <div className="flex items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => handleCopyUrl(image.jobId, image.imageUrl)}
-                          className={`${primaryButtonClass} w-full justify-center gap-2 text-xs`}
+                          className={`${primaryButtonClass} h-7 px-2 text-[11px]`}
                         >
-                          {copiedTaskId === image.jobId ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          {copiedTaskId === image.jobId ? (
+                            <Check className="h-3 w-3" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
                           <span>{copiedTaskId === image.jobId ? toolMessages.copied : toolMessages.copyUrl}</span>
                         </button>
 
@@ -491,18 +444,49 @@ export default function AiAngleGeneratorPage() {
                           download={`${image.key}.png`}
                           target="_blank"
                           rel="noreferrer"
-                          className={`${secondaryButtonClass} w-full justify-center gap-2 text-xs`}
+                          className={`${secondaryButtonClass} h-7 px-2 text-[11px]`}
                         >
-                          <Download className="h-3.5 w-3.5" />
+                          <Download className="h-3 w-3" />
                           <span>{toolMessages.download}</span>
                         </a>
                       </div>
-                    </article>
-                  );
-                })}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            {(helperText || error) && (
+              <div className="mt-4 space-y-2">
+                {helperText && (
+                  <div className="rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] px-3 py-2 text-xs text-black">
+                    <div className="flex items-center gap-2">
+                      {status === "uploading" ? (
+                        <Upload className="h-3.5 w-3.5 text-black" />
+                      ) : (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-black" />
+                      )}
+                      <span className="truncate">{helperText}</span>
+                    </div>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    <div>{error}</div>
+                    {needsSignIn && (
+                      <Link
+                        href="/sign-in?redirect_url=/tools/ai-angle-generator"
+                        className={`${secondaryButtonClass} mt-2 h-7 w-fit px-2 text-[11px]`}
+                      >
+                        {toolMessages.signInAndRetry}
+                      </Link>
+                    )}
+                  </div>
+                )}
               </div>
-            </section>
-          )}
+            )}
+          </section>
         </section>
       </main>
       <Footer />

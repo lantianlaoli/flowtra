@@ -60,18 +60,36 @@ export default function HeroSection() {
         {/* Top Badges */}
         <div className="flex flex-wrap items-center gap-3">
           <BlackFridayBadge />
-          <LiveModelBadge
-            icon={<Kling className="w-3.5 h-3.5 text-[#37352f]" />}
-            label={heroMessages.badges.klingLive}
-          />
-          <LiveModelBadge
-            icon={<Kling className="w-3.5 h-3.5 text-[#37352f]" />}
-            label={heroMessages.badges.klingMotionLive}
-          />
-          <LiveModelBadge
-            icon={<Google className="w-3.5 h-3.5 text-[#37352f]" />}
-            label={heroMessages.badges.nanoBananaLive}
-          />
+          <a
+            href="#model-pricing"
+            aria-label="View model pricing"
+            className="inline-flex rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+          >
+            <LiveModelBadge
+              icon={<Kling className="w-3.5 h-3.5 text-[#37352f]" />}
+              label={heroMessages.badges.klingLive}
+            />
+          </a>
+          <a
+            href="#model-pricing"
+            aria-label="View model pricing"
+            className="inline-flex rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+          >
+            <LiveModelBadge
+              icon={<Kling className="w-3.5 h-3.5 text-[#37352f]" />}
+              label={heroMessages.badges.klingMotionLive}
+            />
+          </a>
+          <a
+            href="#model-pricing"
+            aria-label="View model pricing"
+            className="inline-flex rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+          >
+            <LiveModelBadge
+              icon={<Google className="w-3.5 h-3.5 text-[#37352f]" />}
+              label={heroMessages.badges.nanoBananaLive}
+            />
+          </a>
         </div>
 
         <h1 className="text-[34px] sm:text-5xl lg:text-6xl font-bold text-black leading-[1.08] tracking-[-0.02em]">

@@ -119,7 +119,7 @@ export default function FloatingPreferences() {
             </button>
 
             {isLanguageOpen ? (
-              <div className="absolute right-0 top-full mt-2 min-w-[188px] rounded-[18px] border border-[#E5E5E5] bg-white p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.12)]">
+              <div className="absolute right-0 bottom-auto top-[calc(100%+0.5rem)] min-w-[188px] rounded-[18px] border border-[#E5E5E5] bg-white p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.12)]">
                 <div className="flex flex-col gap-1">
                   {SITE_LOCALE_OPTIONS.map((option) => {
                     const active = option.value === locale;
