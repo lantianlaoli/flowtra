@@ -62,12 +62,12 @@ function estimateDataUrlRequestSize(fileSize: number, mimeType: string) {
 
 function AngleSkeletonCard({ label }: { label: string }) {
   return (
-    <article className="rounded-2xl border border-[#E5E5E5] bg-white p-3 shadow-[0_20px_45px_rgba(0,0,0,0.08)]">
-      <div className="relative overflow-hidden rounded-xl border border-[#E5E5E5] bg-[#F3F3F3]">
+    <article className="rounded-2xl border border-[#E3E3E3] bg-white p-2.5 shadow-[0_12px_28px_rgba(0,0,0,0.06)]">
+      <div className="relative overflow-hidden rounded-xl border border-[#E5E5E5] bg-[#F8F8F8]">
         <div className="absolute inset-0 -translate-x-full bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.85)_50%,transparent_100%)] bg-[length:200%_100%] animate-shimmer" />
-        <div className="aspect-square w-full bg-[#F3F3F3]" />
+        <div className="aspect-square w-full bg-[#F8F8F8]" />
       </div>
-      <div className="mt-2 flex items-center justify-between gap-2">
+      <div className="mt-1.5 flex items-center justify-between gap-2">
         <h4 className="truncate text-xs font-semibold text-black">{label}</h4>
         <span className="rounded-full border border-[#E5E5E5] bg-[#F7F7F7] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#666666]">
           Gen
@@ -86,6 +86,10 @@ export default function AiAngleGeneratorPage() {
     "landing-press-button landing-press-button--compact text-sm font-medium";
   const secondaryButtonClass =
     "landing-press-button landing-press-button--secondary landing-press-button--compact text-sm font-medium";
+  const slotCardClass =
+    "rounded-2xl border border-[#E3E3E3] bg-white p-2.5 shadow-[0_12px_28px_rgba(0,0,0,0.06)]";
+  const slotMediaClass =
+    "overflow-hidden rounded-xl border border-[#E5E5E5] bg-[#F8F8F8]";
 
   const [status, setStatus] = useState<GenerationStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -98,9 +102,8 @@ export default function AiAngleGeneratorPage() {
 
   const helperText = useMemo(() => {
     if (status === "uploading") return toolMessages.uploadingHelper;
-    if (status === "generating") return toolMessages.generatingHelper;
     return null;
-  }, [status, toolMessages.generatingHelper, toolMessages.uploadingHelper]);
+  }, [status, toolMessages.uploadingHelper]);
 
   const generatedImagesByKey = useMemo(
     () => new Map(generatedImages.map((item) => [item.key, item])),
@@ -244,9 +247,18 @@ export default function AiAngleGeneratorPage() {
         generationError instanceof Error
           ? generationError.message
           : "Failed to generate AI angle images.";
-      if (!message.includes("still in progress")) {
-        clearRecoveryState();
+      if (message.includes("still in progress")) {
+        setError(null);
+        setStatus("generating");
+        if (typeof window !== "undefined") {
+          window.setTimeout(() => {
+            void resolveGeneration(jobs, fileName);
+          }, 1800);
+        }
+        return;
       }
+
+      clearRecoveryState();
       setError(message);
       setStatus("error");
     }
@@ -344,7 +356,7 @@ export default function AiAngleGeneratorPage() {
             <p className="max-w-2xl text-base text-[#666666]">{toolMessages.description}</p>
           </div>
 
-          <section className="mt-8 rounded-2xl border border-[#E5E5E5] bg-white p-5 shadow-[0_24px_60px_rgba(0,0,0,0.08)] sm:mt-10 sm:p-8">
+          <section className="mt-6 rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-[0_24px_60px_rgba(0,0,0,0.08)] sm:mt-8 sm:p-6">
             <input
               id={imageInputId}
               type="file"
@@ -354,11 +366,11 @@ export default function AiAngleGeneratorPage() {
               className="sr-only"
             />
 
-            <div className="grid grid-cols-2 items-start gap-4 xl:grid-cols-4">
-              <article className="rounded-2xl border border-[#E5E5E5] bg-white p-3 shadow-[0_20px_45px_rgba(0,0,0,0.08)]">
+            <div className="grid grid-cols-2 items-start gap-3 xl:grid-cols-4">
+              <article className={slotCardClass}>
                 <label
                   htmlFor={imageInputId}
-                  className={`group block cursor-pointer overflow-hidden rounded-xl border-2 border-dashed border-[#D8D8D8] bg-[#FAFAFA] ${isBusy ? "pointer-events-none opacity-60" : "hover:border-black"}`}
+                  className={`group block cursor-pointer overflow-hidden rounded-xl border border-dashed border-[#BEBEBE] bg-[#F8F8F8] transition-colors ${isBusy ? "pointer-events-none" : "hover:border-black"}`}
                 >
                   {frontalPreview ? (
                     <Image
@@ -370,11 +382,11 @@ export default function AiAngleGeneratorPage() {
                       unoptimized
                     />
                   ) : (
-                    <div className="flex aspect-square w-full flex-col items-center justify-center gap-2">
+                    <div className="flex aspect-square w-full flex-col items-center justify-center gap-1.5">
                       {status === "uploading" ? (
-                        <Loader2 className="h-6 w-6 animate-spin text-black" />
+                        <Loader2 className="h-5 w-5 animate-spin text-black" />
                       ) : (
-                        <Upload className="h-6 w-6 text-black" />
+                        <Upload className="h-5 w-5 text-black" />
                       )}
                       <span className="text-xs font-medium text-black">
                         {isBusy ? messages.common.processing : toolMessages.chooseImage}
@@ -382,8 +394,7 @@ export default function AiAngleGeneratorPage() {
                     </div>
                   )}
                 </label>
-                <div className="mt-2">
-                  <h4 className="truncate text-xs font-semibold text-black">{toolMessages.selectImage}</h4>
+                <div className="mt-1.5">
                   {selectedFileName && (
                     <p className="truncate text-[11px] text-[#666666]">{selectedFileName}</p>
                   )}
@@ -399,9 +410,9 @@ export default function AiAngleGeneratorPage() {
                   ) : (
                     <article
                       key={slot.key}
-                      className="rounded-2xl border border-[#E5E5E5] bg-white p-3 shadow-[0_20px_45px_rgba(0,0,0,0.08)]"
+                      className={slotCardClass}
                     >
-                      <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl border border-[#E5E5E5] bg-[#F7F7F7]">
+                      <div className={`flex aspect-square w-full items-center justify-center ${slotMediaClass}`}>
                         <span className="text-[11px] font-medium text-[#888888]">{slot.label}</span>
                       </div>
                     </article>
@@ -411,9 +422,9 @@ export default function AiAngleGeneratorPage() {
                 return (
                   <article
                     key={image.jobId}
-                    className="rounded-2xl border border-[#E5E5E5] bg-white p-3 shadow-[0_20px_45px_rgba(0,0,0,0.08)]"
+                    className={slotCardClass}
                   >
-                    <div className="overflow-hidden rounded-xl border border-[#E5E5E5] bg-[#F7F7F7]">
+                    <div className={slotMediaClass}>
                       <Image
                         src={image.imageUrl}
                         alt={slot.label}
@@ -423,20 +434,21 @@ export default function AiAngleGeneratorPage() {
                         unoptimized
                       />
                     </div>
-                    <div className="mt-2 flex items-center justify-between gap-2">
+                    <div className="mt-1.5 space-y-1.5">
                       <h4 className="truncate text-xs font-semibold text-black">{slot.label}</h4>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex w-full items-center gap-1">
                         <button
                           type="button"
                           onClick={() => handleCopyUrl(image.jobId, image.imageUrl)}
-                          className={`${primaryButtonClass} h-7 px-2 text-[11px]`}
+                          className={`${primaryButtonClass} h-7 min-w-0 flex-1 justify-center px-2 text-xs`}
+                          aria-label={copiedTaskId === image.jobId ? toolMessages.copied : toolMessages.copyUrl}
                         >
                           {copiedTaskId === image.jobId ? (
-                            <Check className="h-3 w-3" />
+                            <Check className="h-3.5 w-3.5" />
                           ) : (
-                            <Copy className="h-3 w-3" />
+                            <Copy className="h-3.5 w-3.5" />
                           )}
-                          <span>{copiedTaskId === image.jobId ? toolMessages.copied : toolMessages.copyUrl}</span>
+                          <span className="hidden sm:inline">{copiedTaskId === image.jobId ? toolMessages.copied : toolMessages.copyUrl}</span>
                         </button>
 
                         <a
@@ -444,10 +456,11 @@ export default function AiAngleGeneratorPage() {
                           download={`${image.key}.png`}
                           target="_blank"
                           rel="noreferrer"
-                          className={`${secondaryButtonClass} h-7 px-2 text-[11px]`}
+                          className={`${secondaryButtonClass} h-7 min-w-0 flex-1 justify-center px-2 text-xs`}
+                          aria-label={toolMessages.download}
                         >
-                          <Download className="h-3 w-3" />
-                          <span>{toolMessages.download}</span>
+                          <Download className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">{toolMessages.download}</span>
                         </a>
                       </div>
                     </div>
@@ -457,7 +470,7 @@ export default function AiAngleGeneratorPage() {
             </div>
 
             {(helperText || error) && (
-              <div className="mt-4 space-y-2">
+              <div className="mt-3 space-y-2">
                 {helperText && (
                   <div className="rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] px-3 py-2 text-xs text-black">
                     <div className="flex items-center gap-2">
