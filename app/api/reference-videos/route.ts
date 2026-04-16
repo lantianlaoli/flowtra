@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { auth } from '@clerk/nextjs/server';
 import { getAnalysisShotCount } from '@/lib/video-analysis-schema';
+import { SYSTEM_REFERENCE_VIDEOS } from '@/lib/default-reference-videos';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -33,14 +34,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Include system reference videos as read-only defaults
+    const systemReferenceVideos = SYSTEM_REFERENCE_VIDEOS.map((video) => ({
+      ...video,
+      shot_count: getAnalysisShotCount(video.analysis_result),
+      isSystem: true,
+    }));
+
     // NEW: Enrich response with shot_count from analysis_result
-    const enrichedAds = (referenceVideos || []).map(ad => {
+    const enrichedAds = [...systemReferenceVideos, ...(referenceVideos || []).map(ad => {
       const shotCount = getAnalysisShotCount((ad.analysis_result as Record<string, unknown> | null) || null);
       return {
         ...ad,
         shot_count: shotCount
       };
-    });
+    })];
 
     return NextResponse.json({ success: true, referenceVideos: enrichedAds });
   } catch (error) {

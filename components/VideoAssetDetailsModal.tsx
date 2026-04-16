@@ -39,6 +39,7 @@ interface VideoAsset {
   reference_video_id?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  isSystem?: boolean;
 }
 
 interface VideoAssetDetailsModalProps {
@@ -124,6 +125,7 @@ export default function VideoAssetDetailsModal({
 
   const hasAnalysis = Boolean(currentVideo?.analysis_result);
   const hasFirstFrame = Boolean(currentVideo?.cover_url);
+  const isSystemVideo = Boolean(currentVideo?.isSystem);
   const isCompact = size === "compact";
   const isAgentSelectionMode = Boolean(onUseForClone);
   const cloneActionNeedsFirstFrame = Boolean(
@@ -400,7 +402,13 @@ export default function VideoAssetDetailsModal({
             transition={{ duration: 0.2 }}
           >
             <div className="assets-modal-header flex items-center justify-between px-6 py-4 border-b border-gray-200">
-              <div>
+              <div className="space-y-1">
+                {isSystemVideo && (
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">
+                    <span aria-hidden>🔒</span>
+                    Read-only system video
+                  </div>
+                )}
                 <h3 className="assets-modal-title text-lg font-semibold text-gray-900">
                   Video Details
                 </h3>
@@ -496,39 +504,45 @@ export default function VideoAssetDetailsModal({
                     <p className="assets-video-details-label text-xs uppercase tracking-wide text-gray-500">
                       Video Name
                     </p>
-                    <span className="text-xs text-gray-400">
-                      {trimmedEditableVideoName.length}/120
-                    </span>
+                    {!isSystemVideo && (
+                      <span className="text-xs text-gray-400">
+                        {trimmedEditableVideoName.length}/120
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={editableVideoName}
-                      onChange={(event) => setEditableVideoName(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" && canSaveVideoName) {
-                          event.preventDefault();
-                          void handleSaveVideoName();
-                        }
-                      }}
-                      maxLength={120}
-                      placeholder={displayName}
-                      className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition-colors focus:border-black"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void handleSaveVideoName()}
-                      disabled={!canSaveVideoName}
-                      className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-black bg-black px-3 text-sm font-medium text-white transition-colors hover:bg-gray-900 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
-                    >
-                      {isSavingVideoName ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Save className="h-4 w-4" />
-                      )}
-                      Save
-                    </button>
-                  </div>
+                  {isSystemVideo ? (
+                    <p className="text-sm font-medium text-gray-900">{overviewName}</p>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={editableVideoName}
+                        onChange={(event) => setEditableVideoName(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && canSaveVideoName) {
+                            event.preventDefault();
+                            void handleSaveVideoName();
+                          }
+                        }}
+                        maxLength={120}
+                        placeholder={displayName}
+                        className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition-colors focus:border-black"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveVideoName()}
+                        disabled={!canSaveVideoName}
+                        className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-black bg-black px-3 text-sm font-medium text-white transition-colors hover:bg-gray-900 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                        {isSavingVideoName ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4" />
+                        )}
+                        Save
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -623,7 +637,7 @@ export default function VideoAssetDetailsModal({
                       {cloneActionText}
                     </span>
                   </button>
-                  {!isAgentSelectionMode && onDeleteVideo ? (
+                  {!isAgentSelectionMode ? (
                     <>
                       <button
                         onClick={handleUseInMotionClone}
@@ -635,20 +649,22 @@ export default function VideoAssetDetailsModal({
                           Use in Motion Clone
                         </span>
                       </button>
-                      <button
-                        onClick={handleDeleteVideo}
-                        disabled={isDeletingCurrentVideo}
-                        className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-white text-red-600 rounded-lg border border-red-200 hover:bg-red-50 hover:border-red-300 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <span className="font-medium flex items-center gap-2">
-                          {isDeletingCurrentVideo ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="w-4 h-4" />
-                          )}
-                          Delete Video
-                        </span>
-                      </button>
+                      {!isSystemVideo && onDeleteVideo && (
+                        <button
+                          onClick={handleDeleteVideo}
+                          disabled={isDeletingCurrentVideo}
+                          className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-white text-red-600 rounded-lg border border-red-200 hover:bg-red-50 hover:border-red-300 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="font-medium flex items-center gap-2">
+                            {isDeletingCurrentVideo ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                            Delete Video
+                          </span>
+                        </button>
+                      )}
                     </>
                   ) : null}
                 </div>

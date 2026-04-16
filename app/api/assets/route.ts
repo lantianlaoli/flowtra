@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { UserProduct } from '@/lib/supabase';
 import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
 import { SYSTEM_PRODUCTS, toProductLikeWithPhotos } from '@/lib/default-products';
+import { SYSTEM_REFERENCE_VIDEOS, toVideoAssetLike } from '@/lib/default-reference-videos';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -93,6 +94,8 @@ export async function GET() {
       );
     }
 
+    const systemReferenceAssetVideos = SYSTEM_REFERENCE_VIDEOS.map(toVideoAssetLike);
+
     const referenceAssetVideos = (referenceVideos || []).map(ad => ({
       id: ad.id,
       user_id: ad.user_id,
@@ -117,14 +120,16 @@ export async function GET() {
       reference_video_id: ad.id
     }));
 
+    const allVideos = [...systemReferenceAssetVideos, ...referenceAssetVideos, ...videos];
+
     const response = {
       products,
       creatorSources: creatorSources || [],
-      videos: [...referenceAssetVideos, ...videos],
+      videos: allVideos,
       stats: {
         totalProducts: products.length,
         totalCreatorSources: creatorSources?.length || 0,
-        totalCreatorVideos: creatorSourceVideoCount + referenceAssetVideos.length
+        totalCreatorVideos: creatorSourceVideoCount + referenceAssetVideos.length + systemReferenceAssetVideos.length
       }
     };
 

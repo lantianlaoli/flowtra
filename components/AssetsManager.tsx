@@ -47,6 +47,7 @@ interface VideoAsset extends CreatorSourceVideo {
   source_name?: string | null;
   source_type?: 'creator' | 'reference_video';
   reference_video_id?: string | null;
+  isSystem?: boolean;
 }
 
 interface AssetsData {
@@ -431,6 +432,11 @@ export default function AssetsManager() {
   };
 
   const handleDeleteVideo = async (video: VideoAsset) => {
+    if (video.isSystem) {
+      showError('System videos cannot be deleted', 4000);
+      return;
+    }
+
     if (deletingVideoId) {
       return;
     }

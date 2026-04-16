@@ -19,6 +19,7 @@ interface VideoAsset {
   analysis_result?: Record<string, unknown> | null;
   analysis_error?: string | null;
   analysis_language?: string | null;
+  isSystem?: boolean;
 }
 
 interface VideoAssetCardProps {
