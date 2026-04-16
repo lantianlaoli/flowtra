@@ -125,4 +125,16 @@ export const SYSTEM_AVATARS: SystemAvatar[] = [
     primaryFileName: 'lin_yuqing.png',
     referenceFileNames: ['lin_yuqing_left.png', 'lin_yuqing_back.png', 'lin_yuqing_right.png'],
   }),
+  createSystemAvatar({
+    id: 'system-default-misaki',
+    avatarName: 'Misaki Sato',
+    primaryFileName: 'misaki_sato.png',
+    referenceFileNames: ['misaki_sato_left.png', 'misaki_sato_back.png', 'misaki_sato_right.png'],
+  }),
+  createSystemAvatar({
+    id: 'system-default-sofia',
+    avatarName: 'Sofia Garcia',
+    primaryFileName: 'sofia_garcia.png',
+    referenceFileNames: ['sofia_garcia_left.png', 'sofia_garcia_back.png', 'sofia_garcia_right.png'],
+  }),
 ];
