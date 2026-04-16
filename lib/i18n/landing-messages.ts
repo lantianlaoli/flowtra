@@ -216,7 +216,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       toolItems: [
         { href: '/tools/upload-assets', title: 'Upload Assets to URL' },
         { href: '/tools/roas-calculator', title: 'ROAS Calculator' },
-        { href: '/tools/ai-angle-generator', title: 'AI Multi-Angle Photo' },
+        { href: '/tools/ai-angle-generator', title: 'Multi-Angle Photo' },
       ],
     },
     hero: {
@@ -497,7 +497,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       toolItems: [
         { href: '/tools/upload-assets', label: 'Upload Assets to URL' },
         { href: '/tools/roas-calculator', label: 'ROAS Calculator' },
-        { href: '/tools/ai-angle-generator', label: 'AI Multi-Angle Photo' },
+        { href: '/tools/ai-angle-generator', label: 'Multi-Angle Photo' },
       ],
     },
   },

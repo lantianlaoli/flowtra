@@ -561,14 +561,14 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
           },
           {
             href: '/tools/ai-angle-generator',
-            title: 'AI Multi-Angle Photo',
+            title: 'Multi-Angle Photo',
             description: 'Upload one frontal photo and generate 3 additional viewing angles.',
           },
         ],
       },
       aiAngleGenerator: {
         eyebrow: 'Tools',
-        title: 'AI Multi-Angle Photo',
+        title: 'Multi-Angle Photo',
         description:
           'Upload one frontal photo to generate 3 additional viewing angles. Supports products, people, and pets.',
         cardTitle: 'Generate 3 additional angles',
