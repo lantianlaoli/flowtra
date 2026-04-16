@@ -73,9 +73,6 @@ export default function ProductCard({
 
   // Click handlers
   const handleCardClick = () => {
-    if (isSystemProduct && isCompactMode) {
-      return;
-    }
     if (isSelectableMode && onSelect) {
       onSelect(product);
     } else if (isCompactMode && onView) {
@@ -87,7 +84,6 @@ export default function ProductCard({
 
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isSystemProduct) return;
     if (isCompactMode && onView) {
       onView(product);
       return;
@@ -245,24 +241,16 @@ export default function ProductCard({
             <h4 className="assets-product-card-title min-h-[2rem] line-clamp-2 text-base font-medium text-gray-900">
               {product.product_name}
             </h4>
-            {isSystemProduct && (
-              <div className="mt-1">
-                <span className="inline-flex items-center rounded-full border border-gray-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-600">
-                  Default
-                </span>
-              </div>
-            )}
+
             <div>
-              {!isSystemProduct && (
-                <button
-                  onClick={handleEditClick}
-                  className="assets-product-card-action w-full min-h-[42px] inline-flex items-center justify-center gap-2 rounded-lg border border-black bg-black px-3 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
-                  title="View details"
-                >
-                  <Eye className="w-4 h-4" />
-                  <span>View Details</span>
-                </button>
-              )}
+              <button
+                onClick={handleEditClick}
+                className="assets-product-card-action w-full min-h-[42px] inline-flex items-center justify-center gap-2 rounded-lg border border-black bg-black px-3 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+                title={isSystemProduct ? 'View system product details' : 'View details'}
+              >
+                <Eye className="w-4 h-4" />
+                <span>View Details</span>
+              </button>
             </div>
           </div>
           <AnimatePresence>{deletingOverlay}</AnimatePresence>
@@ -390,11 +378,7 @@ export default function ProductCard({
                   {product.product_name}
                 </h3>
               )}
-              {isSystemProduct && (
-                <span className="inline-flex items-center rounded-full border border-gray-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-600">
-                  Default
-                </span>
-              )}
+
             </div>
 
             {!isSelectableMode && !isSystemProduct && (

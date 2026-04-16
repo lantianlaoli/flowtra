@@ -13,6 +13,7 @@ import CreateAvatarModal from './CreateAvatarModal';
 import EditAvatarModal from './EditAvatarModal';
 import AvatarCard from './AvatarCard';
 import SystemAvatarDetailsModal from './SystemAvatarDetailsModal';
+import SystemProductDetailsModal from './SystemProductDetailsModal';
 import VideoImportModal from './VideoImportModal';
 import VideoAssetCard from './VideoAssetCard';
 import VideoAssetDetailsModal from './VideoAssetDetailsModal';
@@ -111,6 +112,7 @@ export default function AssetsManager() {
   const [editingProduct, setEditingProduct] = useState<UserProduct | null>(null);
   const [editingAvatar, setEditingAvatar] = useState<UserAvatar | null>(null);
   const [systemAvatarDetails, setSystemAvatarDetails] = useState<SystemAvatar | null>(null);
+  const [systemProductDetails, setSystemProductDetails] = useState<UserProduct | null>(null);
   const [showVideoImportModal, setShowVideoImportModal] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<VideoAsset | null>(null);
   const [showVideoDetails, setShowVideoDetails] = useState(false);
@@ -180,7 +182,10 @@ export default function AssetsManager() {
   };
 
   const handleEditProduct = (product: UserProduct) => {
-    if (product.isSystem) return;
+    if (product.isSystem) {
+      setSystemProductDetails(product);
+      return;
+    }
     setEditingProduct(product);
   };
 
@@ -727,6 +732,11 @@ export default function AssetsManager() {
         isOpen={!!systemAvatarDetails}
         avatar={systemAvatarDetails}
         onClose={() => setSystemAvatarDetails(null)}
+      />
+      <SystemProductDetailsModal
+        isOpen={!!systemProductDetails}
+        product={systemProductDetails}
+        onClose={() => setSystemProductDetails(null)}
       />
       <VideoImportModal
         isOpen={showVideoImportModal}

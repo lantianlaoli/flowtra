@@ -54,7 +54,7 @@ const createSystemAvatar = ({
   id: string;
   avatarName: string;
   primaryFileName: string;
-  referenceFileNames: [string, string];
+  referenceFileNames: [string, string, string];
 }): SystemAvatar => {
   const primaryPhotoUrl = buildSystemAvatarUrl(primaryFileName);
   const referencePhotos = referenceFileNames.map(createReferencePhoto);
@@ -117,12 +117,12 @@ export const SYSTEM_AVATARS: SystemAvatar[] = [
     id: 'system-default-ethan',
     avatarName: 'Ethan Walker',
     primaryFileName: 'ethan_walker.png',
-    referenceFileNames: ['ethan_walker_left.png', 'ethan_walker_back.png'],
+    referenceFileNames: ['ethan_walker_left.png', 'ethan_walker_back.png', 'ethan_walker_right.png'],
   }),
   createSystemAvatar({
     id: 'system-default-lin',
     avatarName: 'Lin Yuqing',
     primaryFileName: 'lin_yuqing.png',
-    referenceFileNames: ['lin_yuqing_left.png', 'lin_yuqing_back.png'],
+    referenceFileNames: ['lin_yuqing_left.png', 'lin_yuqing_back.png', 'lin_yuqing_right.png'],
   }),
 ];
