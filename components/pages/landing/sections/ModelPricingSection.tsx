@@ -1,6 +1,6 @@
 'use client';
 
-import { Google, ByteDance, Kling } from '@lobehub/icons';
+import { Google, ByteDance, Kling, Qwen } from '@lobehub/icons';
 import { BadgeDollarSign, Boxes, Coins, ScanLine } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 
@@ -69,6 +69,16 @@ export default function ModelPricingSection() {
       pricingOptions: [
         { resolution: '720p', credits: 1200 },
         { resolution: '1080p', credits: 1620 },
+      ] as PricingOption[],
+    },
+    {
+      name: 'Wan 2.7',
+      description: 'High-fidelity 1080p image-to-video generation with rich motion',
+      icon: Qwen,
+      durationRange: '2-15s',
+      billingType: 'generation' as const,
+      pricingOptions: [
+        { resolution: '1080p', credits: 1440 },
       ] as PricingOption[],
     },
   ];

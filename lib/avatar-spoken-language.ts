@@ -37,9 +37,11 @@ export const resolveAvatarSpokenLanguage = (input: {
   scriptSource?: string | null;
   configuredLanguage?: string | null;
 }): LanguageCode => {
+  const configured = normalizeConfiguredLanguage(input.configuredLanguage);
+  if (configured) return configured;
   const detected = detectAvatarScriptLanguage(input.scriptSource);
   if (detected) return detected;
-  return normalizeConfiguredLanguage(input.configuredLanguage) || 'en';
+  return 'en';
 };
 
 export const inferAvatarVoiceGender = (...values: Array<unknown>): 'male' | 'female' | null => {

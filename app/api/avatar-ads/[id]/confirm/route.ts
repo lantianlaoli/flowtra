@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import {
   getAvatarPlannedTotalDurationSeconds,
-  processAvatarAdsProject
+  processAvatarAdsProject,
+  resolveAvatarAdsVideoModel
 } from '@/lib/avatar-ads-workflow';
 
 export async function PATCH(
@@ -36,6 +37,9 @@ export async function PATCH(
     }
 
     const nextPrompts = updatedPrompts || project.generated_prompts;
+    const nextImagePrompt = typeof nextPrompts?.image_prompt === 'string'
+      ? nextPrompts.image_prompt
+      : project.image_prompt;
     const nextScenes = Array.isArray(nextPrompts?.scenes)
       ? nextPrompts.scenes as Array<{ prompt?: Record<string, unknown> | null }>
       : [];
@@ -43,7 +47,7 @@ export async function PATCH(
       ? Math.round(totalDurationSeconds)
       : getAvatarPlannedTotalDurationSeconds(
         nextPrompts as Record<string, unknown> | null | undefined,
-        project.video_model === 'kling_3' ? 'kling_3' : 'seedance_2_fast',
+        resolveAvatarAdsVideoModel(project),
         project.video_duration_seconds
       );
 
@@ -78,6 +82,7 @@ export async function PATCH(
       .from('avatar_ads_projects')
       .update({
         generated_prompts: nextPrompts,
+        image_prompt: nextImagePrompt,
         video_duration_seconds: nextTotalDurationSeconds,
         status: 'generating_videos',
         current_step: 'generating_videos',

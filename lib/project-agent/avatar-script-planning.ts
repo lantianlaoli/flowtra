@@ -33,7 +33,7 @@ type BuildAvatarGeneratedPromptsInput = {
   productName?: string | null;
 };
 
-export type AvatarDurationModel = 'seedance_2_fast' | 'seedance_2' | 'kling_3';
+export type AvatarDurationModel = 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27';
 
 const DEFAULT_VISUAL_PROMPT = {
   subject: 'Confident spokesperson from the selected avatar',
@@ -198,6 +198,14 @@ const getDurationBoundsByModel = (model: AvatarDurationModel) => {
     };
   }
 
+  if (model === 'wan_27') {
+    return {
+      minDurationSeconds: 2,
+      maxDurationSeconds: 15,
+      planningLimitSeconds: 15
+    };
+  }
+
   return {
     minDurationSeconds: SEEDANCE_MIN_TASK_DURATION_SECONDS,
     maxDurationSeconds: SEEDANCE_MAX_TASK_DURATION_SECONDS,
@@ -294,6 +302,7 @@ export const buildAvatarScenesFromScript = (input: {
         ...(scene.prompt || {}),
         dialog: typeof scene.prompt?.dialog === 'string' ? normalizeWhitespace(scene.prompt.dialog) : '',
         duration_seconds: normalizeAvatarPromptDuration(scene.prompt?.duration_seconds, model),
+        resolved_spoken_language: language,
         voice_type: buildAvatarVoiceType(
           language,
           inferAvatarVoiceGender(scene.prompt?.voice_type, scene.prompt?.subject)
@@ -346,6 +355,7 @@ export const buildAvatarScenesFromScript = (input: {
         ...template,
         dialog,
         duration_seconds: getTargetDurationSeconds(dialog, language, model),
+        resolved_spoken_language: language,
         voice_type: buildAvatarVoiceType(
           language,
           inferAvatarVoiceGender(template.voice_type, template.subject)

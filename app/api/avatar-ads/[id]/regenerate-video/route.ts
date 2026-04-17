@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import {
   getAvatarPlannedTotalDurationSeconds,
-  processAvatarAdsProject
+  processAvatarAdsProject,
+  resolveAvatarAdsVideoModel
 } from '@/lib/avatar-ads-workflow';
 
 export async function POST(
@@ -39,9 +40,12 @@ export async function POST(
     if (!nextPrompts) {
       return NextResponse.json({ error: 'Generated prompts are missing.' }, { status: 400 });
     }
+    const nextImagePrompt = typeof nextPrompts?.image_prompt === 'string'
+      ? nextPrompts.image_prompt
+      : project.image_prompt;
     const nextTotalDurationSeconds = totalDurationSeconds ?? getAvatarPlannedTotalDurationSeconds(
       nextPrompts as Record<string, unknown> | null | undefined,
-      project.video_model === 'kling_3' ? 'kling_3' : 'seedance_2_fast',
+      resolveAvatarAdsVideoModel(project),
       project.video_duration_seconds
     );
 
@@ -79,6 +83,7 @@ export async function POST(
       .from('avatar_ads_projects')
       .update({
         generated_prompts: nextPrompts,
+        image_prompt: nextImagePrompt,
         video_duration_seconds: nextTotalDurationSeconds,
         kie_video_task_ids: null,
         generated_video_urls: null,

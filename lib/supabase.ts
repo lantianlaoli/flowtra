@@ -213,6 +213,7 @@ export interface UserAvatar {
   id: string
   user_id: string
   avatar_name: string
+  avatar_gender?: 'male' | 'female' | null
   photo_url: string
   file_name: string
   storage_bucket?: StorageBucket | null

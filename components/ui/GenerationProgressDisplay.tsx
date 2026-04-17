@@ -190,6 +190,12 @@ export default function GenerationProgressDisplay({
     good: locale === 'zh' ? '好' : 'Good',
     bad: locale === 'zh' ? '差' : 'Bad',
     feedbackFailed: locale === 'zh' ? '提交反馈失败，请重试。' : 'Failed to submit feedback. Please try again.',
+    avatarAdsSystemIssue: locale === 'zh'
+      ? '系统出现异常，可重新生成'
+      : 'System issue detected. You can regenerate.',
+    avatarAdsSystemIssueDetail: locale === 'zh'
+      ? '本次生成受到系统波动影响，你可以直接重新生成视频。'
+      : 'This run was affected by a temporary system issue. You can regenerate the video.',
   }), [locale]);
   const localizedDefaultSteps: EmptyStateStep[] = useMemo(() => (
     locale === 'zh'
@@ -358,6 +364,12 @@ function GenerationCard({
     previewAlt: locale === 'zh' ? '预览' : 'Preview',
     reviewYourVideo: locale === 'zh' ? '检查视频' : 'Review Your Video',
     composeYourVideo: locale === 'zh' ? '编排视频' : 'Compose Your Video',
+    avatarAdsSystemIssue: locale === 'zh'
+      ? '系统出现异常，可重新生成'
+      : 'System issue detected. You can regenerate.',
+    avatarAdsSystemIssueDetail: locale === 'zh'
+      ? '本次生成受到系统波动影响，你可以直接重新生成视频。'
+      : 'This run was affected by a temporary system issue. You can regenerate the video.',
   }), [locale]);
   const resolvedReviewCtaLabel = reviewCtaLabel ?? copy.reviewEdit;
   const {
@@ -436,10 +448,14 @@ function GenerationCard({
   const hasSegmentFailure = Boolean(
     generation.segmentStatus?.segments?.some(seg => seg.status === 'failed')
   );
+  const isRetryableAvatarAdsFailure = projectType === 'avatar-ads' && status === 'failed';
   const displayStatus: Generation['status'] | 'attention' =
     hasSegmentFailure && status !== 'completed' ? 'attention' : status;
   const displayStage = hasSegmentFailure ? 'Needs attention' : stage;
   const errorMessage = generation.error;
+  const displayErrorMessage = isRetryableAvatarAdsFailure
+    ? (errorMessage ? `${copy.avatarAdsSystemIssueDetail} ${errorMessage}` : copy.avatarAdsSystemIssueDetail)
+    : errorMessage;
 
   const handlePlay = () => {
     if (!videoUrl) return;
@@ -464,7 +480,9 @@ function GenerationCard({
       case 'completed':
         return <CheckCircle className="w-5 h-5 text-gray-900" />;
       case 'failed':
-        return <XCircle className="w-5 h-5 text-gray-900" />;
+        return isRetryableAvatarAdsFailure
+          ? <AlertCircle className="w-5 h-5 text-gray-900" />
+          : <XCircle className="w-5 h-5 text-gray-900" />;
       case 'attention':
         return <AlertCircle className="w-5 h-5 text-gray-900" />;
       case 'awaiting_review':
@@ -506,7 +524,7 @@ function GenerationCard({
       case 'completed':
         return copy.readyToDownload;
       case 'failed':
-        return copy.generationFailed;
+        return isRetryableAvatarAdsFailure ? copy.avatarAdsSystemIssue : copy.generationFailed;
       case 'attention':
         return copy.needsReview;
       case 'processing':
@@ -520,7 +538,7 @@ function GenerationCard({
   };
 
   const showBody = (displayStatus === 'attention' && hasSegmentFailure) ||
-    (displayStatus === 'failed' && Boolean(errorMessage)) ||
+    (displayStatus === 'failed' && Boolean(displayErrorMessage)) ||
     hasSegments ||
     (status === 'completed' && (Boolean(videoUrl) || Boolean(coverUrl)));
   const canReviewInAvatarAds =
@@ -693,11 +711,15 @@ function GenerationCard({
         {/* Error/Body */}
         {showBody && (
           <div className="pt-2">
-            {displayStatus === 'failed' && errorMessage && (
+            {displayStatus === 'failed' && displayErrorMessage && (
               <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-start gap-2.5">
-                <XCircle className="w-4 h-4 text-gray-900 mt-0.5" />
+                {isRetryableAvatarAdsFailure ? (
+                  <AlertCircle className="w-4 h-4 text-gray-900 mt-0.5" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-gray-900 mt-0.5" />
+                )}
                 <p className="text-[12px] text-gray-600 leading-relaxed font-medium">
-                  {errorMessage}
+                  {displayErrorMessage}
                 </p>
               </div>
             )}

@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, Check, Lock, Coins, Video, AlertTriangle } from 'lucide-react';
-import { ByteDance, Kling } from '@lobehub/icons';
+import { ChevronDown, Check, Coins, Video, AlertTriangle } from 'lucide-react';
+import { ByteDance, Kling, Qwen } from '@lobehub/icons';
 import { cn } from '@/lib/utils';
 import {
   GENERATION_COSTS,
@@ -73,11 +73,7 @@ export default function VideoModelSelector({
         // Fallback to base cost if no config provided
         return GENERATION_COSTS[model] || 0;
       }
-      if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2') {
-        return Math.ceil(videoDurationSeconds) * (GENERATION_COSTS[model] || 0);
-      }
-      const baseCost = GENERATION_COSTS[model] || 0;
-      return Math.ceil(videoDurationSeconds) * baseCost;
+      return Math.ceil(videoDurationSeconds) * (GENERATION_COSTS[model] || 0);
     };
 
     // Check if model is supported by current quality config or disabledModels list
@@ -97,8 +93,8 @@ export default function VideoModelSelector({
         description: 'Fast ByteDance generation with native audio',
         icon: ByteDance,
         cost: calculateDurationCost('seedance_2_fast'),
+        creditsPerSecond: GENERATION_COSTS['seedance_2_fast'],
         processingTime: getProcessingTime('seedance_2_fast'),
-        affordable: credits >= calculateDurationCost('seedance_2_fast'),
         features: 'Native 720p, 1-2 min',
         supported: isModelSupported('seedance_2_fast'),
         badge: 'Popular'
@@ -109,8 +105,8 @@ export default function VideoModelSelector({
         description: 'Higher-fidelity ByteDance generation',
         icon: ByteDance,
         cost: calculateDurationCost('seedance_2'),
+        creditsPerSecond: GENERATION_COSTS['seedance_2'],
         processingTime: getProcessingTime('seedance_2'),
-        affordable: credits >= calculateDurationCost('seedance_2'),
         features: 'Native 720p, richer motion',
         supported: isModelSupported('seedance_2'),
         badge: 'Pro'
@@ -121,14 +117,26 @@ export default function VideoModelSelector({
         description: 'Resolution-aware audio generation',
         icon: Kling,
         cost: calculateDurationCost('kling_3'),
+        creditsPerSecond: GENERATION_COSTS['kling_3'],
         processingTime: getProcessingTime('kling_3'),
-        affordable: credits >= calculateDurationCost('kling_3'),
         features: '720p std or 1080p pro',
         supported: isModelSupported('kling_3'),
         badge: 'New'
+      },
+      {
+        value: 'wan_27' as const,
+        label: getVideoModelDisplayName('wan_27'),
+        description: 'High-fidelity 1080p generation with rich motion',
+        icon: Qwen,
+        cost: calculateDurationCost('wan_27'),
+        creditsPerSecond: GENERATION_COSTS['wan_27'],
+        processingTime: getProcessingTime('wan_27'),
+        features: 'Native 1080p, 2-15s',
+        supported: isModelSupported('wan_27'),
+        badge: 'New'
       }
     ];
-  }, [credits, videoDurationSeconds, videoQuality, videoDuration, disabledModels]);
+  }, [videoDurationSeconds, videoQuality, videoDuration, disabledModels]);
 
   const visibleOptions = useMemo(
     () =>
@@ -182,8 +190,7 @@ export default function VideoModelSelector({
 
   const selectedOption = visibleOptions.find(opt => opt.value === selectedModel) || visibleOptions[0];
 
-  const handleOptionSelect = (value: VideoModel, affordable: boolean) => {
-    if (!affordable) return;
+  const handleOptionSelect = (value: VideoModel) => {
     onModelChange(value);
     try {
       if (typeof window !== 'undefined') {
@@ -207,10 +214,11 @@ export default function VideoModelSelector({
           className="config-select-trigger w-full px-3 py-2 text-sm bg-white border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 rounded-lg transition-colors duration-150 text-gray-900 cursor-pointer text-left flex items-center justify-between"
         >
           <div className="min-w-0 flex items-center gap-2">
-            <span className="config-model-icon flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-gray-50">
-              <selectedOption.icon className="h-4 w-4 text-gray-700" />
-            </span>
+            <selectedOption.icon className="h-5 w-5 text-gray-700" />
             <span className="font-medium truncate">{selectedOption?.label}</span>
+            {selectedOption && (
+              <span className="text-xs text-gray-500">{selectedOption.creditsPerSecond} credits/s</span>
+            )}
             {selectedOption && disabledModels.includes(selectedOption.value) && disabledModelReasons[selectedOption.value] && (
               <ModelConstraintBadge label={disabledModelReasons[selectedOption.value] as string} />
             )}
@@ -234,12 +242,12 @@ export default function VideoModelSelector({
             {visibleOptions.map((option) => {
               const disabledByConstraint = disabledModels.includes(option.value);
               const disabledReason = disabledModelReasons[option.value];
-              const disabledByConfig = !option.supported; // NEW: Disable if not supported by quality/duration
-              const isDisabled = !option.affordable || disabledByConstraint || disabledByConfig;
+              const disabledByConfig = !option.supported;
+              const isDisabled = disabledByConstraint || disabledByConfig;
               return (
               <button
                 key={option.value}
-                onClick={() => handleOptionSelect(option.value, !isDisabled)}
+                onClick={() => handleOptionSelect(option.value)}
                 disabled={isDisabled}
                 className={cn(
                   "config-select-option w-full px-3 py-2 text-left text-sm transition-colors duration-150 flex items-center justify-between",
@@ -252,15 +260,11 @@ export default function VideoModelSelector({
                 )}
               >
                 <div className="flex flex-1 items-center gap-2">
-                  <span className="config-model-icon flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-gray-50">
-                    <option.icon className="h-4 w-4 text-gray-700" />
-                  </span>
+                  <option.icon className="h-5 w-5 text-gray-700" />
                   <span className="font-medium">{option.label}</span>
+                  <span className="text-xs text-gray-500">{option.creditsPerSecond} credits/s</span>
                   {disabledByConstraint && disabledReason && (
                     <ModelConstraintBadge label={disabledReason} />
-                  )}
-                  {isDisabled && (
-                    <Lock className="config-select-icon w-3 h-3 text-gray-400" />
                   )}
                 </div>
                 {selectedModel === option.value && !isDisabled && (

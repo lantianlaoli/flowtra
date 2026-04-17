@@ -19,11 +19,12 @@ import {
   getGenerationCost,
   getSegmentDurationForModel,
   snapDurationToModel,
-  type VideoDuration
+  type VideoDuration,
+  type VideoModel
 } from '@/lib/constants';
 import { AvatarAdInspector, StructuredVideoPrompt } from '@/components/avatar-ads/AvatarAdInspector';
-import { estimateDialogueDuration } from '@/lib/dialogue-duration-estimator';
 import { resolveAvatarSpokenLanguage } from '@/lib/avatar-spoken-language';
+import { estimateAvatarAdsSingleSceneDurationSeconds } from '@/lib/avatar-ads-duration-estimate';
 import { type Format } from '@/components/ui/FormatSelector';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -123,6 +124,7 @@ interface CharacterAdsStatusPayload {
     generated_video_urls?: string[] | null;
     merged_video_url?: string | null;
     downloaded?: boolean | null;
+    error_message?: string | null;
     generated_prompts?: { scenes: Array<{ prompt: StructuredVideoPrompt }>; language?: string }; // Include generated_prompts
     image_prompt?: string;
   };
@@ -146,7 +148,7 @@ const isActiveGeneration = (generation: AvatarGeneration) =>
 
 const getStageLabel = (status: Generation['status'], step?: string | null) => {
   if (status === 'completed') return '✅ Your character video is ready to shine!';
-  if (status === 'failed') return '⚠️ Let\'s try generating this again…';
+  if (status === 'failed') return '⚠️ System issue detected. You can regenerate the video.';
   if (step) {
     const normalized = step.toLowerCase();
     if (CHARACTER_STAGE_HINTS[normalized]) {
@@ -172,6 +174,7 @@ export default function AvatarAdsPage() {
   const [customDialogue, setCustomDialogue] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
+  const [selectedModel, setSelectedModel] = useState<VideoModel>(DEFAULT_VIDEO_MODEL);
   const [personDropdownOpen, setPersonDropdownOpen] = useState(false);
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [dialogueError, setDialogueError] = useState<string | null>(null);
@@ -320,7 +323,7 @@ const formatDurationLabel = (seconds: number) => {
     if (status === 'completed') {
       showSuccess('Character ad finished! Download it from History.');
     } else {
-      showError('Character ad failed. Please try again.');
+      showError('System issue detected during video generation. You can regenerate the video.');
     }
   }, [showError, showSuccess]);
 
@@ -331,26 +334,22 @@ const formatDurationLabel = (seconds: number) => {
   });
 
   const isTalkingHeadMode = !selectedProduct;
-  const baseSegmentDuration = getSegmentDurationForModel(DEFAULT_VIDEO_MODEL);
   const videoDuration = useMemo<VideoDuration>(() => {
-    const estimatedSeconds = estimateDialogueDuration(customDialogue, resolvedDialogueLanguage);
+    const estimatedSeconds = estimateAvatarAdsSingleSceneDurationSeconds(
+      customDialogue,
+      selectedModel,
+      resolvedDialogueLanguage
+    );
     if (estimatedSeconds <= 0) {
-      return String(baseSegmentDuration) as VideoDuration;
+      return String(getSegmentDurationForModel(selectedModel)) as VideoDuration;
     }
 
-    return snapDurationToModel(
-      DEFAULT_VIDEO_MODEL,
-      Math.max(baseSegmentDuration, Math.ceil(estimatedSeconds))
-    );
-  }, [baseSegmentDuration, customDialogue, resolvedDialogueLanguage]);
+    return snapDurationToModel(selectedModel, estimatedSeconds);
+  }, [customDialogue, resolvedDialogueLanguage, selectedModel]);
   // Calculate required credits for the current duration selection
   const requiredCredits = useMemo(() => {
-    const actualModel = DEFAULT_VIDEO_MODEL;
-    if (!actualModel) return 0;
-
-    const scenesCount = Math.ceil(Number(videoDuration) / 8);
-    return getGenerationCost(actualModel) * scenesCount;
-  }, [videoDuration, userCredits]);
+    return getGenerationCost(selectedModel, videoDuration);
+  }, [videoDuration, selectedModel]);
 
   // Check if user has sufficient credits
   const hasInsufficientCredits = useMemo(() => {
@@ -359,6 +358,7 @@ const formatDurationLabel = (seconds: number) => {
 
   const isMaintenanceMode = !kieCreditsStatus.loading && !kieCreditsStatus.sufficient;
   const hasRequiredDialogue = customDialogue.trim().length > 0;
+  const estimatedGenerationCost = hasRequiredDialogue ? requiredCredits : undefined;
   const canStartGeneration = !!selectedPersonPhotoUrl && hasRequiredDialogue && !hasInsufficientCredits && !isMaintenanceMode;
 
   // Check KIE credits on page load
@@ -432,7 +432,7 @@ const formatDurationLabel = (seconds: number) => {
         progress: 5,
         stage: 'Queued',
         product: selectedProductName || undefined,
-        videoModel: DEFAULT_VIDEO_MODEL,
+        videoModel: selectedModel,
         videoDuration: `${videoDuration}`,
         videoAspectRatio: format,
         coverUrl: undefined,
@@ -446,7 +446,7 @@ const formatDurationLabel = (seconds: number) => {
         feature: 'avatar_ads',
         surface: 'avatar_ads_page',
         workflow: isTalkingHeadMode ? 'talking_head' : 'product_avatar_ads',
-        video_model: DEFAULT_VIDEO_MODEL,
+        video_model: selectedModel,
         duration_seconds: Number(videoDuration),
         aspect_ratio: format,
         credits_cost: requiredCredits
@@ -461,12 +461,18 @@ const formatDurationLabel = (seconds: number) => {
       if (selectedPersonPhotoUrl) {
         formData.append('selected_person_photo_url', selectedPersonPhotoUrl);
       }
+      if (selectedAvatar?.avatar_name) {
+        formData.append('avatar_name', selectedAvatar.avatar_name);
+      }
+      if (selectedAvatar?.avatar_gender) {
+        formData.append('avatar_gender', selectedAvatar.avatar_gender);
+      }
       if (productId) {
         formData.append('selected_product_id', productId);
       }
       formData.append('talking_head_mode', isTalkingHeadMode ? 'true' : 'false');
       formData.append('video_duration_seconds', videoDuration.toString());
-      formData.append('video_model', DEFAULT_VIDEO_MODEL);
+      formData.append('video_model', selectedModel);
       formData.append('video_aspect_ratio', format);
       formData.append('language', resolvedDialogueLanguage);
       if (scriptToSubmit) {
@@ -663,8 +669,12 @@ const formatDurationLabel = (seconds: number) => {
           : typeof project.progress_percentage === 'number'
             ? project.progress_percentage
             : gen.progress;
-        const stageLabel = payload.stepMessages?.[project.current_step ?? '']
-          || getStageLabel(computedStatus, project.current_step);
+        const stageLabel = computedStatus === 'completed' || computedStatus === 'failed'
+          ? getStageLabel(computedStatus, project.current_step)
+          : (
+            payload.stepMessages?.[project.current_step ?? '']
+            || getStageLabel(computedStatus, project.current_step)
+          );
         console.log(`✏️ [Avatar Ads Realtime] Updating generation: status ${gen.status} → ${computedStatus}, progress ${gen.progress} → ${progressValue}`);
         return {
           ...gen,
@@ -678,7 +688,8 @@ const formatDurationLabel = (seconds: number) => {
           videoDuration: project.video_duration_seconds?.toString() || gen.videoDuration,
           videoAspectRatio: project.video_aspect_ratio || gen.videoAspectRatio,
           downloaded: project.downloaded ?? gen.downloaded,
-          creditsCost: project.credits_cost ?? gen.creditsCost
+          creditsCost: project.credits_cost ?? gen.creditsCost,
+          error: project.error_message || gen.error
         };
       });
       if (!found) {
@@ -688,7 +699,7 @@ const formatDurationLabel = (seconds: number) => {
       console.log(`✅ [Avatar Ads Realtime] Successfully updated generation for ${projectId}`);
       return sortGenerations(next);
     });
-  }, [notifyProjectStatus]);
+  }, []);
 
   useEffect(() => {
     generations.forEach((gen) => {
@@ -711,15 +722,25 @@ const formatDurationLabel = (seconds: number) => {
       .map((gen) => gen.projectId as string);
     return Array.from(new Set(ids));
   }, [generations]);
+  const activeProjectIdsKey = useMemo(
+    () => activeProjectIds.slice().sort().join('|'),
+    [activeProjectIds]
+  );
 
   // ✅ Realtime subscription for active projects (NO MORE POLLING!)
   useEffect(() => {
-    if (!activeProjectIds.length) {
+    if (!isLoaded || !user?.id) {
+      console.log('[Avatar Ads Realtime] Waiting for authenticated user before subscribing');
+      return;
+    }
+
+    if (!activeProjectIdsKey) {
       console.log('[Avatar Ads Realtime] No active projects to monitor');
       return;
     }
 
-    console.log('[Avatar Ads Realtime] Setting up subscriptions for', activeProjectIds.length, 'projects:', activeProjectIds);
+    const projectIds = activeProjectIdsKey.split('|').filter(Boolean);
+    console.log('[Avatar Ads Realtime] Setting up subscriptions for', projectIds.length, 'projects:', projectIds);
 
     const channels: RealtimeChannel[] = [];
     const abortController = new AbortController();
@@ -760,7 +781,7 @@ const formatDurationLabel = (seconds: number) => {
     };
 
     // Initial fetch + subscribe pattern for each project
-    activeProjectIds.forEach((projectId) => {
+    projectIds.forEach((projectId) => {
       // 1) Fetch initial state (in case project was updated while page was closed)
       const initialFetch = async () => {
         console.log(`🚀 [Avatar Ads Realtime] Starting initial fetch for ${projectId}...`);
@@ -807,11 +828,15 @@ const formatDurationLabel = (seconds: number) => {
             }
           }
         )
-        .subscribe((status) => {
+        .subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
             console.log(`✅ [Avatar Ads Realtime] Subscribed to project ${projectId}`);
           } else if (status === 'CHANNEL_ERROR') {
-            console.error(`❌ [Avatar Ads Realtime] Failed to subscribe to project ${projectId}`);
+            console.error(`❌ [Avatar Ads Realtime] Failed to subscribe to project ${projectId}:`, err);
+          } else if (status === 'TIMED_OUT') {
+            console.warn(`⏱️ [Avatar Ads Realtime] Subscription timed out for project ${projectId}`);
+          } else if (status === 'CLOSED') {
+            console.log(`🔒 [Avatar Ads Realtime] Subscription closed for project ${projectId}`);
           }
         });
 
@@ -826,7 +851,7 @@ const formatDurationLabel = (seconds: number) => {
         supabase.removeChannel(channel);
       });
     };
-  }, [activeProjectIds, supabase, updateGenerationFromStatus]);
+  }, [activeProjectIdsKey, isLoaded, supabase, updateGenerationFromStatus, user?.id]);
 
   const handleDownloadGeneration = useCallback(async (generation: AvatarGeneration) => {
     if (!user?.id) {
@@ -961,6 +986,35 @@ const formatDurationLabel = (seconds: number) => {
     } catch (error) {
       console.error('Error regenerating image:', error);
       showError(error instanceof Error ? error.message : 'Failed to regenerate image.');
+    }
+  }, [showSuccess, showError, refetchCredits]);
+
+  const handleRegenerateVideo = useCallback(async (projectId: string, updatedPrompts: any) => {
+    try {
+      const response = await fetch(`/api/avatar-ads/${projectId}/regenerate-video`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ updatedPrompts }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to regenerate video');
+      }
+
+      trackEvent(ANALYTICS_EVENTS.avatar_ads_video_regenerated, {
+        feature: 'avatar_ads',
+        surface: 'avatar_ads_page',
+        project_id: projectId,
+      });
+      showSuccess('Video regeneration started!');
+      // ✅ No manual refresh needed - Realtime will auto-update
+      refetchCredits(); // In case video regeneration costs credits
+    } catch (error) {
+      console.error('Error regenerating video:', error);
+      showError(error instanceof Error ? error.message : 'Failed to regenerate video.');
     }
   }, [showSuccess, showError, refetchCredits]);
 
@@ -1295,21 +1349,23 @@ const formatDurationLabel = (seconds: number) => {
                                 </div>
                               }          configButton={
             <ConfigPopover
-              selectedModel={DEFAULT_VIDEO_MODEL}
-              onModelChange={() => {}}
+              selectedModel={selectedModel}
+              onModelChange={setSelectedModel}
               userCredits={userCredits || 0}
-              hideModelSelector={true}
               hideDurationSelector={true}
               selectedLanguage={selectedLanguage}
               onLanguageChange={setSelectedLanguage}
               hideFormatSelector={true}
               variant="minimal"
+              videoDuration={videoDuration}
+              hiddenModels={['seedance_2']}
             />
           }
           onGenerate={handleStartGeneration}
           canGenerate={canStartGeneration}
           isGenerating={false}
-          generationCost={requiredCredits}
+          generationCost={estimatedGenerationCost}
+          generationCostPrefix="Est."
           userCredits={userCredits || 0}
           maintenanceMode={isMaintenanceMode}
           maintenanceLabel="Maintenance"
@@ -1324,6 +1380,7 @@ const formatDurationLabel = (seconds: number) => {
           onClose={handleCloseInspector}
           onConfirmGeneration={handleConfirmGeneration}
           onRegenerateImage={handleRegenerateImage}
+          onRegenerateVideo={handleRegenerateVideo}
           characterMentions={avatarMentionOptions}
           productMentions={productMentionOptions}
         />

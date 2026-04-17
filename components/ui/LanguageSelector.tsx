@@ -23,6 +23,7 @@ const LANGUAGE_OPTIONS: Array<{
 }> = [
   { value: 'en', label: 'English', nativeName: 'English', flag: '🇺🇸' },
   { value: 'zh', label: 'Chinese (Mandarin)', nativeName: '中文（普通话）', flag: '🇨🇳' },
+  { value: 'zh_yue', label: 'Chinese (Cantonese)', nativeName: '中文粤语', flag: '🇨🇳' },
   { value: 'ja', label: 'Japanese', nativeName: '日本語', flag: '🇯🇵' },
   { value: 'ko', label: 'Korean', nativeName: '한국어', flag: '🇰🇷' },
   { value: 'es', label: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },

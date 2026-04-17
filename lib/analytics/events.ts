@@ -35,6 +35,7 @@ export const ANALYTICS_EVENTS = {
   avatar_ads_video_generation_started: 'avatar_ads_video_generation_started',
   avatar_ads_video_generation_completed: 'avatar_ads_video_generation_completed',
   avatar_ads_video_generation_failed: 'avatar_ads_video_generation_failed',
+  avatar_ads_video_regenerated: 'avatar_ads_video_regenerated',
   avatar_ads_download_started: 'avatar_ads_download_started',
   avatar_ads_download_completed: 'avatar_ads_download_completed',
   avatar_ads_download_failed: 'avatar_ads_download_failed',

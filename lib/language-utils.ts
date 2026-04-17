@@ -15,6 +15,7 @@ import { LanguageCode, LANGUAGE_NAMES, LANGUAGE_NATIVE_NAMES } from '@/lib/const
 const LANGUAGE_FLAG_MAP: Record<LanguageCode, string> = {
   'en': '🇺🇸', // English - United States
   'zh': '🇨🇳', // Chinese (Mandarin) - China
+  'zh_yue': '🇨🇳', // Chinese (Cantonese) - China
   'ja': '🇯🇵', // Japanese - Japan
   'ko': '🇰🇷', // Korean - South Korea
   'es': '🇪🇸', // Spanish - Spain

@@ -12,6 +12,7 @@ import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
+import { buildMentionToken, MENTION_TOKEN_REGEX } from '@/lib/prompt-mention-tokens';
 
 // Define the shape of the structured video prompt
 export interface StructuredVideoPrompt {
@@ -48,6 +49,7 @@ interface AvatarAdInspectorProps {
   onConfirmGeneration: (projectId: string, updatedPrompts: any) => Promise<void>;
   onRefetchProjectStatus?: (projectId: string) => void; // ✅ Optional - no longer needed with Realtime
   onRegenerateImage: (projectId: string, imagePrompt: string) => Promise<void>;
+  onRegenerateVideo: (projectId: string, updatedPrompts: any) => Promise<void>;
   characterMentions?: MentionOption[];
   productMentions?: MentionOption[];
 }
@@ -77,12 +79,62 @@ const buildDialogueOnlyPrompts = (
   })) || []
 });
 
+const buildPromptUpdatePayload = (
+  generatedPrompts: InspectorProject['generated_prompts'],
+  imagePrompt: string,
+  editedScenes: StructuredVideoPrompt[]
+) => {
+  const updatedPrompts = buildDialogueOnlyPrompts(generatedPrompts, imagePrompt, editedScenes);
+  return {
+    updatedPrompts,
+    imagePrompt,
+  };
+};
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const tokenizePromptMentions = (
+  value: string,
+  characterMentions: MentionOption[],
+  productMentions: MentionOption[]
+) => {
+  if (!value.trim()) return value;
+
+  MENTION_TOKEN_REGEX.lastIndex = 0;
+  if (MENTION_TOKEN_REGEX.test(value)) {
+    MENTION_TOKEN_REGEX.lastIndex = 0;
+    return value;
+  }
+
+  const mentionItems = [
+    ...characterMentions.map((item) => ({ ...item, type: 'character' as const })),
+    ...productMentions.map((item) => ({ ...item, type: 'product' as const })),
+  ]
+    .filter((item) => item.label.trim().length > 0)
+    .sort((a, b) => b.label.length - a.label.length);
+
+  if (mentionItems.length === 0) {
+    return value;
+  }
+
+  let nextValue = value;
+
+  for (const item of mentionItems) {
+    const token = buildMentionToken({ type: item.type, label: item.label });
+    const pattern = new RegExp(`(^|[^A-Za-z0-9_@])(${escapeRegExp(item.label)})(?=$|[^A-Za-z0-9_])`, 'gi');
+    nextValue = nextValue.replace(pattern, (match, prefix, label) => `${prefix}${token}`);
+  }
+
+  return nextValue;
+};
+
 export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   projectId,
   open,
   onClose,
   onConfirmGeneration,
   onRegenerateImage,
+  onRegenerateVideo,
   characterMentions = [],
   productMentions = [],
 }) => {
@@ -106,6 +158,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
     (Array.isArray(project?.generated_video_urls) ? project?.generated_video_urls[0] : undefined) ||
     undefined;
   const hasGeneratedImage = Boolean(project?.generated_image_url);
+  const hasGeneratedVideos = Boolean(project?.merged_video_url) || Boolean(project?.generated_video_urls?.length);
   const isGeneratingVideo =
     project?.status === 'generating_videos' ||
     project?.current_step === 'generating_videos';
@@ -203,7 +256,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
 
     if (project && (!isInitialized.current || isProjectSwitch)) {
       if (project.image_prompt) {
-        setEditedImagePrompt(project.image_prompt);
+        setEditedImagePrompt(tokenizePromptMentions(project.image_prompt, characterMentions, productMentions));
       }
       if (project.generated_prompts?.scenes?.length) {
         setEditedScenes(project.generated_prompts.scenes.map(scene => normalizeScenePromptForEditor(scene.prompt)));
@@ -213,7 +266,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
       isInitialized.current = true;
       previousProjectIdRef.current = projectId;
     }
-  }, [project, projectId]);
+  }, [project, projectId, characterMentions, productMentions]);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -267,11 +320,26 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
     setIsRegeneratingImage(true);
     try {
       await onRegenerateImage(projectId, editedImagePrompt);
-      showSuccess('Image regeneration requested!');
+      // Toast is shown in handleRegenerateImage in AvatarAdsPage
     } catch (error) {
       console.error('Error regenerating image:', error);
       showError(error instanceof Error ? error.message : 'Failed to regenerate image.');
       setIsRegeneratingImage(false);
+    }
+  };
+
+  const handleRegenerateVideoClick = async () => {
+    if (!project) return;
+    setSubmitting(true);
+    try {
+      const payload = buildPromptUpdatePayload(project.generated_prompts, editedImagePrompt, editedScenes);
+      await onRegenerateVideo(projectId, payload.updatedPrompts);
+      // Toast is shown in handleRegenerateVideo in AvatarAdsPage
+    } catch (error) {
+      console.error('Error regenerating video:', error);
+      showError(error instanceof Error ? error.message : 'Failed to regenerate video.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -281,19 +349,27 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
 
     setAutoSaveStatus('saving');
     try {
-      const updatedGeneratedPrompts = {
-        ...buildDialogueOnlyPrompts(project.generated_prompts, editedImagePrompt, editedScenes)
-      };
+      const payload = buildPromptUpdatePayload(project.generated_prompts, editedImagePrompt, editedScenes);
 
       const response = await fetch(`/api/avatar-ads/${projectId}/update-prompts`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updatedPrompts: updatedGeneratedPrompts })
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
         throw new Error('Failed to save prompts');
       }
+
+      setProject((prev) => (
+        prev
+          ? {
+              ...prev,
+              image_prompt: payload.imagePrompt,
+              generated_prompts: payload.updatedPrompts,
+            }
+          : prev
+      ));
 
       setAutoSaveStatus('saved');
 
@@ -353,16 +429,20 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
 
     setSubmitting(true);
     try {
-      const updatedGeneratedPrompts = {
-        ...buildDialogueOnlyPrompts(project.generated_prompts, editedImagePrompt, editedScenes)
-      };
+      const payload = buildPromptUpdatePayload(project.generated_prompts, editedImagePrompt, editedScenes);
 
-      await onConfirmGeneration(projectId, updatedGeneratedPrompts);
+      await onConfirmGeneration(projectId, payload.updatedPrompts);
       // Optimistic update: make generation state visible immediately,
       // then Realtime/status polling will keep it in sync.
       setProject((prev) => (
         prev
-          ? { ...prev, status: 'generating_videos', current_step: 'generating_videos' }
+          ? {
+              ...prev,
+              image_prompt: payload.imagePrompt,
+              generated_prompts: payload.updatedPrompts,
+              status: 'generating_videos',
+              current_step: 'generating_videos',
+            }
           : prev
       ));
       await fetchProjectDetails();
@@ -514,7 +594,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                               {isRegeneratingImage && (
                                 <div className="avatar-ads-editor-media-overlay absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm text-gray-900 p-4 z-10">
                                   <Loader2 className="w-6 h-6 animate-spin mb-2" />
-                                  <p className="text-xs font-medium">Regenerating...</p>
+                                  <p className="text-xs font-medium">{hasGeneratedImage ? 'Regenerating...' : 'Generating...'}</p>
                                 </div>
                               )}
                             </div>
@@ -534,6 +614,9 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                               Image Prompt
                             </div>
                           </div>
+                          <p className="avatar-ads-editor-helper text-sm text-gray-500">
+                            Type `@` to insert a character or product reference.
+                          </p>
                           <div className="flex-1 min-h-0">
                             <PromptMentionTextarea
                               value={editedImagePrompt}
@@ -543,6 +626,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                               productMentions={productMentions}
                               className="text-sm p-3 bg-white"
                               preventHorizontalScroll
+                              renderHighlightsWhileFocused
                               placeholder="Describe the character and setting..."
                             />
                           </div>
@@ -591,7 +675,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                 </button>
 
                 <button
-                  onClick={handleConfirm}
+                  onClick={hasGeneratedVideos ? handleRegenerateVideoClick : handleConfirm}
                   disabled={submitting || loading || !project || isGeneratingVideo}
                   className="landing-press-button landing-press-button--compact text-sm font-semibold"
                 >
@@ -603,7 +687,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
                   ) : (
                     <>
                       <Film className="w-4 h-4" />
-                      Generate Video
+                      {hasGeneratedVideos ? 'Regenerate Video' : 'Generate Video'}
                       <span className="ml-1 inline-flex items-center gap-1 rounded-lg border border-emerald-900 bg-emerald-800 px-2 py-0.5 text-[11px] font-bold text-white">
                         <Coins className="h-3 w-3" />
                         {project?.credits_cost ?? 0}

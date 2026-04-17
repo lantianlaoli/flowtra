@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, Sparkles } from 'lucide-react';
+import { AlertTriangle, Sparkles, Coins } from 'lucide-react';
 import { ReactNode } from 'react';
 import { useI18n } from '@/providers/I18nProvider';
 
@@ -20,6 +20,7 @@ interface BottomComposerBarProps {
   canGenerate: boolean;
   isGenerating?: boolean;
   generationCost?: number;
+  generationCostPrefix?: string;
   userCredits?: number;
   generateButtonText?: string;
   maintenanceMode?: boolean;
@@ -72,6 +73,7 @@ export default function BottomComposerBar({
   canGenerate,
   isGenerating = false,
   generationCost = 0,
+  generationCostPrefix,
   userCredits = 0,
   generateButtonText = 'Generate',
   maintenanceMode = false,
@@ -156,6 +158,15 @@ export default function BottomComposerBar({
                 <Sparkles className="w-4 h-4 flex-shrink-0" />
               )}
               <span>{buttonLabel}</span>
+              {!maintenanceMode && generationCost > 0 && !isGenerating && (
+                <>
+                  <span className="opacity-60">·</span>
+                  <Coins className="w-3.5 h-3.5 flex-shrink-0 opacity-80" />
+                  <span className="text-xs opacity-90">
+                    {generationCostPrefix ? `${generationCostPrefix} ` : ''}{generationCost}
+                  </span>
+                </>
+              )}
             </button>
           </div>
         </div>

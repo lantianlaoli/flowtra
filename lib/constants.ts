@@ -6,7 +6,8 @@
 export const GENERATION_COSTS = {
   'seedance_2_fast': 33, // Seedance 2 Fast: 33 credits per second
   'seedance_2': 41, // Seedance 2: 41 credits per second
-  'kling_3': 27 // Kling 3.0 Pro (1080p + audio): 27 credits per second
+  'kling_3': 27, // Kling 3.0 Pro (1080p + audio): 27 credits per second
+  'wan_27': 24 // Wan 2.7 (1080p): 24 credits per second
 } as const;
 
 export const KLING_QUALITY_COSTS = {
@@ -43,13 +44,15 @@ export const NON_AGENT_IMAGE_OUTPUT_FORMAT = 'png' as const;
 export const VIDEO_ASPECT_RATIO_OPTIONS = {
   'seedance_2_fast': ['16:9', '9:16'],
   'seedance_2': ['16:9', '9:16'],
-  'kling_3': ['16:9', '9:16']
+  'kling_3': ['16:9', '9:16'],
+  'wan_27': ['16:9', '9:16']
 } as const
 // Processing times for different video models
 export const MODEL_PROCESSING_TIMES = {
   'seedance_2_fast': '1-2 min',
   'seedance_2': '2-4 min',
-  'kling_3': '2-4 min'            // Kling 3.0 Pro: 2-4 minutes processing time
+  'kling_3': '2-4 min',            // Kling 3.0 Pro: 2-4 minutes processing time
+  'wan_27': '2-4 min'              // Wan 2.7: 2-4 minutes processing time
 } as const
 // Replica photo generation credits (reference photo mode)
 export const REPLICA_PHOTO_CREDITS = {
@@ -178,7 +181,7 @@ export function getSegmentVideoGenerationCost(
     return Math.ceil(duration) * perSecondCost;
   }
 
-  if (model === 'seedance_2_fast' || model === 'seedance_2') {
+  if (model === 'seedance_2_fast' || model === 'seedance_2' || model === 'wan_27') {
     return getCloneSegmentVideoGenerationCost(model, segmentDurationSeconds, normalizedCloneQuality);
   }
 
@@ -277,13 +280,14 @@ export type VideoQuality = 'standard' | 'high';
 export type CloneVideoQuality = '480p' | '720p' | '1080p' | '4k';
 export type PersistedVideoQuality = VideoQuality | CloneVideoQuality;
 export type VideoDuration = `${number}`;
-export type VideoModel = 'seedance_2_fast' | 'seedance_2' | 'kling_3';
+export type VideoModel = 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27';
 
 // Video model display names for UI
 export const VIDEO_MODEL_DISPLAY_NAMES: Record<VideoModel, string> = {
   'seedance_2_fast': 'Seedance 2 Fast',
   'seedance_2': 'Seedance 2',
-  'kling_3': 'Kling 3.0'
+  'kling_3': 'Kling 3.0',
+  'wan_27': 'Wan 2.7'
 } as const;
 
 export function getVideoModelDisplayName(model: VideoModel): string {
@@ -293,7 +297,8 @@ export function getVideoModelDisplayName(model: VideoModel): string {
 export const LANDING_PRICING_VIDEO_MODELS: readonly VideoModel[] = [
   'seedance_2_fast',
   'seedance_2',
-  'kling_3'
+  'kling_3',
+  'wan_27'
 ] as const;
 
 export function getApproxVideoMinutesFromCredits(
@@ -357,6 +362,9 @@ export function getPackageModelDurationRows(
 }
 
 export function getDefaultCloneVideoQuality(model: VideoModel): CloneVideoQuality {
+  if (model === 'wan_27') {
+    return '1080p';
+  }
   if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2') {
     return '720p';
   }
@@ -372,6 +380,10 @@ export function normalizeCloneVideoQualityForModel(
     : quality === 'high'
       ? '1080p'
       : quality;
+
+  if (model === 'wan_27') {
+    return normalized === '1080p' ? '1080p' : '1080p';
+  }
 
   if (model === 'kling_3') {
     return normalized === '1080p' ? '1080p' : '720p';
@@ -413,7 +425,7 @@ export function getCloneSegmentVideoGenerationCost(
     return effectiveDuration * perSecondCost;
   }
 
-  if (model === 'seedance_2_fast' || model === 'seedance_2') {
+  if (model === 'seedance_2_fast' || model === 'seedance_2' || model === 'wan_27') {
     const duration = Number(segmentDurationSeconds);
     const effectiveDuration = Number.isFinite(duration) && duration > 0
       ? Math.ceil(duration)
@@ -467,6 +479,11 @@ export const MODEL_CAPABILITIES: ModelCapabilities[] = [
     model: 'kling_3',
     supportedQualities: ['standard'],
     supportedDurations: Array.from({ length: 58 }, (_, index) => String(index + 3) as VideoDuration)
+  },
+  {
+    model: 'wan_27',
+    supportedQualities: ['standard'],
+    supportedDurations: Array.from({ length: 14 }, (_, index) => String(index + 2) as VideoDuration)
   }
 ];
 
@@ -557,6 +574,9 @@ export function getSegmentDurationForModel(model?: VideoModel | null): number {
   if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2') {
     return KLING_MAX_TASK_DURATION_SECONDS;
   }
+  if (model === 'wan_27') {
+    return 15; // Wan 2.7 max task duration is 15s
+  }
   return DEFAULT_SEGMENT_DURATION_SECONDS;
 }
 
@@ -567,6 +587,15 @@ export function getSegmentCountFromDuration(videoDuration?: string | null, model
       return 1;
     }
     return Math.max(1, Math.ceil(klingDuration / KLING_MAX_TASK_DURATION_SECONDS));
+  }
+
+  if (model === 'wan_27') {
+    const wanDuration = Number(videoDuration);
+    const wanMaxDuration = 15;
+    if (!Number.isFinite(wanDuration) || wanDuration <= wanMaxDuration) {
+      return 1;
+    }
+    return Math.max(1, Math.ceil(wanDuration / wanMaxDuration));
   }
 
   const duration = Number(videoDuration);
@@ -586,6 +615,12 @@ export function snapDurationToModel(model: VideoModel, targetSeconds: number): V
     const normalized = Math.round(targetSeconds);
     const minDuration = model === 'kling_3' ? KLING_MIN_TASK_DURATION_SECONDS : SEEDANCE_MIN_TASK_DURATION_SECONDS;
     const bounded = Math.max(minDuration, Math.min(KLING_MAX_PROJECT_DURATION_SECONDS, normalized));
+    return String(bounded) as VideoDuration;
+  }
+
+  if (model === 'wan_27') {
+    const normalized = Math.round(targetSeconds);
+    const bounded = Math.max(2, Math.min(15, normalized));
     return String(bounded) as VideoDuration;
   }
 
@@ -634,16 +669,17 @@ export function getRecommendedModel(
 // ===== LANGUAGE SUPPORT =====
 
 export type LanguageCode =
-  | 'en' | 'zh' | 'ja' | 'ko' | 'es' | 'fr' | 'de' | 'pt';
+  | 'en' | 'zh' | 'zh_yue' | 'ja' | 'ko' | 'es' | 'fr' | 'de' | 'pt';
 
 export const SUPPORTED_LANGUAGE_CODES: LanguageCode[] = [
-  'en', 'zh', 'ja', 'ko', 'es', 'fr', 'de', 'pt'
+  'en', 'zh', 'zh_yue', 'ja', 'ko', 'es', 'fr', 'de', 'pt'
 ];
 
 // Language code to display name mapping
 export const LANGUAGE_NAMES: Record<LanguageCode, string> = {
   'en': 'English',
   'zh': 'Chinese (Mandarin)',
+  'zh_yue': 'Chinese (Cantonese)',
   'ja': 'Japanese',
   'ko': 'Korean',
   'es': 'Spanish',
@@ -656,6 +692,7 @@ export const LANGUAGE_NAMES: Record<LanguageCode, string> = {
 export const LANGUAGE_NATIVE_NAMES: Record<LanguageCode, string> = {
   'en': 'English',
   'zh': '中文（普通话）',
+  'zh_yue': '中文粤语',
   'ja': '日本語',
   'ko': '한국어',
   'es': 'Español',
@@ -668,6 +705,7 @@ export const LANGUAGE_NATIVE_NAMES: Record<LanguageCode, string> = {
 export const LANGUAGE_PROMPT_NAMES: Record<LanguageCode, string> = {
   'en': 'English',
   'zh': 'Chinese (Mandarin)',
+  'zh_yue': 'Chinese (Cantonese)',
   'ja': 'Japanese (日本語)',
   'ko': 'Korean (한국어)',
   'es': 'Spanish (Español)',
@@ -709,6 +747,7 @@ export function getLanguageVoiceStyle(code: LanguageCode): string {
   const voiceStyleMap: Record<LanguageCode, string> = {
     'en': 'English accent',
     'zh': 'Mandarin Chinese accent',
+    'zh_yue': 'Cantonese Chinese accent',
     'ja': 'Japanese accent',
     'ko': 'Korean accent',
     'es': 'Spanish accent',

@@ -7,7 +7,7 @@ const isWordChar = (char: string) => /[A-Za-z0-9_-]/.test(char);
 
 const isValidMentionStart = (text: string, index: number) => {
   if (index === 0) return true;
-  return /\s/.test(text[index - 1]);
+  return !/[A-Za-z0-9_)]/.test(text[index - 1]);
 };
 
 export const getActiveMentionQuery = (text: string, caret: number): ActiveMentionQuery | null => {

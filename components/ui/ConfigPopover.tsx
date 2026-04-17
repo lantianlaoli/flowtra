@@ -36,6 +36,7 @@ interface ConfigPopoverProps {
   userCredits?: number;
   disabledModels?: VideoModel[];
   disabledModelReasons?: Partial<Record<VideoModel, string>>;
+  hiddenModels?: VideoModel[];
   hideModelSelector?: boolean;
 
   // Quality props
@@ -82,6 +83,7 @@ export default function ConfigPopover({
   userCredits = 0,
   disabledModels = [],
   disabledModelReasons = {},
+  hiddenModels,
   hideModelSelector = false,
   selectedVideoQuality,
   onVideoQualityChange,
@@ -324,6 +326,7 @@ export default function ConfigPopover({
             videoQuality={selectedVideoQuality}
             disabledModels={disabledModels}
             disabledModelReasons={disabledModelReasons}
+            hiddenModels={hiddenModels}
             label={copy.videoModel}
             showIcon
           />

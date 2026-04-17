@@ -9,6 +9,7 @@ type AvatarPhotoLike = {
 export type SystemAvatar = {
   id: string;
   avatar_name: string;
+  avatar_gender?: 'male' | 'female' | null;
   photo_url: string;
   file_name: string;
   primary_photo_url: string;
@@ -48,11 +49,13 @@ const createReferencePhoto = (fileName: string): AvatarPhotoEntry => ({
 const createSystemAvatar = ({
   id,
   avatarName,
+  avatarGender,
   primaryFileName,
   referenceFileNames,
 }: {
   id: string;
   avatarName: string;
+  avatarGender?: 'male' | 'female' | null;
   primaryFileName: string;
   referenceFileNames: [string, string, string];
 }): SystemAvatar => {
@@ -62,6 +65,7 @@ const createSystemAvatar = ({
   return {
     id,
     avatar_name: avatarName,
+    avatar_gender: avatarGender,
     photo_url: primaryPhotoUrl,
     file_name: primaryFileName,
     primary_photo_url: primaryPhotoUrl,
@@ -116,24 +120,28 @@ export const SYSTEM_AVATARS: SystemAvatar[] = [
   createSystemAvatar({
     id: 'system-default-ethan',
     avatarName: 'Ethan Walker',
+    avatarGender: 'male',
     primaryFileName: 'ethan_walker.png',
     referenceFileNames: ['ethan_walker_left.png', 'ethan_walker_back.png', 'ethan_walker_right.png'],
   }),
   createSystemAvatar({
     id: 'system-default-lin',
     avatarName: 'Lin Yuqing',
+    avatarGender: 'female',
     primaryFileName: 'lin_yuqing.png',
     referenceFileNames: ['lin_yuqing_left.png', 'lin_yuqing_back.png', 'lin_yuqing_right.png'],
   }),
   createSystemAvatar({
     id: 'system-default-misaki',
     avatarName: 'Misaki Sato',
+    avatarGender: 'female',
     primaryFileName: 'misaki_sato.png',
     referenceFileNames: ['misaki_sato_left.png', 'misaki_sato_back.png', 'misaki_sato_right.png'],
   }),
   createSystemAvatar({
     id: 'system-default-sofia',
     avatarName: 'Sofia Garcia',
+    avatarGender: 'female',
     primaryFileName: 'sofia_garcia.png',
     referenceFileNames: ['sofia_garcia_left.png', 'sofia_garcia_back.png', 'sofia_garcia_right.png'],
   }),

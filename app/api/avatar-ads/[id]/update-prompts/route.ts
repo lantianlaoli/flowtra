@@ -59,10 +59,15 @@ export async function PATCH(
     }
 
     // Update only the generated_prompts field (no status change)
+    const nextImagePrompt = typeof updatedPrompts?.image_prompt === 'string'
+      ? updatedPrompts.image_prompt
+      : null;
+
     const { data: updatedProject, error: updateError } = await supabase
       .from('avatar_ads_projects')
       .update({
         generated_prompts: updatedPrompts,
+        image_prompt: nextImagePrompt,
         updated_at: new Date().toISOString()
       })
       .eq('id', projectId)

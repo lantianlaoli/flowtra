@@ -24,6 +24,7 @@ export const LANGUAGE_SPEECH_RATES: Record<string, LanguageSpeedConfig> = {
   'it': { wordsPerMinute: 142, pauseMultiplier: 1.21 },
   'pt': { wordsPerMinute: 138, pauseMultiplier: 1.22 },
   'zh': { charactersPerMinute: 240, pauseMultiplier: 1.20 }, // Slower Mandarin pacing
+  'zh_yue': { charactersPerMinute: 230, pauseMultiplier: 1.22 }, // Cantonese - slightly slower than Mandarin
   'ja': { charactersPerMinute: 255, pauseMultiplier: 1.18 },
   'ko': { charactersPerMinute: 270, pauseMultiplier: 1.16 },
   'ar': { wordsPerMinute: 122, pauseMultiplier: 1.30 },

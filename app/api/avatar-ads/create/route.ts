@@ -4,21 +4,24 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { uploadImageToStorage } from '@/lib/supabase';
 import {
   getGenerationCost,
+  getModelSupportedDurations,
   KLING_MAX_PROJECT_DURATION_SECONDS,
-  KLING_MIN_TASK_DURATION_SECONDS
+  KLING_MIN_TASK_DURATION_SECONDS,
+  type VideoModel
 } from '@/lib/constants';
 import { validateKieCredits } from '@/lib/kie-credits-check';
 import { deductCredits, recordCreditTransaction } from '@/lib/credits';
-import { AVATAR_ADS_DURATION_OPTIONS } from '@/lib/avatar-ads-dialogue';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
 import { verifyInternalUserRequest } from '@/lib/security/internal-request';
 import { resolveAvatarSpokenLanguage } from '@/lib/avatar-spoken-language';
 import { isSystemProductId } from '@/lib/default-products';
 import { resolveProductForUser } from '@/lib/product-resolution';
+import { estimateAvatarAdsSingleSceneDurationSeconds } from '@/lib/avatar-ads-duration-estimate';
 
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const AVATAR_ADS_PERSISTED_IMAGE_MODEL = 'nano-banana-2' as const;
+const PUBLIC_AVATAR_ADS_VIDEO_MODELS: VideoModel[] = ['seedance_2_fast', 'kling_3', 'wan_27'];
 
 export async function POST(request: NextRequest) {
   try {
@@ -58,6 +61,9 @@ export async function POST(request: NextRequest) {
     const customDialogue = (formData.get('custom_dialogue') as string) || '';
     const videoAspectRatio = '9:16';
     const selectedPersonPhotoUrl = formData.get('selected_person_photo_url') as string;
+    const avatarName = formData.get('avatar_name') as string | null;
+    const avatarGenderRaw = formData.get('avatar_gender') as string | null;
+    const avatarGender = (avatarGenderRaw === 'male' || avatarGenderRaw === 'female') ? avatarGenderRaw : null;
     const selectedProductId = formData.get('selected_product_id') as string;
     const configuredLanguage = (formData.get('language') as string) || 'en';
     const providedResolvedSpokenLanguage = (formData.get('resolved_spoken_language') as string | null) || null;
@@ -122,31 +128,30 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (!PUBLIC_AVATAR_ADS_VIDEO_MODELS.includes(videoModel as VideoModel)) {
+      return NextResponse.json(
+        { error: 'Invalid video model' },
+        { status: 400 }
+      );
+    }
+
+    const requestedVideoModel = videoModel as VideoModel;
+    const supportedDurations = new Set(getModelSupportedDurations(requestedVideoModel));
+    const normalizedDuration = String(videoDurationSeconds);
     const isAgentKlingDuration = (
       isInternalAgentRequest &&
-      videoModel === 'kling_3' &&
+      requestedVideoModel === 'kling_3' &&
       Number.isFinite(videoDurationSeconds) &&
       videoDurationSeconds >= KLING_MIN_TASK_DURATION_SECONDS &&
       videoDurationSeconds <= KLING_MAX_PROJECT_DURATION_SECONDS
     );
 
-    // Validate video duration
     if (
-      !isAgentKlingDuration &&
-      !AVATAR_ADS_DURATION_OPTIONS.includes(videoDurationSeconds as typeof AVATAR_ADS_DURATION_OPTIONS[number])
+      !supportedDurations.has(normalizedDuration as ReturnType<typeof getModelSupportedDurations>[number]) &&
+      !isAgentKlingDuration
     ) {
       return NextResponse.json(
-        { error: 'Invalid video duration.' },
-        { status: 400 }
-      );
-    }
-
-    // Validate models
-    const validVideoModels = isInternalAgentRequest ? ['seedance_2_fast', 'kling_3'] : ['seedance_2_fast'];
-
-    if (!validVideoModels.includes(videoModel)) {
-      return NextResponse.json(
-        { error: 'Invalid video model' },
+        { error: `Invalid video duration for ${requestedVideoModel}` },
         { status: 400 }
       );
     }
@@ -278,10 +283,19 @@ export async function POST(request: NextRequest) {
       productImageUrls.push(uploadResult.publicUrl);
     }
 
-    const resolvedVideoModel: 'kling_3' | 'seedance_2_fast' = videoModel === 'kling_3' && isInternalAgentRequest
-      ? 'kling_3'
+    const resolvedVideoModel: VideoModel = PUBLIC_AVATAR_ADS_VIDEO_MODELS.includes(requestedVideoModel)
+      ? requestedVideoModel
       : 'seedance_2_fast';
-    const totalCredits = getGenerationCost(resolvedVideoModel, String(videoDurationSeconds));
+    const normalizedVideoDurationSeconds = prebuiltPrompts
+      ? videoDurationSeconds
+      : (
+        estimateAvatarAdsSingleSceneDurationSeconds(
+          trimmedDialogue,
+          resolvedVideoModel,
+          resolvedSpokenLanguage
+        ) || videoDurationSeconds
+      );
+    const totalCredits = getGenerationCost(resolvedVideoModel, String(normalizedVideoDurationSeconds));
 
     const generationCreditsUsed = 0;
 
@@ -301,13 +315,15 @@ export async function POST(request: NextRequest) {
           ? selectedProductId
           : null,
       product_context: productContext,
-      video_duration_seconds: videoDurationSeconds,
+      video_duration_seconds: normalizedVideoDurationSeconds,
       image_model: AVATAR_ADS_PERSISTED_IMAGE_MODEL,
       video_model: resolvedVideoModel,
       video_aspect_ratio: normalizedAspectRatio,
       image_size: enforcedImageSize,
       custom_dialogue: trimmedDialogue,
       language: resolvedSpokenLanguage, // Language used for spoken dialogue generation
+      avatar_name: avatarName, // Name of the selected avatar character
+      avatar_gender: avatarGender, // Gender of the selected avatar character
       credits_cost: totalCredits,
       generation_credits_used: generationCreditsUsed,
       status: 'pending',
@@ -364,7 +380,7 @@ export async function POST(request: NextRequest) {
         project_id: project.id,
         workflow: talkingHeadMode ? 'talking_head' : 'product_avatar_ads',
         video_model: resolvedVideoModel,
-        duration_seconds: videoDurationSeconds,
+        duration_seconds: normalizedVideoDurationSeconds,
         spoken_language: resolvedSpokenLanguage,
         aspect_ratio: normalizedAspectRatio,
         credits_cost: totalCredits,

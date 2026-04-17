@@ -2,7 +2,7 @@
 
 import { useAuth } from '@clerk/nextjs'
 import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 
 type TokenGetter = () => Promise<string | null>
 
@@ -21,7 +21,14 @@ export function createClient(getToken: TokenGetter): SupabaseClient {
   }
 
   const client = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
-    accessToken: async () => getToken()
+    accessToken: async () => getToken(),
+    realtime: {
+      logger: (kind: string, msg: string, data: unknown) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[Supabase Realtime ${kind}]`, msg, data);
+        }
+      },
+    },
   })
 
   clientCache.set(getToken, client)
@@ -30,6 +37,10 @@ export function createClient(getToken: TokenGetter): SupabaseClient {
 
 export function useSupabaseBrowserClient(): SupabaseClient {
   const { getToken, isLoaded } = useAuth()
+  const tokenGetter = useCallback(async () => {
+    const token = await getToken()
+    return token ?? null
+  }, [getToken])
 
   return useMemo(
     () => {
@@ -37,11 +48,8 @@ export function useSupabaseBrowserClient(): SupabaseClient {
         return createClient(nullTokenGetter)
       }
 
-      return createClient(async () => {
-        const token = await getToken()
-        return token ?? null
-      })
+      return createClient(tokenGetter)
     },
-    [getToken, isLoaded]
+    [getToken, isLoaded, tokenGetter]
   )
 }

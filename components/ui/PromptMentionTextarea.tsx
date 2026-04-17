@@ -39,6 +39,7 @@ type PromptMentionTextareaProps = {
   minRequiredPhotos?: number;
   insufficientPhotosLabel?: string;
   className?: string;
+  renderHighlightsWhileFocused?: boolean;
 };
 
 type HighlightSegment =
@@ -106,6 +107,7 @@ export default function PromptMentionTextarea({
   minRequiredPhotos = 2,
   insufficientPhotosLabel = 'Need 2 photos',
   className,
+  renderHighlightsWhileFocused = false,
 }: PromptMentionTextareaProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -303,7 +305,7 @@ export default function PromptMentionTextarea({
           readOnly || disabled ? 'bg-gray-50' : ''
         )}
       >
-        {!isFocused && value ? (
+        {value && (renderHighlightsWhileFocused || !isFocused) ? (
           <div
             className={clsx(
               'pointer-events-none absolute inset-0 z-10 overflow-hidden px-3 py-2 text-sm leading-6 text-[#1f1f1e] whitespace-pre-wrap break-words',
@@ -404,7 +406,9 @@ export default function PromptMentionTextarea({
             'block h-full min-h-0 w-full flex-1 border-0 bg-transparent px-3 py-2 text-sm leading-6 focus:outline-none focus:ring-0',
             preventHorizontalScroll ? 'overflow-x-hidden overflow-y-auto' : 'overflow-auto',
             resizable === 'vertical' ? 'resize-y' : 'resize-none',
-            !isFocused && value ? 'text-transparent caret-transparent selection:bg-transparent selection:text-transparent' : 'text-[#1f1f1e]',
+            value && (renderHighlightsWhileFocused || !isFocused)
+              ? 'text-transparent caret-[#1f1f1e] selection:bg-black/10 selection:text-transparent'
+              : 'text-[#1f1f1e]',
             readOnly || disabled ? 'cursor-not-allowed bg-gray-50' : '',
             className
           )}
