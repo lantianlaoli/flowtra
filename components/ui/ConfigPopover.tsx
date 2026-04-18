@@ -48,6 +48,7 @@ interface ConfigPopoverProps {
   // Language props
   selectedLanguage?: LanguageCode;
   onLanguageChange?: (language: LanguageCode) => void;
+  recommendedLanguage?: LanguageCode | null;
   hideLanguageSelector?: boolean;
 
   // Format props
@@ -91,6 +92,7 @@ export default function ConfigPopover({
   videoQualityOptions,
   selectedLanguage,
   onLanguageChange,
+  recommendedLanguage,
   hideLanguageSelector = false,
   format,
   onFormatChange,
@@ -443,6 +445,7 @@ export default function ConfigPopover({
                   onLanguageChange={onLanguageChange}
                   label="Language"
                   showIcon
+                  recommendedLanguage={recommendedLanguage}
                 />
               )}
 

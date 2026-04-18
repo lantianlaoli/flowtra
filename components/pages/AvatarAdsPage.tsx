@@ -19,6 +19,7 @@ import {
   getGenerationCost,
   getSegmentDurationForModel,
   snapDurationToModel,
+  SUPPORTED_LANGUAGE_CODES,
   type VideoDuration,
   type VideoModel
 } from '@/lib/constants';
@@ -187,6 +188,10 @@ export default function AvatarAdsPage() {
   const [customDialogue, setCustomDialogue] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<UserProduct | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
+  const [recommendedLanguage, setRecommendedLanguage] = useState<LanguageCode | null>(null);
+  const [isDetectingLanguage, setIsDetectingLanguage] = useState(false);
+  const [languageRecommendationError, setLanguageRecommendationError] = useState<string | null>(null);
+  const [hasUserManuallyOverriddenLanguage, setHasUserManuallyOverriddenLanguage] = useState(false);
   const [selectedModel, setSelectedModel] = useState<VideoModel>(DEFAULT_VIDEO_MODEL);
   const [personDropdownOpen, setPersonDropdownOpen] = useState(false);
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
@@ -197,11 +202,18 @@ export default function AvatarAdsPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showExpandCollapseIcon, setShowExpandCollapseIcon] = useState(false);
   const [isLoadingAssets, setIsLoadingAssets] = useState(true);
+  const languageRequestSeqRef = useRef(0);
+  const languageAbortControllerRef = useRef<AbortController | null>(null);
 
   const resolvedDialogueLanguage = useMemo(
     () => resolveAvatarSpokenLanguage({ scriptSource: customDialogue, configuredLanguage: selectedLanguage }),
     [customDialogue, selectedLanguage]
   );
+
+  const handleLanguageChange = useCallback((language: LanguageCode) => {
+    setSelectedLanguage(language);
+    setHasUserManuallyOverriddenLanguage(true);
+  }, []);
 
   useEffect(() => {
     const loadAssets = async () => {
@@ -602,6 +614,86 @@ const formatDurationLabel = (seconds: number) => {
     adjustDialogueTextareaHeight();
   }, [adjustDialogueTextareaHeight, customDialogue]);
 
+  useEffect(() => {
+    const trimmedDialogue = customDialogue.trim();
+
+    if (!trimmedDialogue) {
+      languageAbortControllerRef.current?.abort();
+      languageAbortControllerRef.current = null;
+      languageRequestSeqRef.current += 1;
+      setRecommendedLanguage(null);
+      setIsDetectingLanguage(false);
+      setLanguageRecommendationError(null);
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      const requestSeq = languageRequestSeqRef.current + 1;
+      languageRequestSeqRef.current = requestSeq;
+
+      languageAbortControllerRef.current?.abort();
+      const controller = new AbortController();
+      languageAbortControllerRef.current = controller;
+
+      setIsDetectingLanguage(true);
+      setLanguageRecommendationError(null);
+
+      try {
+        const response = await fetch('/api/avatar-ads/language-recommend', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            script: trimmedDialogue,
+            supportedLanguages: SUPPORTED_LANGUAGE_CODES,
+          }),
+          signal: controller.signal,
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (controller.signal.aborted || languageRequestSeqRef.current !== requestSeq) {
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            (payload as { error?: string }).error || 'Failed to recommend language'
+          );
+        }
+
+        const nextLanguage = (payload as { language?: LanguageCode }).language;
+        if (!nextLanguage || !SUPPORTED_LANGUAGE_CODES.includes(nextLanguage)) {
+          throw new Error('Invalid recommended language returned');
+        }
+
+        setRecommendedLanguage(nextLanguage);
+        setLanguageRecommendationError(null);
+
+        if (!hasUserManuallyOverriddenLanguage) {
+          setSelectedLanguage(nextLanguage);
+        }
+      } catch (error) {
+        if ((error as Error)?.name === 'AbortError') {
+          return;
+        }
+        console.error('[AvatarAds] Failed to recommend language:', error);
+        if (languageRequestSeqRef.current === requestSeq) {
+          setLanguageRecommendationError(error instanceof Error ? error.message : 'Failed to recommend language');
+        }
+      } finally {
+        if (languageRequestSeqRef.current === requestSeq) {
+          setIsDetectingLanguage(false);
+        }
+      }
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(timer);
+      languageAbortControllerRef.current?.abort();
+    };
+  }, [customDialogue, hasUserManuallyOverriddenLanguage]);
+
   // Click outside to collapse
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -712,7 +804,7 @@ const formatDurationLabel = (seconds: number) => {
       console.log(`✅ [Avatar Ads Realtime] Successfully updated generation for ${projectId}`);
       return sortGenerations(next);
     });
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     generations.forEach((gen) => {
@@ -1042,6 +1134,9 @@ const formatDurationLabel = (seconds: number) => {
   const handleCustomDialogueChange = (value: string) => {
     setCustomDialogue(value);
     setDialogueError(null);
+    if (!value.trim()) {
+      setLanguageRecommendationError(null);
+    }
   };
 
   if (!isLoaded) {
@@ -1359,6 +1454,11 @@ const formatDurationLabel = (seconds: number) => {
                                     </div>
                                   </div>
                                   {dialogueError && <div className="text-[11px] text-red-500 mt-1 ml-2 absolute bottom-[-20px] left-0">{dialogueError}</div>}
+                                  {!dialogueError && languageRecommendationError && customDialogue.trim() ? (
+                                    <div className="text-[11px] text-amber-600 mt-1 ml-2 absolute bottom-[-20px] left-0">
+                                      Language recommendation unavailable right now.
+                                    </div>
+                                  ) : null}
                                 </div>
                               }          configButton={
             <ConfigPopover
@@ -1367,7 +1467,8 @@ const formatDurationLabel = (seconds: number) => {
               userCredits={userCredits || 0}
               hideDurationSelector={true}
               selectedLanguage={selectedLanguage}
-              onLanguageChange={setSelectedLanguage}
+              onLanguageChange={handleLanguageChange}
+              recommendedLanguage={recommendedLanguage}
               hideFormatSelector={true}
               variant="minimal"
               videoDuration={videoDuration}

@@ -316,6 +316,10 @@ function extractJsonObjectFromText(text: string): string | null {
 }
 
 export function extractOpenRouterJsonContent<T>(content: unknown): T | null {
+  if (content && typeof content === 'object' && !Array.isArray(content)) {
+    return content as T;
+  }
+
   const text = extractOpenRouterTextContent(content);
   if (!text) return null;
 

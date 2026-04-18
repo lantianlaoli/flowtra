@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, Check, Globe } from 'lucide-react';
+import { ChevronDown, Check, Globe, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { LanguageCode } from '@/lib/constants';
+import { SUPPORTED_LANGUAGE_CODES, type LanguageCode } from '@/lib/constants';
+import { useI18n } from '@/providers/I18nProvider';
 export type { LanguageCode } from '@/lib/constants';
 
 interface LanguageSelectorProps {
@@ -13,23 +14,22 @@ interface LanguageSelectorProps {
   label?: string;
   className?: string;
   showIcon?: boolean;
+  recommendedLanguage?: LanguageCode | null;
 }
 
 const LANGUAGE_OPTIONS: Array<{
   value: LanguageCode;
-  label: string;
-  nativeName: string;
   flag: string;
 }> = [
-  { value: 'en', label: 'English', nativeName: 'English', flag: '🇺🇸' },
-  { value: 'zh', label: 'Chinese (Mandarin)', nativeName: '中文（普通话）', flag: '🇨🇳' },
-  { value: 'zh_yue', label: 'Chinese (Cantonese)', nativeName: '中文粤语', flag: '🇨🇳' },
-  { value: 'ja', label: 'Japanese', nativeName: '日本語', flag: '🇯🇵' },
-  { value: 'ko', label: 'Korean', nativeName: '한국어', flag: '🇰🇷' },
-  { value: 'es', label: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
-  { value: 'fr', label: 'French', nativeName: 'Français', flag: '🇫🇷' },
-  { value: 'de', label: 'German', nativeName: 'Deutsch', flag: '🇩🇪' },
-  { value: 'pt', label: 'Portuguese', nativeName: 'Português', flag: '🇵🇹' },
+  { value: 'en', flag: '🇺🇸' },
+  { value: 'zh', flag: '🇨🇳' },
+  { value: 'zh_yue', flag: '🇨🇳' },
+  { value: 'ja', flag: '🇯🇵' },
+  { value: 'ko', flag: '🇰🇷' },
+  { value: 'es', flag: '🇪🇸' },
+  { value: 'fr', flag: '🇫🇷' },
+  { value: 'de', flag: '🇩🇪' },
+  { value: 'pt', flag: '🇵🇹' },
 ];
 
 export default function LanguageSelector({
@@ -38,10 +38,38 @@ export default function LanguageSelector({
   label = 'Language',
   className,
   showIcon = false,
+  recommendedLanguage = null,
 }: LanguageSelectorProps) {
+  const { locale } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
+
+  const localizedLanguageNames = useMemo<Record<LanguageCode, string>>(() => (
+    locale === 'zh'
+      ? {
+          en: '英语',
+          zh: '中文',
+          zh_yue: '粤语',
+          ja: '日语',
+          ko: '韩语',
+          es: '西班牙语',
+          fr: '法语',
+          de: '德语',
+          pt: '葡萄牙语',
+        }
+      : {
+          en: 'English',
+          zh: 'Chinese',
+          zh_yue: 'Cantonese',
+          ja: 'Japanese',
+          ko: 'Korean',
+          es: 'Spanish',
+          fr: 'French',
+          de: 'German',
+          pt: 'Portuguese',
+        }
+  ), [locale]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -76,7 +104,31 @@ export default function LanguageSelector({
     }
   }, [isOpen]);
 
-  const selectedOption = LANGUAGE_OPTIONS.find(opt => opt.value === selectedLanguage) || LANGUAGE_OPTIONS[0];
+  const normalizedRecommendedLanguage = useMemo(() => {
+    if (!recommendedLanguage) return null;
+    return SUPPORTED_LANGUAGE_CODES.includes(recommendedLanguage) ? recommendedLanguage : null;
+  }, [recommendedLanguage]);
+
+  const orderedOptions = useMemo(() => {
+    if (!normalizedRecommendedLanguage) {
+      return LANGUAGE_OPTIONS;
+    }
+
+    const recommendedOption = LANGUAGE_OPTIONS.find((option) => option.value === normalizedRecommendedLanguage);
+    if (!recommendedOption) {
+      return LANGUAGE_OPTIONS;
+    }
+
+    return [
+      recommendedOption,
+      ...LANGUAGE_OPTIONS.filter((option) => option.value !== normalizedRecommendedLanguage)
+    ];
+  }, [normalizedRecommendedLanguage]);
+
+  const selectedOption = orderedOptions.find(opt => opt.value === selectedLanguage) || orderedOptions[0];
+  const selectedLabel = localizedLanguageNames[selectedLanguage];
+  const selectedFlag = LANGUAGE_OPTIONS.find((option) => option.value === selectedLanguage)?.flag || selectedOption?.flag;
+  const selectedIsRecommended = normalizedRecommendedLanguage === selectedLanguage;
 
   const handleOptionSelect = (value: LanguageCode) => {
     onLanguageChange(value);
@@ -100,14 +152,17 @@ export default function LanguageSelector({
               className="text-base"
               style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji' }}
             >
-              {selectedOption?.flag}
+              {selectedFlag}
             </span>
             <span className="font-medium truncate">
-              {selectedOption?.label}
+              {selectedLabel}
             </span>
-            <span className="config-select-meta text-xs text-gray-500 truncate">
-              {selectedOption?.nativeName}
-            </span>
+            {selectedIsRecommended ? (
+              <span className="config-select-recommend inline-flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                <Sparkles className="w-3 h-3" />
+                Recommended
+              </span>
+            ) : null}
           </div>
           <div className={`w-4 h-4 flex items-center justify-center transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}>
             <ChevronDown className="config-select-icon h-3 w-3 text-gray-600" />
@@ -125,7 +180,7 @@ export default function LanguageSelector({
               transition={{ type: 'spring', stiffness: 300, damping: 28 }}
               className="config-select-panel absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-[9999] max-h-[300px] overflow-y-auto"
             >
-              {LANGUAGE_OPTIONS.map((option) => (
+              {orderedOptions.map((option) => (
                 <button
                   key={option.value}
                   onClick={() => handleOptionSelect(option.value)}
@@ -144,11 +199,14 @@ export default function LanguageSelector({
                       {option.flag}
                     </span>
                     <span className="font-medium">
-                      {option.label}
+                      {localizedLanguageNames[option.value]}
                     </span>
-                    <span className="config-select-meta text-xs text-gray-500">
-                      {option.nativeName}
-                    </span>
+                    {normalizedRecommendedLanguage === option.value ? (
+                      <span className="config-select-recommend inline-flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                        <Sparkles className="w-3 h-3" />
+                        Recommended
+                      </span>
+                    ) : null}
                   </div>
                   {selectedLanguage === option.value && (
                     <div className="config-select-check w-4 h-4 bg-black rounded-sm flex items-center justify-center ml-2">
