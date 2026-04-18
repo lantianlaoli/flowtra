@@ -1815,7 +1815,7 @@ export async function processAvatarAdsProject(
             credits_cost: plannedCreditsCost,
             status: 'awaiting_review',
             current_step: 'reviewing',
-            progress_percentage: 60,
+            progress_percentage: 50,
             last_processed_at: new Date().toISOString()
           })
           .eq('id', project.id)
@@ -1898,7 +1898,7 @@ export async function processAvatarAdsProject(
               generated_image_url: status.result_url,
               status: 'awaiting_review', // Changed from generating_videos to awaiting_review
               current_step: 'reviewing', // Changed from generating_videos to reviewing
-              progress_percentage: 60,
+              progress_percentage: 75,
               last_processed_at: new Date().toISOString()
             })
             .eq('id', project.id)
@@ -2094,7 +2094,7 @@ export async function processAvatarAdsProject(
             kie_video_task_ids: videoTaskIds,
             status: 'generating_videos',
             current_step: 'generating_videos',
-            progress_percentage: 70,
+            progress_percentage: 75,
             last_processed_at: new Date().toISOString()
           })
           .eq('id', project.id)
@@ -2259,7 +2259,7 @@ export async function processAvatarAdsProject(
               .update({
                 status: 'merging_videos',
                 current_step: 'merging_videos',
-                progress_percentage: 85,
+                progress_percentage: 90,
                 last_processed_at: new Date().toISOString()
               })
               .eq('id', project.id)
@@ -2314,7 +2314,7 @@ export async function processAvatarAdsProject(
           .update({
             fal_merge_task_id: taskId,
             status: 'merging_videos',
-            progress_percentage: 90,
+            progress_percentage: 95,
             last_processed_at: new Date().toISOString()
           })
           .eq('id', project.id)

@@ -30,6 +30,7 @@ import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { trackEvent } from '@/lib/analytics/client';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface KieCreditsStatus {
   sufficient: boolean;
@@ -132,39 +133,51 @@ interface CharacterAdsStatusPayload {
   isCompleted?: boolean;
   isFailed?: boolean;
 }
-const CHARACTER_STAGE_HINTS: Record<string, string> = {
-  analyzing_images: 'Understanding your character – finding the perfect persona…',
-  generating_prompts: 'Writing the script that sells – crafting compelling dialogue…',
-  generating_image: 'Perfecting the first impression – your character\'s best shot…',
-  awaiting_review: 'Your character is ready! Review and approve to generate videos',
-  reviewing: 'Fine-tuning the narrative – making sure every word matters…',
-  generating_videos: 'Bringing personality to life – making your character irresistible…',
-  merging_videos: 'Assembling the full character story – the final touch…'
+const CHARACTER_STAGE_HINTS_EN: Record<string, string> = {
+  analyzing_images: 'Analyzing character images…',
+  generating_prompts: 'Generating scripts…',
+  generating_image: 'Generating character image…',
+  awaiting_review: 'Image ready! Confirm to continue with video generation',
+  reviewing: 'Image generated. Waiting for confirmation…',
+  generating_videos: 'Generating videos…',
+  merging_videos: 'Merging videos…'
+};
+
+const CHARACTER_STAGE_HINTS_ZH: Record<string, string> = {
+  analyzing_images: '正在分析角色图片…',
+  generating_prompts: '正在生成脚本…',
+  generating_image: '正在生成角色图片…',
+  awaiting_review: '图片已生成完成！确认后继续生成视频',
+  reviewing: '图片已生成，等待确认…',
+  generating_videos: '正在生成视频…',
+  merging_videos: '正在合并视频…'
+};
+
+const getStageLabel = (status: Generation['status'], step?: string | null, locale: 'en' | 'zh' = 'en') => {
+  const hints = locale === 'zh' ? CHARACTER_STAGE_HINTS_ZH : CHARACTER_STAGE_HINTS_EN;
+  if (status === 'completed') return locale === 'zh' ? '✅ 角色视频已生成！' : '✅ Your character video is ready to shine!';
+  if (status === 'failed') return locale === 'zh' ? '⚠️ 检测到系统问题，可以重新生成视频' : '⚠️ System issue detected. You can regenerate the video.';
+  if (step) {
+    const normalized = step.toLowerCase();
+    if (hints[normalized]) {
+      return hints[normalized];
+    }
+  }
+  if (status === 'processing') return locale === 'zh' ? '⚙️ 正在处理中…' : '⚙️ Working magic behind the scenes…';
+  if (status === 'pending') return locale === 'zh' ? '⏳ 排队中 – 马上轮到你了！' : '⏳ Queued – your turn is coming!';
+  return 'Unknown';
 };
 
 
 const isActiveGeneration = (generation: AvatarGeneration) =>
   generation.status === 'pending' || generation.status === 'processing';
 
-const getStageLabel = (status: Generation['status'], step?: string | null) => {
-  if (status === 'completed') return '✅ Your character video is ready to shine!';
-  if (status === 'failed') return '⚠️ System issue detected. You can regenerate the video.';
-  if (step) {
-    const normalized = step.toLowerCase();
-    if (CHARACTER_STAGE_HINTS[normalized]) {
-      return CHARACTER_STAGE_HINTS[normalized];
-    }
-  }
-  if (status === 'processing') return '⚙️ Working magic behind the scenes…';
-  if (status === 'pending') return '⏳ Queued – your turn is coming!';
-  return 'Unknown';
-};
-
 export default function AvatarAdsPage() {
   const supabase = useSupabaseBrowserClient();
   const { user, isLoaded } = useUser();
   const { credits: userCredits, creditsData, refetchCredits } = useCredits();
   const { showSuccess, showError } = useToast();
+  const { locale } = useI18n();
 
   // Form state
   const [selectedPersonPhotoUrl, setSelectedPersonPhotoUrl] = useState<string>('');
@@ -670,10 +683,10 @@ const formatDurationLabel = (seconds: number) => {
             ? project.progress_percentage
             : gen.progress;
         const stageLabel = computedStatus === 'completed' || computedStatus === 'failed'
-          ? getStageLabel(computedStatus, project.current_step)
+          ? getStageLabel(computedStatus, project.current_step, locale)
           : (
             payload.stepMessages?.[project.current_step ?? '']
-            || getStageLabel(computedStatus, project.current_step)
+            || getStageLabel(computedStatus, project.current_step, locale)
           );
         console.log(`✏️ [Avatar Ads Realtime] Updating generation: status ${gen.status} → ${computedStatus}, progress ${gen.progress} → ${progressValue}`);
         return {
