@@ -16,7 +16,7 @@ import { buildMentionToken, MENTION_TOKEN_REGEX } from '@/lib/prompt-mention-tok
 
 // Define the shape of the structured video prompt
 export interface StructuredVideoPrompt {
-  dialog?: string;
+  dialog?: string | Record<string, string>;
   [key: string]: unknown;
 }
 
@@ -57,13 +57,26 @@ interface AvatarAdInspectorProps {
 const normalizeScenePromptForEditor = (prompt: StructuredVideoPrompt | undefined | null): StructuredVideoPrompt => {
   const dialog = typeof prompt?.dialog === 'string'
     ? prompt.dialog
-    : typeof prompt?.dialogue === 'string'
+    : prompt?.dialog && typeof prompt.dialog === 'object' && !Array.isArray(prompt.dialog)
+      ? Object.entries(prompt.dialog)
+        .sort(([timeA], [timeB]) => {
+          const startA = Number((timeA.match(/^(\d+)/) || [])[1] || 0);
+          const startB = Number((timeB.match(/^(\d+)/) || [])[1] || 0);
+          return startA - startB;
+        })
+        .map(([, value]) => String(value).trim())
+        .filter(Boolean)
+        .join('\n')
+      : typeof prompt?.dialogue === 'string'
       ? String(prompt.dialogue)
       : typeof prompt?.video_prompt === 'string'
         ? String(prompt.video_prompt).replace('dialogue, the character in the video says: ', '').trim()
         : '';
 
-  return { dialog };
+  return {
+    ...(prompt || {}),
+    dialog,
+  };
 };
 
 const buildDialogueOnlyPrompts = (
@@ -75,7 +88,10 @@ const buildDialogueOnlyPrompts = (
   image_prompt: imagePrompt,
   scenes: generatedPrompts?.scenes.map((scene, index) => ({
     ...scene,
-    prompt: normalizeScenePromptForEditor(editedScenes[index] || scene.prompt)
+    prompt: {
+      ...(scene.prompt || {}),
+      ...normalizeScenePromptForEditor(editedScenes[index] || scene.prompt)
+    }
   })) || []
 });
 
@@ -162,6 +178,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   const isGeneratingVideo =
     project?.status === 'generating_videos' ||
     project?.current_step === 'generating_videos';
+  const canGenerateVideo = Boolean(hasGeneratedImage && !submitting && !loading && project && !isGeneratingVideo);
 
   const fetchProjectDetails = useCallback(async ({ isInitialLoad = false }: { isInitialLoad?: boolean } = {}) => {
     if (!projectId) return;
@@ -302,11 +319,11 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   }, []);
 
   const combinedDialogue = useMemo(() => {
-    return editedScenes.map(s => s.dialog || '').join('\n\n');
+    return editedScenes.map(s => s.dialog || '').join('\n');
   }, [editedScenes]);
 
   const handleCombinedDialogueChange = useCallback((value: string) => {
-    const parts = value.split(/\n\n+/);
+    const parts = value.split(/\n/);
     setEditedScenes(prev =>
       prev.map((scene, index) => ({
         ...scene,
@@ -329,7 +346,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   };
 
   const handleRegenerateVideoClick = async () => {
-    if (!project) return;
+    if (!project || !hasGeneratedImage) return;
     setSubmitting(true);
     try {
       const payload = buildPromptUpdatePayload(project.generated_prompts, editedImagePrompt, editedScenes);
@@ -425,7 +442,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
   }, [editedImagePrompt, editedScenes, project, savePrompts]);
 
   const handleConfirm = async () => {
-    if (!project) return;
+    if (!project || !hasGeneratedImage) return;
 
     setSubmitting(true);
     try {
@@ -676,7 +693,7 @@ export const AvatarAdInspector: React.FC<AvatarAdInspectorProps> = ({
 
                 <button
                   onClick={hasGeneratedVideos ? handleRegenerateVideoClick : handleConfirm}
-                  disabled={submitting || loading || !project || isGeneratingVideo}
+                  disabled={!canGenerateVideo}
                   className="landing-press-button landing-press-button--compact text-sm font-semibold"
                 >
                   {submitting || isGeneratingVideo ? (

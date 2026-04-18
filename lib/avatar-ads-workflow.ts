@@ -15,11 +15,12 @@ import {
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
-import { estimateDialogueDuration, generateDialogueLengthGuidance, validateSceneDurations } from '@/lib/dialogue-duration-estimator';
+import { generateDialogueLengthGuidance } from '@/lib/dialogue-duration-estimator';
 import { extractOpenRouterJsonContent, extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 import { MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
 import {
   buildAvatarGeneratedPrompts,
+  ensureAvatarImagePromptMentions,
   normalizeAvatarPromptDuration
 } from '@/lib/project-agent/avatar-script-planning';
 import {
@@ -27,10 +28,48 @@ import {
   inferAvatarVoiceGender,
   resolveAvatarSpokenLanguage,
 } from '@/lib/avatar-spoken-language';
-import { estimateAvatarAdsSingleSceneDurationSeconds } from '@/lib/avatar-ads-duration-estimate';
+import {
+  estimateAvatarAdsDialogueSeconds,
+  estimateAvatarAdsSingleSceneDurationSeconds,
+} from '@/lib/avatar-ads-duration-estimate';
 // Events table removed: no tracking imports
 
 const DEFAULT_VIDEO_MODEL = 'seedance_2_fast' as const;
+
+type AvatarPromptActionBeat = {
+  time: string;
+  description: string;
+};
+
+type AvatarPromptDialogMap = Record<string, string>;
+
+type AvatarScenePromptShape = {
+  subject?: string;
+  context_environment?: string;
+  action?: string | AvatarPromptActionBeat[];
+  style?: string;
+  camera_motion_positioning?: string;
+  composition?: string;
+  ambiance_color_lighting?: string;
+  audio?: string;
+  dialog?: string | AvatarPromptDialogMap;
+  voice_type?: string;
+  duration_seconds?: number;
+  resolved_spoken_language?: string;
+  [key: string]: unknown;
+};
+
+type AvatarPromptResponseShape = {
+  image_prompt?: string;
+  language?: string;
+  resolved_spoken_language?: string;
+  scenes?: Array<{
+    scene?: number | string;
+    prompt?: AvatarScenePromptShape;
+  }>;
+  planned_total_duration_seconds?: number;
+  planned_scene_duration_seconds?: number[];
+};
 
 interface AvatarAdsProject {
   id: string;
@@ -73,6 +112,95 @@ interface ProcessResult {
   message: string;
   nextStep?: string;
 }
+
+const AVATAR_PROMPT_RESPONSE_FORMAT = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'avatar_ads_prompt_payload',
+    strict: true,
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['image_prompt', 'language', 'resolved_spoken_language', 'scenes'],
+      properties: {
+        image_prompt: {
+          type: 'string',
+          description: 'Concrete image prompt for the avatar ads cover frame.'
+        },
+        language: {
+          type: 'string',
+          description: 'Human-readable spoken language label that matches the selected config language exactly.'
+        },
+        resolved_spoken_language: {
+          type: 'string',
+          description: 'Canonical language code used for spoken delivery, such as en, zh, zh_yue, ja, ko, es, fr, de, pt.'
+        },
+        scenes: {
+          type: 'array',
+          minItems: 1,
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['scene', 'prompt'],
+            properties: {
+              scene: {
+                type: 'number'
+              },
+              prompt: {
+                type: 'object',
+                additionalProperties: false,
+                required: [
+                  'subject',
+                  'context_environment',
+                  'action',
+                  'style',
+                  'camera_motion_positioning',
+                  'composition',
+                  'ambiance_color_lighting',
+                  'audio',
+                  'dialog',
+                  'voice_type'
+                ],
+                properties: {
+                  subject: { type: 'string' },
+                  context_environment: { type: 'string' },
+                  action: {
+                    type: 'array',
+                    minItems: 1,
+                    items: {
+                      type: 'object',
+                      additionalProperties: false,
+                      required: ['time', 'description'],
+                      properties: {
+                        time: { type: 'string' },
+                        description: { type: 'string' }
+                      }
+                    }
+                  },
+                  style: { type: 'string' },
+                  camera_motion_positioning: { type: 'string' },
+                  composition: { type: 'string' },
+                  ambiance_color_lighting: { type: 'string' },
+                  audio: { type: 'string' },
+                  dialog: {
+                    type: 'object',
+                    minProperties: 1,
+                    additionalProperties: {
+                      type: 'string'
+                    }
+                  },
+                  voice_type: { type: 'string' },
+                  duration_seconds: { type: 'number' },
+                  resolved_spoken_language: { type: 'string' }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+} as const;
 
 export const resolveAvatarAdsVideoModel = (project: Pick<AvatarAdsProject, 'video_model'>) => {
   if (project.video_model === 'wan_27') return 'wan_27';
@@ -151,11 +279,11 @@ export const getAvatarSceneDurationSeconds = (
     }
     const dialog = typeof prompt?.dialog === 'string' ? prompt.dialog.trim() : '';
     if (dialog) {
-      const languageCode = resolveAvatarSpokenLanguage({
-        scriptSource: dialog,
-        configuredLanguage: options?.language || 'en',
-      });
-      const estimated = estimateDialogueDuration(dialog, languageCode);
+      const estimated = estimateAvatarAdsDialogueSeconds(
+        dialog,
+        model,
+        options?.language || 'en'
+      );
       if (Number.isFinite(estimated) && estimated > 0) {
         if ((options?.totalScenes ?? 1) <= 1 && estimated <= 7.5) {
           return Math.max(2, Math.min(7, Math.ceil(estimated)));
@@ -193,7 +321,7 @@ export const getAvatarSceneDurationSeconds = (
       scriptSource: dialog,
       configuredLanguage: options?.language || 'en',
     });
-    const estimated = estimateDialogueDuration(dialog, languageCode);
+    const estimated = estimateAvatarAdsDialogueSeconds(dialog, model, languageCode);
     if (Number.isFinite(estimated) && estimated > 0) {
       return Math.max(8, Math.min(SEEDANCE_MAX_TASK_DURATION_SECONDS, Math.ceil(estimated + 0.4)));
     }
@@ -229,12 +357,21 @@ export const buildAvatarAdsVideoExecutionPrompt = (
   options?: {
     hasProductContext?: boolean;
     language?: string | null;
+    durationSeconds?: number;
     avatarGender?: 'male' | 'female' | null;
   }
 ) => {
   const promptObj = prompt as {
     voice_type?: string;
-    dialog?: string;
+    subject?: string;
+    context_environment?: string;
+    action?: unknown;
+    style?: string;
+    camera_motion_positioning?: string;
+    composition?: string;
+    ambiance_color_lighting?: string;
+    audio?: string;
+    dialog?: unknown;
     resolved_spoken_language?: string;
     [key: string]: unknown;
   };
@@ -252,22 +389,273 @@ export const buildAvatarAdsVideoExecutionPrompt = (
   const resolvedLanguage = validLanguageCodes.includes(resolvedLanguageRaw as LanguageCode)
     ? resolvedLanguageRaw as LanguageCode
     : 'en';
-  const dialogText = typeof promptObj.dialog === 'string'
-    ? compileAvatarAdsMentionText(promptObj.dialog).replace(/^"|"$/g, '').trim()
-    : '';
+  const durationSeconds = Math.max(2, Math.round(options?.durationSeconds || 8));
+  const hasStructuredDialog = isAvatarStructuredDialog(promptObj.dialog);
+  const hasStructuredAction = isAvatarStructuredAction(promptObj.action);
+  const hasStructuredFields = Boolean(
+    cleanAvatarExecutionField(promptObj.subject) &&
+    cleanAvatarExecutionField(promptObj.context_environment) &&
+    cleanAvatarExecutionField(promptObj.style) &&
+    cleanAvatarExecutionField(promptObj.camera_motion_positioning) &&
+    cleanAvatarExecutionField(promptObj.composition) &&
+    cleanAvatarExecutionField(promptObj.ambiance_color_lighting) &&
+    cleanAvatarExecutionField(promptObj.audio) &&
+    hasStructuredDialog &&
+    hasStructuredAction
+  );
 
-  const parts = [
-    `Style: ${options?.hasProductContext ? 'UGC product-selling talking-head video.' : 'UGC talking-head video.'}`,
-  ];
+  const executionPayload = hasStructuredFields
+    ? {
+      language: getAvatarExecutionLanguageLabel(resolvedLanguage),
+      subject: cleanAvatarExecutionField(promptObj.subject),
+      context_environment: cleanAvatarExecutionField(promptObj.context_environment),
+      action: sanitizeAvatarStructuredAction(promptObj.action),
+      style: cleanAvatarExecutionField(promptObj.style),
+      camera_motion_positioning: cleanAvatarExecutionField(promptObj.camera_motion_positioning),
+      composition: cleanAvatarExecutionField(promptObj.composition),
+      ambiance_colour_lighting: cleanAvatarExecutionField(promptObj.ambiance_color_lighting),
+      audio: cleanAvatarExecutionField(promptObj.audio),
+      dialog: sanitizeAvatarStructuredDialog(promptObj.dialog),
+    }
+    : {
+      language: getAvatarExecutionLanguageLabel(resolvedLanguage),
+      subject: cleanAvatarExecutionField(promptObj.subject),
+      context_environment: cleanAvatarExecutionField(promptObj.context_environment),
+      action: compileAvatarExecutionAction(
+        promptObj.action,
+        Object.keys(compileAvatarExecutionDialog(promptObj.dialog, durationSeconds)),
+        durationSeconds,
+        Boolean(options?.hasProductContext)
+      ),
+      style: cleanAvatarExecutionField(promptObj.style),
+      camera_motion_positioning: cleanAvatarExecutionField(promptObj.camera_motion_positioning),
+      composition: cleanAvatarExecutionField(promptObj.composition),
+      ambiance_colour_lighting: cleanAvatarExecutionField(promptObj.ambiance_color_lighting),
+      audio: cleanAvatarExecutionField(promptObj.audio),
+      dialog: compileAvatarExecutionDialog(promptObj.dialog, durationSeconds),
+    };
 
-  if (dialogText) {
-    parts.push(`Dialogue: "${dialogText}"`);
+  return JSON.stringify(executionPayload, null, 2);
+};
+
+const cleanAvatarExecutionField = (value: unknown) => {
+  if (typeof value !== 'string') return '';
+  const compiled = compileAvatarAdsMentionText(value).replace(/^"|"$/g, '').trim();
+  return compiled.replace(/\s+/g, ' ').trim();
+};
+
+const getAvatarExecutionLanguageLabel = (language: LanguageCode) => {
+  switch (language) {
+    case 'zh_yue':
+      return '粤语';
+    case 'zh':
+      return '普通话';
+    case 'ja':
+      return '日本語';
+    case 'ko':
+      return '한국어';
+    case 'es':
+      return 'Español';
+    case 'fr':
+      return 'Français';
+    case 'de':
+      return 'Deutsch';
+    case 'pt':
+      return 'Português';
+    default:
+      return 'English';
+  }
+};
+
+const splitAvatarDialogClauses = (value: string) => {
+  const normalized = compileAvatarAdsMentionText(value)
+    .replace(/\s+/g, ' ')
+    .replace(/([。！？!?；;，,])/g, '$1|')
+    .split('|')
+    .map(part => part.trim())
+    .filter(Boolean);
+
+  return normalized.length > 0 ? normalized : [value.trim()];
+};
+
+const buildAvatarExecutionTimeRanges = (count: number, durationSeconds: number) => {
+  const safeCount = Math.max(1, Math.min(count, durationSeconds));
+  const rawBoundaries = Array.from({ length: safeCount + 1 }, (_, index) => (
+    Math.round((index * durationSeconds) / safeCount)
+  ));
+
+  const boundaries = rawBoundaries.map((value, index) => {
+    if (index === 0) return 0;
+    if (index === rawBoundaries.length - 1) return durationSeconds;
+    const previous = rawBoundaries[index - 1];
+    return Math.max(previous + 1, value);
+  });
+
+  const normalizedBoundaries = boundaries.map((value, index) => {
+    if (index === 0) return 0;
+    if (index === boundaries.length - 1) return durationSeconds;
+    const remainingSlots = boundaries.length - 1 - index;
+    return Math.min(value, durationSeconds - remainingSlots);
+  });
+
+  return Array.from({ length: safeCount }, (_, index) => {
+    const start = normalizedBoundaries[index];
+    const end = index === safeCount - 1
+      ? durationSeconds
+      : Math.max(start + 1, normalizedBoundaries[index + 1]);
+    return `${start}-${end}s`;
+  });
+};
+
+const normalizeAvatarTimeKey = (value: string, fallbackIndex: number, ranges: string[]) => {
+  const trimmed = value.trim();
+  const match = trimmed.match(/(\d+)\s*-\s*(\d+)\s*s?/i);
+  if (match) {
+    return `${match[1]}-${match[2]}s`;
+  }
+  return ranges[fallbackIndex] || trimmed;
+};
+
+const isAvatarStructuredDialog = (dialog: unknown): dialog is Record<string, unknown> => (
+  dialog !== null &&
+  typeof dialog === 'object' &&
+  !Array.isArray(dialog) &&
+  Object.keys(dialog).length > 0
+);
+
+const sanitizeAvatarStructuredDialog = (dialog: unknown) => {
+  if (!isAvatarStructuredDialog(dialog)) {
+    return {};
   }
 
-  const resolvedGender = options?.avatarGender || inferAvatarVoiceGender(promptObj.voice_type, promptObj.subject);
-  parts.push(`Spoken Language / Accent: ${buildAvatarVoiceType(resolvedLanguage, resolvedGender)}`);
+  return Object.fromEntries(
+    Object.entries(dialog)
+      .map(([time, content]) => [normalizeAvatarTimeKey(time, 0, []), cleanAvatarExecutionField(content)] as const)
+      .filter(([, content]) => content)
+  );
+};
 
-  return parts.join('\n\n').trim();
+const isAvatarStructuredAction = (action: unknown): action is Array<Record<string, unknown>> => (
+  Array.isArray(action) && action.some((entry) => (
+    Boolean(entry) &&
+    typeof entry === 'object' &&
+    typeof (entry as Record<string, unknown>).description === 'string'
+  ))
+);
+
+const sanitizeAvatarStructuredAction = (action: unknown) => {
+  if (!isAvatarStructuredAction(action)) {
+    return [];
+  }
+
+  return action
+    .map((entry, index) => {
+      const record = entry as Record<string, unknown>;
+      const description = cleanAvatarExecutionField(record.description);
+      if (!description) return null;
+      const timeValue = typeof record.time === 'string' ? record.time : '';
+      return {
+        time: timeValue ? normalizeAvatarTimeKey(timeValue, index, []) : '',
+        description,
+      };
+    })
+    .filter((entry): entry is { time: string; description: string } => Boolean(entry));
+};
+
+const compileAvatarExecutionDialog = (dialog: unknown, durationSeconds: number) => {
+  if (dialog && typeof dialog === 'object' && !Array.isArray(dialog)) {
+    const entries = Object.entries(dialog as Record<string, unknown>)
+      .map(([time, content]) => [time, cleanAvatarExecutionField(content)] as const)
+      .filter(([, content]) => content);
+    if (entries.length > 0) {
+      const fallbackRanges = buildAvatarExecutionTimeRanges(entries.length, durationSeconds);
+      return Object.fromEntries(
+        entries.map(([time, content], index) => [normalizeAvatarTimeKey(time, index, fallbackRanges), content])
+      );
+    }
+  }
+
+  const dialogText = cleanAvatarExecutionField(dialog);
+  if (!dialogText) {
+    return {};
+  }
+
+  const clauses = splitAvatarDialogClauses(dialogText);
+  const ranges = buildAvatarExecutionTimeRanges(clauses.length, durationSeconds);
+  return Object.fromEntries(
+    clauses.map((clause, index) => [ranges[index], clause])
+  );
+};
+
+const getAvatarExecutionActionBeats = (hasProductContext: boolean) => {
+  if (hasProductContext) {
+    return [
+      'Lift the product toward the camera with a friendly attention hook.',
+      'Turn the product forward and show the packaging clearly.',
+      'Demonstrate the product naturally with a satisfied reaction.',
+      'Bring the product slightly closer to camera and close with a confident recommendation.',
+    ];
+  }
+
+  return [
+    'Open facing the camera with a friendly attention hook and natural nod.',
+    'Speak directly to camera with a clear expressive point and natural hand gesture.',
+    'React warmly to the key benefit with visible confidence and eye contact.',
+    'Close with a confident nod and inviting creator-style recommendation.',
+  ];
+};
+
+const compileAvatarExecutionAction = (
+  action: unknown,
+  preferredRanges: string[],
+  durationSeconds: number,
+  hasProductContext: boolean,
+) => {
+  if (Array.isArray(action)) {
+    const normalized = action
+      .map((entry, index) => {
+        if (!entry || typeof entry !== 'object') return null;
+        const record = entry as Record<string, unknown>;
+        const description = cleanAvatarExecutionField(record.description);
+        if (!description) return null;
+        const timeValue = typeof record.time === 'string' ? record.time : '';
+        const fallbackRanges = preferredRanges.length > 0
+          ? preferredRanges
+          : buildAvatarExecutionTimeRanges(action.length, durationSeconds);
+        return {
+          time: normalizeAvatarTimeKey(timeValue, index, fallbackRanges),
+          description,
+        };
+      })
+      .filter(Boolean);
+
+    if (normalized.length > 0) {
+      return normalized;
+    }
+  }
+
+  if (typeof action === 'string' && cleanAvatarExecutionField(action)) {
+    const actionText = cleanAvatarExecutionField(action);
+    const ranges = preferredRanges.length > 0
+      ? preferredRanges
+      : buildAvatarExecutionTimeRanges(Math.min(Math.max(2, durationSeconds >= 8 ? 4 : 3), durationSeconds), durationSeconds);
+    const beats = getAvatarExecutionActionBeats(hasProductContext);
+    return ranges.map((time, index) => ({
+      time,
+      description: index === 0
+        ? `${actionText} ${beats[Math.min(index, beats.length - 1)]}`.trim()
+        : beats[Math.min(index, beats.length - 1)],
+    }));
+  }
+
+  const ranges = preferredRanges.length > 0
+    ? preferredRanges
+    : buildAvatarExecutionTimeRanges(Math.min(Math.max(2, durationSeconds >= 8 ? 4 : 3), durationSeconds), durationSeconds);
+  const beats = getAvatarExecutionActionBeats(hasProductContext);
+  return ranges.map((time, index) => ({
+    time,
+    description: beats[Math.min(index, beats.length - 1)],
+  }));
 };
 
 const getAvatarVideoReferenceImages = (
@@ -286,6 +674,161 @@ const getAvatarVideoReferenceImages = (
   }
 
   return uniqueUrls.slice(0, 1);
+};
+
+const parseAvatarPromptGenerationResponse = (data: unknown): AvatarPromptResponseShape | null => {
+  const rawContent = (data as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message?.content;
+
+  if (rawContent !== null && typeof rawContent === 'object' && !Array.isArray(rawContent)) {
+    return rawContent as AvatarPromptResponseShape;
+  }
+
+  return extractOpenRouterJsonContent<AvatarPromptResponseShape>(rawContent);
+};
+
+const getAvatarDialogEntries = (dialog: unknown) => {
+  if (!dialog || typeof dialog !== 'object' || Array.isArray(dialog)) {
+    return [] as Array<[string, string]>;
+  }
+
+  return Object.entries(dialog as Record<string, unknown>)
+    .map(([time, content]) => [time, cleanAvatarExecutionField(content)] as const)
+    .filter(([, content]) => content.length > 0)
+    .sort(([timeA], [timeB]) => {
+      const startA = Number((timeA.match(/^(\d+)/) || [])[1] || 0);
+      const startB = Number((timeB.match(/^(\d+)/) || [])[1] || 0);
+      return startA - startB;
+    });
+};
+
+const flattenAvatarDialogText = (dialog: unknown) => {
+  if (typeof dialog === 'string') {
+    return cleanAvatarExecutionField(dialog);
+  }
+
+  const entries = getAvatarDialogEntries(dialog);
+  return entries.map(([, content]) => content).join(' ').trim();
+};
+
+const normalizeAvatarGeneratedDialog = (
+  dialog: unknown,
+  durationSeconds: number,
+  fallbackText: string
+) => {
+  const structuredDialog = sanitizeAvatarStructuredDialog(dialog);
+  if (Object.keys(structuredDialog).length > 0) {
+    return structuredDialog;
+  }
+
+  if (fallbackText) {
+    return compileAvatarExecutionDialog(fallbackText, durationSeconds);
+  }
+
+  return {};
+};
+
+const normalizeAvatarGeneratedAction = (
+  action: unknown,
+  dialogMap: AvatarPromptDialogMap,
+  durationSeconds: number,
+  hasProductContext: boolean
+) => {
+  const structuredAction = sanitizeAvatarStructuredAction(action);
+  if (structuredAction.length > 0) {
+    return structuredAction;
+  }
+
+  return compileAvatarExecutionAction(
+    action,
+    Object.keys(dialogMap),
+    durationSeconds,
+    hasProductContext
+  );
+};
+
+const normalizeAvatarGeneratedScenePrompt = (input: {
+  prompt: AvatarScenePromptShape | undefined;
+  sceneIndex: number;
+  resolvedLanguage: LanguageCode;
+  model: 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27';
+  hasProductContext: boolean;
+  fallbackDialogueText: string;
+}) => {
+  const prompt = input.prompt || {};
+  const rawDialogText = flattenAvatarDialogText(prompt.dialog) || cleanAvatarExecutionField(input.fallbackDialogueText);
+  const estimatedDuration = rawDialogText
+    ? estimateAvatarAdsSingleSceneDurationSeconds(rawDialogText, input.model, input.resolvedLanguage)
+    : 0;
+  const durationSeconds = normalizeAvatarPromptDuration(
+    prompt.duration_seconds ?? estimatedDuration,
+    input.model
+  );
+  const dialog = normalizeAvatarGeneratedDialog(prompt.dialog, durationSeconds, rawDialogText);
+  const action = normalizeAvatarGeneratedAction(prompt.action, dialog, durationSeconds, input.hasProductContext);
+  const inferredGender = inferAvatarVoiceGender(prompt.voice_type, prompt.subject);
+
+  return {
+    scene: input.sceneIndex,
+    prompt: {
+      ...prompt,
+      subject: cleanAvatarExecutionField(prompt.subject),
+      context_environment: cleanAvatarExecutionField(prompt.context_environment),
+      action,
+      style: cleanAvatarExecutionField(prompt.style),
+      camera_motion_positioning: cleanAvatarExecutionField(prompt.camera_motion_positioning),
+      composition: cleanAvatarExecutionField(prompt.composition),
+      ambiance_color_lighting: cleanAvatarExecutionField(prompt.ambiance_color_lighting),
+      audio: cleanAvatarExecutionField(prompt.audio),
+      dialog,
+      voice_type: cleanAvatarExecutionField(prompt.voice_type) || buildAvatarVoiceType(input.resolvedLanguage, inferredGender),
+      duration_seconds: durationSeconds,
+      resolved_spoken_language: input.resolvedLanguage,
+    }
+  };
+};
+
+const normalizeAvatarPromptGenerationResult = (input: {
+  parsed: AvatarPromptResponseShape;
+  languageCode: LanguageCode;
+  languageName: string;
+  model: 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27';
+  avatarName?: string | null;
+  productName?: string | null;
+  fallbackScriptSource?: string | null;
+  hasProductContext: boolean;
+}) => {
+  const normalizedScenes = (input.parsed.scenes || [])
+    .map((scene, index) => normalizeAvatarGeneratedScenePrompt({
+      prompt: scene?.prompt,
+      sceneIndex: Number(scene?.scene) || index + 1,
+      resolvedLanguage: input.languageCode,
+      model: input.model,
+      hasProductContext: input.hasProductContext,
+      fallbackDialogueText: input.fallbackScriptSource || ''
+    }))
+    .filter((scene) => scene.prompt.dialog && Object.keys(scene.prompt.dialog).length > 0);
+
+  if (normalizedScenes.length === 0) {
+    return null;
+  }
+
+  const imagePrompt = ensureAvatarImagePromptMentions({
+    imagePrompt: typeof input.parsed.image_prompt === 'string' ? input.parsed.image_prompt : '',
+    avatarName: input.avatarName,
+    productName: input.productName
+  });
+
+  const plannedSceneDurations = normalizedScenes.map((scene) => normalizeAvatarPromptDuration(scene.prompt.duration_seconds, input.model));
+  const plannedTotalDurationSeconds = plannedSceneDurations.reduce((sum, value) => sum + value, 0);
+
+  return {
+    image_prompt: imagePrompt,
+    language: input.languageName,
+    resolved_spoken_language: input.languageCode,
+    planned_total_duration_seconds: plannedTotalDurationSeconds,
+    planned_scene_duration_seconds: plannedSceneDurations,
+    scenes: normalizedScenes,
+  };
 };
 
 // Fallback product analysis for temporary products (no database record)
@@ -380,7 +923,7 @@ async function _generatePromptsInternal(
         ? 'wan_27'
         : DEFAULT_VIDEO_MODEL;
   const estimatedDialogueDurationSeconds = userDialogue
-    ? estimateDialogueDuration(userDialogue, languageCode)
+    ? estimateAvatarAdsDialogueSeconds(userDialogue, resolvedModel, languageCode)
     : 0;
   const supportsFlexibleDuration = true;
   const targetSceneDuration = getAvatarAdsTargetSceneDuration(resolvedModel);
@@ -426,177 +969,73 @@ EXAMPLES OF CORRECT SPLITTING:
       ? `Use this talking head context to guide the monologue: ${productContext.talking_head_script}`
       : 'No script provided. Create an authentic, upbeat personal message where the talent shares a helpful insight or story directly to camera.';
 
+  const commonStructuredRules = `
+Return only a schema-compliant structured prompt payload for Avatar Ads.
+
+Core instruction:
+- You are an expert UGC product-selling video prompt writer.
+- Use the selected language, the provided images, and the provided dialogue/script as your full context.
+- Write the final prompt content directly. Do not output generic filler or abstract placeholders.
+
+Language rules:
+- The selected spoken language is ${languageCode} (${languageName}).
+- Preserve this language exactly in both "language" and "resolved_spoken_language".
+- If the selected language is zh_yue, it must remain Cantonese end-to-end.
+- Dialog and voice semantics must match ${languageName}.
+
+Structure rules:
+- Keep the existing JSON shape exactly.
+- "action" must be an array of 2 to 4 meaningful action beats.
+- "dialog" must be an object keyed by natural time ranges such as "0-2s", "2-4s".
+- Group the script into semantic speaking beats, not punctuation fragments.
+- If the script fits naturally in one scene, keep it in one scene.
+- Split across ${videoScenes} scene(s) only when natural spoken timing requires it.
+- Each scene should land naturally ${modelSceneDurationRule}.
+
+Content rules:
+- Base all visual writing on the images and user script.
+- Write concrete, shootable UGC details.
+- Avoid generic stock phrases and repeated beats.
+- "voice_type" must match the perceived person in the image and the selected language.
+
+${dialogueLengthGuidance}`;
+
   const productSystemPrompt = `
-UGC Image + Video Prompt Generator 🎥🖼️
+Generate the final structured prompt for a UGC product-selling avatar video.
 
-Generate a complete JSON structure with ${videoScenes} video scene(s) for a character-based product advertisement.
+Context you will receive:
+- one person image
+- one product image
+- the selected spoken language
+- the user dialogue/script
+- optional product context
 
-You will receive TWO images:
-1. A PERSON image (the character/influencer)
-2. A PRODUCT image
+Your job:
+- use the image context and script directly
+- return the final JSON scene prompt payload
+- make it feel like a real UGC product-selling video prompt, not a template
 
-Your task:
-1. Analyze the PERSON image: Determine their ACTUAL GENDER (male/female), age, style, and appearance
-2. Analyze the PRODUCT image: Identify what it is and key visual features
-3. Generate ${videoScenes} video scene prompt(s) with CORRECT gender-specific voice
-4. Generate 1 cover image prompt
+${productContext?.product_name ? `Product context: ${productContext.product_name}` : ''}
+${userDialogue ? `User script: "${userDialogue.replace(/"/g, '\\"')}"` : ''}
 
-${productContext?.product_name ? `
-Product Context from Database:
-Product: ${productContext.product_name}
-IMPORTANT: Use this authentic product context to enhance the video prompts.
-` : ''}
-
-CRITICAL RULES FOR GENDER:
-- Analyze the person's ACTUAL GENDER from the image - do NOT guess or assume
-- For MALE characters: Use "Warm male voice speaking natural ${languageName}"
-- For FEMALE characters: Use "Warm female voice speaking natural ${languageName}"
-- The gender MUST match what you see in the person image
-
-UGC STYLE PRINCIPLES:
-- This must feel like a social-media UGC talking ad made by a real creator, not a cinematic brand commercial
-- Amateur iPhone selfie video aesthetic
-- Natural, casual environments
-- Slightly imperfect framing and lighting
-- Genuine, relatable expressions
-- Strong direct-to-camera selling energy
-- The character must SHOW the product to camera naturally
-- Dialogue should sound like authentic product recommendation copy that could convert on TikTok / Reels / Shorts
-
-VIDEO SCENE REQUIREMENTS:
-- Each scene should fit naturally within ${targetSceneDuration} seconds
-- Write ALL dialogue in ${languageName}
-- The dialog must match the resolved spoken language exactly
-- Camera movement: always "fixed"
-- Emotion: "excited, genuine" or similar positive emotions
-${userDialogue ? `- The user has provided a custom script: "${userDialogue.replace(/"/g, '\\"')}"
-- CRITICAL: You MUST split this script across ${videoScenes} scenes only when required by natural spoken timing
-  1. Keep each scene ${modelSceneDurationRule}
-  2. If the entire script fits within 15 seconds, keep it in one scene
-  3. Split only at natural sentence or clause boundaries
-  4. Preserve complete thoughts - do NOT split problems from solutions
-  5. Preserve the core message and key phrases from the user's script` : ''}
-
-${dialogueLengthGuidance}
-
-DIALOGUE PACING RULES:
-- Each scene needs natural speaking rhythm within ${targetSceneDuration} seconds
-- Include brief pauses between phrases
-- Avoid cramming too many words - clarity over quantity
-- The 'dialog' field should contain the natural product pitch directly
-- Use UGC ad structure when possible: hook, benefit, proof/experience, recommendation, soft CTA
-- Avoid generic narration or documentary tone; this should sound like creator-led spoken ad copy
-
-IMAGE PROMPT REQUIREMENTS:
-- Analyze the PRODUCT image to determine how it should be presented:
-  - IF WEARABLE (e.g., t-shirt, dress, jacket, hat): The character MUST BE WEARING the product. Describe them wearing the item naturally. Do NOT write "holding the product".
-  - IF HANDHELD (e.g., cup, bottle, phone, cream): Start with: "Take the product in the image and have the character show it to the camera."
-- Place the character at the center of the image with both the product and character visible.
-- Describe the character with CORRECT GENDER matching the person image
-- Include product description
-- Amateur iPhone selfie aesthetic
-- This image serves as cover AND first frame reference for ALL videos
-
-OUTPUT FORMAT (JSON):
-{
-  "scenes": [
-    {
-      "scene": 1,
-      "prompt": {
-        "subject": "A confident [man/woman] in [clothing description]...",
-        "context_environment": "A minimalist, upscale interior setting...",
-        "action": "The character delivers a persuasive UGC sales pitch, maintains eye contact with camera, shows the product naturally, and uses subtle but confident creator-style gestures...",
-        "style": "Amateur iPhone selfie UGC ad style for TikTok/Reels/Shorts...",
-        "camera_motion_positioning": "Fixed Medium Shot (MS). The camera is stable...",
-        "composition": "A balanced composition...",
-        "ambiance_color_lighting": "Warm color grading...",
-        "audio": "Soft background noise...",
-        "dialog": "Write the spoken line in ${languageName}.",
-        "voice_type": "Warm [male/female] voice speaking natural ${languageName}"
-      }
-    }
-  ],
-  "language": "${languageName}",
-  "image_prompt": "Take the product in the image and have the character show it to the camera. Place them at the center of the image with both the product and character visible. [Detailed character description with CORRECT GENDER + product + setting + camera style]"
-}
-
-CRITICAL: Ensure voice_type gender matches the person in the image!`;
+${commonStructuredRules}`.trim();
 
   const talkingHeadSystemPrompt = `
-Talking Head Prompt Generator 🎥
+Generate the final structured prompt for a direct-to-camera UGC talking-head avatar video.
 
-Generate a complete JSON structure with ${videoScenes} video scene(s) for a direct-to-camera monologue. There is NO physical product being shown—only the talent speaking sincerely to camera.
+Context you will receive:
+- one person image
+- the selected spoken language
+- the user dialogue/script or talking-head context
 
-You will receive ONE PERSON image (the character/influencer).
-
-Your task:
-1. Analyze the PERSON image: Determine their ACTUAL GENDER, age, style, and appearance
-2. Generate ${videoScenes} scene prompt(s) with CORRECT gender-specific voice
-3. Generate 1 cover image prompt showing the talent speaking to camera without any props
+Your job:
+- use the image context and script directly
+- return the final JSON scene prompt payload
+- make it feel like a real UGC talking-head prompt, not a template
 
 ${talkHeadContext}
 
-CRITICAL RULES FOR GENDER:
-- Analyze the person's ACTUAL GENDER from the image - do NOT guess or assume
-- For MALE characters: Use "Warm male voice speaking natural ${languageName}"
-- For FEMALE characters: Use "Warm female voice speaking natural ${languageName}"
-- The gender MUST match what you see in the person image
-
-TALKING HEAD STYLE PRINCIPLES:
-- Amateur iPhone selfie UGC testimonial aesthetic
-- Character faces camera the entire time
-- Natural, casual background (desk, living room, office, etc.)
-- Slight hand gestures, natural blinking, subtle movement
-- Creator-style direct response delivery, as if recording a persuasive social ad
-- No product props, nothing held in hand unless the user explicitly provided product context
-
-VIDEO SCENE REQUIREMENTS:
-- Each scene should fit naturally within ${targetSceneDuration} seconds
-- Write ALL dialogue in ${languageName}
-- The dialog must match the resolved spoken language exactly
-- Camera movement: always "fixed"
-- Emotion: "confident, genuine, and helpful"
-- The dialog content should follow the provided script/context exactly when supplied.
-
-${dialogueLengthGuidance}
-
-DIALOGUE PACING RULES:
-- Each scene needs natural speaking rhythm within ${targetSceneDuration} seconds
-- Include brief pauses between phrases for emphasis
-- Avoid cramming too many words - clarity and authenticity over quantity
-- Natural conversational flow is essential for talking head content
-- Delivery should still feel like UGC ad copy, not a lecture or documentary voiceover
-
-IMAGE PROMPT REQUIREMENTS:
-- Describe the character centered in frame, speaking to camera
-- Mention outfit, hairstyle, and environment to match the person image
-- No props or product references
-- Amateur iPhone selfie aesthetic
-
-OUTPUT FORMAT (JSON):
-{
-  "scenes": [
-    {
-      "scene": 1,
-      "prompt": {
-        "subject": "A confident [man/woman] in [clothing description] speaking directly to the camera...",
-        "context_environment": "A cozy home office with natural daylight...",
-        "action": "The character delivers a persuasive UGC-style talking-head pitch with confident eye contact, expressive face, and subtle creator gestures...",
-        "style": "Authentic UGC talking head ad style...",
-        "camera_motion_positioning": "Fixed Medium Shot (MS). The camera is stable...",
-        "composition": "Centered framing with soft depth of field...",
-        "ambiance_color_lighting": "Natural daylight with warm tones...",
-        "audio": "Soft room tone...",
-        "dialog": "Write the spoken line in ${languageName}.",
-        "voice_type": "Warm [male/female] voice speaking natural ${languageName}"
-      }
-    }
-  ],
-  "language": "${languageName}",
-  "image_prompt": "Show the character from the person image speaking directly to camera, centered in frame, no props, authentic vlog lighting."
-}
-
-CRITICAL: Keep everything focused on the person speaking directly to the viewer!`;
+${commonStructuredRules}`.trim();
 
   const systemPrompt = isTalkingHeadMode ? talkingHeadSystemPrompt : productSystemPrompt;
 
@@ -623,6 +1062,7 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
   const data = await sendOpenRouterChat({
     model: process.env.OPENROUTER_MODEL || process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash',
     messages,
+    response_format: AVATAR_PROMPT_RESPONSE_FORMAT,
     max_tokens: 2000,
     temperature: 0.3
   }, {
@@ -632,19 +1072,10 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
     xTitle: 'Flowtra'
   });
   try {
-    const parsed: {
-      image_prompt?: string;
-      scenes?: Array<{ scene?: number | string; prompt?: Record<string, unknown> }>;
-      language?: string;
-    } | null = extractOpenRouterJsonContent(data.choices?.[0]?.message?.content);
+    const parsed = parseAvatarPromptGenerationResponse(data);
 
     if (!parsed) {
-      throw new Error('AI did not return valid JSON');
-    }
-
-    // Validate structure
-    if (!parsed.image_prompt) {
-      throw new Error('AI did not return image_prompt');
+      throw new Error('AI did not return valid structured prompt data');
     }
     if (!Array.isArray(parsed.scenes) || parsed.scenes.length === 0) {
       throw new Error('AI did not return scenes array');
@@ -659,11 +1090,25 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
     const scriptSource = userDialogue
       || productContext?.talking_head_script
       || parsed.scenes
-        .map((scene) => (typeof scene.prompt?.dialog === 'string' ? scene.prompt.dialog.trim() : ''))
+        .map((scene) => flattenAvatarDialogText(scene.prompt?.dialog))
         .filter(Boolean)
         .join(' ');
+    const normalized = normalizeAvatarPromptGenerationResult({
+      parsed,
+      languageCode,
+      languageName,
+      model: resolvedModel,
+      avatarName: options?.avatarName,
+      productName: productContext?.product_name,
+      fallbackScriptSource: scriptSource,
+      hasProductContext: !isTalkingHeadMode,
+    });
 
-    const normalized = buildAvatarGeneratedPrompts({
+    if (normalized) {
+      return normalized;
+    }
+
+    const legacyFallback = buildAvatarGeneratedPrompts({
       imagePrompt: parsed.image_prompt,
       scriptSource,
       existingScenes: parsed.scenes.map((scene, index) => ({
@@ -676,24 +1121,15 @@ CRITICAL: Keep everything focused on the person speaking directly to the viewer!
       productName: productContext?.product_name
     });
 
-    parsed.image_prompt = typeof normalized.generatedPrompts.image_prompt === 'string'
-      ? normalized.generatedPrompts.image_prompt
-      : parsed.image_prompt;
-    parsed.scenes = normalized.scenes.map((scene) => ({
-      scene: scene.sceneIndex,
-      prompt: scene.prompt
-    }));
-    Object.assign(parsed as Record<string, unknown>, {
-      resolved_spoken_language: normalized.generatedPrompts.resolved_spoken_language,
-      planned_total_duration_seconds: normalized.generatedPrompts.planned_total_duration_seconds,
-      planned_scene_duration_seconds: normalized.generatedPrompts.planned_scene_duration_seconds,
-    });
-
-    // Ensure language field is set
-    (parsed as Record<string, unknown>)['language'] = languageName;
-    (parsed as Record<string, unknown>)['resolved_spoken_language'] = languageCode;
-
-    return parsed;
+    return {
+      ...legacyFallback.generatedPrompts,
+      language: languageName,
+      resolved_spoken_language: languageCode,
+      scenes: legacyFallback.scenes.map((scene) => ({
+        scene: scene.sceneIndex,
+        prompt: scene.prompt
+      }))
+    };
   } catch (error) {
     console.error('Failed to parse Gemini response:', data.choices?.[0]?.message?.content);
     console.error('Parse error:', error);
@@ -838,6 +1274,8 @@ export async function generateVideoWithKIE(
     model?: 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27';
     durationSeconds?: number;
     avatarGender?: 'male' | 'female' | null;
+    sceneNumber?: number;
+    totalScenes?: number;
   }
 ): Promise<{ taskId: string }> {
   // ✅ Validate prompt parameter
@@ -848,6 +1286,7 @@ export async function generateVideoWithKIE(
 
   // ✅ Extract video_prompt text from prompt object AND all metadata
   let videoPromptText: string;
+  let isStructuredExecutionPrompt = false;
 
   if (typeof prompt === 'string') {
     // If already a string, use it directly
@@ -859,13 +1298,13 @@ export async function generateVideoWithKIE(
       // New structured fields
       subject?: string;
       context_environment?: string;
-      action?: string;
+      action?: unknown;
       style?: string;
       camera_motion_positioning?: string;
       composition?: string;
       ambiance_color_lighting?: string;
       audio?: string;
-      dialog?: string;
+      dialog?: unknown;
       [key: string]: unknown;
     };
 
@@ -876,8 +1315,10 @@ export async function generateVideoWithKIE(
       // Construct prompt from new fields
       videoPromptText = buildAvatarAdsVideoExecutionPrompt(promptObj, {
         ...options,
+        durationSeconds: options?.durationSeconds,
         avatarGender: options?.avatarGender || inferAvatarVoiceGender(promptObj.voice_type, promptObj.subject)
       });
+      isStructuredExecutionPrompt = true;
     } else {
       // Fallback to old logic (if the prompt doesn't have the new structured fields)
       // This path is for backwards compatibility and should eventually be phased out.
@@ -947,7 +1388,9 @@ export async function generateVideoWithKIE(
   }
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
   const callBackUrl = siteUrl ? `${siteUrl}/api/avatar-ads/webhooks/video` : undefined;
-  const finalPrompt = `Spoken Language: ${languageName}\n\n${basePrompt}`;
+  const finalPrompt = isStructuredExecutionPrompt
+    ? basePrompt
+    : `Spoken Language: ${languageName}\n\n${basePrompt}`;
   const durationSeconds = (() => {
     const inputDuration = options?.durationSeconds && options.durationSeconds > 0
       ? options.durationSeconds
@@ -973,7 +1416,10 @@ export async function generateVideoWithKIE(
     (url) => typeof url === 'string' && url.trim().length > 0
   );
   const firstFrameUrl = validReferenceUrls[0];
-  const lastFrameUrl = validReferenceUrls[1] || validReferenceUrls[0];
+  const candidateLastFrameUrl = validReferenceUrls.find((url, index) => index > 0 && url !== firstFrameUrl);
+  const isFinalScene = (options?.totalScenes || 1) <= 1
+    || ((options?.sceneNumber || 1) >= (options?.totalScenes || 1));
+  const lastFrameUrl = !isFinalScene && candidateLastFrameUrl ? candidateLastFrameUrl : undefined;
 
   const requestBody = (() => {
     if (resolvedModel === 'kling_3') {
@@ -1617,6 +2063,8 @@ export async function processAvatarAdsProject(
             {
               hasProductContext: Boolean(project.product_context?.product_name || project.product_image_urls?.length),
               model: resolvedVideoModel,
+              sceneNumber: i,
+              totalScenes: videoScenes,
               durationSeconds: getAvatarSceneDurationSeconds(videoPrompt, resolvedVideoModel, {
                 plannedDurationSeconds: plannedSceneDurations[i - 1],
                 totalScenes: videoScenes,
@@ -1645,6 +2093,7 @@ export async function processAvatarAdsProject(
           .update({
             kie_video_task_ids: videoTaskIds,
             status: 'generating_videos',
+            current_step: 'generating_videos',
             progress_percentage: 70,
             last_processed_at: new Date().toISOString()
           })
@@ -1720,6 +2169,8 @@ export async function processAvatarAdsProject(
                   project.language,
                   {
                     model: resolveAvatarAdsVideoModel(project),
+                    sceneNumber: i + 1,
+                    totalScenes: promptScenes.length,
                     durationSeconds: getAvatarSceneDurationSeconds(videoPrompt, resolveAvatarAdsVideoModel(project), {
                       plannedDurationSeconds: getAvatarPlannedSceneDurations(project.generated_prompts)[i],
                       totalScenes: promptScenes.length,

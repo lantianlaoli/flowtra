@@ -138,7 +138,24 @@ export async function POST(request: NextRequest) {
         .eq('project_id', scene.project_id)
         .order('scene_number', { ascending: true });
 
-      const allCompleted = allScenes?.every(s => s.status === 'completed');
+      const completedScenes = allScenes?.filter((s) => s.status === 'completed').length || 0;
+      const totalScenes = allScenes?.length || 0;
+      const allCompleted = totalScenes > 0 && completedScenes === totalScenes;
+      const inFlightProgress = totalScenes > 0
+        ? Math.min(84, Math.max(70, Math.round(70 + (completedScenes / totalScenes) * 14)))
+        : 70;
+
+      if (!allCompleted) {
+        await supabase
+          .from('avatar_ads_projects')
+          .update({
+            status: 'generating_videos',
+            current_step: 'generating_videos',
+            progress_percentage: inFlightProgress,
+            last_processed_at: new Date().toISOString()
+          })
+          .eq('id', scene.project_id);
+      }
 
       if (allCompleted && allScenes && allScenes.length > 0) {
         // Get full project data

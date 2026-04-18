@@ -6,7 +6,6 @@ import {
   getLanguagePromptName,
   type LanguageCode
 } from '@/lib/constants';
-import { estimateDialogueDuration } from '@/lib/dialogue-duration-estimator';
 import {
   buildTypedMentionToken,
   MENTION_TOKEN_REGEX,
@@ -17,6 +16,7 @@ import {
   inferAvatarVoiceGender,
   resolveAvatarSpokenLanguage,
 } from '@/lib/avatar-spoken-language';
+import { estimateAvatarAdsDialogueSeconds } from '@/lib/avatar-ads-duration-estimate';
 
 type AvatarPromptScene = {
   sceneIndex: number;
@@ -143,7 +143,7 @@ const splitLongSentence = (sentence: string, language: string, model: AvatarDura
   const normalized = normalizeWhitespace(sentence);
   if (!normalized) return [] as string[];
 
-  if (estimateDialogueDuration(normalized, language) <= getScenePlanningLimitSeconds(normalized, language, model)) {
+  if (estimateAvatarAdsDialogueSeconds(normalized, model, language) <= getScenePlanningLimitSeconds(normalized, language, model)) {
     return [normalized];
   }
 
@@ -157,7 +157,7 @@ const splitLongSentence = (sentence: string, language: string, model: AvatarDura
   const bounds = getDurationBoundsByModel(model);
 
   sourceParts.forEach((part) => {
-    if (estimateDialogueDuration(part, language) <= bounds.maxDurationSeconds) {
+    if (estimateAvatarAdsDialogueSeconds(part, model, language) <= bounds.maxDurationSeconds) {
       expanded.push(part);
       return;
     }
@@ -173,7 +173,7 @@ const splitLongSentence = (sentence: string, language: string, model: AvatarDura
       const candidate = current ? `${current} ${word}` : word;
       if (
         current &&
-        estimateDialogueDuration(candidate, language) > getScenePlanningLimitSeconds(candidate, language, model)
+        estimateAvatarAdsDialogueSeconds(candidate, model, language) > getScenePlanningLimitSeconds(candidate, language, model)
       ) {
         expanded.push(current);
         current = word;
@@ -256,7 +256,7 @@ const getTargetDurationSeconds = (
   model: AvatarDurationModel
 ) => {
   const bounds = getDurationBoundsByModel(model);
-  const estimated = estimateDialogueDuration(dialogue, language);
+  const estimated = estimateAvatarAdsDialogueSeconds(dialogue, model, language);
   const bufferedEstimate = estimated + (language === 'en' ? 0.6 : 0.3);
   const planningLimit = getScenePlanningLimitSeconds(dialogue, language, model);
 
@@ -322,7 +322,7 @@ export const buildAvatarScenesFromScript = (input: {
     const candidate = currentBucket ? `${currentBucket} ${part}` : part;
     if (
       currentBucket &&
-      estimateDialogueDuration(candidate, language) > getScenePlanningLimitSeconds(candidate, language, model)
+      estimateAvatarAdsDialogueSeconds(candidate, model, language) > getScenePlanningLimitSeconds(candidate, language, model)
     ) {
       buckets.push(currentBucket);
       currentBucket = part;
@@ -340,8 +340,8 @@ export const buildAvatarScenesFromScript = (input: {
     const lastBucket = buckets[buckets.length - 1];
     const previousBucket = buckets[buckets.length - 2];
     if (
-      estimateDialogueDuration(lastBucket, language) < getDurationBoundsByModel(model).minDurationSeconds &&
-      estimateDialogueDuration(`${previousBucket} ${lastBucket}`, language) <= getScenePlanningLimitSeconds(`${previousBucket} ${lastBucket}`, language, model)
+      estimateAvatarAdsDialogueSeconds(lastBucket, model, language) < getDurationBoundsByModel(model).minDurationSeconds &&
+      estimateAvatarAdsDialogueSeconds(`${previousBucket} ${lastBucket}`, model, language) <= getScenePlanningLimitSeconds(`${previousBucket} ${lastBucket}`, language, model)
     ) {
       buckets.splice(buckets.length - 2, 2, `${previousBucket} ${lastBucket}`);
     }
