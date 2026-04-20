@@ -5,7 +5,7 @@ import { DefaultChatTransport } from 'ai';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import { useUser } from '@clerk/nextjs';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { AlertTriangle, ArrowUpRight, History, Loader2, MessageCircle, Plus, Search, X } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, HelpCircle, History, Loader2, MessageCircle, Plus, Search, X } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import CreateAvatarModal from '@/components/CreateAvatarModal';
@@ -13,6 +13,10 @@ import CreateProductModal from '@/components/CreateProductModal';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import FlowgenThinkingMark from '@/components/ui/FlowgenThinkingMark';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
+import {
+  ProjectAgentWelcomeTourModal,
+  isProjectAgentWelcomeTourDismissed,
+} from '@/components/project-agent/ProjectAgentWelcomeTourModal';
 import CanvasBoard from '@/components/project-agent/canvas/CanvasBoard';
 import InsertToolbar from '@/components/project-agent/canvas/InsertToolbar';
 import NodeDetailsDialog from '@/components/project-agent/canvas/NodeDetailsDialog';
@@ -298,6 +302,7 @@ export default function ProjectAgentPage() {
   const [sessionReady, setSessionReady] = useState(false);
   const [isHistoryPopoverOpen, setIsHistoryPopoverOpen] = useState(false);
   const [historyQuery, setHistoryQuery] = useState('');
+  const [isWelcomeTourOpen, setIsWelcomeTourOpen] = useState(false);
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<ProjectAgentCanvasState>(DEFAULT_PROJECT_AGENT_CANVAS_STATE);
   const historyPopoverRef = useRef<HTMLDivElement | null>(null);
@@ -315,6 +320,7 @@ export default function ProjectAgentPage() {
   const pendingUiRequestRef = useRef<ProjectAgentPendingUiRequest | null>(null);
   const appliedCanvasActionCallIdsRef = useRef<string[]>([]);
   const processedCanvasToolCallIdsRef = useRef<Set<string>>(new Set());
+  const hasCheckedWelcomeTourRef = useRef(false);
 
   const ensureHistoryTracked = useCallback((id: string) => {
     const current = readHistoryIds();
@@ -568,6 +574,14 @@ export default function ProjectAgentPage() {
     ensureHistoryTracked(nextSessionId);
     setSessionId(nextSessionId);
   }, [ensureHistoryTracked, isLoaded, user]);
+
+  useEffect(() => {
+    if (!isLoaded || !user || isPageLoading || hasCheckedWelcomeTourRef.current) return;
+    hasCheckedWelcomeTourRef.current = true;
+    if (!isProjectAgentWelcomeTourDismissed()) {
+      setIsWelcomeTourOpen(true);
+    }
+  }, [isLoaded, isPageLoading, user]);
 
   useEffect(() => {
     if (!sessionId || !user) return;
@@ -1986,6 +2000,15 @@ export default function ProjectAgentPage() {
                   <span className="truncate whitespace-nowrap text-sm font-semibold">{activeChatTitle}</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsWelcomeTourOpen(true)}
+                    className="project-agent-press-button project-agent-toolbar-button inline-flex h-9 items-center gap-1.5 rounded-[12px] border px-3 text-xs font-semibold text-[#1f1f1e]"
+                    aria-label="Open AI Agent tutorial"
+                  >
+                    <HelpCircle className="h-4 w-4" />
+                    <span className="max-[1320px]:hidden">Tutorial</span>
+                  </button>
                   <div ref={historyPopoverRef} className="relative">
                     <button
                       type="button"
@@ -2221,6 +2244,10 @@ export default function ProjectAgentPage() {
         isOpen={showCreateProductModal}
         onClose={() => setShowCreateProductModal(false)}
         onProductCreated={handleProductCreated}
+      />
+      <ProjectAgentWelcomeTourModal
+        open={isWelcomeTourOpen}
+        onOpenChange={setIsWelcomeTourOpen}
       />
     </div>
   );
