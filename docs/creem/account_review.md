@@ -1,0 +1,294 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.creem.io/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Account Reviews
+
+> Learn how account reviews work on Creem.
+
+Before you can accept payments through Creem, your store needs to pass our account review. Here's everything you need to know to get approved on the first try.
+
+<Tip>
+  Run through this checklist before submitting for review — it covers the most common reasons applications are sent back.
+</Tip>
+
+| Requirement                           | Details                                                                                                 |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Product is live**                   | Your product is ready for production. Still building? Use [Test Mode](/getting-started/test-mode) first |
+| **No false information**              | No fake reviews, testimonials, or inflated user/customer counts on your website                         |
+| **Privacy Policy & Terms of Service** | Both legal pages must be present and accessible on your website                                         |
+| **Product clearly visible**           | We must be able to understand what you're selling from your website or landing page                     |
+| **No trademark conflicts**            | Your product name doesn't infringe existing trademarks or cause consumer confusion                      |
+| **Pricing is visible**                | Pricing is clearly displayed and easy for users to find                                                 |
+| **Acceptable use**                    | No high-risk, shady, or illegitimate use cases — you're proud of what you're building                   |
+| **Customer support email**            | [Reachable support email](#customer-experience-and-support) is set up and shown on receipts             |
+| **AI content moderation**             | AI image/video products must have [NSFW content filters](#content-safety-%26-moderation-requirements)   |
+| **Not on prohibited list**            | Your product is not in our [prohibited product list](#prohibited-products)                              |
+
+## The Review Process
+
+### How long does the review take?
+
+Account reviews are typically completed within **24-48 hours**. During peak periods, it may take up to 72 hours. You'll receive an email notification once the review is complete or if changes are requested.
+
+If changes are requested, address them and request a re-review using the **Request Re-Review** button on the **Payout Account** page in your dashboard — your account will be re-reviewed promptly.
+
+<Tip>
+  You can find your Store ID in **Settings** in your dashboard. Always include it when contacting support — it helps us locate your account instantly.
+</Tip>
+
+### Common reasons for requests for changes
+
+The most frequent issues that cause requests for changes during account review:
+
+1. **Support email mismatch** — The email in your Business Details doesn't match what's on your website. Update it in **Settings** → **Business Details**.
+2. **Website not accessible** — Your site is down, password-protected, or returning errors during our review.
+3. **Missing legal pages** — Your website needs a Privacy Policy and Terms of Service.
+4. **False information** — Fake reviews, testimonials, or inflated user counts on your website.
+5. **Product not ready** — If your product isn't live yet, use [Test Mode](/getting-started/test-mode) until it's ready.
+
+### Why do you need to review my account?
+
+We review accounts to ensure that they are legitimate and in compliance with our terms of service.
+This helps us prevent fraud, misuse, malicious activities, and high-risk accounts.
+
+## How to submit an account review, and what information is needed?
+
+To submit an account review, you need to navigate to the Account tab Located in the Balance Menu. Click 'Set up Payout Account' to start the process of submitting your details and getting your store reviewed.
+
+<Frame caption="Navigate to Balance → Payout Account to start the review process. Note: payout accounts are only available in live mode.">
+  <img style={{ borderRadius: '0.5rem' }} src="https://mintcdn.com/creem/fm2TYBwopS74uc7h/images/payout-account-test-mode.png?fit=max&auto=format&n=fm2TYBwopS74uc7h&q=85&s=ee2b358e55cd68173e429fdaa05e69d0" alt="Creem Balance page showing Payout Account tab with test mode notice" width="1920" height="963" data-path="images/payout-account-test-mode.png" />
+</Frame>
+
+The information necessary for the store review includes:
+
+* Your full individual name and/or your business entity name
+* Your store/product name
+* The product URL of your store
+* A description of your business and how you operate
+* A description of the products you are intending to sell through Creem with your store
+* The country you are a tax resident in (Country of citizenship if an individual store account, or country of incorporation if a business entity)
+
+### How to ensure that your account review is successful?
+
+Provide accurate, detailed information about your store and products. The more clearly you describe what you're selling and how it works, the faster we can approve you.
+
+Every application is reviewed for deceptive content. The following will get your application rejected:
+
+* Unearned badges (e.g. Product Hunt, "As Seen On")
+* Fake customer testimonials
+* Misleading reviews or inflated user counts
+
+<Tip>
+  Not sure if your product qualifies? Reach out before submitting — we're happy to clarify.
+</Tip>
+
+## Product Guidelines
+
+### Acceptable Products
+
+<Accordion title="Examples of products we support">
+  We allow selling of digital goods that can be fulfilled through Creem. Some examples:
+
+  * Software & SaaS
+  * eBooks
+  * PDFs
+  * Design assets
+  * Photos
+  * Audio
+  * Video
+</Accordion>
+
+### Prohibited Products
+
+<Warning>
+  If you violate our terms of service or attempt to sell prohibited products,
+  you risk getting your account placed in review or suspended.
+</Warning>
+
+<Accordion title="Full list of prohibited products">
+  The following products and services are prohibited on Creem:
+
+  * Sexually-oriented or pornographic content of any kind, including AI-generated content and NSFW chatbots
+  * Face-swap, deepfake, and face-manipulation tools and services of any kind
+  * IPTV services
+  * Physical goods of any kind
+  * Spyware or parental control apps
+  * Donations or charity giving where no product exists or where the price is greater than the product value
+  * Products or content for which you do not hold a proper license or intellectual property rights
+  * Third-party content downloaders and rippers that violate platform Terms of Service (e.g. video downloaders, audio rippers, stream recorders). Tools that only process user-owned content or use official APIs are not affected.
+  * Marketplaces — where you use your Creem store to "partner" to sell others' products
+  * Dating sites
+  * Private Label Rights (PLR) products or Master Resell Products (MRR) — products you've obtained a license to sell but do not hold the original IP rights
+  * Counterfeit goods
+  * Illegal or age-restricted products such as: drugs and paraphernalia, alcohol, tobacco, vaping products
+  * Regulated products such as: CBD, gambling, weapons, ammunition, pay-to-play auctions, sweepstakes, lotteries, business-in-a-box, work-from-home, get-rich-quick schemes, etc.
+  * Regulated services such as: real estate, mortgage, lending, telemarketing, cellular/communication, door-to-door sales, bankruptcy, legal, merchant, debt-relief, collections, banking/financing, currency exchange, warranties, etc.
+  * Timeshares
+  * Pharmacies, pharmaceuticals and nutraceuticals
+  * Homework/Essay mills
+  * Multi-level marketing, pyramid, or IBO schemes
+  * NFT & Crypto assets products
+  * In-game items, currencies, and virtual goods tied to third-party games
+  * Any other products that our providers and partners deem too risky
+</Accordion>
+
+### Restricted Products
+
+<Accordion title="Products subject to strict due diligence">
+  These services are not guaranteed to be accepted:
+
+  * Services of any kind (including marketing, design, web development, consulting or other related services)
+  * Job boards
+  * Advertising in newsletters, on websites, or in social media posts
+</Accordion>
+
+If you are unsure whether your content is prohibited, please contact Creem support with a description or example of the content before you start selling.
+
+## Customer Experience and Support
+
+Providing excellent customer support is a core requirement for all merchants on Creem.
+
+### Support Channels
+
+* **A visible support email is mandatory.** This email must be accessible on your public website and within the user dashboard.
+* **Use a branded support email.** If your product is `MintAI`, your support email should be `support@mintai.com`, not a generic address.
+
+### Subscription Management
+
+* **Users must be able to cancel subscriptions directly from your product.** You can achieve this by integrating with the `Creem Cancel Subscription API` or by redirecting users to the `Creem Customer Portal`.
+
+### Refund Policy
+
+Timely customer resolution is critical.
+
+* **Respond to customer requests within 3 business days.**
+* If you do not respond within this timeframe, Creem reserves the right to issue a refund on your behalf to ensure customer satisfaction.
+
+## AI Wrapper Compliance
+
+To ensure a fair and transparent ecosystem for both merchants and customers, Creem has established a set of compliance requirements for all AI wrapper products. These are platforms that provide a custom interface or extended features for third-party AI models like VEO3, Claude, or Gemini.
+
+<Warning>
+  Failure to comply with these policies will result in the suspension of your
+  payment processing capabilities.
+</Warning>
+
+### Product Branding and Naming
+
+Your product's brand identity must be distinct from the underlying AI models it uses. This is crucial for trademark protection and to avoid customer confusion.
+
+#### Prohibited Practices
+
+* **Do not use AI model brand names in your product name.** For example, names like "VEO3Studio" or "GeminiVideo" are not allowed.
+
+#### Required Practices
+
+* **Develop independent branding.** Choose a name that is unique and does not directly reference the AI models. Examples of compliant names include `MintAI`, `RenderZen`, or `SlateVidAI`.
+* **You may mention supported models within your application or on your website**, but not as part of the core product branding. For instance, you can say "Powered by VEO3" or "Integrates with Gemini."
+* **SEO-focused domains are permitted with a redirect.** You can use a domain like `veo3generator.com` for SEO, but it must redirect to your properly branded product website.
+
+### Marketing and Transparency
+
+When marketing your product, it's essential to be transparent about its nature and your relationship with the AI model providers.
+
+#### Disclaimers
+
+* If you use model names in advertisements or marketing content, you must include a disclaimer stating that your product is not affiliated with, endorsed by, or sponsored by the model creators.
+* **Example Disclaimer:** `"This platform is an independent product and is not affiliated with Google. We provide access to the VEO3 model through our custom interface."`
+
+#### Feature Representation
+
+* **Advertise only the features you deliver.** Do not claim functionalities that are part of a more advanced model version than the one you use.
+* Be explicit about any limitations or tiered access to specific model capabilities.
+
+### Platform and Product Integrity
+
+Your Creem integration should be used for a single, clearly defined product.
+
+* **One Product per Integration:** If you launch new AI tools, they must be onboarded as separate products through Creem's review process.
+* **Disclose the Wrapper Nature:** Clearly state that your platform provides a custom interface for underlying AI models. This prevents potential flags for consumer deception.
+* **Example Disclosure:** `"Our platform offers a user-friendly interface built on top of models like VEO3 to enhance usability and provide additional features. We are an independent service and not affiliated with the model providers."`
+
+### Content Safety & Moderation Requirements
+
+All AI-powered generation tools — including image, video, and text products — must implement robust content moderation to prevent the creation of prohibited content.
+
+#### Required Safeguards
+
+* **NSFW content filters are mandatory.** Your product must have effective filters that prevent generation of sexually explicit, nude, sexually suggestive (e.g. undressing, twerking, suggestive poses), or otherwise NSFW content.
+* **Acceptable Use Policy required.** Your platform must include a visible Acceptable Use Policy that explicitly prohibits NSFW and sexually explicit content generation.
+* **Marketing must not promote NSFW capability.** Your marketing materials, landing pages, social media, and galleries must not promote, showcase, or imply the capability to generate NSFW content — even indirectly through suggestive examples or "uncensored" messaging.
+
+<Warning>
+  Creem conducts ongoing compliance monitoring and reserves the right to test AI generation outputs at any time. Merchants are fully responsible for the content their platform enables users to generate — "we use a third-party API" is not a defense. Violations result in immediate suspension of payment processing.
+</Warning>
+
+<Accordion title="What counts as a violation?">
+  * Generating nude, semi-nude, or sexually explicit images or video — even if behind a paywall or "premium" tier
+  * Gallery or showcase content featuring suggestive, borderline, or sexually provocative material
+  * Marketing that uses terms like "uncensored", "no filter", "NSFW", "18+", or "unfiltered generation"
+  * Absence of content moderation filters on an AI generation product
+  * Deploying prohibited models (see table below) without adequate NSFW content filtering
+</Accordion>
+
+#### Prohibited Models
+
+The following open-source/open-weight models lack built-in NSFW content filters. These models are not allowed to be used without robust NSFW content filters.
+
+<Note>
+  All versions and community derivatives of the listed models are covered by this policy.
+</Note>
+
+**Image Generation**
+
+| Model                                                                                                                                         | Developer                     |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| **Stable Diffusion** (all versions) and community derivatives (RealVisXL, DreamShaper, Deliberate, Pony Diffusion, Illustrious XL and others) | Stability AI / Community      |
+| **Flux** (all versions) and derivatives (Chroma)                                                                                              | Black Forest Labs / Community |
+| **Z-Image**                                                                                                                                   | Community                     |
+
+**Video Generation**
+
+| Model                                     | Developer      |
+| ----------------------------------------- | -------------- |
+| **Wan** (all versions)                    | Alibaba        |
+| **CogVideo** (all versions)               | Tsinghua/THUDM |
+| **HunyuanVideo**                          | Tencent        |
+| **LTX-Video**                             | Lightricks     |
+| **Mochi** (all versions)                  | Genmo          |
+| **SkyReels** (all versions)               | Skywork AI     |
+| **MAGI-1**                                | Sand AI        |
+| **AnimateDiff**                           | Community      |
+| **Stable Video Diffusion** (all versions) | Stability AI   |
+| **Hotshot-XL**                            | Hotshot        |
+
+<Tip>
+  These policies are actively enforced. We encourage you to review your product
+  and marketing materials to ensure full compliance. If you have any questions,
+  please reach out to our support team.
+</Tip>
+
+### On-going Monitoring
+
+All accounts are continuously monitored for compliance and fraud. If suspicious activity is detected, your account will be suspended or rejected based on the severity of the breach.
+
+**What we look at during a monitoring review:**
+
+<CardGroup cols={2}>
+  <Card title="Content Safety" icon="shield-check">
+    NSFW filters, acceptable use policy, and marketing compliance
+  </Card>
+
+  <Card title="Customer Support" icon="headset">
+    Reachability and quality of your support contact
+  </Card>
+
+  <Card title="Website & Landing Page" icon="browser">
+    Accuracy and integrity of your public-facing pages
+  </Card>
+
+  <Card title="Risk & Disputes" icon="shield-exclamation">
+    Risk scores, refund rate, and chargeback ratio
+  </Card>
+</CardGroup>
