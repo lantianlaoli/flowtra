@@ -33,6 +33,17 @@ export default function Footer() {
               <p className="mb-5 max-w-[240px] text-[13px] leading-[1.55] text-[#666666]">
                 {footerMessages.description}
               </p>
+
+              {/* Compliance disclaimers */}
+              <div className="mt-2 space-y-1">
+                <p className="text-[10px] leading-[1.5] text-[#999999]">
+                  {footerMessages.disclaimer}
+                </p>
+                <p className="text-[10px] leading-[1.5] text-[#999999]">
+                  {footerMessages.transparency}
+                </p>
+              </div>
+
               <p className="text-[11px] uppercase tracking-[0.14em] text-[#666666]">
                 &copy; {currentYear} Flowtra. {footerMessages.rightsReserved}
               </p>
@@ -163,16 +174,6 @@ export default function Footer() {
               </li>
               </ul>
             </nav>
-          </div>
-
-          {/* Compliance disclaimers */}
-          <div className="mt-4 rounded-[26px] border border-[#E5E5E5] bg-white px-5 py-4">
-            <p className="text-[11px] leading-[1.6] text-[#888888]">
-              {footerMessages.disclaimer}
-            </p>
-            <p className="mt-1 text-[11px] leading-[1.6] text-[#888888]">
-              {footerMessages.transparency}
-            </p>
           </div>
         </div>
       </div>
