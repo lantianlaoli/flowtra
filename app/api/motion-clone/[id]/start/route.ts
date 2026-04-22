@@ -17,6 +17,7 @@ import { replaceMentionsForPlainText } from '@/lib/video-clone-prompt-compiler';
 import { verifyInternalUserRequest } from '@/lib/security/internal-request';
 import { validateKieCredits } from '@/lib/kie-credits-check';
 import { resolveProductForUser } from '@/lib/product-resolution';
+import { moderatePromptBeforeGeneration, isCreemModerationError } from '@/lib/creem-moderation';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -281,6 +282,19 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     // Reuse an existing preview whenever the user is only regenerating video.
     if (canReuseExistingPreview) {
+      // Moderate video prompt before any billing or model invocation
+      const videoPromptForModeration = compiledVideoPrompt || buildMotionCloneVideoPrompt({ hasAvatar, hasProduct });
+      try {
+        await moderatePromptBeforeGeneration(videoPromptForModeration, {
+          externalId: `user_${userId}:motion_clone_${project.id}:video`,
+        });
+      } catch (moderationError) {
+        if (isCreemModerationError(moderationError)) {
+          return NextResponse.json({ error: moderationError.message }, { status: (moderationError as { status?: number }).status || 400 });
+        }
+        throw moderationError;
+      }
+
       let creditsDeducted = false;
       try {
         if (!project.preview_image_url) {
@@ -359,6 +373,19 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     }
 
     // Normal flow: Generate preview (and optionally video based on auto_generate_video)
+    // Moderate photo prompt before any billing or model invocation
+    const photoPromptForModeration = compiledPhotoPrompt || photoPrompt || buildMotionClonePreviewPrompt({ hasAvatar, hasProduct });
+    try {
+      await moderatePromptBeforeGeneration(photoPromptForModeration, {
+        externalId: `user_${userId}:motion_clone_${project.id}:preview`,
+      });
+    } catch (moderationError) {
+      if (isCreemModerationError(moderationError)) {
+        return NextResponse.json({ error: moderationError.message }, { status: (moderationError as { status?: number }).status || 400 });
+      }
+      throw moderationError;
+    }
+
     let creditsDeducted = false;
     try {
       if (shouldChargeForGeneration) {
@@ -384,7 +411,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         avatarUrl: avatar?.photo_url || null,
         productUrl: productPhoto?.photo_url || null,
         aspectRatio: '9:16',
-          prompt: compiledPhotoPrompt || photoPrompt || buildMotionClonePreviewPrompt({ hasAvatar, hasProduct })
+          prompt: photoPromptForModeration
       }, callbackUrl);
 
       const { data: updatedProject, error: updateError } = await supabase

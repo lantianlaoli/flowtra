@@ -40,7 +40,7 @@ export type LandingMessages = {
       codePrefix: string;
       klingLive: string;
       klingMotionLive: string;
-      nanoBananaLive: string;
+      gptImage2Live: string;
     };
     title: string;
     titleHighlight: string;
@@ -175,6 +175,8 @@ export type LandingMessages = {
     terms: string;
     privacy: string;
     newBadge: string;
+    disclaimer: string;
+    transparency: string;
     featureItems: Array<{
       href: string;
       label: string;
@@ -230,7 +232,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         codePrefix: 'Code: ',
         klingLive: 'Seedance 2 is live',
         klingMotionLive: 'Kling 3.0 is live',
-        nanoBananaLive: 'Nano Banana 2 is live',
+        gptImage2Live: 'GPT Image 2 is live',
       },
       title: 'Turn Viral Videos Into Your Own',
       titleHighlight: 'Viral Videos',
@@ -488,6 +490,8 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       terms: 'Terms of Use',
       privacy: 'Privacy Policy',
       newBadge: 'New',
+      disclaimer: 'Flowtra is an independent creative platform and is not affiliated with or endorsed by any model creators.',
+      transparency: 'Flowtra provides an independent workflow interface powered by third-party AI models.',
       featureItems: [
         { href: '/features/ai-agent', label: 'AI Agent', isNew: true },
         { href: '/features/avatar-ads', label: 'Avatar Ads' },
@@ -543,7 +547,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         codePrefix: '优惠码：',
         klingLive: 'Seedance 2 已上线',
         klingMotionLive: 'Kling 3.0 已上线',
-        nanoBananaLive: 'Nano Banana 2 已上线',
+        gptImage2Live: 'GPT Image 2 已上线',
       },
       title: '把爆款视频变成你的专属素材',
       titleHighlight: '爆款视频',
@@ -801,6 +805,8 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       terms: '使用条款',
       privacy: '隐私政策',
       newBadge: '新',
+      disclaimer: 'Flowtra 是独立的创意平台，与任何模型创作者均无关联，亦未获得其背书。',
+      transparency: 'Flowtra 提供基于第三方 AI 模型的独立工作流界面。',
       featureItems: [
         { href: '/features/ai-agent', label: 'AI 智能体', isNew: true },
         { href: '/features/avatar-ads', label: '数字人广告' },

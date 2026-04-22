@@ -49,35 +49,48 @@ export default function TermsPage() {
           </section>
 
           <section className="mb-8">
-            <h2 className="text-2xl font-semibent text-gray-900 mb-4">6. Prohibited Uses</h2>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">6. Prohibited Uses</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
               You may not use the Service for any illegal, harmful, or abusive purposes. This includes but is not limited to generating content that violates intellectual property rights, contains explicit material, or promotes harmful activities.
+            </p>
+            <p className="text-gray-600 leading-relaxed mb-4">
+              <strong>NSFW and Adult Content:</strong> You are strictly prohibited from using the Service to generate sexually explicit, nude, or pornographic content of any kind. This includes but is not limited to nude or semi-nude images, sexually suggestive poses, undressing, or any content intended to arouse. We reserve the right to terminate accounts found generating such content without refund.
             </p>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">7. Limitation of Liability</h2>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">7. Third-Party AI Models and Transparency</h2>
+            <p className="text-gray-600 leading-relaxed mb-4">
+              <strong>Independent Platform:</strong> Flowtra is an independent creative platform and is not affiliated with, endorsed by, or sponsored by any AI model creators or providers. We are not the official platform for any underlying AI model.
+            </p>
+            <p className="text-gray-600 leading-relaxed mb-4">
+              <strong>Workflow Interface:</strong> Flowtra provides an independent workflow interface powered by third-party AI models. We do not own, operate, or control the underlying AI models. All generated content is produced by third-party AI services integrated into our platform.
+            </p>
+          </section>
+
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">8. Limitation of Liability</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
               Flowtra shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, whether incurred directly or indirectly, or any loss of data, use, goodwill, or other intangible losses.
             </p>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">8. Privacy</h2>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">9. Privacy</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
               Your privacy is important to us. Please refer to our Privacy Policy for information about how we collect, use, and disclose your personal information.
             </p>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">9. Changes to Terms</h2>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">10. Changes to Terms</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
               We reserve the right to modify these terms at any time. We will notify users of significant changes via email or through the Service. Your continued use of the Service after such modifications constitutes acceptance of the updated terms.
             </p>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">10. Contact Information</h2>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">11. Contact Information</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
               If you have any questions about these Terms of Service, please contact us at lantianlaoli@gmail.com.
             </p>

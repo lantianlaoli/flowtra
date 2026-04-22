@@ -164,6 +164,16 @@ export default function Footer() {
               </ul>
             </nav>
           </div>
+
+          {/* Compliance disclaimers */}
+          <div className="mt-4 rounded-[26px] border border-[#E5E5E5] bg-white px-5 py-4">
+            <p className="text-[11px] leading-[1.6] text-[#888888]">
+              {footerMessages.disclaimer}
+            </p>
+            <p className="mt-1 text-[11px] leading-[1.6] text-[#888888]">
+              {footerMessages.transparency}
+            </p>
+          </div>
         </div>
       </div>
     </footer>
