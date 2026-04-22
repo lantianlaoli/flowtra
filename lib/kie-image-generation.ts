@@ -3,7 +3,6 @@ import {
   GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL,
   GPT_IMAGE_2_TEXT_TO_IMAGE_MODEL,
 } from '@/lib/constants';
-import { moderatePromptBeforeGeneration } from '@/lib/creem-moderation';
 
 const KIE_IMAGE_CREATE_TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 
@@ -96,12 +95,6 @@ export async function createKieGptImageTask(
   retries = 5,
   timeoutMs = 30000
 ): Promise<string> {
-  if (input.moderationExternalId) {
-    await moderatePromptBeforeGeneration(input.prompt, {
-      externalId: input.moderationExternalId,
-    });
-  }
-
   const payload = buildKieGptImageTaskPayload(input);
   const response = await fetchWithRetry(KIE_IMAGE_CREATE_TASK_URL, {
     method: 'POST',
