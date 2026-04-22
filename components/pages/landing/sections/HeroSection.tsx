@@ -87,7 +87,7 @@ export default function HeroSection() {
           >
             <LiveModelBadge
               icon={<Google className="w-3.5 h-3.5 text-[#37352f]" />}
-              label={heroMessages.badges.nanoBananaLive}
+              label={heroMessages.badges.gptImage2Live}
             />
           </a>
         </div>

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Update KIE Image Model"
+  short_description: "Switch Flowtra's KIE image-generation model based on provider docs"
+  default_prompt: "Use $update-kie-image-model to update Flowtra image generation from the latest KIE docs. Read references/gpt_2_img.md and references/gpt_2_img_api.md, then update all image generation call sites to use the new model."

@@ -488,8 +488,7 @@ export default function AiAngleGeneratorPage() {
         <section className="mx-auto max-w-[1040px] px-4 py-14 sm:px-6 md:py-20">
           <div className="relative space-y-4">
             <div className="absolute right-0 top-0 inline-flex items-center gap-1.5 rounded-full border border-yellow-200 bg-yellow-50 px-3 py-1 text-[11px] font-semibold text-yellow-800 shadow-sm sm:text-xs">
-              <span aria-hidden>🍌</span>
-              <span>power by nano banana 2</span>
+              <span>Powered by GPT Image 2</span>
             </div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#666666]">{toolMessages.eyebrow}</p>
             <h1 className="text-3xl font-semibold tracking-tight text-black sm:text-5xl">{toolMessages.title}</h1>

@@ -36,9 +36,9 @@ export type HighResResolution = '720p' | keyof typeof HIGH_RES_DOWNLOAD_COSTS;
 // NOTE: Platform presets have been removed
 // Platform selection is no longer a feature of the system
 
-export const NON_AGENT_IMAGE_MODEL = 'nano-banana-2' as const;
-export const NON_AGENT_IMAGE_RESOLUTION = '1K' as const;
-export const NON_AGENT_IMAGE_OUTPUT_FORMAT = 'png' as const;
+export const GPT_IMAGE_2_TEXT_TO_IMAGE_MODEL = 'gpt-image-2-text-to-image' as const;
+export const GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL = 'gpt-image-2-image-to-image' as const;
+export const NON_AGENT_IMAGE_MODEL = GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL;
 
 // Video aspect ratio options for different models
 export const VIDEO_ASPECT_RATIO_OPTIONS = {
@@ -264,7 +264,7 @@ export const KIE_CREDIT_THRESHOLD = (() => {
 // Complete workflow cost breakdown:
 // - Image description: ~1-2 credits (AI Gateway model call) - FREE for users
 // - Prompt generation: ~1-2 credits (AI Gateway model call) - FREE for users
-// - Cover generation: 0 credits (Nano Banana 2) - FREE
+// - Cover generation: 0 credits (GPT Image 2) - FREE
 // - Video generation: model-specific per-second pricing
 // - Video download: FREE (no credits charged)
 // Total for complete workflow varies by model and duration
