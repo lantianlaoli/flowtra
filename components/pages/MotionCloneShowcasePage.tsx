@@ -15,7 +15,7 @@ const steps = [
   },
   {
     title: 'Set the replacement assets',
-    description: 'Choose the person and product you want the workflow to substitute into the source motion.'
+    description: 'Choose the product you want the workflow to substitute into the source motion.'
   },
   {
     title: 'Preview and generate',
@@ -33,7 +33,7 @@ export default function MotionCloneShowcasePage() {
 
       <FeatureHero
         title="Motion Clone"
-        description="Preserve the movement, pacing, and camera behavior of a strong reference ad while swapping in your own product and character."
+        description="Preserve the movement, pacing, and camera behavior of a strong reference ad while placing your own product in the scene."
         primaryCta={primaryCta}
         secondaryCta={secondaryCta}
         mediaVariant="comparison"
@@ -150,7 +150,7 @@ export default function MotionCloneShowcasePage() {
       />
 
       <FeatureSignupCTA
-        title="Ready to swap motion into your own ad?"
+        title="Ready to build your own ad motion?"
         description="Create your account and start rebuilding strong ad motion around your product."
       />
 

@@ -239,7 +239,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       description: 'For TikTok dropshipping, small businesses, and local stores.',
       bullets: [
         'Clone viral TikTok UGC in minutes',
-        'Swap people, products, or pets with your own',
+        'Swap products, brands, or pets with your own',
         'Videos from $2.25 per minute (150x cheaper than hiring UGC creators)',
         'Supports English, Spanish, and over 10 other languages',
       ],
@@ -282,7 +282,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
             'Drag people, products, and videos into one canvas',
             'Connect functions fast with clear visual links',
             'Run video clone, motion clone, and talking-head flows from one workspace',
-            'Keep asset swaps visible instead of buried in long prompt threads',
+            'Keep asset swaps visible and explicit in your workflow',
           ],
           isNew: true,
         },
@@ -294,7 +294,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
           bullets: [
             'Max 60 seconds',
             'Supports custom editing',
-            'Replace your products, people, or pets',
+            'Replace your products, brand, or pets',
             'Supports English, Spanish, and 10+ languages',
           ],
         },
@@ -313,7 +313,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         },
         {
           title: 'Motion Clone',
-          description: "Clone viral ads in seconds. Enter a creator's name and swap person and product while preserving the exact movements.",
+          description: "Clone viral ads in seconds. Enter a creator's name and place your product into the motion while preserving the exact movements.",
           href: '/features/motion-clone',
           mediaLabels: ['Original Creator', 'Motion Clone'],
           bullets: [
@@ -554,7 +554,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       description: '适用于 TikTok dropshipping、小型品牌商家与本地门店。',
       bullets: [
         '几分钟内复刻 TikTok 爆款 UGC',
-        '支持替换人物、产品，甚至宠物',
+        '支持替换品牌、产品，甚至宠物',
         '视频最低每分钟约 $2.25（比请 UGC 创作者便宜 150 倍）',
         '支持英文、西班牙语及 10 多种语言',
       ],
@@ -597,7 +597,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
             '把人物、产品和视频拖到同一张画布上',
             '用清晰的可视化连线快速连接功能节点',
             '在同一工作区运行视频复刻、动作复刻与口播流程',
-            '素材替换清晰可见，不再埋在冗长提示词里',
+            '素材替换清晰可见，直接呈现在工作流中',
           ],
           isNew: true,
         },
@@ -609,7 +609,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
           bullets: [
             '最长支持 60 秒',
             '支持自定义编辑',
-            '可替换成你的产品、人物或宠物',
+            '可替换成你的产品、品牌或宠物',
             '支持英文、西班牙语及 10 多种语言',
           ],
         },
@@ -628,7 +628,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         },
         {
           title: '动作复刻',
-          description: '几秒内复刻爆款广告动作。输入创作者名称，即可在保留原始动作的同时替换人物与产品。',
+          description: '几秒内复刻爆款广告动作。输入创作者名称，即可在保留原始动作的同时将你的产品融入场景。',
           href: '/features/motion-clone',
           mediaLabels: ['原始创作者', '动作复刻'],
           bullets: [

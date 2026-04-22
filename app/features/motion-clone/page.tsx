@@ -4,8 +4,8 @@ import { DEFAULT_SOCIAL_IMAGE_PATH } from '@/lib/social-image';
 
 export const metadata: Metadata = {
   title: 'Motion Clone - Clone Viral Ads Instantly | Flowtra',
-  description: 'Clone viral TikTok ads in seconds. Enter a creator\'s name and AI swaps the person and product while preserving movements, actions, and background. Smart frame editing for higher success rates.',
-  keywords: 'AI motion clone, viral ad cloning, TikTok creator clone, video motion transfer, product swap AI, viral content replication',
+  description: 'Clone viral TikTok ads in seconds. Enter a creator\'s name and AI places your product in the motion while preserving movements, actions, and background. Smart frame editing for higher success rates.',
+  keywords: 'AI motion clone, viral ad cloning, TikTok creator clone, video motion transfer, viral content replication',
   authors: [{ name: 'Flowtra Team' }],
   creator: 'Flowtra',
   publisher: 'Flowtra',
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'Motion Clone - Clone Viral Ads Instantly | Flowtra',
-    description: 'Clone viral TikTok ads by entering a creator\'s name. AI swaps person and product while preserving the exact movements that made it go viral.',
+    description: 'Clone viral TikTok ads by entering a creator\'s name. AI places your product in the motion while preserving the exact movements that made it go viral.',
     url: 'https://www.flowtra.store/features/motion-clone',
     siteName: 'Flowtra',
     images: [
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Motion Clone - Clone Viral Ads Instantly | Flowtra',
-    description: 'Clone viral ads in seconds. AI preserves movements while swapping person and product. Smart frame editing included.',
+    description: 'Clone viral ads in seconds. AI preserves movements while placing your product in the motion. Smart frame editing included.',
     images: [DEFAULT_SOCIAL_IMAGE_PATH],
     creator: '@flowtra',
   },
@@ -58,7 +58,7 @@ export default function Page() {
             '@context': 'https://schema.org',
             '@type': 'SoftwareApplication',
             name: 'Motion Clone - AI Viral Ad Cloning Tool',
-            description: 'Clone viral TikTok ads in seconds. Enter a creator\'s name and AI swaps the person and product while preserving movements, actions, and background that made it go viral. Smart frame editing for higher success rates.',
+            description: 'Clone viral TikTok ads in seconds. Enter a creator\'s name and AI places your product in the motion while preserving movements, actions, and background that made it go viral. Smart frame editing for higher success rates.',
             url: 'https://www.flowtra.store/features/motion-clone',
             applicationCategory: 'BusinessApplication',
             operatingSystem: 'Web',
@@ -71,7 +71,7 @@ export default function Page() {
               'Creator name search and instant analysis',
               'Motion and action preservation',
               'Smart first frame editing and preview',
-              'Automatic person and product swapping',
+              'Automatic product and brand placement',
               'Higher success rate with visual controls',
               'Professional quality output',
             ],
