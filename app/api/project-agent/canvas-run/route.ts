@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
-import { getGenerationCost, getMotionCloneGenerationCost, getSegmentVideoGenerationCost } from '@/lib/constants';
+import { getGenerationCost, getMotionCloneGenerationCost, getSegmentVideoGenerationCost, SUPPORTED_LANGUAGE_CODES, type LanguageCode } from '@/lib/constants';
+import { recommendAvatarAdsSpokenLanguage } from '@/lib/avatar-ads-language-recommendation';
+import { resolveAvatarSpokenLanguage } from '@/lib/avatar-spoken-language';
 import {
   getAvatarPlannedSceneDurations,
   generateVideoWithKIE,
@@ -97,6 +99,37 @@ const ensureAsset = (
   return value;
 };
 
+const getAvatarConfigLanguageOverride = (config?: ProjectAgentFeatureNodeConfig | null) => (
+  config?.language && config.language !== 'en' ? config.language : null
+);
+
+const resolveAgentAvatarSpokenLanguage = async (
+  scriptSource: string,
+  config?: ProjectAgentFeatureNodeConfig | null,
+): Promise<LanguageCode> => {
+  const configuredLanguage = getAvatarConfigLanguageOverride(config);
+  if (!scriptSource.trim()) {
+    return resolveAvatarSpokenLanguage({
+      scriptSource,
+      configuredLanguage: configuredLanguage || config?.language || 'en',
+    });
+  }
+
+  try {
+    const recommendation = await recommendAvatarAdsSpokenLanguage({
+      script: scriptSource,
+      supportedLanguages: SUPPORTED_LANGUAGE_CODES,
+    });
+    return recommendation.language;
+  } catch (error) {
+    console.warn('[project-agent/canvas-run] Avatar Ads language recommendation failed, using fallback detection:', error);
+    return resolveAvatarSpokenLanguage({
+      scriptSource,
+      configuredLanguage,
+    });
+  }
+};
+
 const ensureEnoughCredits = async (userId: string, requiredCredits: number) => {
   if (requiredCredits <= 0) return;
 
@@ -155,11 +188,14 @@ const assertAvatarCredits = async (userId: string, body: CanvasRunRequestBody) =
   const avatar = ensureAsset(body.connectedAssets?.avatar, 'Avatar');
   const product = body.connectedAssets?.product || null;
   const text = ensureAsset(body.connectedAssets?.text, 'Text');
+  const customDialogue = text.content?.trim() || '';
+  const resolvedSpokenLanguage = await resolveAgentAvatarSpokenLanguage(customDialogue, body.config);
   const payload = buildAvatarAdsStartPayload({
     avatar,
     product,
     text,
     config: body.config,
+    resolvedSpokenLanguage,
   });
 
   const plannedDurationSeconds = payload.videoModel === 'kling_3' && payload.customDialogue
@@ -176,6 +212,8 @@ const assertAvatarCredits = async (userId: string, body: CanvasRunRequestBody) =
     userId,
     getGenerationCost(payload.videoModel, String(plannedDurationSeconds))
   );
+
+  return resolvedSpokenLanguage;
 };
 
 const assertVideoCloneCredits = async (userId: string, body: CanvasRunRequestBody) => {
@@ -278,15 +316,24 @@ const fetchMotionStatus = async (origin: string, projectId: string, headers?: He
   return normalizeExecutionStatus('motion_clone', payload);
 };
 
-const startAvatarAds = async (origin: string, userId: string, body: CanvasRunRequestBody) => {
+const startAvatarAds = async (
+  origin: string,
+  userId: string,
+  body: CanvasRunRequestBody,
+  resolvedSpokenLanguage?: LanguageCode | null,
+) => {
   const avatar = ensureAsset(body.connectedAssets?.avatar, 'Avatar');
   const product = body.connectedAssets?.product || null;
   const text = ensureAsset(body.connectedAssets?.text, 'Text');
+  const customDialogue = text.content?.trim() || '';
+  const spokenLanguage = resolvedSpokenLanguage
+    || await resolveAgentAvatarSpokenLanguage(customDialogue, body.config);
   const payload = buildAvatarAdsStartPayload({
     avatar,
     product,
     text,
     config: body.config,
+    resolvedSpokenLanguage: spokenLanguage,
   });
 
   const internalHeaders = buildInternalHeaders(userId);
@@ -603,6 +650,7 @@ const retryAvatarAds = async (origin: string, userId: string, projectId: string)
               totalScenes: promptScenes.length,
               language: project.language
             }),
+            moderationExternalId: `user_${userId}:avatar_ads_${project.id}:scene_${scene.scene_number || 1}:canvas_retry`,
           }
         );
 
@@ -870,8 +918,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, execution: retriedStatus });
     }
 
+    let avatarSpokenLanguage: LanguageCode | null = null;
     if (nodeType === 'avatar_ads') {
-      await assertAvatarCredits(userId, body);
+      avatarSpokenLanguage = await assertAvatarCredits(userId, body);
     } else if (nodeType === 'video_clone') {
       await assertVideoCloneCredits(userId, body);
     } else if (nodeType === 'motion_clone') {
@@ -879,7 +928,7 @@ export async function POST(request: NextRequest) {
     }
 
     const execution = nodeType === 'avatar_ads'
-      ? await startAvatarAds(origin, userId, body)
+      ? await startAvatarAds(origin, userId, body, avatarSpokenLanguage)
       : nodeType === 'video_clone'
         ? await startVideoClone(origin, userId, body)
         : await startMotionClone(origin, userId, body);

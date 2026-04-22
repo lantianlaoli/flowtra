@@ -72,6 +72,40 @@ test('buildAvatarAdsStartPayload resolves spoken language from custom dialogue',
   assert.equal(payload.resolvedSpokenLanguage, 'zh');
 });
 
+test('buildAvatarAdsStartPayload detects Japanese dialogue despite default English config', () => {
+  const payload = buildAvatarAdsStartPayload({
+    avatar: { id: 'avatar-1', name: 'Avatar', imageUrl: 'https://example.com/avatar.png' },
+    text: { id: 'text-1', name: 'Text', content: 'このハーブパックは香りがやさしく、毎日のリラックスタイムにぴったりです。' },
+    config: { videoDuration: '16', aspectRatio: '9:16', language: 'en', videoModel: 'kling_3' },
+  });
+
+  assert.equal(payload.language, 'ja');
+  assert.equal(payload.resolvedSpokenLanguage, 'ja');
+});
+
+test('buildAvatarAdsStartPayload keeps English fallback for English dialogue', () => {
+  const payload = buildAvatarAdsStartPayload({
+    avatar: { id: 'avatar-1', name: 'Avatar', imageUrl: 'https://example.com/avatar.png' },
+    text: { id: 'text-1', name: 'Text', content: 'This herbal pouch smells clean and makes my desk feel calmer.' },
+    config: { videoDuration: '16', aspectRatio: '9:16', language: 'en', videoModel: 'kling_3' },
+  });
+
+  assert.equal(payload.language, 'en');
+  assert.equal(payload.resolvedSpokenLanguage, 'en');
+});
+
+test('buildAvatarAdsStartPayload accepts async language recommendation override', () => {
+  const payload = buildAvatarAdsStartPayload({
+    avatar: { id: 'avatar-1', name: 'Avatar', imageUrl: 'https://example.com/avatar.png' },
+    text: { id: 'text-1', name: 'Text', content: 'Bonjour, ce parfum naturel rend la pièce plus fraîche.' },
+    config: { videoDuration: '16', aspectRatio: '9:16', language: 'en', videoModel: 'kling_3' },
+    resolvedSpokenLanguage: 'fr',
+  });
+
+  assert.equal(payload.language, 'fr');
+  assert.equal(payload.resolvedSpokenLanguage, 'fr');
+});
+
 test('buildMotionCloneStartPayload keeps creator video linkage', () => {
   const payload = buildMotionCloneStartPayload({
     avatar: { id: 'avatar-1', name: 'Avatar' },

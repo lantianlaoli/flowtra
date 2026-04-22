@@ -1,8 +1,8 @@
 import { auth, clerkClient } from '@clerk/nextjs/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { NON_AGENT_IMAGE_MODEL, NON_AGENT_IMAGE_OUTPUT_FORMAT, NON_AGENT_IMAGE_RESOLUTION } from '@/lib/constants';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
+import { createKieGptImageTask } from '@/lib/kie-image-generation';
 import {
   buildShareImagePrompt,
   resolveClerkDisplayName,
@@ -127,41 +127,15 @@ export async function POST(request: NextRequest) {
     const logoReferenceUrl = DEFAULT_SOCIAL_IMAGE_URL;
     console.log('[Share Image] Resolved creator username:', creatorUsername);
 
-    const payload = {
-      model: NON_AGENT_IMAGE_MODEL,
-      input: {
-        prompt,
-        image_input: [logoReferenceUrl],
-        aspect_ratio: '9:16',
-        resolution: NON_AGENT_IMAGE_RESOLUTION,
-        output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT,
-      },
-    };
-
-    const response = await fetchWithRetry(`${KIE_API_BASE_URL}/createTask`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.KIE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+    const taskId = await createKieGptImageTask({
+      prompt,
+      referenceImageUrls: [logoReferenceUrl],
+      aspectRatio: '9:16'
     }, 3, 30000);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[Share Image] Failed to create KIE task:', errorText);
-      return NextResponse.json({ success: false, error: 'Failed to start share image generation' }, { status: response.status });
-    }
-
-    const data = await response.json();
-    if (data.code !== 200 || !data.data?.taskId) {
-      console.error('[Share Image] KIE returned an error:', data);
-      return NextResponse.json({ success: false, error: data.msg || 'Image generation provider rejected the request' }, { status: 500 });
-    }
 
     return NextResponse.json({
       success: true,
-      taskId: data.data.taskId as string,
+      taskId,
     });
   } catch (error) {
     console.error('[Share Image] POST error:', error);

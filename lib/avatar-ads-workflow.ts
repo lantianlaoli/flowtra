@@ -2,9 +2,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import {
   GENERATION_COSTS,
   KLING_MAX_TASK_DURATION_SECONDS,
-  NON_AGENT_IMAGE_MODEL,
-  NON_AGENT_IMAGE_OUTPUT_FORMAT,
-  NON_AGENT_IMAGE_RESOLUTION,
+  GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL,
   SEEDANCE_MAX_TASK_DURATION_SECONDS,
   SEEDANCE_MIN_TASK_DURATION_SECONDS,
   getGenerationCost,
@@ -13,6 +11,8 @@ import {
   type LanguageCode
 } from '@/lib/constants';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
+import { buildKieGptImageTaskPayload, createKieGptImageTask } from '@/lib/kie-image-generation';
+import { moderatePromptBeforeGeneration } from '@/lib/creem-moderation';
 import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { generateDialogueLengthGuidance } from '@/lib/dialogue-duration-estimator';
@@ -1137,7 +1137,7 @@ ${commonStructuredRules}`.trim();
   }
 }
 
-function getImageModelParameters(customImageSize?: string, videoAspectRatio?: string): Record<string, unknown> {
+function getImageModelParameters(customImageSize?: string, videoAspectRatio?: string): { aspect_ratio: string } {
   // Map UI-friendly sizes to ratio strings.
   const mapUiToRatio = (val?: string, fallbackAspect?: string) => {
     switch (val) {
@@ -1186,10 +1186,7 @@ function getImageModelParameters(customImageSize?: string, videoAspectRatio?: st
 
   const ratio = mapUiToRatio(customImageSize, videoAspectRatio) || '1:1';
   return {
-    aspect_ratio: ratio,
-    resolution: '1K',
-    output_format: 'png',
-    google_search: false
+    aspect_ratio: ratio
   };
 }
 
@@ -1198,7 +1195,8 @@ async function generateImageWithKIE(
   prompt: Record<string, unknown>,
   referenceImages: string[],
   customImageSize?: string,
-  videoAspectRatio?: string
+  videoAspectRatio?: string,
+  moderationExternalId?: string
 ): Promise<{ taskId: string }> {
   const limitedReferenceImages = referenceImages.slice(0, 8);
   const modelParams = getImageModelParameters(customImageSize, videoAspectRatio);
@@ -1217,51 +1215,28 @@ async function generateImageWithKIE(
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
   const callBackUrl = siteUrl ? `${siteUrl}/api/avatar-ads/webhooks/image` : undefined;
 
-  const payload = {
-    model: NON_AGENT_IMAGE_MODEL,
-    input: {
-      prompt: promptValue,
-      image_input: limitedReferenceImages,
-      ...modelParams
-    },
-    ...(callBackUrl && { callBackUrl }) // Add callBackUrl only if NEXT_PUBLIC_SITE_URL is set
-  };
+  const payload = buildKieGptImageTaskPayload({
+    prompt: promptValue,
+    referenceImageUrls: limitedReferenceImages,
+    aspectRatio: modelParams.aspect_ratio,
+    callBackUrl
+  });
 
   const payloadInput = payload.input as Record<string, unknown>;
   console.log('[generateImageWithKIE] Request payload summary:', {
     model: payload.model,
     inputFields: Object.keys(payloadInput),
-    usesImageInput: Object.prototype.hasOwnProperty.call(payloadInput, 'image_input'),
-    usesImageUrls: Object.prototype.hasOwnProperty.call(payloadInput, 'image_urls'),
+    usesInputUrls: Object.prototype.hasOwnProperty.call(payloadInput, 'input_urls'),
     aspect_ratio: payloadInput.aspect_ratio ?? null,
-    resolution: payloadInput.resolution ?? null,
-    google_search: payloadInput.google_search ?? null,
-    quality: payloadInput.quality ?? null
+    nsfw_checker: payloadInput.nsfw_checker ?? null
   });
 
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload)
-  }, 5, 30000);
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('KIE API error response:', errorText);
-    throw new Error(`KIE image generation failed: ${response.status} ${response.statusText} - ${errorText}`);
-  }
-
-  const data = await response.json();
-
-  if (data.code !== 200) {
-    console.error('KIE API returned error code:', data.code, 'message:', data.msg);
-    throw new Error(`KIE image generation failed: ${data.msg}`);
-  }
-
-  return { taskId: data.data.taskId };
+  return { taskId: await createKieGptImageTask({
+    prompt: promptValue,
+    referenceImageUrls: limitedReferenceImages,
+    aspectRatio: modelParams.aspect_ratio,
+    callBackUrl
+  }) };
 }
 
 export async function generateVideoWithKIE(
@@ -1276,6 +1251,7 @@ export async function generateVideoWithKIE(
     avatarGender?: 'male' | 'female' | null;
     sceneNumber?: number;
     totalScenes?: number;
+    moderationExternalId?: string;
   }
 ): Promise<{ taskId: string }> {
   // ✅ Validate prompt parameter
@@ -1477,6 +1453,10 @@ export async function generateVideoWithKIE(
     console.error('Request body:', JSON.stringify(requestBody, null, 2));
     throw new Error(`STOPPING WORKFLOW: Cannot call KIE API with empty prompt "${promptInBody}"`);
   }
+
+  await moderatePromptBeforeGeneration(promptInBody, {
+    externalId: options?.moderationExternalId,
+  });
 
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
     method: 'POST',
@@ -1855,7 +1835,8 @@ export async function processAvatarAdsProject(
           { prompt: project.image_prompt } as Record<string, unknown>,
           referenceImages,
           project.image_size,
-          project.video_aspect_ratio
+          project.video_aspect_ratio,
+          `user_${project.user_id}:avatar_ads_${project.id}:cover_image`
         );
 
         // Update project only (no scene updates since scene 0 doesn't exist)
@@ -2070,7 +2051,8 @@ export async function processAvatarAdsProject(
                 totalScenes: videoScenes,
                 language: project.language
               }),
-              avatarGender: project.avatar_gender
+              avatarGender: project.avatar_gender,
+              moderationExternalId: `user_${project.user_id}:avatar_ads_${project.id}:scene_${i}:video`
             }
           );
 
@@ -2175,7 +2157,8 @@ export async function processAvatarAdsProject(
                       plannedDurationSeconds: getAvatarPlannedSceneDurations(project.generated_prompts)[i],
                       totalScenes: promptScenes.length,
                       language: project.language
-                    })
+                    }),
+                    moderationExternalId: `user_${project.user_id}:avatar_ads_${project.id}:scene_${i + 1}:video_retry`
                   }
                 );
 

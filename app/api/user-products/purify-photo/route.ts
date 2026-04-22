@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { NON_AGENT_IMAGE_MODEL, NON_AGENT_IMAGE_OUTPUT_FORMAT, NON_AGENT_IMAGE_RESOLUTION } from '@/lib/constants';
+import { createKieGptImageTask } from '@/lib/kie-image-generation';
 
-const KIE_API_BASE_URL = 'https://api.kie.ai/api/v1/jobs';
 // Product photo purification is FREE - no credits required
 
 // Purification prompt - optimized for product photos
@@ -51,50 +49,14 @@ export async function POST(request: NextRequest) {
 
     const callBackUrl = `${siteUrl}/api/user-products/webhooks/purify`;
 
-    // 4. Create purification task with Nano Banana 2 (FREE - no credits required)
-    const payload = {
-      model: NON_AGENT_IMAGE_MODEL,
-      callBackUrl, // Add webhook URL
-      input: {
-        prompt: PURIFICATION_PROMPT,
-        image_input: [imageUrl],
-        aspect_ratio: '1:1', // Square for product photos
-        resolution: NON_AGENT_IMAGE_RESOLUTION,
-        output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
-      }
-    };
-
+    // 4. Create purification task with GPT Image 2 (FREE - no credits required)
     console.log('[purify-photo] Starting FREE purification with webhook:', { userId, imageUrl, photoId, callBackUrl });
-
-    const response = await fetchWithRetry(`${KIE_API_BASE_URL}/createTask`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload)
+    const taskId = await createKieGptImageTask({
+      prompt: PURIFICATION_PROMPT,
+      referenceImageUrls: [imageUrl],
+      aspectRatio: '1:1',
+      callBackUrl
     }, 3, 30000);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[purify-photo] KIE task creation failed:', errorText);
-      return NextResponse.json({
-        error: 'Failed to start purification',
-        details: errorText
-      }, { status: response.status });
-    }
-
-    const data = await response.json();
-
-    if (data.code !== 200) {
-      console.error('[purify-photo] KIE API returned error:', data);
-      return NextResponse.json({
-        error: data.msg || 'KIE API error',
-        details: 'The image processing service returned an error'
-      }, { status: 500 });
-    }
-
-    const taskId = data.data.taskId;
 
     // 5. Update photo record with purification tracking
     const supabase = getSupabaseAdmin();

@@ -519,7 +519,8 @@ async function handleSceneVideoRetries(
                 plannedDurationSeconds: plannedSceneDurations[scene.scene_number - 1],
                 totalScenes: promptScenes.length,
                 language: project.language
-              })
+              }),
+              moderationExternalId: `user_${project.user_id}:avatar_ads_${project.id}:scene_${scene.scene_number}:monitor_retry`
             }
           );
 

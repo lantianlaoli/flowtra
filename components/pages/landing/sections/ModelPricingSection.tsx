@@ -38,7 +38,7 @@ export default function ModelPricingSection() {
       ] as PricingOption[],
     },
     {
-      name: 'Nano Banana 2',
+      name: 'GPT Image 2',
       description: 'Consistent image generation for multi-angle and reference photos',
       icon: Google,
       durationRange: '8-64s',

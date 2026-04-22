@@ -8,7 +8,7 @@ export const revalidate = 0;
 
 /**
  * KIE Image Generation Webhook Payload
- * Documentation: docs/kie/nano-banana-2.md
+ * Documentation: docs/kie/gpt_2_img.md and docs/kie/gpt_2_img_api.md
  */
 interface KIEImageWebhookPayload {
   code: number;

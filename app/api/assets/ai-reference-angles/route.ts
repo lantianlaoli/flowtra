@@ -4,12 +4,9 @@ import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { hasActiveSubscription } from '@/lib/subscription';
 import type { AiReferenceAngleAssetType, AiReferenceAngleJobStatus } from '@/lib/ai-reference-angle-jobs';
+import { createKieGptImageTask } from '@/lib/kie-image-generation';
 
 const KIE_UPLOAD_ENDPOINT = 'https://kieai.redpandaai.co/api/file-base64-upload';
-const KIE_CREATE_TASK_ENDPOINT = 'https://api.kie.ai/api/v1/jobs/createTask';
-const AI_REFERENCE_MODEL = 'nano-banana-2';
-const AI_REFERENCE_RESOLUTION = '1K';
-const AI_REFERENCE_OUTPUT_FORMAT = 'png';
 
 type SourceAspect = 'portrait' | 'square' | 'landscape';
 
@@ -255,35 +252,12 @@ export async function POST(request: NextRequest) {
 
     for (const preset of presets) {
       const aspectRatio = getAspectRatio(assetType, sourceAspect);
-      const createTaskResponse = await fetchWithRetry(KIE_CREATE_TASK_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${process.env.KIE_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: AI_REFERENCE_MODEL,
-          callBackUrl,
-          input: {
-            prompt: preset.prompt,
-            image_input: [sourceImageUrl],
-            aspect_ratio: aspectRatio,
-            resolution: AI_REFERENCE_RESOLUTION,
-            output_format: AI_REFERENCE_OUTPUT_FORMAT
-          }
-        })
+      const taskId = await createKieGptImageTask({
+        prompt: preset.prompt,
+        referenceImageUrls: [sourceImageUrl],
+        aspectRatio,
+        callBackUrl
       }, 3, 30000);
-
-      if (!createTaskResponse.ok) {
-        const taskError = await createTaskResponse.text();
-        throw new Error(`Failed to create ${preset.label} task: ${taskError}`);
-      }
-
-      const taskResult = await createTaskResponse.json();
-      const taskId = taskResult?.data?.taskId as string | undefined;
-      if (taskResult?.code !== 200 || !taskId) {
-        throw new Error(taskResult?.msg || `Failed to create ${preset.label} task`);
-      }
 
       jobsPayload.push({
         user_id: userId,

@@ -181,7 +181,9 @@ export default function CreditsPage() {
     'seedance_2_fast': 'Seedance 2 Fast',
     'seedance_2': 'Seedance 2',
     'kling_3': 'Kling 3.0',
-    'nano-banana-2': 'Nano Banana 2',
+    'nano-banana-2': 'GPT Image 2',
+    'gpt-image-2-image-to-image': 'GPT Image 2',
+    'gpt-image-2-text-to-image': 'GPT Image 2',
   };
 
   // Parse transaction description to extract feature, action, model, and duration

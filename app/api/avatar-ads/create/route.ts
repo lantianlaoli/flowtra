@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { uploadImageToStorage } from '@/lib/supabase';
 import {
+  GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL,
   getGenerationCost,
   getModelSupportedDurations,
   KLING_MAX_PROJECT_DURATION_SECONDS,
@@ -20,7 +21,7 @@ import { resolveProductForUser } from '@/lib/product-resolution';
 import { estimateAvatarAdsSingleSceneDurationSeconds } from '@/lib/avatar-ads-duration-estimate';
 
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
-const AVATAR_ADS_PERSISTED_IMAGE_MODEL = 'nano-banana-2' as const;
+const AVATAR_ADS_PERSISTED_IMAGE_MODEL = GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL;
 const PUBLIC_AVATAR_ADS_VIDEO_MODELS: VideoModel[] = ['seedance_2_fast', 'kling_3', 'wan_27'];
 
 export async function POST(request: NextRequest) {
@@ -302,8 +303,7 @@ export async function POST(request: NextRequest) {
     // Create project in database
     const supabase = getSupabaseAdmin();
     // Schema verified via Supabase MCP (2026-03-17):
-    // avatar_ads_projects.image_model exists and constraint long_video_projects_image_model_check
-    // only allows: nano_banana, seedream, nano_banana_pro.
+    // avatar_ads_projects.image_model stores the provider model used for cover generation.
     const projectInsert: Record<string, unknown> = {
       user_id: userId,
       person_image_urls: personImageUrls,

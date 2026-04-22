@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import type { AiReferenceAngleAssetType } from '@/lib/ai-reference-angle-jobs';
-
-const KIE_CREATE_TASK_ENDPOINT = 'https://api.kie.ai/api/v1/jobs/createTask';
-const FALLBACK_MODEL = 'seedream/5-lite-image-to-image';
+import { createKieGptImageTask } from '@/lib/kie-image-generation';
+import { GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL } from '@/lib/constants';
 
 const STYLE_LOCK_SUFFIX = [
   'Maintain exact stylistic consistency with the reference image.',
@@ -156,47 +154,19 @@ export async function POST(request: NextRequest) {
     const aspectRatio = job.aspect_ratio || '1:1';
     const callBackUrl = `${siteUrl}/api/assets/ai-reference-angles/webhooks`;
 
-    const createTaskResponse = await fetchWithRetry(
-      KIE_CREATE_TASK_ENDPOINT,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${process.env.KIE_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: FALLBACK_MODEL,
-          callBackUrl,
-          input: {
-            prompt: preset.prompt,
-            image_urls: [job.source_image_url],
-            aspect_ratio: aspectRatio,
-            quality: 'basic',
-            nsfw_checker: true
-          }
-        })
-      },
-      3,
-      30000
-    );
-
-    if (!createTaskResponse.ok) {
-      const taskError = await createTaskResponse.text();
-      throw new Error(`Failed to create fallback task: ${taskError}`);
-    }
-
-    const taskResult = await createTaskResponse.json();
-    const taskId = taskResult?.data?.taskId as string | undefined;
-    if (taskResult?.code !== 200 || !taskId) {
-      throw new Error(taskResult?.msg || 'Failed to create fallback task');
-    }
+    const taskId = await createKieGptImageTask({
+      prompt: preset.prompt,
+      referenceImageUrls: [job.source_image_url],
+      aspectRatio,
+      callBackUrl
+    }, 3, 30000);
 
     // Atomically update the job only if fallback_kie_task_id is still null.
     const { error: updateError } = await supabase
       .from('ai_reference_angle_jobs')
       .update({
         fallback_kie_task_id: taskId,
-        fallback_model: FALLBACK_MODEL,
+        fallback_model: GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL,
         updated_at: new Date().toISOString()
       })
       .eq('id', jobId)

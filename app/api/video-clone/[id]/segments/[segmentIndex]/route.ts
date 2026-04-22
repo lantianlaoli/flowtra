@@ -430,7 +430,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     if (shouldRegeneratePhoto) {
-      // Version 2.0: Image generation is always free with Nano Banana 2.
+      // Version 2.0: Image generation is always free with GPT Image 2.
       // No credits deducted for first frame regeneration
 
       const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
@@ -465,10 +465,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         {
           imageSizeOverride: frameImageSize,
           aspectRatioOverride: frameImageSize,
-          resolutionOverride: '1K',
           characterPhotoUrls: characterPhotoUrls.length > 0 ? characterPhotoUrls : null,
           workflowSourceOverride: workflowSource,
-          usePromptAsIs: true
+          usePromptAsIs: true,
+          moderationExternalId: `user_${userId}:video_clone_${projectId}:segment_${index}:frame_regenerate`
         },
         continuationReferenceUrl,
         projectModel || undefined

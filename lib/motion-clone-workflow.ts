@@ -1,5 +1,5 @@
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { NON_AGENT_IMAGE_MODEL, NON_AGENT_IMAGE_OUTPUT_FORMAT, NON_AGENT_IMAGE_RESOLUTION } from '@/lib/constants';
+import { buildKieGptImageTaskPayload, createKieGptImageTask } from '@/lib/kie-image-generation';
 import type { KlingElement } from '@/lib/kling-elements';
 
 const KIE_CREATE_TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
@@ -136,37 +136,28 @@ export const createMotionClonePreviewTask = async (
   input: MotionClonePreviewInput,
   callbackUrl: string
 ): Promise<string> => {
-  const requestBody = {
-    model: NON_AGENT_IMAGE_MODEL,
-    input: {
-      prompt: input.prompt || buildMotionClonePreviewPrompt({ hasAvatar: Boolean(input.avatarUrl), hasProduct: Boolean(input.productUrl) }),
-      image_input: [input.coverUrl, input.avatarUrl, input.productUrl].filter(Boolean).slice(0, 8),
-      aspect_ratio: input.aspectRatio || '9:16',
-      resolution: NON_AGENT_IMAGE_RESOLUTION,
-      output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
-    },
+  const prompt = input.prompt || buildMotionClonePreviewPrompt({
+    hasAvatar: Boolean(input.avatarUrl),
+    hasProduct: Boolean(input.productUrl)
+  });
+  const referenceImageUrls = [input.coverUrl, input.avatarUrl, input.productUrl].filter(Boolean) as string[];
+  const requestBody = buildKieGptImageTaskPayload({
+    prompt,
+    referenceImageUrls,
+    aspectRatio: input.aspectRatio || '9:16',
     callBackUrl: callbackUrl
-  };
+  });
+  console.log('[Motion Clone] GPT Image 2 preview payload:', {
+    model: requestBody.model,
+    inputFields: Object.keys(requestBody.input)
+  });
 
-  const response = await fetchWithRetry(KIE_CREATE_TASK_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.KIE_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(requestBody)
-  }, 5, 30000);
-
-  if (!response.ok) {
-    throw new Error(`Motion Clone preview task failed: ${response.status}`);
-  }
-
-  const data = await response.json();
-  if (data.code !== 200 || !data.data?.taskId) {
-    throw new Error(data.msg || 'Failed to start Motion Clone preview task');
-  }
-
-  return data.data.taskId as string;
+  return createKieGptImageTask({
+    prompt,
+    referenceImageUrls,
+    aspectRatio: input.aspectRatio || '9:16',
+    callBackUrl: callbackUrl
+  });
 };
 
 export const createMotionCloneVideoTask = async (

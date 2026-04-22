@@ -1,12 +1,11 @@
 import { getSupabaseAdmin, type VideoCloneSegment, type SingleVideoProject } from '@/lib/supabase';
 import type { VideoCloneSelectedInputs } from '@/lib/supabase';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
+import { buildKieGptImageTaskPayload, createKieGptImageTask } from '@/lib/kie-image-generation';
+import { moderatePromptBeforeGeneration } from '@/lib/creem-moderation';
 import { extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 import {
   GENERATION_COSTS,
-  NON_AGENT_IMAGE_MODEL,
-  NON_AGENT_IMAGE_OUTPUT_FORMAT,
-  NON_AGENT_IMAGE_RESOLUTION,
   getGenerationCost,
   getDefaultCloneVideoQuality,
   getSegmentCountFromDuration,
@@ -1524,7 +1523,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         request.userId,
         'usage',
         generationCost,
-        `Video Clone - Replica photo generation (Nano Banana 2, ${replicaResolution})`,
+        `Video Clone - Replica photo generation (GPT Image 2, ${replicaResolution})`,
         undefined,
         true
       );
@@ -2212,8 +2211,7 @@ async function startReplicaWorkflow(
     prompt,
     referenceImages: request.referenceImageUrls,
     aspectRatio: request.photoAspectRatio,
-    resolution: request.photoResolution,
-    outputFormat: request.photoOutputFormat
+    moderationExternalId: `user_${request.userId}:video_clone_${projectId}:replica_photo`
   });
 
   const updateData = {
@@ -2283,49 +2281,23 @@ async function generateReplicaPhoto({
   prompt,
   referenceImages,
   aspectRatio,
-  resolution,
-  outputFormat
+  moderationExternalId
 }: {
   prompt: string;
   referenceImages: string[];
   aspectRatio?: string;
-  resolution?: '1K' | '2K' | '4K';
-  outputFormat?: 'png' | 'jpg';
+  moderationExternalId?: string;
 }): Promise<string> {
   if (!referenceImages.length) {
     throw new Error('Replica photo generation requires reference images');
   }
 
-  const requestBody = {
-    model: NON_AGENT_IMAGE_MODEL,
-    input: {
-      prompt,
-      image_input: referenceImages.slice(0, 8),
-      aspect_ratio: aspectRatio || '9:16',
-      resolution: NON_AGENT_IMAGE_RESOLUTION,
-      output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
-    }
-  };
-
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(requestBody)
-  }, 5, 30000);
-
-  if (!response.ok) {
-    throw new Error(`Replica photo generation failed: ${response.status}`);
-  }
-
-  const data = await response.json();
-  if (data.code !== 200 || !data.data?.taskId) {
-    throw new Error(data.msg || 'Failed to start replica photo task');
-  }
-
-  return data.data.taskId as string;
+  return createKieGptImageTask({
+    prompt,
+    referenceImageUrls: referenceImages,
+    aspectRatio: aspectRatio || '9:16',
+    moderationExternalId
+  });
 }
 
 /**
@@ -3160,7 +3132,8 @@ async function startSegmentedWorkflow(
       referenceVideoType || null,
       {
         characterPhotoUrls: normalizedAvatarPhotoUrls.length > 0 ? normalizedAvatarPhotoUrls : null,
-        workflowSourceOverride: request.requestSource || 'default'
+        workflowSourceOverride: request.requestSource || 'default',
+        moderationExternalId: `user_${request.userId}:video_clone_${projectId}:segment_${segment.segment_index}:frame`
       },
       null,
       request.resolvedVideoModel
@@ -3504,11 +3477,11 @@ async function createFrameFromText(
   segmentPrompt: SegmentPrompt,
   segmentIndex: number,
   frameType: 'first' | 'closing',
-  aspectRatio: '16:9' | '9:16'
+  aspectRatio: '16:9' | '9:16',
+  moderationExternalId?: string
 ): Promise<string> {
   const frameLabel = frameType === 'first' ? 'opening' : 'closing';
   const derived = deriveSegmentDetails(segmentPrompt);
-  const imageModel = NON_AGENT_IMAGE_MODEL;
 
   const frameDescription = resolveFrameDescription(segmentPrompt, frameType);
 
@@ -3530,34 +3503,12 @@ Technical Requirements:
 - Photorealistic rendering
 - Commercial-grade quality`;
 
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: imageModel,
-      input: {
-        prompt,
-        aspect_ratio: aspectRatio,
-        resolution: NON_AGENT_IMAGE_RESOLUTION,
-        output_format: NON_AGENT_IMAGE_OUTPUT_FORMAT
-      },
-      callBackUrl: FRAME_WEBHOOK_URL // Event-driven: Register callback for instant status updates
-    })
-  }, 5, 30000);
-
-  if (!response.ok) {
-    throw new Error(`Text-to-Image frame generation failed: ${response.status}`);
-  }
-
-  const data = await response.json();
-  if (data.code !== 200) {
-    throw new Error(data.msg || 'Failed to generate frame from text');
-  }
-
-  return data.data.taskId;
+  return createKieGptImageTask({
+    prompt,
+    aspectRatio,
+    callBackUrl: FRAME_WEBHOOK_URL,
+    moderationExternalId
+  });
 }
 
 /**
@@ -3567,10 +3518,10 @@ Technical Requirements:
 type FrameGenerationOverrides = {
   aspectRatioOverride?: string;
   imageSizeOverride?: string;
-  resolutionOverride?: '1K' | '2K' | '4K';
   characterPhotoUrls?: string[] | null;
   workflowSourceOverride?: 'project_agent_clone' | 'default';
   usePromptAsIs?: boolean;
+  moderationExternalId?: string;
 };
 
 function shouldWaitForContinuationFrame(input: {
@@ -3605,10 +3556,8 @@ async function createFrameFromImage(
   const frameLabel = frameType === 'first' ? 'opening' : 'closing';
   const derived = deriveSegmentDetails(segmentPrompt);
   const isProjectAgentClone = overrides?.workflowSourceOverride === 'project_agent_clone';
-  console.log('🎨 Using nano_banana_2 keyframes for clone frame generation (docs/kie/nano_banana_2.md)');
-  const imageModel = NON_AGENT_IMAGE_MODEL;
+  console.log('🎨 Using GPT Image 2 keyframes for clone frame generation (docs/kie/gpt_2_img*.md)');
   const resolvedAspectRatio = overrides?.imageSizeOverride || overrides?.aspectRatioOverride || aspectRatio;
-  const resolvedResolution = overrides?.resolutionOverride || '1K';
 
   const frameDescription = resolveFrameDescription(segmentPrompt, frameType);
   const prompt = isProjectAgentClone
@@ -3634,49 +3583,28 @@ Render Instructions:
 - Ensure composition seamlessly transitions ${frameType === 'first' ? 'into the upcoming motion clip' : 'out of the prior scene'}
 - No text overlays, no watermarks, no borders`;
 
-  const inputPayload: Record<string, unknown> = {
+  const requestPayload = buildKieGptImageTaskPayload({
     prompt,
-    image_input: limitedReferences,
-    output_format: 'png',
-    google_search: false
-  };
-
-  inputPayload.aspect_ratio = resolvedAspectRatio;
-  inputPayload.resolution = resolvedResolution || '1K';
+    referenceImageUrls: limitedReferences,
+    aspectRatio: resolvedAspectRatio,
+    callBackUrl: FRAME_WEBHOOK_URL
+  });
 
   console.log(`📤 [createFrameFromImage] Sending to KIE API:`, {
-    imageModel,
+    imageModel: requestPayload.model,
     referenceImageCount: limitedReferences.length,
     referenceImageUrls: limitedReferences
   });
 
-  const requestPayload = {
-    model: imageModel,
-    input: inputPayload,
-    callBackUrl: FRAME_WEBHOOK_URL // Event-driven: Register callback for instant status updates
-  };
-
   console.log(`📤 [createFrameFromImage] Full request payload:`, JSON.stringify(requestPayload, null, 2));
 
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestPayload)
-  }, 5, 30000);
-
-  if (!response.ok) {
-    throw new Error(`Image-to-Image frame generation failed: ${response.status}`);
-  }
-
-  const data = await response.json();
-  if (data.code !== 200) {
-    throw new Error(data.msg || 'Failed to generate frame from image');
-  }
-
-  return data.data.taskId;
+  return createKieGptImageTask({
+    prompt,
+    referenceImageUrls: limitedReferences,
+    aspectRatio: resolvedAspectRatio,
+    callBackUrl: FRAME_WEBHOOK_URL,
+    moderationExternalId: overrides?.moderationExternalId
+  });
 }
 
 /**
@@ -3738,7 +3666,6 @@ export async function createSmartSegmentFrame(
 
   if (usePromptAsIs) {
     const frameDescription = resolveFrameDescription(promptForProvider, frameType);
-    const imageModel = NON_AGENT_IMAGE_MODEL;
     const resolvedAspectRatio = overrides?.imageSizeOverride || overrides?.aspectRatioOverride || aspectRatio;
     const characterPhotos = Array.isArray(overrides?.characterPhotoUrls)
       ? overrides.characterPhotoUrls.filter(url => typeof url === 'string' && url.length > 0)
@@ -3773,46 +3700,25 @@ export async function createSmartSegmentFrame(
         })
       : frameDescription;
 
-    const requestInput: Record<string, unknown> = {
+    const requestPayload = buildKieGptImageTaskPayload({
       prompt,
-      ...(imageInput.length > 0 ? { image_input: imageInput } : {}),
-      output_format: 'png',
-      google_search: false
-    };
-
-    requestInput.aspect_ratio = resolvedAspectRatio;
-    requestInput.resolution = overrides?.resolutionOverride || NON_AGENT_IMAGE_RESOLUTION;
-
-    const requestPayload = {
-      model: imageModel,
-      input: requestInput,
+      referenceImageUrls: imageInput,
+      aspectRatio: resolvedAspectRatio,
       callBackUrl: FRAME_WEBHOOK_URL
-    };
+    });
 
     console.log('   - 📤 Manual frame regeneration using raw prompt');
     console.log(`   - Prompt: ${frameDescription.substring(0, 100)}...`);
-    console.log(`   - 📤 image_input URLs:`, imageInput);
+    console.log(`   - 📤 input_urls:`, imageInput);
     console.log(`   - 📤 Full KIE API request payload:`, JSON.stringify(requestPayload, null, 2));
 
-    const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestPayload)
-    }, 5, 30000);
-
-    if (!response.ok) {
-      throw new Error(`Manual raw-prompt frame generation failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    if (data.code !== 200) {
-      throw new Error(data.msg || 'Failed to generate frame from raw prompt');
-    }
-
-    return data.data.taskId;
+    return createKieGptImageTask({
+      prompt,
+      referenceImageUrls: imageInput,
+      aspectRatio: resolvedAspectRatio,
+      callBackUrl: FRAME_WEBHOOK_URL,
+      moderationExternalId: overrides?.moderationExternalId
+    });
   }
 
   if (isReferenceCloneMode) {
@@ -3820,11 +3726,10 @@ export async function createSmartSegmentFrame(
     console.log(`   - Segment ${segmentIndex + 1} ${frameType} frame`);
 
     const frameDescription = resolveFrameDescription(promptForProvider, frameType);
-    const imageModel = NON_AGENT_IMAGE_MODEL;
     const isProjectAgentClone = overrides?.workflowSourceOverride === 'project_agent_clone';
     const resolvedAspectRatio = overrides?.imageSizeOverride || overrides?.aspectRatioOverride || aspectRatio;
 
-    // Build image_input from multiple sources
+    // Build GPT Image 2 input_urls from multiple sources
     const imageInput: string[] = [];
 
     // 1. Continuation reference (for segment continuity)
@@ -3861,8 +3766,8 @@ export async function createSmartSegmentFrame(
       imageInputCount: imageInput.length
     });
     console.log(`   - Prompt: ${frameDescription.substring(0, 100)}...`);
-    console.log(`   - 📤 Sending to KIE API - image_input count: ${imageInput.length}`);
-    console.log(`   - 📤 image_input URLs:`, imageInput);
+    console.log(`   - 📤 Sending to KIE API - input_urls count: ${imageInput.length}`);
+    console.log(`   - 📤 input_urls:`, imageInput);
 
     const prompt = isProjectAgentClone
       ? buildProjectAgentFramePrompt({
@@ -3873,44 +3778,25 @@ export async function createSmartSegmentFrame(
         })
       : frameDescription;
 
-    const requestPayload = {
-      model: imageModel,
-      input: (() => {
-        const input: Record<string, unknown> = {
-          prompt,
-          ...(imageInput.length > 0 ? { image_input: imageInput } : {}),
-          output_format: 'png',
-          google_search: false
-        };
-        input.aspect_ratio = resolvedAspectRatio;
-        input.resolution = overrides?.resolutionOverride || NON_AGENT_IMAGE_RESOLUTION;
-        return input;
-      })(),
-      callBackUrl: FRAME_WEBHOOK_URL // Event-driven: Register callback for instant status updates
-    };
+    const requestPayload = buildKieGptImageTaskPayload({
+      prompt,
+      referenceImageUrls: imageInput,
+      aspectRatio: resolvedAspectRatio,
+      callBackUrl: FRAME_WEBHOOK_URL
+    });
 
     console.log(`   - 📤 Full KIE API request payload:`, JSON.stringify(requestPayload, null, 2));
 
-    const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestPayload)
-    }, 5, 30000);
+    const taskId = await createKieGptImageTask({
+      prompt,
+      referenceImageUrls: imageInput,
+      aspectRatio: resolvedAspectRatio,
+      callBackUrl: FRAME_WEBHOOK_URL,
+      moderationExternalId: overrides?.moderationExternalId
+    });
 
-    if (!response.ok) {
-      throw new Error(`Reference video clone frame generation failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    if (data.code !== 200) {
-      throw new Error(data.msg || 'Failed to generate reference video clone frame');
-    }
-
-    console.log(`   ✅ Task created: ${data.data.taskId}`);
-    return data.data.taskId;
+    console.log(`   ✅ Task created: ${taskId}`);
+    return taskId;
   }
 
   // Traditional mode continues using product and character references only.
@@ -3970,7 +3856,8 @@ export async function createSmartSegmentFrame(
     promptForProvider,
     segmentIndex,
     frameType,
-    aspectRatio
+    aspectRatio,
+    overrides?.moderationExternalId
   );
 }
 
@@ -4790,6 +4677,13 @@ async function startSegmentVideoTaskKling(
     prompt: singlePrompt?.prompt || '',
     elements
   });
+  const moderationPrompt = hasMultipleShots
+    ? multiPrompt.map((item, index) => `Shot ${index + 1}: ${item.prompt}`).join('\n\n')
+    : (singlePrompt?.prompt || '');
+
+  await moderatePromptBeforeGeneration(moderationPrompt, {
+    externalId: `user_${project.user_id}:video_clone_${project.id}:segment_${segmentIndex}:video`,
+  });
 
   console.log(`🎬 Kling Segment ${segmentIndex + 1}/${totalSegments}:`, {
     mode: (requestBody.input as Record<string, unknown>).mode,
@@ -4997,6 +4891,10 @@ async function startSegmentVideoTaskSeedance(
   }
 
   const promptText = promptParts.join('. ').substring(0, 2500); // Max 2500 chars per Seedance API
+
+  await moderatePromptBeforeGeneration(promptText, {
+    externalId: `user_${project.user_id}:video_clone_${project.id}:segment_${segmentIndex}:video`,
+  });
 
   const requestBody = {
     model: model === 'seedance_2_fast' ? 'bytedance/seedance-2-fast' : 'bytedance/seedance-2',

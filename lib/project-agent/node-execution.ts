@@ -5,6 +5,7 @@ import type {
   ProjectAgentFeatureNodeConfig,
   ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
+import type { LanguageCode } from '@/lib/constants';
 import { resolveAvatarSpokenLanguage } from '@/lib/avatar-spoken-language';
 
 export type ProjectAgentConnectedFeatureInputs = {
@@ -326,11 +327,15 @@ export const buildAvatarAdsStartPayload = (input: {
   product?: ProjectAgentCanvasAssetRef | null;
   text?: ProjectAgentCanvasAssetRef | null;
   config?: ProjectAgentFeatureNodeConfig | null;
+  resolvedSpokenLanguage?: LanguageCode | null;
 }) => {
   const customDialogue = input.text?.content?.trim() || '';
+  const configuredLanguage = input.config?.language && input.config.language !== 'en'
+    ? input.config.language
+    : null;
   const resolvedSpokenLanguage = resolveAvatarSpokenLanguage({
     scriptSource: customDialogue,
-    configuredLanguage: input.config?.language || 'en',
+    configuredLanguage: input.resolvedSpokenLanguage || configuredLanguage,
   });
 
   return {

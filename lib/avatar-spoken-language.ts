@@ -38,8 +38,9 @@ export const resolveAvatarSpokenLanguage = (input: {
   configuredLanguage?: string | null;
 }): LanguageCode => {
   const configured = normalizeConfiguredLanguage(input.configuredLanguage);
-  if (configured) return configured;
   const detected = detectAvatarScriptLanguage(input.scriptSource);
+  if (detected && configured === 'en') return detected;
+  if (configured) return configured;
   if (detected) return detected;
   return 'en';
 };

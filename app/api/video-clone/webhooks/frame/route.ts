@@ -17,7 +17,7 @@ export const revalidate = 0;
 
 /**
  * KIE Image Generation Webhook Payload
- * Documentation: docs/kie/nano-banana-2.md
+ * Documentation: docs/kie/gpt_2_img.md and docs/kie/gpt_2_img_api.md
  */
 interface KIEImageWebhookPayload {
   code: number;
@@ -332,7 +332,8 @@ export async function POST(request: NextRequest) {
                     characterPhotoUrls: cloneReferenceAssets.avatarPhotoUrls.length > 0
                       ? cloneReferenceAssets.avatarPhotoUrls
                       : null,
-                    workflowSourceOverride: workflowSource
+                    workflowSourceOverride: workflowSource,
+                    moderationExternalId: `user_${fullProject.user_id}:video_clone_${fullProject.id}:segment_${nextSegmentIndex}:frame_continuation`
                   },
                   imageUrl, // Use current segment's first frame as continuation reference
                   videoModel
@@ -475,7 +476,8 @@ export async function POST(request: NextRequest) {
               characterPhotoUrls: cloneReferenceAssets.avatarPhotoUrls.length > 0
                 ? cloneReferenceAssets.avatarPhotoUrls
                 : null,
-              workflowSourceOverride: workflowSource
+              workflowSourceOverride: workflowSource,
+              moderationExternalId: `user_${fullProject.user_id}:video_clone_${fullProject.id}:segment_${segment.segment_index}:frame_retry`
             },
             undefined,
             videoModel
