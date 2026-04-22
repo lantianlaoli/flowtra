@@ -30,21 +30,16 @@ export default function Footer() {
                   className="logo-theme h-[58px] w-[58px] sm:h-[64px] sm:w-[64px]"
                 />
               </Link>
-              <p className="mb-5 max-w-[240px] text-[13px] leading-[1.55] text-[#666666]">
+              <p className="mb-3 max-w-[240px] text-[13px] leading-[1.55] text-[#666666]">
                 {footerMessages.description}
               </p>
-
-              {/* Compliance disclaimers */}
-              <div className="mt-2 space-y-1">
-                <p className="text-[10px] leading-[1.5] text-[#999999]">
-                  {footerMessages.disclaimer}
-                </p>
-                <p className="text-[10px] leading-[1.5] text-[#999999]">
-                  {footerMessages.transparency}
-                </p>
-              </div>
-
-              <p className="text-[11px] uppercase tracking-[0.14em] text-[#666666]">
+              <p className="mb-3 text-[13px] leading-[1.55] text-[#666666]">
+                {footerMessages.disclaimer}
+              </p>
+              <p className="text-[13px] leading-[1.55] text-[#666666]">
+                {footerMessages.transparency}
+              </p>
+              <p className="mt-5 text-[11px] uppercase tracking-[0.14em] text-[#666666]">
                 &copy; {currentYear} Flowtra. {footerMessages.rightsReserved}
               </p>
             </section>
