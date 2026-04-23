@@ -16,8 +16,6 @@ export interface AiReferenceAngleJob {
   webhook_received_at: string | null;
   created_at: string;
   updated_at: string;
-  fallback_kie_task_id: string | null;
-  fallback_model: string | null;
   aspect_ratio: string | null;
 }
 

@@ -54,12 +54,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Schema verified via Supabase MCP (2026-04-03):
-    // ai_reference_angle_jobs columns: id, kie_task_id, fallback_kie_task_id, status, result_image_url, error_message, webhook_received_at.
+    // ai_reference_angle_jobs columns: id, kie_task_id, status, result_image_url, error_message, webhook_received_at.
     const supabase = getSupabaseAdmin();
     const { data: job, error: fetchError } = await supabase
       .from('ai_reference_angle_jobs')
       .select('id, kie_task_id, status, webhook_received_at')
-      .or(`kie_task_id.eq.${taskId},fallback_kie_task_id.eq.${taskId}`)
+      .eq('kie_task_id', taskId)
       .single();
 
     if (fetchError || !job) {

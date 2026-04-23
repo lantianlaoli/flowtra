@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import imageCompression from "browser-image-compression";
@@ -99,18 +99,8 @@ export default function AiAngleGeneratorPage() {
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [copiedTaskId, setCopiedTaskId] = useState<string | null>(null);
   const [regeneratingSlotKey, setRegeneratingSlotKey] = useState<string | null>(null);
-  const fallbackTimeoutRef = useRef<{ jobId: string; timeoutId: number } | null>(null);
-  const fallbackTriggeredRef = useRef<Set<string>>(new Set());
 
   const isBusy = status === "uploading" || status === "generating";
-
-  useEffect(() => {
-    return () => {
-      if (fallbackTimeoutRef.current) {
-        window.clearTimeout(fallbackTimeoutRef.current.timeoutId);
-      }
-    };
-  }, []);
 
   const helperText = useMemo(() => {
     if (status === "uploading") return toolMessages.uploadingHelper;
@@ -233,28 +223,10 @@ export default function AiAngleGeneratorPage() {
       return accumulator;
     }, []), []);
 
-  const triggerFallback = async (jobId: string) => {
-    try {
-      await fetch("/api/assets/ai-reference-angles/fallback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId }),
-      });
-    } catch (err) {
-      console.error("Fallback trigger failed:", err);
-    }
-  };
-
   const resolveGeneration = useCallback(async (jobs: AiReferenceAngleCreateJobResponse[], fileName: string | null) => {
     setStatus("generating");
     setError(null);
     setSelectedFileName(fileName);
-
-    // Clear any stale fallback timeout before starting a new wait cycle.
-    if (fallbackTimeoutRef.current) {
-      window.clearTimeout(fallbackTimeoutRef.current.timeoutId);
-      fallbackTimeoutRef.current = null;
-    }
 
     try {
       const resolvedJobs = await waitForAiReferenceAngleJobs({
@@ -262,33 +234,6 @@ export default function AiAngleGeneratorPage() {
         jobIds: jobs.map((job) => job.id),
         onJobsUpdated: (updatedJobs) => {
           setGeneratedImages(buildGeneratedImages(jobs, updatedJobs));
-
-          const completedCount = updatedJobs.filter((j) => j.status === "completed").length;
-          const processingJobs = updatedJobs.filter((j) => j.status === "processing");
-
-          if (completedCount === 2 && processingJobs.length === 1) {
-            const pendingJob = processingJobs[0];
-            if (!pendingJob) return;
-            if (
-              fallbackTimeoutRef.current?.jobId !== pendingJob.id &&
-              !fallbackTriggeredRef.current.has(pendingJob.id)
-            ) {
-              if (fallbackTimeoutRef.current) {
-                window.clearTimeout(fallbackTimeoutRef.current.timeoutId);
-              }
-              const timeoutId = window.setTimeout(() => {
-                fallbackTriggeredRef.current.add(pendingJob.id);
-                void triggerFallback(pendingJob.id);
-                fallbackTimeoutRef.current = null;
-              }, 10000);
-              fallbackTimeoutRef.current = { jobId: pendingJob.id, timeoutId };
-            }
-          } else if (completedCount === 3) {
-            if (fallbackTimeoutRef.current) {
-              window.clearTimeout(fallbackTimeoutRef.current.timeoutId);
-              fallbackTimeoutRef.current = null;
-            }
-          }
         },
       });
 

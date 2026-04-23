@@ -350,7 +350,7 @@ opencode mcp logout github
 
 - **Veo3.1**: 150 credits per 8-second segment
 - **Veo3.1 Fast**: 20 credits per 8-second segment
-- **Image generation**: FREE (nano_banana_pro, seedream)
+- **Image generation**: FREE (GPT Image 2)
 - **Video merge**: FREE (fal.ai operation)
 
 ### Examples
