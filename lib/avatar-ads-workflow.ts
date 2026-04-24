@@ -1235,7 +1235,8 @@ async function generateImageWithKIE(
     prompt: promptValue,
     referenceImageUrls: limitedReferenceImages,
     aspectRatio: modelParams.aspect_ratio,
-    callBackUrl
+    callBackUrl,
+    moderationExternalId
   }) };
 }
 

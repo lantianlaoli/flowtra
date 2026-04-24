@@ -3,7 +3,7 @@ import { buildTypedMentionToken } from '@/lib/prompt-mention-tokens';
 import {
   buildMotionClonePreviewPrompt,
   buildMotionCloneVideoPrompt,
-} from '@/lib/motion-clone-workflow';
+} from '@/lib/motion-clone-prompts';
 
 export type ProjectAgentMotionCloneSelection = {
   id: string;

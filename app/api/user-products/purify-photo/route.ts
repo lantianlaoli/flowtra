@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
       prompt: PURIFICATION_PROMPT,
       referenceImageUrls: [imageUrl],
       aspectRatio: '1:1',
-      callBackUrl
+      callBackUrl,
+      moderationExternalId: `user_${userId}:product_photo_${photoId}:purify`
     }, 3, 30000);
 
     // 5. Update photo record with purification tracking

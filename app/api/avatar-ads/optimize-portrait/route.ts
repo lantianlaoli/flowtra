@@ -49,7 +49,8 @@ export async function POST(request: NextRequest) {
     const taskId = await createKieGptImageTask({
       prompt: optimizationPrompt,
       referenceImageUrls: [imageUrl],
-      aspectRatio: '9:16'
+      aspectRatio: '9:16',
+      moderationExternalId: `user_${userId}:avatar_ads:optimize_portrait`
     }, 3, 30000);
 
     return NextResponse.json({ 

@@ -2800,7 +2800,7 @@ No other top-level keys or metadata.`;
             role: 'system',
             content: `You are an expert advertisement creator. You have been provided with a detailed analysis of a reference video.
 
-**REFERENCE VIDEO ANALYSIS** (Veo Guide 8 Elements):
+**REFERENCE VIDEO ANALYSIS**:
 ${JSON.stringify(referenceVideoDescription, null, 2)}
 
 Your task is to create a similar advertisement for OUR product${imageUrl ? ' (shown in the user\'s image)' : ''} by:
@@ -3954,50 +3954,7 @@ export async function startSegmentVideoTask(
     );
   }
 
-  const structuredPromptPayload = buildStructuredVideoPromptPayload({
-    normalizedShots
-  });
-
-  // Determine imageUrls based on whether a closing frame exists
-  const hasClosingFrame = !!closingFrameUrl && closingFrameUrl !== firstFrameUrl;
-  const imageUrls = hasClosingFrame ? [firstFrameUrl, closingFrameUrl] : [firstFrameUrl];
-
-  console.log(`🎬 Segment ${segmentIndex + 1}: Images count = ${imageUrls.length} ${hasClosingFrame ? '(first + closing)' : '(first only)'}`);
-
-  const requestBody = {
-    prompt: JSON.stringify(structuredPromptPayload),
-    model: videoModel,
-    aspectRatio,
-    generationType: 'FIRST_AND_LAST_FRAMES_2_VIDEO',
-    imageUrls,
-    enableAudio: true,
-    audioEnabled: true,
-    generateVoiceover: true,
-    includeDialogue: true,
-    enableTranslation: false,
-    callBackUrl: buildSegmentVideoWebhookUrl(project.id, segmentIndex)
-  };
-
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/veo/generate', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.KIE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody)
-  }, 5, 30000);
-
-  if (!response.ok) {
-    const errorData = await response.text();
-    throw new Error(`Failed to generate segment video: ${response.status} ${errorData}`);
-  }
-
-  const data = await response.json();
-  if (data.code !== 200) {
-    throw new Error(data.msg || 'Failed to generate segment video');
-  }
-
-  return data.data.taskId;
+  throw new Error(`Unsupported video model: ${videoModel}`);
 }
 
 type NormalizedVideoShot = {

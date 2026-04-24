@@ -36,7 +36,7 @@ import {
 import {
   buildMotionClonePreviewPrompt,
   buildMotionCloneVideoPrompt,
-} from "@/lib/motion-clone-workflow";
+} from "@/lib/motion-clone-prompts";
 import { ANALYTICS_EVENTS } from "@/lib/analytics/events";
 import { trackEvent } from "@/lib/analytics/client";
 

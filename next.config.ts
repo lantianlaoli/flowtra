@@ -80,11 +80,6 @@ const nextConfig: NextConfig = {
         destination: '/features/video-clone',
         permanent: true,
       },
-      {
-        source: '/sora2-watermark-removal',
-        destination: '/',
-        permanent: true,
-      },
     ];
   },
   async rewrites() {

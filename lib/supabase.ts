@@ -385,7 +385,7 @@ export interface ReferenceVideo {
   created_at: string
   updated_at: string
   // Analysis fields - these contain the reusable structure from reference videos
-  analysis_result?: Record<string, unknown> | null // 10 Veo elements analysis (complete shot breakdown)
+  analysis_result?: Record<string, unknown> | null // Detailed reference video analysis
   language?: string | null // Language short code (e.g., 'en', 'zh', 'es')
   analysis_status?: 'pending' | 'analyzing' | 'completed' | 'failed'
   analysis_error?: string | null

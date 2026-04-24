@@ -131,6 +131,7 @@ export async function POST(request: NextRequest) {
           mode: normalizeMotionCloneQuality(project.mode),
           prompt: compiledVideoPrompt,
           elements: elements.length > 0 ? elements : undefined,
+          moderationExternalId: `user_${project.user_id}:motion_clone_${project.id}:video`,
         }, callbackUrl);
 
         await supabase

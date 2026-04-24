@@ -76,6 +76,11 @@ export async function moderatePromptBeforeGeneration(
   const { apiUrl, apiKey } = getCreemModerationConfig();
   const timeoutMs = options.timeoutMs ?? 5000;
 
+  console.info('[Creem Moderation] Screening prompt before generation:', {
+    externalId: options.externalId || null,
+    promptLength: normalizedPrompt.length,
+  });
+
   let response: Response;
   try {
     response = await fetch(apiUrl, {
@@ -122,8 +127,19 @@ export async function moderatePromptBeforeGeneration(
   }
 
   if (payload.decision === 'flag' || payload.decision === 'deny') {
+    console.warn('[Creem Moderation] Blocked prompt:', {
+      externalId: options.externalId || null,
+      decision: payload.decision,
+      moderationId: typeof payload.id === 'string' ? payload.id : null,
+    });
     throw new CreemModerationError(`prompt_${payload.decision}`);
   }
+
+  console.info('[Creem Moderation] Prompt allowed:', {
+    externalId: options.externalId || null,
+    decision: payload.decision,
+    moderationId: typeof payload.id === 'string' ? payload.id : null,
+  });
 
   return {
     decision: payload.decision,

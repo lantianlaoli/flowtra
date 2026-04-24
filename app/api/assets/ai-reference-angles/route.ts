@@ -256,7 +256,8 @@ export async function POST(request: NextRequest) {
         prompt: preset.prompt,
         referenceImageUrls: [sourceImageUrl],
         aspectRatio,
-        callBackUrl
+        callBackUrl,
+        moderationExternalId: `user_${userId}:ai_reference_angles:${assetType}:${preset.key}`
       }, 3, 30000);
 
       jobsPayload.push({

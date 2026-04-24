@@ -95,6 +95,11 @@ export async function createKieGptImageTask(
   retries = 5,
   timeoutMs = 30000
 ): Promise<string> {
+  const { moderatePromptBeforeGeneration } = await import('@/lib/creem-moderation');
+  await moderatePromptBeforeGeneration(input.prompt, {
+    externalId: input.moderationExternalId,
+  });
+
   const payload = buildKieGptImageTaskPayload(input);
   const response = await fetchWithRetry(KIE_IMAGE_CREATE_TASK_URL, {
     method: 'POST',

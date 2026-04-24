@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createMotionClonePreviewTask, createMotionCloneVideoTask, buildMotionClonePreviewPrompt, buildMotionCloneVideoPrompt } from '@/lib/motion-clone-workflow';
+import { createMotionClonePreviewTask, createMotionCloneVideoTask } from '@/lib/motion-clone-workflow';
+import { buildMotionClonePreviewPrompt, buildMotionCloneVideoPrompt } from '@/lib/motion-clone-prompts';
 import { checkCredits, deductCredits, recordCreditTransaction, refundCredits } from '@/lib/credits';
 import { fetchTikTokVideoUrl } from '@/lib/fetch-tiktok-video';
 import { fetchSocialVideoInfo } from '@/lib/fetch-social-video';
@@ -323,6 +324,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           mode: selectedQuality,
           prompt: compiledVideoPrompt || buildMotionCloneVideoPrompt({ hasAvatar, hasProduct }),
           elements: elements.length > 0 ? elements : undefined,
+          moderationExternalId: `user_${userId}:motion_clone_${project.id}:video`,
         }, callbackUrl);
 
         const { data: updatedProject, error: updateError } = await supabase
@@ -411,7 +413,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         avatarUrl: avatar?.photo_url || null,
         productUrl: productPhoto?.photo_url || null,
         aspectRatio: '9:16',
-          prompt: photoPromptForModeration
+        prompt: photoPromptForModeration,
+        moderationExternalId: `user_${userId}:motion_clone_${project.id}:preview`,
       }, callbackUrl);
 
       const { data: updatedProject, error: updateError } = await supabase
