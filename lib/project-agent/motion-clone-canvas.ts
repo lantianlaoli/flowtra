@@ -4,6 +4,13 @@ import {
 } from '@/lib/project-agent/canvas-actions';
 import type { ProjectAgentCanvasAssetRef, ProjectAgentCanvasState } from '@/lib/project-agent/canvas-state';
 import type { ProjectAgentMotionCloneExecution } from '@/lib/project-agent/motion-clone-execution';
+import { SYSTEM_AVATARS } from '@/lib/default-avatars';
+import { isSystemProductId } from '@/lib/default-products';
+import { isSystemReferenceVideoId } from '@/lib/default-reference-videos';
+
+const isSystemAvatarId = (avatarId: string | null | undefined) => (
+  Boolean(avatarId) && SYSTEM_AVATARS.some((avatar) => avatar.id === avatarId)
+);
 
 const toVideoAsset = (
   referenceVideo: NonNullable<ProjectAgentMotionCloneExecution['referenceVideo']>
@@ -16,6 +23,7 @@ const toVideoAsset = (
   videoUrl: referenceVideo.videoUrl || null,
   videoCdnUrl: referenceVideo.videoCdnUrl || null,
   analysisLanguage: referenceVideo.analysisLanguage || null,
+  isSystem: referenceVideo.isSystem === true || isSystemReferenceVideoId(referenceVideo.id),
 });
 
 const toAvatarAsset = (
@@ -25,6 +33,7 @@ const toAvatarAsset = (
   name: selectedAvatar.name,
   imageUrl: selectedAvatar.photoUrl || null,
   photos: selectedAvatar.photoUrl ? [selectedAvatar.photoUrl] : [],
+  isSystem: selectedAvatar.isSystem === true || isSystemAvatarId(selectedAvatar.id),
 });
 
 const toProductAsset = (
@@ -34,6 +43,7 @@ const toProductAsset = (
   name: selectedProduct.name,
   imageUrl: selectedProduct.photoUrl || null,
   photos: selectedProduct.photoUrl ? [selectedProduct.photoUrl] : [],
+  isSystem: selectedProduct.isSystem === true || isSystemProductId(selectedProduct.id),
 });
 
 export const syncMotionCloneCanvasState = (

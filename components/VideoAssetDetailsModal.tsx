@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -428,11 +429,13 @@ export default function VideoAssetDetailsModal({
                     className={`assets-video-details-preview flex min-w-0 min-h-0 border-2 border-dashed border-gray-300 bg-white transition-colors hover:border-gray-500 cursor-pointer ${previewCardClassName}`}
                     style={{ width: `${previewWidth}px`, height: `${previewHeight}px` }}
                   >
-                    <div className="flex h-full w-full items-center justify-center overflow-hidden px-5 text-center">
+                    <div className="relative flex h-full w-full items-center justify-center overflow-hidden px-5 text-center">
                       {currentVideo.cover_url ? (
-                        <img
+                        <Image
                           src={currentVideo.cover_url}
                           alt="First frame"
+                          fill
+                          sizes={`${previewWidth}px`}
                           className="h-full w-full object-cover"
                         />
                       ) : (

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import { X, Link, Upload, Loader2, ArrowLeft, Info, Sparkles, Shuffle, RotateCcw, Type, Languages, Film, Clock, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -1090,9 +1091,11 @@ export default function VideoImportModal({
                       >
                         <div className="assets-video-import-thumb relative aspect-[9/16] bg-gray-100">
                           {video.cover_url ? (
-                            <img
+                            <Image
                               src={video.cover_url}
                               alt={video.description || 'TikTok preview'}
+                              fill
+                              sizes="(min-width: 1024px) 20vw, (min-width: 768px) 33vw, 50vw"
                               className="w-full h-full object-cover"
                             />
                           ) : (
@@ -1125,11 +1128,13 @@ export default function VideoImportModal({
                         className={`flex min-w-0 min-h-0 cursor-pointer border-2 border-dashed border-gray-300 bg-white transition-colors hover:border-gray-500 ${previewCardClassName}`}
                         style={{ width: `${previewWidth}px`, height: `${previewHeight}px` }}
                       >
-                        <div className="flex h-full w-full items-center justify-center overflow-hidden px-5 text-center">
+                        <div className="relative flex h-full w-full items-center justify-center overflow-hidden px-5 text-center">
                           {processingVideo?.cover_url ? (
-                            <img
+                            <Image
                               src={processingVideo.cover_url}
                               alt="First frame"
+                              fill
+                              sizes={`${previewWidth}px`}
                               className="h-full w-full object-cover"
                             />
                           ) : (

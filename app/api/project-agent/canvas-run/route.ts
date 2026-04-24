@@ -18,9 +18,12 @@ import {
   buildAvatarAdsStartPayload,
   buildMotionCloneStartPayload,
   buildVideoCloneStartPayload,
+  createQueuedExecutionStatus,
+  getExecutionTableForNodeType,
   getProjectAgentCanvasErrorInfo,
   normalizeExecutionStatus,
   type ProjectAgentConnectedFeatureInputs,
+  type ProjectAgentCanvasExecutionStatus,
 } from '@/lib/project-agent/node-execution';
 import type {
   ProjectAgentCanvasAssetRef,
@@ -37,8 +40,19 @@ type CanvasRunRequestBody = {
   nodeType?: ProjectAgentFeatureNodeType;
   mode?: 'start' | 'advance' | 'retry';
   projectId?: string | null;
+  runCount?: number | null;
   config?: ProjectAgentFeatureNodeConfig | null;
   connectedAssets?: ProjectAgentConnectedFeatureInputs | null;
+};
+
+const normalizeRunCount = (value: unknown) => {
+  const parsed = typeof value === 'number'
+    ? value
+    : typeof value === 'string'
+      ? Number(value)
+      : 1;
+  if (parsed === 2 || parsed === 3) return parsed;
+  return 1;
 };
 
 const buildInternalHeaders = (userId: string) => {
@@ -184,7 +198,7 @@ const chargeCredits = async (
   return true;
 };
 
-const assertAvatarCredits = async (userId: string, body: CanvasRunRequestBody) => {
+const assertAvatarCredits = async (userId: string, body: CanvasRunRequestBody, runCount = 1) => {
   const avatar = ensureAsset(body.connectedAssets?.avatar, 'Avatar');
   const product = body.connectedAssets?.product || null;
   const text = ensureAsset(body.connectedAssets?.text, 'Text');
@@ -210,13 +224,13 @@ const assertAvatarCredits = async (userId: string, body: CanvasRunRequestBody) =
 
   await ensureEnoughCredits(
     userId,
-    getGenerationCost(payload.videoModel, String(plannedDurationSeconds))
+    getGenerationCost(payload.videoModel, String(plannedDurationSeconds)) * runCount
   );
 
   return resolvedSpokenLanguage;
 };
 
-const assertVideoCloneCredits = async (userId: string, body: CanvasRunRequestBody) => {
+const assertVideoCloneCredits = async (userId: string, body: CanvasRunRequestBody, runCount = 1) => {
   const avatar = body.connectedAssets?.avatar || null;
   const product = body.connectedAssets?.product || null;
   const video = ensureAsset(body.connectedAssets?.video, 'Video');
@@ -235,11 +249,11 @@ const assertVideoCloneCredits = async (userId: string, body: CanvasRunRequestBod
 
   await ensureEnoughCredits(
     userId,
-    getGenerationCost(payload.videoModel, payload.videoDuration, 'standard')
+    getGenerationCost(payload.videoModel, payload.videoDuration, 'standard') * runCount
   );
 };
 
-const assertMotionCloneCredits = async (userId: string, body: CanvasRunRequestBody) => {
+const assertMotionCloneCredits = async (userId: string, body: CanvasRunRequestBody, runCount = 1) => {
   const avatar = body.connectedAssets?.avatar || null;
   const product = body.connectedAssets?.product || null;
   const video = ensureAsset(body.connectedAssets?.video, 'Video');
@@ -289,7 +303,37 @@ const assertMotionCloneCredits = async (userId: string, body: CanvasRunRequestBo
     payload.mode
   );
 
-  await ensureEnoughCredits(userId, requiredCredits);
+  await ensureEnoughCredits(userId, requiredCredits * runCount);
+};
+
+const buildFailedExecutionStatus = (
+  nodeType: ProjectAgentFeatureNodeType,
+  error: unknown
+): ProjectAgentCanvasExecutionStatus => {
+  const message = error instanceof Error ? error.message : 'Run failed.';
+  const errorInfo = getProjectAgentCanvasErrorInfo(message, {
+    code: error instanceof CanvasRunApiError ? error.code : null,
+  });
+  return {
+    executionState: 'failed',
+    phase: 'failed',
+    progress: 0,
+    outputUrl: null,
+    previewUrl: null,
+    error: message,
+    userFacingError: errorInfo.userFacingError,
+    retryable: errorInfo.retryable,
+    statusLabel: errorInfo.maintenanceMode ? 'Maintenance' : 'Failed',
+    projectId: '',
+    table: getExecutionTableForNodeType(nodeType),
+    nextAction: 'none',
+    milestones: createQueuedExecutionStatus(nodeType).milestones.map((milestone, index) => ({
+      ...milestone,
+      state: index === 0 ? 'failed' : 'pending',
+    })),
+    currentMilestoneKey: 'preparing_prompt',
+    raw: null,
+  };
 };
 
 const fetchAvatarStatus = async (origin: string, projectId: string, headers?: HeadersInit) => {
@@ -369,7 +413,7 @@ const startAvatarAds = async (
   }
 
   let status = await fetchAvatarStatus(origin, projectId, internalHeaders);
-  if (status.nextAction === 'confirm_avatar') {
+  if (status.nextAction !== 'none') {
     const statusPayload = await fetchJson(`${origin}/api/avatar-ads/${projectId}/status`, {
       cache: 'no-store',
       headers: internalHeaders,
@@ -383,17 +427,28 @@ const startAvatarAds = async (
         : Number(body.config?.videoDuration || '16')
     );
 
-    await fetchJson(`${origin}/api/avatar-ads/${projectId}/confirm`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        ...internalHeaders,
-      },
-      body: JSON.stringify({
-        updatedPrompts: project?.generated_prompts || null,
-        totalDurationSeconds: totalDuration,
-      }),
-    });
+    if (status.nextAction === 'generate_avatar_cover') {
+      await fetchJson(`${origin}/api/avatar-ads/${projectId}/process`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...internalHeaders,
+        },
+        body: JSON.stringify({ step: 'generate_image' }),
+      });
+    } else if (status.nextAction === 'confirm_avatar') {
+      await fetchJson(`${origin}/api/avatar-ads/${projectId}/confirm`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...internalHeaders,
+        },
+        body: JSON.stringify({
+          updatedPrompts: project?.generated_prompts || null,
+          totalDurationSeconds: totalDuration,
+        }),
+      });
+    }
     status = await fetchAvatarStatus(origin, projectId, internalHeaders);
   }
 
@@ -530,6 +585,18 @@ const advanceAvatarAds = async (origin: string, userId: string, projectId: strin
   const project = payload.project as Record<string, unknown> | undefined;
   const status = normalizeExecutionStatus('avatar_ads', payload);
 
+  if (status.nextAction === 'generate_avatar_cover') {
+    await fetchJson(`${origin}/api/avatar-ads/${projectId}/process`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...internalHeaders,
+      },
+      body: JSON.stringify({ step: 'generate_image' }),
+    });
+    return fetchAvatarStatus(origin, projectId, internalHeaders);
+  }
+
   if (status.nextAction === 'confirm_avatar') {
     await fetchJson(`${origin}/api/avatar-ads/${projectId}/confirm`, {
       method: 'PATCH',
@@ -560,6 +627,11 @@ const retryAvatarAds = async (origin: string, userId: string, projectId: string)
 
   if (projectError || !project) {
     throw new Error('Project not found.');
+  }
+
+  if (project.image_prompt && !project.generated_image_url) {
+    await processAvatarAdsProject(project, 'generate_image');
+    return fetchAvatarStatus(origin, projectId, internalHeaders);
   }
 
   const errorInfo = getProjectAgentCanvasErrorInfo(
@@ -918,22 +990,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, execution: retriedStatus });
     }
 
+    const runCount = normalizeRunCount(body.runCount ?? body.config?.runCount);
     let avatarSpokenLanguage: LanguageCode | null = null;
     if (nodeType === 'avatar_ads') {
-      avatarSpokenLanguage = await assertAvatarCredits(userId, body);
+      avatarSpokenLanguage = await assertAvatarCredits(userId, body, runCount);
     } else if (nodeType === 'video_clone') {
-      await assertVideoCloneCredits(userId, body);
+      await assertVideoCloneCredits(userId, body, runCount);
     } else if (nodeType === 'motion_clone') {
-      await assertMotionCloneCredits(userId, body);
+      await assertMotionCloneCredits(userId, body, runCount);
     }
 
-    const execution = nodeType === 'avatar_ads'
-      ? await startAvatarAds(origin, userId, body, avatarSpokenLanguage)
-      : nodeType === 'video_clone'
-        ? await startVideoClone(origin, userId, body)
-        : await startMotionClone(origin, userId, body);
+    const startOne = () => (
+      nodeType === 'avatar_ads'
+        ? startAvatarAds(origin, userId, body, avatarSpokenLanguage)
+        : nodeType === 'video_clone'
+          ? startVideoClone(origin, userId, body)
+          : startMotionClone(origin, userId, body)
+    );
+    const results = await Promise.allSettled(
+      Array.from({ length: runCount }, () => startOne())
+    );
+    const executions = results.map((result) => (
+      result.status === 'fulfilled'
+        ? result.value
+        : buildFailedExecutionStatus(nodeType, result.reason)
+    ));
+    const execution = executions.find((item) => item.executionState !== 'failed') || executions[0];
 
-    return NextResponse.json({ success: true, execution });
+    return NextResponse.json({ success: true, execution, executions });
   } catch (error) {
     console.error('[Project Agent Canvas Run] Error:', error);
     if (error instanceof CanvasRunApiError) {

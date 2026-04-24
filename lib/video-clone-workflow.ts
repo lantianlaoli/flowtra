@@ -35,6 +35,7 @@ import {
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { getAvatarPhotoUrls, SYSTEM_AVATARS } from '@/lib/default-avatars';
 import { getSystemProductPhotoUrls, isSystemProductId, SYSTEM_PRODUCTS } from '@/lib/default-products';
+import { getSystemReferenceVideoById, isSystemReferenceVideoId } from '@/lib/default-reference-videos';
 import { compilePromptForExecution } from '@/lib/video-clone-prompt-compiler';
 import {
   KLING_PROMPT_MAX_CHARS,
@@ -1248,35 +1249,50 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
     if (request.referenceVideoId) {
       console.log(`🎯 Loading reference video: ${request.referenceVideoId}`);
-      const fetchReferenceVideo = async () => {
-        const { data: referenceVideo, error: referenceVideoError} = await supabase
-          .from('reference_videos')
-          .select('reference_name, analysis_result, analysis_status, language, video_duration_seconds')
-          .eq('id', request.referenceVideoId)
-          .eq('user_id', request.userId)
-          .single();
-        if (referenceVideoError) throw referenceVideoError;
-        return referenceVideo;
-      };
-
-      try {
-        const referenceVideo = await retryAsync(fetchReferenceVideo, { maxAttempts: 3, baseDelayMs: 500, label: 'Reference video fetch' });
-
+      const systemReferenceVideo = getSystemReferenceVideoById(request.referenceVideoId);
+      if (systemReferenceVideo) {
         referenceVideoContext = {
           id: request.referenceVideoId,
-          reference_name: referenceVideo.reference_name,
-          existing_analysis: referenceVideo.analysis_result,
-          analysis_status: referenceVideo.analysis_status as 'pending' | 'analyzing' | 'completed' | 'failed' | undefined,
-          language: referenceVideo.language,
-          video_duration_seconds: referenceVideo.video_duration_seconds
+          reference_name: systemReferenceVideo.reference_name,
+          existing_analysis: systemReferenceVideo.analysis_result as unknown as Record<string, unknown>,
+          analysis_status: systemReferenceVideo.analysis_status,
+          language: systemReferenceVideo.language,
+          video_duration_seconds: systemReferenceVideo.video_duration_seconds
         };
+      } else {
+        const fetchReferenceVideo = async () => {
+          const { data: referenceVideo, error: referenceVideoError} = await supabase
+            .from('reference_videos')
+            .select('reference_name, analysis_result, analysis_status, language, video_duration_seconds')
+            .eq('id', request.referenceVideoId)
+            .eq('user_id', request.userId)
+            .single();
+          if (referenceVideoError) throw referenceVideoError;
+          return referenceVideo;
+        };
+
+        try {
+          const referenceVideo = await retryAsync(fetchReferenceVideo, { maxAttempts: 3, baseDelayMs: 500, label: 'Reference video fetch' });
+
+          referenceVideoContext = {
+            id: request.referenceVideoId,
+            reference_name: referenceVideo.reference_name,
+            existing_analysis: referenceVideo.analysis_result,
+            analysis_status: referenceVideo.analysis_status as 'pending' | 'analyzing' | 'completed' | 'failed' | undefined,
+            language: referenceVideo.language,
+            video_duration_seconds: referenceVideo.video_duration_seconds
+          };
+        } catch (referenceVideoError) {
+          console.warn(`⚠️ Reference video not found or access denied: ${request.referenceVideoId}`, referenceVideoError);
+          // Don't fail the workflow if reference video is not found, just proceed without it
+        }
+      }
+
+      if (referenceVideoContext) {
         console.log(`✅ Reference video loaded: ${referenceVideoContext.reference_name}`);
         console.log(`📊 Analysis status: ${referenceVideoContext.analysis_status || 'unknown'}`);
         console.log(`🔍 Has existing analysis: ${!!referenceVideoContext.existing_analysis}`);
         console.log(`🌍 Detected language: ${referenceVideoContext.language || 'none'}`);
-      } catch (referenceVideoError) {
-        console.warn(`⚠️ Reference video not found or access denied: ${request.referenceVideoId}`, referenceVideoError);
-        // Don't fail the workflow if reference video is not found, just proceed without it
       }
     }
 
@@ -1597,9 +1613,13 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       generationCost = 0; // Photo-only mode is free
     }
 
+    const persistableReferenceVideoId = request.referenceVideoId && !isSystemReferenceVideoId(request.referenceVideoId)
+      ? request.referenceVideoId
+      : null;
+
     const projectInsertBase = {
       user_id: request.userId,
-      reference_video_id: request.referenceVideoId || null, // Reference video
+      reference_video_id: persistableReferenceVideoId, // User reference videos only; system defaults use selected_inputs.referenceSourceId
       video_model: actualVideoModel,
       video_aspect_ratio: request.videoAspectRatio || '16:9',
       status: 'processing',

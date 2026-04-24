@@ -23,6 +23,7 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'tempfile.aiquickdraw.com' },
       { protocol: 'https', hostname: 'webstatic.aiproxy.vip' },
       { protocol: 'https', hostname: 'ui-avatars.com' },
+      { protocol: 'https', hostname: 'img.turbo0.com' },
       { protocol: 'https', hostname: '*.tiktokcdn.com' },
     ],
     formats: ['image/webp', 'image/avif'],

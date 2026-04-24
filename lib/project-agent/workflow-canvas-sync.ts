@@ -6,10 +6,13 @@ import type { ProjectAgentCanvasAssetRef, ProjectAgentCanvasState } from '@/lib/
 import { getPrimaryCloneSelection } from '@/lib/project-agent/clone-selection';
 import { syncMotionCloneCanvasState } from '@/lib/project-agent/motion-clone-canvas';
 import type { ProjectAgentMotionCloneExecution } from '@/lib/project-agent/motion-clone-execution';
+import { SYSTEM_AVATARS } from '@/lib/default-avatars';
+import { isSystemProductId } from '@/lib/default-products';
+import { isSystemReferenceVideoId } from '@/lib/default-reference-videos';
 
 type AvatarSelectionLike = {
-  avatar?: { id: string; name: string; photoUrl?: string | null } | null;
-  product?: { id: string; name: string; photoUrl?: string | null } | null;
+  avatar?: { id: string; name: string; photoUrl?: string | null; isSystem?: boolean } | null;
+  product?: { id: string; name: string; photoUrl?: string | null; isSystem?: boolean } | null;
 } | null | undefined;
 
 type AvatarDraftLike = {
@@ -23,27 +26,34 @@ type CloneReferenceVideoLike = {
   videoUrl?: string | null;
   cdnUrl?: string | null;
   analysisLanguage?: string | null;
+  isSystem?: boolean;
 } | null | undefined;
 
 type CloneReplacementDraftLike = {
-  selectedAvatars?: Array<{ id: string; name: string; photoUrl?: string | null }> | null;
-  selectedAvatar?: { id: string; name: string; photoUrl?: string | null } | null;
-  selectedProducts?: Array<{ id: string; name: string; photoUrl?: string | null }> | null;
-  selectedProduct?: { id: string; name: string; photoUrl?: string | null } | null;
+  selectedAvatars?: Array<{ id: string; name: string; photoUrl?: string | null; isSystem?: boolean }> | null;
+  selectedAvatar?: { id: string; name: string; photoUrl?: string | null; isSystem?: boolean } | null;
+  selectedProducts?: Array<{ id: string; name: string; photoUrl?: string | null; isSystem?: boolean }> | null;
+  selectedProduct?: { id: string; name: string; photoUrl?: string | null; isSystem?: boolean } | null;
 } | null | undefined;
 
-const toAvatarAsset = (avatar: { id: string; name: string; photoUrl?: string | null }): ProjectAgentCanvasAssetRef => ({
+const isSystemAvatarId = (avatarId: string | null | undefined) => (
+  Boolean(avatarId) && SYSTEM_AVATARS.some((avatar) => avatar.id === avatarId)
+);
+
+const toAvatarAsset = (avatar: { id: string; name: string; photoUrl?: string | null; isSystem?: boolean }): ProjectAgentCanvasAssetRef => ({
   id: avatar.id,
   name: avatar.name,
   imageUrl: avatar.photoUrl || null,
   photos: avatar.photoUrl ? [avatar.photoUrl] : [],
+  isSystem: avatar.isSystem === true || isSystemAvatarId(avatar.id),
 });
 
-const toProductAsset = (product: { id: string; name: string; photoUrl?: string | null }): ProjectAgentCanvasAssetRef => ({
+const toProductAsset = (product: { id: string; name: string; photoUrl?: string | null; isSystem?: boolean }): ProjectAgentCanvasAssetRef => ({
   id: product.id,
   name: product.name,
   imageUrl: product.photoUrl || null,
   photos: product.photoUrl ? [product.photoUrl] : [],
+  isSystem: product.isSystem === true || isSystemProductId(product.id),
 });
 
 const toCloneVideoAsset = (video: NonNullable<CloneReferenceVideoLike>): ProjectAgentCanvasAssetRef => ({
@@ -53,6 +63,7 @@ const toCloneVideoAsset = (video: NonNullable<CloneReferenceVideoLike>): Project
   videoUrl: video.videoUrl || null,
   videoCdnUrl: video.cdnUrl || null,
   analysisLanguage: video.analysisLanguage || null,
+  isSystem: video.isSystem === true || isSystemReferenceVideoId(video.id),
 });
 
 export const syncAvatarAdsCanvasState = (

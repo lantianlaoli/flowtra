@@ -8,6 +8,17 @@ import { SYSTEM_REFERENCE_VIDEOS, toVideoAssetLike } from '@/lib/default-referen
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+const getReferenceVideoPublicUrl = (
+  supabase: Awaited<ReturnType<typeof createServerUserSupabaseClient>>,
+  video: { source_storage_bucket?: string | null; source_storage_path?: string | null }
+) => {
+  const bucket = video.source_storage_bucket?.trim();
+  const path = video.source_storage_path?.trim();
+  if (!bucket || !path) return null;
+
+  return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl || null;
+};
+
 export async function GET() {
   try {
     const { userId } = await auth();
@@ -103,7 +114,7 @@ export async function GET() {
       platform: 'tiktok',
       platform_video_id: ad.id,
       video_url: '',
-      video_cdn_url: null,
+      video_cdn_url: getReferenceVideoPublicUrl(supabase, ad),
       cover_url: null,
       description: ad.reference_name,
       stats: null,

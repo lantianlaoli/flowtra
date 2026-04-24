@@ -25,5 +25,6 @@ export const toProjectAgentVideoAssets = (value: unknown): ProjectAgentCanvasAss
       videoUrl: typeof item.video_url === 'string' ? item.video_url : null,
       videoCdnUrl: typeof item.video_cdn_url === 'string' ? item.video_cdn_url : null,
       analysisLanguage: typeof item.analysis_language === 'string' ? item.analysis_language : null,
+      isSystem: item.isSystem === true,
     }));
 };

@@ -192,6 +192,13 @@ const getFeatureIcon = (type: ProjectAgentFeatureNodeType) => {
   return WandSparkles;
 };
 
+const getPlayableVideoUrl = (asset: ProjectAgentCanvasNode['asset']) => {
+  const cdnUrl = asset?.videoCdnUrl?.trim();
+  if (cdnUrl) return cdnUrl;
+
+  const videoUrl = asset?.videoUrl?.trim();
+  return videoUrl || null;
+};
 
 export default function CanvasBoard({
   canvas,
@@ -430,6 +437,7 @@ export default function CanvasBoard({
         {canvas.nodes.map((node) => {
           const size = getNodeSize(node);
           const selected = transientSelectedNodeIds.includes(node.id) || canvas.selectedNodeIds.includes(node.id);
+          const playableVideoUrl = getPlayableVideoUrl(node.asset);
           const isDragging = draggingNodeId === node.id;
           const isFeatureNode = isProjectAgentFeatureNode(node.type);
           const featureType: ProjectAgentFeatureNodeType | null = isFeatureNode
@@ -440,9 +448,10 @@ export default function CanvasBoard({
           const blockedReason = isFeatureNode ? (node.runtime?.blockedReason || null) : null;
           const maintenanceBlocked = isFeatureNode ? Boolean(node.runtime?.maintenanceBlocked) : false;
           const executionState = node.runtime?.executionState || 'invalid';
-          const retryableFailure = executionState === 'failed' && Boolean(node.runtime?.retryable);
+          const failedState = executionState === 'failed';
+          const canRetryFailure = failedState && !maintenanceBlocked;
           const userFacingError = node.runtime?.userFacingError || null;
-          const showRunningState = isProjectAgentRuntimeActive(node.runtime);
+          const showRunningState = executionState === 'running' && isProjectAgentRuntimeActive(node.runtime);
           const hasAnyInput = isFeatureNode
             ? canvas.edges.some((e) => e.targetNodeId === node.id)
             : false;
@@ -467,11 +476,11 @@ export default function CanvasBoard({
           return (
             <div
               key={node.id}
-              data-node-interactive="true"
               data-canvas-node="true"
+              data-selected={selected ? 'true' : undefined}
               className={`project-agent-node-card group absolute rounded-[24px] border transition-[box-shadow,border-color,transform] ${
                 selected
-                  ? 'border-black shadow-[0_24px_60px_rgba(0,0,0,0.14)]'
+                  ? 'project-agent-node-card--selected'
                   : 'border-[#dfddd5] hover:shadow-[0_22px_48px_rgba(0,0,0,0.10)]'
               } ${isDragging ? 'z-20 select-none shadow-[0_28px_70px_rgba(0,0,0,0.16)]' : 'shadow-[0_18px_40px_rgba(0,0,0,0.08)]'}`}
               style={{
@@ -493,6 +502,10 @@ export default function CanvasBoard({
                 onConnectToHandle(node.id, pendingSourceNode.type);
               }}
             >
+              {selected ? (
+                <div className="project-agent-node-selection-outline pointer-events-none absolute -inset-1 z-30 rounded-[28px]" />
+              ) : null}
+
               {/* Hover toolbar above card — pb-3 bridges the gap so mouse stays in hover zone */}
               <div className="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-full pb-3 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100">
                 <div className="flex items-center divide-x divide-[#e8e4da] overflow-hidden rounded-full border border-[#ddd7ca] bg-white/96 shadow-[0_10px_24px_rgba(0,0,0,0.11)] backdrop-blur">
@@ -509,13 +522,13 @@ export default function CanvasBoard({
                       Regenerate
                     </button>
                   ) : null}
-                  {isProjectAgentOutputNode(node.type) && node.asset?.videoUrl ? (
+                  {isProjectAgentOutputNode(node.type) && playableVideoUrl ? (
                     <a
                       className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-[#4a4944] transition-colors hover:bg-[#f5f2ea] hover:text-black ${
                         !isFeatureNode ? 'rounded-l-full' : ''
                       }`}
                       download
-                      href={node.asset.videoUrl}
+                      href={playableVideoUrl}
                       rel="noopener noreferrer"
                       target="_blank"
                       onClick={(e) => e.stopPropagation()}
@@ -551,14 +564,14 @@ export default function CanvasBoard({
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {node.asset?.videoUrl ? (
+                      {playableVideoUrl ? (
                         <video
                           className="h-full w-full object-cover"
                           controls
                           playsInline
                           preload="metadata"
-                          poster={node.asset.imageUrl || undefined}
-                          src={node.asset.videoUrl}
+                          poster={node.asset?.imageUrl || undefined}
+                          src={playableVideoUrl}
                         />
                       ) : node.asset?.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -607,14 +620,14 @@ export default function CanvasBoard({
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {node.asset?.videoUrl ? (
+                        {playableVideoUrl ? (
                           <video
                             className="h-full w-full object-cover"
                             controls
                             playsInline
-                            poster={node.asset.imageUrl || undefined}
+                            poster={node.asset?.imageUrl || undefined}
                             preload="metadata"
-                            src={node.asset.videoUrl}
+                            src={playableVideoUrl}
                           />
                         ) : node.asset?.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -663,7 +676,11 @@ export default function CanvasBoard({
                   )}
                   {/* Connection button */}
                   <button
-                    className={`project-agent-press-icon-button absolute right-0 top-1/2 z-10 h-10 w-10 translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border ${
+                    className={`project-agent-press-icon-button project-agent-node-connection-button absolute right-0 top-1/2 z-40 h-10 w-10 translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border ${
+                      selected
+                        ? 'project-agent-node-connection-button--selected'
+                        : ''
+                    } ${
                       pendingConnectionSourceId === node.id
                         ? 'project-agent-press-button--active'
                         : ''
@@ -684,7 +701,11 @@ export default function CanvasBoard({
                 <div className="relative flex flex-col h-full">
                   {/* Left connection target dot — colored by input state */}
                   <div
-                    className={`pointer-events-none absolute left-0 top-1/2 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border shadow-[0_6px_14px_rgba(0,0,0,0.08)] transition-all duration-300 ease-out ${
+                    className={`project-agent-node-status-dot pointer-events-none absolute left-0 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border shadow-[0_6px_14px_rgba(0,0,0,0.08)] transition-all duration-300 ease-out ${
+                      selected
+                        ? 'project-agent-node-status-dot--selected z-40'
+                        : 'z-10'
+                    } ${
                       snappedConnectionTarget?.targetNodeId === node.id
                         ? 'scale-[1.4] border-black bg-white shadow-[0_0_0_8px_rgba(15,15,15,0.10)]'
                         : dotState === 'ready'
@@ -745,19 +766,19 @@ export default function CanvasBoard({
                     ) : (
                       <button
                         className={`project-agent-press-button flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${
-                          retryableFailure || canStart
+                          canRetryFailure || canStart
                             ? 'project-agent-press-button--active cursor-pointer'
                             : maintenanceBlocked
                               ? 'cursor-not-allowed border border-amber-200 bg-amber-50 text-amber-700'
                             : blockedReason
                               ? 'cursor-not-allowed border border-amber-200 bg-amber-50 text-amber-700'
-                              : executionState === 'failed'
+                              : failedState
                                 ? 'cursor-not-allowed border border-red-200 bg-red-50 text-red-500'
                                 : 'cursor-not-allowed bg-[#f3f1ea] text-[#b8b5ad]'
                         }`}
-                        disabled={!retryableFailure && !canStart}
+                        disabled={!canRetryFailure && !canStart}
                         onClick={(event) => {
-                          if (retryableFailure) {
+                          if (canRetryFailure) {
                             event.stopPropagation();
                             onRetryFeatureNode(node.id);
                             return;
@@ -768,7 +789,7 @@ export default function CanvasBoard({
                         }}
                         type="button"
                       >
-                        {retryableFailure ? (
+                        {canRetryFailure ? (
                           <RefreshCcw className="h-2.5 w-2.5" />
                         ) : canStart ? (
                           <Play className="h-2.5 w-2.5 fill-white text-white" />
@@ -776,12 +797,12 @@ export default function CanvasBoard({
                           <AlertTriangle className="h-2.5 w-2.5 text-amber-700" />
                         ) : blockedReason ? (
                           <AlertTriangle className="h-2.5 w-2.5 text-amber-700" />
-                        ) : executionState === 'failed' ? (
+                        ) : failedState ? (
                           <AlertCircle className="h-2.5 w-2.5 text-red-500" />
                         ) : (
                           <Play className="h-2.5 w-2.5 fill-[#b8b5ad] text-[#b8b5ad]" />
                         )}
-                        {retryableFailure ? 'Retry' : maintenanceBlocked ? 'Maintenance' : blockedReason ? 'Warning' : executionState === 'failed' ? 'Failed' : 'Start'}
+                        {canRetryFailure ? 'Retry' : maintenanceBlocked ? 'Maintenance' : blockedReason ? 'Warning' : failedState ? 'Failed' : 'Start'}
                       </button>
                     )}
                   </div>
@@ -794,9 +815,12 @@ export default function CanvasBoard({
                     {node.runtime?.milestones?.length ? (
                       <div className="space-y-0.5">
                         {node.runtime.milestones.map((milestone) => {
-                          const isActive = milestone.state === 'active';
-                          const isDone = milestone.state === 'completed';
-                          const isFailed = milestone.state === 'failed';
+                          const milestoneState = failedState && milestone.state === 'active'
+                            ? 'failed'
+                            : milestone.state;
+                          const isActive = milestoneState === 'active';
+                          const isDone = milestoneState === 'completed';
+                          const isFailed = milestoneState === 'failed';
                           return (
                             <div
                               key={milestone.key}

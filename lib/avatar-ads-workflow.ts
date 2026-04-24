@@ -1131,9 +1131,9 @@ ${commonStructuredRules}`.trim();
       }))
     };
   } catch (error) {
-    console.error('Failed to parse Gemini response:', data.choices?.[0]?.message?.content);
+    console.error('Failed to parse OpenRouter response:', data.choices?.[0]?.message?.content);
     console.error('Parse error:', error);
-    throw new Error('Failed to parse generated prompts from Gemini');
+    throw new Error('Failed to parse generated prompts from OpenRouter');
   }
 }
 
@@ -1543,10 +1543,19 @@ async function checkKIEImageTaskStatus(taskId: string): Promise<{
   const result_url = (directUrls || responseUrls || flatUrls)?.[0];
 
   const stateLower = state?.toLowerCase();
-  const isSuccess = (stateLower === 'success') || successFlag === 1 || (!!result_url && (stateLower === undefined));
+  const isSuccessState = (stateLower === 'success') || successFlag === 1;
+  const isSuccess = isSuccessState || (!!result_url && (stateLower === undefined));
   const isFailed = (stateLower === 'failed' || stateLower === 'fail' || stateLower === 'error') || successFlag === 2 || successFlag === 3;
 
   if (isSuccess) {
+    if (!result_url) {
+      return {
+        status: 'failed',
+        result_url: undefined,
+        error: 'No images found in AI response. Unable to show the generated image. The image may have been filtered by the image provider policy.',
+      };
+    }
+
     return { 
       status: 'completed', 
       result_url,
@@ -1845,7 +1854,10 @@ export async function processAvatarAdsProject(
           .update({
             kie_image_task_id: taskId,
             status: 'generating_image',
+            current_step: 'generating_image',
             progress_percentage: 50,
+            error_message: null,
+            webhook_received_at: null,
             last_processed_at: new Date().toISOString()
           })
           .eq('id', project.id)
