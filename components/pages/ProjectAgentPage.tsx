@@ -59,6 +59,7 @@ import {
   type ProjectAgentAssetNodeType,
   type ProjectAgentCanvasAssetRef,
   type ProjectAgentCanvasNode,
+  type ProjectAgentCanvasRunStatus,
   type ProjectAgentCanvasState,
   type ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
@@ -66,6 +67,7 @@ import {
   getProjectAgentCanvasErrorInfo,
   normalizeExecutionStatus,
   createQueuedExecutionStatus,
+  getExecutionTableForNodeType,
   type ProjectAgentCanvasExecutionStatus,
 } from '@/lib/project-agent/node-execution';
 import {
@@ -181,6 +183,7 @@ const toAvatarAssets = (payload: Record<string, unknown>) => {
         name: typeof item.avatar_name === 'string' ? item.avatar_name : typeof item.file_name === 'string' ? item.file_name : 'Avatar',
         imageUrl: primaryUrl,
         photos,
+        isSystem: item.isSystem === true,
       };
     }) as ProjectAgentCanvasAssetRef[];
 };
@@ -200,6 +203,7 @@ const toProductAssets = (payload: Record<string, unknown>) => {
         name: typeof item.product_name === 'string' ? item.product_name : 'Product',
         imageUrl: photoUrls[0] || null,
         photos: photoUrls,
+        isSystem: item.isSystem === true,
       };
     }) as ProjectAgentCanvasAssetRef[];
 };
@@ -217,7 +221,7 @@ const isInteractiveNodeSurface = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false;
   return Boolean(
     target.closest(
-      'video,button,a,input,textarea,select,summary,[contenteditable="true"],[data-node-interactive="true"]'
+      'video,button,a,input,textarea,select,summary,[contenteditable="true"],[data-node-control="true"]'
     )
   );
 };
@@ -1262,6 +1266,7 @@ export default function ProjectAgentPage() {
       return;
     }
     event.stopPropagation();
+    event.preventDefault();
     const point = getCanvasPointFromClient(event.clientX, event.clientY);
     const node = getProjectAgentCanvasNodeById(canvas, nodeId);
     if (!point || !node) return;
@@ -1473,6 +1478,7 @@ export default function ProjectAgentPage() {
     const target = event.target as HTMLElement | null;
     if (target?.closest('[data-canvas-node="true"], [data-canvas-ui="true"]')) return;
     if (event.button !== 0) return;
+    event.preventDefault();
     setPendingConnectionSourceId(null);
     setPendingConnectionPoint(null);
     setSnappedConnectionTarget(null);
@@ -1738,7 +1744,12 @@ export default function ProjectAgentPage() {
 
   const handleRetryNode = useCallback(async (nodeId: string) => {
     const node = getProjectAgentCanvasNodeById(canvas, nodeId);
-    if (!node || !isProjectAgentFeatureNode(node.type) || !node.runtime?.projectId) return;
+    if (!node || !isProjectAgentFeatureNode(node.type)) return;
+
+    if (!node.runtime?.projectId || node.runtime.retryable === false) {
+      await handleRunNode(nodeId);
+      return;
+    }
 
     const connectedAssets = buildNodeConnectedAssetsPayload(nodeId);
 
@@ -1803,7 +1814,7 @@ export default function ProjectAgentPage() {
     }
 
     updateNodeRuntime(nodeId, payload.execution);
-  }, [buildNodeConnectedAssetsPayload, canvas, updateCanvas, updateNodeRuntime]);
+  }, [buildNodeConnectedAssetsPayload, canvas, handleRunNode, updateCanvas, updateNodeRuntime]);
 
   const handleRegenerateFeatureNode = useCallback(async (nodeId: string) => {
     await handleRunNode(nodeId);

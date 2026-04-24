@@ -28,7 +28,7 @@ type InsertToolbarProps = {
 };
 
 const draggableButtonClass =
-  'project-agent-insert-item inline-flex w-fit max-w-full items-center gap-3 overflow-hidden rounded-[12px] border border-[#cfcfcb] bg-white px-3 py-2.5 text-left text-sm font-medium text-[#171717] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f3f3f1] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)]';
+  'project-agent-insert-item inline-flex min-h-14 w-full max-w-full items-center gap-3 overflow-hidden rounded-[12px] border border-[#cfcfcb] bg-white px-3 py-2.5 text-left text-sm font-medium text-[#171717] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f3f3f1] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)]';
 const actionButtonClass =
   'project-agent-insert-upload inline-flex w-fit max-w-full items-center gap-3 overflow-hidden rounded-[12px] border border-dashed border-[#cfcfcb] bg-[#fcfcfb] px-3 py-2.5 text-left text-sm font-medium text-[#171717] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.75),0_10px_18px_rgba(0,0,0,0.04)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f3f3f1] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)]';
 
@@ -125,11 +125,13 @@ const DragItem = ({
   payload,
   leading,
   onClick,
+  isSystem = false,
 }: {
   label: string;
   payload: Record<string, unknown>;
   leading: ReactNode;
   onClick?: () => void;
+  isSystem?: boolean;
 }) => (
   <button
     className={draggableButtonClass}
@@ -146,7 +148,14 @@ const DragItem = ({
     <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[8px] border border-[#d8d8d4] bg-[#f1f1ef]">
       {leading}
     </span>
-    <span className="max-w-[240px] truncate whitespace-nowrap pr-1">{label}</span>
+    <span className="flex min-w-0 flex-1 flex-col justify-center gap-1 pr-1">
+      <span className="max-w-[240px] truncate whitespace-nowrap leading-5">{label}</span>
+      {isSystem ? (
+        <span className="project-agent-insert-system-tag inline-flex w-fit items-center rounded-full border border-[#d7d4ca] bg-[#f7f7f5] px-2 py-0.5 text-[11px] font-semibold leading-none text-[#5f5f58]">
+          Default
+        </span>
+      ) : null}
+    </span>
   </button>
 );
 
@@ -195,8 +204,8 @@ const AssetList = ({
   const messages = getToolbarMessages(locale);
 
   return (
-    <div className="flex flex-col items-start">
-      <div className="flex max-h-[min(52vh,340px)] w-full flex-col items-start gap-2 overflow-y-auto pr-1">
+    <div className="flex min-w-[280px] flex-col items-start">
+      <div className="flex max-h-[min(52vh,340px)] w-full flex-col items-start gap-2.5 overflow-y-auto pr-1">
         {items.length === 0 ? (
           <p className="project-agent-insert-empty rounded-[14px] border border-dashed border-[#d4d4d4] bg-[#fafafa] px-3 py-3 text-xs text-[#737373]">
             {messages.empty[type as keyof typeof messages.empty] || messages.empty.video}
@@ -210,6 +219,7 @@ const AssetList = ({
                 label={item.name}
                 payload={{ kind: 'asset', type, asset: item }}
                 onClick={selectionMode?.assetType === type && onAssetSelect ? () => onAssetSelect(type, item) : undefined}
+                isSystem={item.isSystem === true}
                 leading={
                   item.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element

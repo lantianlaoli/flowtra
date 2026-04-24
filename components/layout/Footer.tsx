@@ -125,10 +125,13 @@ export default function Footer() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center"
                 >
-                  <img
+                  <Image
                     src="https://img.turbo0.com/badge-listed-light.svg"
                     alt="Listed on Turbo0"
-                    style={{ height: '42px', width: 'auto' }}
+                    width={132}
+                    height={42}
+                    unoptimized
+                    className="h-[42px] w-auto"
                   />
                 </a>
               </li>

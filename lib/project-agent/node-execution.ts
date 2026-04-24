@@ -17,6 +17,7 @@ export type ProjectAgentConnectedFeatureInputs = {
 
 export type ProjectAgentCanvasExecutionAction =
   | 'none'
+  | 'generate_avatar_cover'
   | 'confirm_avatar'
   | 'start_clone_video'
   | 'merge_clone_video';
@@ -400,6 +401,9 @@ export const normalizeAvatarExecutionStatus = (
   const failed = status === 'failed';
   const completed = status === 'completed';
   const awaitingReview = status === 'awaiting_review';
+  const hasImagePrompt = typeof project.image_prompt === 'string' && project.image_prompt.trim().length > 0;
+  const awaitingCoverGeneration = awaitingReview && !generatedImageUrl && hasImagePrompt;
+  const awaitingCoverConfirmation = awaitingReview && Boolean(generatedImageUrl);
   const executionState = completed ? 'completed' : failed ? 'failed' : 'running';
   const currentMilestoneKey = getCurrentMilestoneForAvatar(status);
   const error = typeof project.error_message === 'string' ? project.error_message : null;
@@ -418,12 +422,18 @@ export const normalizeAvatarExecutionStatus = (
       ? 'Completed'
       : failed
         ? 'Failed'
-        : awaitingReview
+        : awaitingCoverGeneration
+          ? 'Generating cover'
+        : awaitingCoverConfirmation
           ? 'Auto confirming cover'
           : 'Running avatar workflow',
     projectId,
     table: 'avatar_ads_projects',
-    nextAction: awaitingReview ? 'confirm_avatar' : 'none',
+    nextAction: awaitingCoverGeneration
+      ? 'generate_avatar_cover'
+      : awaitingCoverConfirmation
+        ? 'confirm_avatar'
+        : 'none',
     milestones: buildMilestones('avatar_ads', currentMilestoneKey, executionState),
     currentMilestoneKey,
     raw: payload,

@@ -9,6 +9,7 @@ export type ProjectAgentMotionCloneSelection = {
   id: string;
   name: string;
   photoUrl?: string | null;
+  isSystem?: boolean;
 };
 
 export type ProjectAgentMotionCloneReferenceVideo = {
@@ -24,6 +25,7 @@ export type ProjectAgentMotionCloneReferenceVideo = {
   keyShots?: string[] | null;
   detectedCharacter?: string | null;
   detectedProduct?: string | null;
+  isSystem?: boolean;
 };
 
 export type ProjectAgentMotionClonePhase =

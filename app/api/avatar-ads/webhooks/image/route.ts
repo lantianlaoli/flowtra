@@ -15,7 +15,7 @@ interface KIEImageWebhookPayload {
   msg: string;
   data: {
     taskId: string;
-    state: 'success' | 'fail' | 'waiting';
+    state: 'success' | 'fail' | 'failed' | 'error' | 'waiting';
     resultJson?: string; // JSON string containing {resultUrls: [...]}
     failCode?: string;
     failMsg?: string;
@@ -102,10 +102,20 @@ export async function POST(request: NextRequest) {
         }
       });
 
-    } else if (state === 'fail' || code !== 200) {
+    } else if (
+      (code === 200 && state === 'success' && !imageUrl) ||
+      state === 'fail' ||
+      state === 'failed' ||
+      state === 'error' ||
+      code !== 200
+    ) {
+      const errorMessage = code === 200 && state === 'success' && !imageUrl
+        ? 'No images found in AI response. Unable to show the generated image. The image may have been filtered by the image provider policy.'
+        : failMsg || msg || 'Image generation failed';
+
       console.error('[Avatar Ads Image Webhook] Image generation failed:', {
         failCode,
-        failMsg,
+        failMsg: errorMessage,
         msg
       });
 
@@ -113,7 +123,8 @@ export async function POST(request: NextRequest) {
         .from('avatar_ads_projects')
         .update({
           status: 'failed',
-          error_message: failMsg || msg || 'Image generation failed',
+          current_step: 'generating_image',
+          error_message: errorMessage,
           last_processed_at: new Date().toISOString(),
           webhook_received_at: new Date().toISOString()
         })
@@ -131,7 +142,7 @@ export async function POST(request: NextRequest) {
           surface: 'avatar_ads_image_webhook',
           project_id: project.id,
           error_code: failCode || String(code),
-          error_message: failMsg || msg || 'Image generation failed',
+          error_message: errorMessage,
         }
       });
     } else {

@@ -49,6 +49,7 @@ export type ProjectAgentCanvasAssetRef = {
   videoUrl?: string | null;
   videoCdnUrl?: string | null;
   analysisLanguage?: string | null;
+  isSystem?: boolean;
 };
 
 export type ProjectAgentFeatureNodeConfig = {
@@ -57,6 +58,25 @@ export type ProjectAgentFeatureNodeConfig = {
   videoDuration?: '8' | '16' | '24' | '32';
   videoModel?: 'seedance_2_fast' | 'seedance_2' | 'kling_3';
   videoQuality?: '720p' | '1080p';
+  runCount?: 1 | 2 | 3;
+};
+
+export type ProjectAgentCanvasRunStatus = {
+  executionState: 'ready' | 'running' | 'completed' | 'failed';
+  phase: string;
+  progress: number;
+  outputUrl?: string | null;
+  previewUrl?: string | null;
+  error?: string | null;
+  userFacingError?: string | null;
+  retryable: boolean;
+  statusLabel: string;
+  projectId: string;
+  table: 'avatar_ads_projects' | 'video_clone_projects' | 'motion_clone_projects';
+  nextAction: string;
+  milestones: ProjectAgentCanvasMilestone[];
+  currentMilestoneKey: string;
+  raw?: Record<string, unknown> | null;
 };
 
 export type ProjectAgentCanvasNodeRuntime = {
@@ -76,13 +96,15 @@ export type ProjectAgentCanvasNodeRuntime = {
   canStart?: boolean;
   blockedReason?: string | null;
   maintenanceBlocked?: boolean;
+  runs?: ProjectAgentCanvasRunStatus[] | null;
 };
 
 export const isProjectAgentRuntimeActive = (
   runtime: ProjectAgentCanvasNodeRuntime | null | undefined
 ) => {
   if (!runtime) return false;
-  if (runtime.executionState === 'running') return true;
+  if (runtime.runs?.some((run) => run.executionState === 'running')) return true;
+  if (runtime.executionState !== 'running') return false;
   if (runtime.phase === 'queued') return true;
   return Boolean(runtime.milestones?.some((milestone) => milestone.state === 'active'));
 };

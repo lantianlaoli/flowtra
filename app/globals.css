@@ -3449,6 +3449,22 @@ body {
     0 14px 22px rgba(15, 23, 42, 0.08);
 }
 
+.project-agent-node-card--selected,
+.project-agent-node-card--selected:hover {
+  border-color: #111111 !important;
+  box-shadow:
+    0 0 0 3px rgba(17, 17, 17, 0.12),
+    0 0 0 1px #111111,
+    0 24px 60px rgba(0, 0, 0, 0.14) !important;
+}
+
+.project-agent-node-selection-outline {
+  border: 2px solid #111111;
+  box-shadow:
+    0 0 0 3px rgba(17, 17, 17, 0.10),
+    0 10px 30px rgba(0, 0, 0, 0.16);
+}
+
 .project-agent-press-button:active,
 .project-agent-press-list-item:active {
   transform: translateY(2px);
@@ -3495,6 +3511,21 @@ body {
 
 .project-agent-press-icon-button {
   background: linear-gradient(180deg, #ffffff 0%, #fcfcfb 100%);
+}
+
+.project-agent-node-connection-button--selected {
+  border-color: #111111 !important;
+  box-shadow:
+    0 0 0 4px #ffffff,
+    0 0 0 6px rgba(17, 17, 17, 0.10),
+    0 10px 22px rgba(0, 0, 0, 0.14) !important;
+}
+
+.project-agent-node-status-dot--selected {
+  box-shadow:
+    0 0 0 4px #ffffff,
+    0 0 0 6px rgba(17, 17, 17, 0.10),
+    0 8px 18px rgba(0, 0, 0, 0.14) !important;
 }
 
 .project-agent-selection-media {
@@ -3766,6 +3797,39 @@ body {
     0 18px 36px rgba(2, 8, 20, 0.3) !important;
 }
 
+.dashboard-theme .project-agent-node-card--selected,
+.dashboard-theme .project-agent-node-card--selected:hover {
+  border-color: rgba(124, 198, 255, 0.86) !important;
+  color: var(--project-agent-dark-text) !important;
+  box-shadow:
+    0 0 0 3px rgba(124, 198, 255, 0.24),
+    0 0 0 1px rgba(210, 238, 255, 0.88),
+    0 22px 48px rgba(1, 8, 20, 0.42) !important;
+}
+
+.dashboard-theme .project-agent-node-selection-outline {
+  border-color: rgba(124, 198, 255, 0.95);
+  box-shadow:
+    0 0 0 3px rgba(124, 198, 255, 0.22),
+    0 0 22px rgba(124, 198, 255, 0.20),
+    0 16px 36px rgba(1, 8, 20, 0.34);
+}
+
+.dashboard-theme .project-agent-node-connection-button--selected {
+  border-color: rgba(124, 198, 255, 0.95) !important;
+  box-shadow:
+    0 0 0 4px rgba(13, 20, 33, 0.94),
+    0 0 0 6px rgba(124, 198, 255, 0.22),
+    0 12px 28px rgba(1, 8, 20, 0.36) !important;
+}
+
+.dashboard-theme .project-agent-node-status-dot--selected {
+  box-shadow:
+    0 0 0 4px rgba(13, 20, 33, 0.94),
+    0 0 0 6px rgba(124, 198, 255, 0.22),
+    0 10px 24px rgba(1, 8, 20, 0.34) !important;
+}
+
 .dashboard-theme .project-agent-press-button--active {
   background:
     radial-gradient(circle at top, rgba(124, 198, 255, 0.16), transparent 46%),
@@ -4009,6 +4073,12 @@ body {
 .dashboard-theme .project-agent-insert-item .text-\[\#787871\],
 .dashboard-theme .project-agent-insert-upload .text-\[\#787871\] {
   color: var(--project-agent-dark-text-muted) !important;
+}
+
+.dashboard-theme .project-agent-insert-system-tag {
+  background: rgba(124, 198, 255, 0.12) !important;
+  border-color: rgba(124, 198, 255, 0.28) !important;
+  color: #cfe9ff !important;
 }
 
 .dashboard-theme .project-agent-insert-empty {

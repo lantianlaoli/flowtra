@@ -36,6 +36,13 @@ export async function PATCH(
       return NextResponse.json({ error: `Project is not in 'awaiting_review' state. Current status: ${project.status}` }, { status: 400 });
     }
 
+    if (!project.generated_image_url) {
+      return NextResponse.json(
+        { error: 'Cover image is not ready yet. Please generate the cover before starting video generation.' },
+        { status: 409 }
+      );
+    }
+
     const nextPrompts = updatedPrompts || project.generated_prompts;
     const nextImagePrompt = typeof nextPrompts?.image_prompt === 'string'
       ? nextPrompts.image_prompt
