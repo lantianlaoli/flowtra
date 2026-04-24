@@ -42,6 +42,10 @@ export type LandingMessages = {
       klingMotionLive: string;
       gptImage2Live: string;
     };
+    shutdownNotice: {
+      title: string;
+      body: string;
+    };
     title: string;
     titleHighlight: string;
     description: string;
@@ -233,6 +237,10 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         klingLive: 'Seedance 2 is live',
         klingMotionLive: 'Kling 3.0 is live',
         gptImage2Live: 'ChatGPT image 2 is live',
+      },
+      shutdownNotice: {
+        title: 'Important notice for Flowtra subscribers and customers',
+        body: 'Due to the project not having stable revenue for an extended period, and the founder no longer being able to cover fixed monthly costs such as servers, Flowtra is expected to shut down in about 1-2 weeks. All credits will remain available until the final moment.',
       },
       title: 'Turn Viral Videos Into Your Own',
       titleHighlight: 'Viral Videos',
@@ -548,6 +556,10 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         klingLive: 'Seedance 2 已上线',
         klingMotionLive: 'Kling 3.0 已上线',
         gptImage2Live: 'ChatGPT image 2 已上线',
+      },
+      shutdownNotice: {
+        title: '致 Flowtra 订阅或购买过套餐的用户',
+        body: '你好。由于本项目长时间没有稳定收入，加之创始人本人无法负担项目每个月固定的服务器等成本，项目预计会在约 1-2 周内关停。请你知悉，所有积分会保留到最后一刻。',
       },
       title: '把爆款视频变成你的专属素材',
       titleHighlight: '爆款视频',
