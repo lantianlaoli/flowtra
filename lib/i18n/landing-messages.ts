@@ -223,6 +223,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/upload-assets', title: 'Upload Assets to URL' },
         { href: '/tools/roas-calculator', title: 'ROAS Calculator' },
         { href: '/tools/ai-angle-generator', title: 'Multi-Angle Photo' },
+        { href: '/tools/image-clone', title: 'Image Clone' },
       ],
     },
     hero: {
@@ -510,6 +511,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/upload-assets', label: 'Upload Assets to URL' },
         { href: '/tools/roas-calculator', label: 'ROAS Calculator' },
         { href: '/tools/ai-angle-generator', label: 'Multi-Angle Photo' },
+        { href: '/tools/image-clone', label: 'Image Clone' },
       ],
     },
   },
@@ -542,6 +544,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/upload-assets', title: '上传素材转链接' },
         { href: '/tools/roas-calculator', title: 'ROAS 计算器' },
         { href: '/tools/ai-angle-generator', title: 'AI 多角度图片' },
+        { href: '/tools/image-clone', title: '图片复刻' },
       ],
     },
     hero: {
@@ -829,6 +832,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/upload-assets', label: '上传素材转链接' },
         { href: '/tools/roas-calculator', label: 'ROAS 计算器' },
         { href: '/tools/ai-angle-generator', label: 'AI 多角度图片' },
+        { href: '/tools/image-clone', label: '图片复刻' },
       ],
     },
   },

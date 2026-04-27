@@ -7,6 +7,7 @@ import imageCompression from "browser-image-compression";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Check, Copy, Download, Loader2, RefreshCw, Upload } from "lucide-react";
+import { OpenAI } from "@lobehub/icons";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
 import { useI18n } from "@/providers/I18nProvider";
 import { useSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -433,6 +434,7 @@ export default function AiAngleGeneratorPage() {
         <section className="mx-auto max-w-[1040px] px-4 py-14 sm:px-6 md:py-20">
           <div className="relative space-y-4">
             <div className="absolute right-0 top-0 inline-flex items-center gap-1.5 rounded-full border border-yellow-200 bg-yellow-50 px-3 py-1 text-[11px] font-semibold text-yellow-800 shadow-sm sm:text-xs">
+              <OpenAI className="h-3.5 w-3.5" />
               <span>Powered by GPT Image 2</span>
             </div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#666666]">{toolMessages.eyebrow}</p>

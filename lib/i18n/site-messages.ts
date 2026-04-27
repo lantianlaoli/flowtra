@@ -229,6 +229,39 @@ type SiteMessages = {
         description: string;
       }>;
     };
+    imageClone: {
+      eyebrow: string;
+      title: string;
+      description: string;
+      productPhoto: string;
+      productPhotoHelp: string;
+      referencePhotos: string;
+      referencePhotosHelp: string;
+      requirementLabel: string;
+      requirementPlaceholder: string;
+      copyTextLabel: string;
+      copyTextPlaceholder: string;
+      styleLabel: string;
+      stylePlaceholder: string;
+      aspectRatioLabel: string;
+      resolutionLabel: string;
+      generate: string;
+      generating: string;
+      download: string;
+      copyUrl: string;
+      copied: string;
+      regenerate: string;
+      refinePrompt: string;
+      refinePlaceholder: string;
+      selectProductPhoto: string;
+      uploading: string;
+      generatingHelper: string;
+      resultTitle: string;
+      noResultYet: string;
+      signInAndRetry: string;
+      aspectRatios: Record<string, string>;
+      resolutions: Record<string, string>;
+    };
   };
   featurePages: {
     aiAgent: {
@@ -564,6 +597,11 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
             title: 'Multi-Angle Photo',
             description: 'Upload one frontal photo and generate 3 additional viewing angles.',
           },
+          {
+            href: '/tools/image-clone',
+            title: 'Image Clone',
+            description: 'Upload your product photo and reference images to generate a cloned commercial image.',
+          },
         ],
       },
       aiAngleGenerator: {
@@ -611,6 +649,50 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
               'Completes the rear view while preserving the same finish, palette, and overall image atmosphere.',
           },
         ],
+      },
+      imageClone: {
+        eyebrow: 'Tools',
+        title: 'Image Clone',
+        description:
+          'Upload your product photo and reference images to generate a cloned commercial image.',
+        productPhoto: 'Product Photo',
+        productPhotoHelp: 'Upload your main product image. This is the base for cloning.',
+        referencePhotos: 'Reference Photo',
+        referencePhotosHelp: 'Upload a competitor image for style/composition reference (optional).',
+        requirementLabel: 'What do you want?',
+        requirementPlaceholder: 'Describe what you want in the generated image...',
+        copyTextLabel: 'Text to include',
+        copyTextPlaceholder: 'Enter any text you want visible in the image...',
+        styleLabel: 'Style direction',
+        stylePlaceholder: 'e.g., clean minimal, vibrant, professional...',
+        aspectRatioLabel: 'Aspect Ratio',
+        resolutionLabel: 'Resolution',
+        generate: 'Generate Image',
+        generating: 'Generating...',
+        download: 'Download',
+        copyUrl: 'Copy URL',
+        copied: 'Copied',
+        regenerate: 'Regenerate',
+        refinePrompt: 'Refinement instructions',
+        refinePlaceholder: 'Describe what to adjust...',
+        selectProductPhoto: 'Upload product photo',
+        uploading: 'Uploading images...',
+        generatingHelper: 'Generating your cloned image...',
+        resultTitle: 'Generated Image',
+        noResultYet: 'Your generated image will appear here',
+        signInAndRetry: 'Sign in and try again',
+        aspectRatios: {
+          '1:1': '1:1 (Square)',
+          '9:16': '9:16 (Portrait)',
+          '16:9': '16:9 (Landscape)',
+          '4:3': '4:3 (Standard)',
+          '3:4': '3:4 (Portrait)',
+        },
+        resolutions: {
+          '1K': '1K (Fast)',
+          '2K': '2K (Standard)',
+          '4K': '4K (High Quality)',
+        },
       },
     },
     featurePages: {
@@ -1006,6 +1088,11 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
             title: 'AI 多角度照片',
             description: '上传一张正面照片，生成额外 3 个视角。',
           },
+          {
+            href: '/tools/image-clone',
+            title: '图片复刻',
+            description: '上传你的产品图和参考图，生成商业化的复刻图片。',
+          },
         ],
       },
       aiAngleGenerator: {
@@ -1047,6 +1134,49 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
             description: '补全背部视角，同时保持相同的材质、色调和整体画面氛围。',
           },
         ],
+      },
+      imageClone: {
+        eyebrow: '工具',
+        title: '图片复刻',
+        description: '上传你的产品图和参考图，生成商业化的复刻图片。',
+        productPhoto: '产品图片',
+        productPhotoHelp: '上传你的主要产品图。这是复刻的基础。',
+        referencePhotos: '参考图片',
+        referencePhotosHelp: '上传竞品图片作为风格/构图参考（可选）。',
+        requirementLabel: '你想要什么？',
+        requirementPlaceholder: '描述你希望在生成的图片中看到什么...',
+        copyTextLabel: '要包含的文字',
+        copyTextPlaceholder: '输入你想在图片中显示的文字...',
+        styleLabel: '风格方向',
+        stylePlaceholder: '例如：简洁高级、活力感、专业...',
+        aspectRatioLabel: '宽高比',
+        resolutionLabel: '分辨率',
+        generate: '生成图片',
+        generating: '生成中...',
+        download: '下载',
+        copyUrl: '复制链接',
+        copied: '已复制',
+        regenerate: '重新生成',
+        refinePrompt: '优化说明',
+        refinePlaceholder: '描述需要调整的内容...',
+        selectProductPhoto: '上传产品图',
+        uploading: '上传图片中...',
+        generatingHelper: '正在生成复刻图片...',
+        resultTitle: '生成的图片',
+        noResultYet: '你生成的图片将在此处显示',
+        signInAndRetry: '登录后重试',
+        aspectRatios: {
+          '1:1': '1:1 (方形)',
+          '9:16': '9:16 (竖版)',
+          '16:9': '16:9 (横版)',
+          '4:3': '4:3 (标准)',
+          '3:4': '3:4 (竖版)',
+        },
+        resolutions: {
+          '1K': '1K (快速)',
+          '2K': '2K (标准)',
+          '4K': '4K (高质量)',
+        },
       },
     },
     featurePages: {
