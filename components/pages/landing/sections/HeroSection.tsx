@@ -3,7 +3,6 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 import {
-  AlertTriangle,
   GiftIcon,
   Check,
   Heart,
@@ -58,22 +57,6 @@ export default function HeroSection() {
     >
       {/* Left Content */}
       <div className="lg:col-span-3 space-y-5 sm:space-y-6 lg:space-y-8">
-        <div
-          className="flex max-w-3xl items-start gap-3 rounded-lg border-2 border-black bg-[#FFF7ED] px-4 py-3 text-left shadow-[4px_4px_0_rgba(0,0,0,0.12)] sm:px-5 sm:py-4"
-          role="status"
-          aria-live="polite"
-        >
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[#C2410C]" />
-          <div className="min-w-0 space-y-1">
-            <p className="text-sm font-bold leading-snug text-black sm:text-base">
-              {heroMessages.shutdownNotice.title}
-            </p>
-            <p className="text-sm leading-relaxed text-[#4A3A2A] sm:text-[15px]">
-              {heroMessages.shutdownNotice.body}
-            </p>
-          </div>
-        </div>
-
         {/* Top Badges */}
         <div className="flex flex-wrap items-center gap-3">
           <BlackFridayBadge />
