@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { hasActiveSubscription } from '@/lib/subscription';
 import type { AiReferenceAngleAssetType, AiReferenceAngleJobStatus } from '@/lib/ai-reference-angle-jobs';
 import { createKieGptImageTask } from '@/lib/kie-image-generation';
+import { createJob, getJobsByIdsAndUser } from '@/lib/ai-reference-angle-store';
 
 const KIE_UPLOAD_ENDPOINT = 'https://kieai.redpandaai.co/api/file-base64-upload';
 
@@ -29,10 +30,10 @@ function withStyleLock(prompt: string) {
 }
 
 const CAMERA_LEFT_DEFINITION =
-  'The camera is positioned 45 degrees to the subject front-left. The generated image must clearly show more of the subject left side than the right side. Do not return a near-frontal view, and do not mirror the opposite angle.';
+  'Stand at the left side of the subject, facing diagonally toward the front-right corner. The image must show the left side plane and left face of the subject prominently. Do not return a near-frontal view, and do not mirror and produce the right-side view.';
 
 const CAMERA_RIGHT_DEFINITION =
-  'The camera is positioned 45 degrees to the subject front-right. The generated image must clearly show more of the subject right side than the left side. Do not return a near-frontal view, and do not mirror the opposite angle.';
+  'Stand at the right side of the subject, facing diagonally toward the front-left corner. The image must show the right side plane and right face of the subject prominently. Do not return a near-frontal view, and do not mirror and produce the left-side view.';
 
 const ANGLE_PRESETS: Record<AiReferenceAngleAssetType, AnglePreset[]> = {
   product: [
@@ -142,10 +143,7 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // Schema verified via Supabase MCP (2026-04-03):
     // tool_daily_usage columns: user_id, tool_key, usage_date, count.
-    // ai_reference_angle_jobs columns: id, user_id, asset_type, source_image_url, preset_key, preset_label,
-    // kie_task_id, status, result_image_url, error_message, webhook_received_at, created_at, updated_at.
     const supabase = getSupabaseAdmin();
     const isSubscriber = await hasActiveSubscription(userId);
 
@@ -272,24 +270,27 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { data: insertedJobs, error: insertError } = await supabase
-      .from('ai_reference_angle_jobs')
-      .insert(jobsPayload)
-      .select('id, preset_key, preset_label, status');
-
-    if (insertError || !insertedJobs) {
-      throw new Error(insertError?.message || 'Failed to persist AI reference angle jobs.');
-    }
+    const createdJobs = jobsPayload.map((payload) =>
+      createJob({
+        userId: payload.user_id,
+        assetType: payload.asset_type,
+        sourceImageUrl: payload.source_image_url,
+        presetKey: payload.preset_key,
+        presetLabel: payload.preset_label,
+        kieTaskId: payload.kie_task_id,
+        aspectRatio: payload.aspect_ratio,
+      })
+    );
 
     return NextResponse.json({
       success: true,
-      jobs: insertedJobs.map((job) => ({
-        id: job.id as string,
-        presetKey: job.preset_key as string,
-        presetLabel: job.preset_label as string,
-        status: job.status as AiReferenceAngleJobStatus
+      jobs: createdJobs.map((job) => ({
+        id: job.id,
+        presetKey: job.preset_key,
+        presetLabel: job.preset_label,
+        status: job.status,
       })),
-      sourceImageUrl
+      sourceImageUrl,
     });
   } catch (error) {
     console.error('[ai-reference-angles] POST error:', error);
@@ -313,35 +314,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'At least one jobId is required' }, { status: 400 });
     }
 
-    // Schema verified via Supabase MCP (2026-04-03):
-    // ai_reference_angle_jobs columns: id, user_id, asset_type, source_image_url, preset_key, preset_label,
-    // kie_task_id, status, result_image_url, error_message, webhook_received_at, created_at, updated_at.
-    const supabase = getSupabaseAdmin();
-    const { data: jobs, error } = await supabase
-      .from('ai_reference_angle_jobs')
-      .select([
-        'id',
-        'user_id',
-        'asset_type',
-        'source_image_url',
-        'preset_key',
-        'preset_label',
-        'kie_task_id',
-        'status',
-        'result_image_url',
-        'error_message',
-        'webhook_received_at',
-        'created_at',
-        'updated_at'
-      ].join(','))
-      .eq('user_id', userId)
-      .in('id', jobIds);
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    const jobsList = ((jobs ?? []) as unknown) as Array<Record<string, unknown> & { id: string }>;
+    const jobsList = getJobsByIdsAndUser(jobIds, userId);
     const orderedJobs = jobIds
       .map((jobId) => jobsList.find((job) => job.id === jobId))
       .filter(Boolean);

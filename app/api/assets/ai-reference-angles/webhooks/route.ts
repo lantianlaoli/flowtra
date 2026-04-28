@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { getJobByKieTaskId, updateJob } from '@/lib/ai-reference-angle-store';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -53,16 +53,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing taskId' }, { status: 200 });
     }
 
-    // Schema verified via Supabase MCP (2026-04-03):
-    // ai_reference_angle_jobs columns: id, kie_task_id, status, result_image_url, error_message, webhook_received_at.
-    const supabase = getSupabaseAdmin();
-    const { data: job, error: fetchError } = await supabase
-      .from('ai_reference_angle_jobs')
-      .select('id, kie_task_id, status, webhook_received_at')
-      .eq('kie_task_id', taskId)
-      .single();
+    const job = getJobByKieTaskId(taskId);
 
-    if (fetchError || !job) {
+    if (!job) {
       console.warn('[AI Reference Angle Webhook] Task not found:', taskId);
       return NextResponse.json({ success: false, error: 'Task not found' }, { status: 200 });
     }
@@ -76,35 +69,27 @@ export async function POST(request: NextRequest) {
     const webhookReceivedAt = new Date().toISOString();
 
     if (code === 200 && state === 'success' && resultImageUrl) {
-      const { error: updateError } = await supabase
-        .from('ai_reference_angle_jobs')
-        .update({
-          status: 'completed',
-          result_image_url: resultImageUrl,
-          error_message: null,
-          webhook_received_at: webhookReceivedAt,
-          updated_at: webhookReceivedAt
-        })
-        .eq('id', job.id);
+      const updated = updateJob(taskId, {
+        status: 'completed',
+        resultImageUrl,
+        errorMessage: null,
+        webhookReceivedAt,
+      });
 
-      if (updateError) {
-        console.error('[AI Reference Angle Webhook] Failed to update job:', updateError);
-        return NextResponse.json({ success: false, error: 'Database update failed' }, { status: 200 });
+      if (!updated) {
+        return NextResponse.json({ success: false, error: 'Failed to update job' }, { status: 200 });
       }
 
       return NextResponse.json({ success: true }, { status: 200 });
     }
 
-    const errorMessage = failMsg || msg || (failCode ? `KIE task failed with code ${failCode}` : 'AI reference angle generation failed.');
-    await supabase
-      .from('ai_reference_angle_jobs')
-      .update({
-        status: state === 'waiting' ? 'processing' : 'failed',
-        error_message: state === 'waiting' ? null : errorMessage,
-        webhook_received_at: state === 'waiting' ? null : webhookReceivedAt,
-        updated_at: webhookReceivedAt
-      })
-      .eq('id', job.id);
+    const errorMessage =
+      failMsg || msg || (failCode ? `KIE task failed with code ${failCode}` : 'AI reference angle generation failed.');
+    updateJob(taskId, {
+      status: state === 'waiting' ? 'processing' : 'failed',
+      errorMessage: state === 'waiting' ? null : errorMessage,
+      webhookReceivedAt: state === 'waiting' ? null : webhookReceivedAt,
+    });
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

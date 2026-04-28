@@ -1,6 +1,5 @@
 'use client';
 
-import type { SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
 import type { AiReferenceAngleJob } from '@/lib/ai-reference-angle-jobs';
 
 type FetchJobsResponse = {
@@ -33,30 +32,33 @@ export async function fetchAiReferenceAngleJobs(jobIds: string[]): Promise<AiRef
 }
 
 export function subscribeToAiReferenceAngleJobs(
-  supabase: SupabaseClient,
+  _supabase: unknown,
   jobIds: string[],
   onJobChange: (job: AiReferenceAngleJob) => void
 ): () => void {
-  const channels: RealtimeChannel[] = jobIds.map((jobId) =>
-    supabase
-      .channel(`ai-reference-angle-job:${jobId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'ai_reference_angle_jobs',
-          filter: `id=eq.${jobId}`
-        },
-        (payload) => onJobChange(payload.new as AiReferenceAngleJob)
-      )
-      .subscribe()
-  );
+  if (!jobIds.length) return () => {};
+
+  const params = new URLSearchParams();
+  jobIds.forEach((jobId) => params.append('jobId', jobId));
+
+  const eventSource = new EventSource(`/api/assets/ai-reference-angles/sse?${params.toString()}`);
+
+  eventSource.onmessage = (event) => {
+    try {
+      const job = JSON.parse(event.data) as AiReferenceAngleJob;
+      onJobChange(job);
+    } catch {
+      // Ignore parse errors
+    }
+  };
+
+  eventSource.onerror = () => {
+    // Let polling fallback handle reconnect
+    eventSource.close();
+  };
 
   return () => {
-    channels.forEach((channel) => {
-      void supabase.removeChannel(channel);
-    });
+    eventSource.close();
   };
 }
 
@@ -69,7 +71,7 @@ function allJobsCompleted(jobs: AiReferenceAngleJob[]) {
 }
 
 export async function waitForAiReferenceAngleJobs(options: {
-  supabase: SupabaseClient;
+  supabase: unknown;
   jobIds: string[];
   onJobsUpdated?: (jobs: AiReferenceAngleJob[]) => void;
   timeoutMs?: number;
