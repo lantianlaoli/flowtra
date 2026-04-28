@@ -158,7 +158,6 @@ opencode mcp logout github
 
 **Technical Details**:
 
-- Fixed model: veo3_fast (20 credits per 8s segment)
 - AI services: Gemini 2.5 Flash (prompts), KIE API (image/video), fal.ai (merge)
 - 100% event-driven: Webhooks + Supabase Realtime (no polling)
 - Generation-time billing: Credits deducted upfront, downloads free
@@ -202,7 +201,7 @@ opencode mcp logout github
 
 1. Upload product image(s)
 2. Select brand and competitor ad (optional - triggers clone mode)
-3. Choose video model (veo3 or veo3_fast), duration (8-64s), language
+3. Choose video model (seedance_2_fast, seedance_2, kling_3, or wan_27), duration (8-64s), language
 4. AI generates: Frame generation → Video generation → Merge
 
 **Key Files**:
@@ -215,7 +214,7 @@ opencode mcp logout github
 
 **Technical Details**:
 
-- Models: veo3 (150 credits/8s) or veo3_fast (20 credits/8s) - user choice
+- Models: seedance_2_fast (33/s), seedance_2 (41/s), kling_3 (27/s), wan_27 (24/s)
 - 3-phase workflow: Frame → Video → Merge
 - Continuation frames: Previous segment as visual reference
 - Event-driven: Webhooks auto-trigger next steps
@@ -231,7 +230,7 @@ opencode mcp logout github
 
 2. **Video Generation** (Parallel):
    - Once ALL frames ready, user triggers video generation
-   - Each segment generates independently using KIE Veo3 API
+   - Each segment generates independently using KIE API
    - Uses first frame + closing frame for smooth transitions
    - Duration: 60-180 seconds per segment
 
@@ -346,20 +345,16 @@ opencode mcp logout github
 - **Download**: FREE (no credit deduction, unlimited downloads)
 - **Refunds**: Automatic if generation fails after max retries
 
-### Costs
+### Costs (per-second pricing)
 
-- **Veo3.1**: 150 credits per 8-second segment
-- **Veo3.1 Fast**: 20 credits per 8-second segment
+- **Seedance 2 Fast**: 33 credits per second
+- **Seedance 2**: 41 credits per second
+- **Kling 3.0**: 27 credits per second
+- **Wan 2.7**: 24 credits per second
 - **Image generation**: FREE (GPT Image 2)
 - **Video merge**: FREE (fal.ai operation)
 
-### Examples
-
-- 32-second veo3_fast video: 4 segments × 20 = 80 credits
-- 64-second veo3 video: 8 segments × 150 = 1,200 credits
-- 8-second single segment: 1 segment × cost = 20 or 150 credits
-
-**Important**: Do NOT implement Version 3.0 mixed billing (deprecated). All models use unified generation-time billing.
+All models use unified generation-time billing.
 
 ## Development Workflow
 
@@ -1115,7 +1110,7 @@ pnpm install --frozen-lockfile
 
 - `design_guide.md` - UI design specification
 - `docs/` - Official API documentation
-  - `docs/kie/` - KIE API documentation (veo3.1.md, nano_banana_pro.md, callback.md)
+  - `docs/kie/` - KIE API documentation (seedance_2.md, seedance_2_fast_doc.md, kling_3.md, wan_27.md)
   - `docs/fal/` - fal.ai video merge documentation
   - `docs/creem/` - Creem payment integration documentation
   - `docs/tiktok/` - TikTok API integration documentation
