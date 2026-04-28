@@ -249,8 +249,6 @@ export function getCreditsFromProductId(productId: string): { credits: number; p
   return null
 }
 
-// Default initial credits for new users.
-export const INITIAL_FREE_CREDITS = 100
 
 // KIE API credit threshold for service availability (configurable via env)
 export const KIE_CREDIT_THRESHOLD = (() => {
@@ -268,7 +266,6 @@ export const KIE_CREDIT_THRESHOLD = (() => {
 // - Video generation: model-specific per-second pricing
 // - Video download: FREE (no credits charged)
 // Total for complete workflow varies by model and duration
-// New users receive a 100-credit welcome bonus.
 
 // Get video aspect ratio options for a specific model
 export function getVideoAspectRatioOptions(model: VideoModel): readonly string[] {
