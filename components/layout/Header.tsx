@@ -20,6 +20,7 @@ import {
   LayoutDashboard,
   BookOpen,
   MessageSquare,
+  Files,
   type LucideIcon,
 } from "lucide-react";
 import { useI18n } from "@/providers/I18nProvider";
@@ -36,7 +37,7 @@ type HeaderNavItem = {
 };
 
 const FEATURE_ICONS: LucideIcon[] = [Bot, UserCircle, Copy, RefreshCw];
-const TOOL_ICONS: LucideIcon[] = [Upload, Calculator, Sparkles];
+const TOOL_ICONS: LucideIcon[] = [Upload, Calculator, Sparkles, Files];
 
 function HeaderMenuItem({
   href,
