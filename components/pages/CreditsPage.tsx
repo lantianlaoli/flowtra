@@ -436,44 +436,6 @@ export default function CreditsPage() {
                 </div>
               </div>
 
-              {/* Credits Breakdown */}
-              {(creditsData?.subscription_credits || creditsData?.purchased_credits) && (
-                <div className="space-y-3 pt-4 border-t border-border">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Breakdown</p>
-
-                  {(creditsData?.subscription_credits ?? 0) > 0 && (
-                    <div className="flex items-center justify-between p-3 bg-blue-950/40 border border-blue-900/40 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                        <div>
-                          <p className="text-sm font-medium text-foreground">Subscription Credits</p>
-                          <p className="text-xs text-muted-foreground">From your active subscription plan</p>
-                        </div>
-                      </div>
-                      <p className="text-lg font-semibold text-foreground">
-                        {(creditsData?.subscription_credits ?? 0).toLocaleString()}
-                      </p>
-                    </div>
-                  )}
-
-                  {(creditsData?.purchased_credits ?? 0) > 0 && (
-                    <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <div>
-                          <p className="text-sm font-medium text-foreground">Purchased Credits</p>
-                          <p className="text-xs text-muted-foreground">
-                            From one-time purchases before subscription system. These credits never expire.
-                          </p>
-                        </div>
-                      </div>
-                      <p className="text-lg font-semibold text-foreground">
-                        {(creditsData?.purchased_credits ?? 0).toLocaleString()}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
 

@@ -134,26 +134,11 @@ export async function POST(request: NextRequest) {
 
         console.log(`💳 Found package: ${packageInfo.packageName} with ${packageInfo.credits} credits`)
 
-        // Add credits to purchased_credits (not subscription_credits)
-        const supabase = getSupabaseAdmin()
-        const { data: currentCredits } = await supabase
-          .from('user_credits')
-          .select('purchased_credits')
-          .eq('user_id', userId)
-          .single()
+        // Add credits to credits_remaining
+        const addResult = await addCredits(userId, packageInfo.credits)
 
-        const newPurchasedCredits = (currentCredits?.purchased_credits || 0) + packageInfo.credits
-
-        const { error: updateError } = await supabase
-          .from('user_credits')
-          .update({
-            purchased_credits: newPurchasedCredits,
-            has_purchased: true
-          })
-          .eq('user_id', userId)
-
-        if (updateError) {
-          console.error('❌ Failed to add credits:', updateError)
+        if (!addResult.success) {
+          console.error('❌ Failed to add credits:', addResult.error)
           return NextResponse.json({ error: 'Failed to add credits' }, { status: 500 })
         }
 
@@ -167,7 +152,7 @@ export async function POST(request: NextRequest) {
           true
         )
 
-        console.log(`✅ Successfully added ${packageInfo.credits} purchased credits to user ${userId}`)
+        console.log(`✅ Successfully added ${packageInfo.credits} credits to user ${userId}, new balance: ${addResult.newBalance}`)
         console.log(`📝 Transaction recorded: ${transactionResult.success ? 'Yes' : 'Failed'}`)
 
         return NextResponse.json({

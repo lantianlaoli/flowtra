@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     const supabaseAdmin = getSupabaseAdmin();
 
     // Schema verified via Supabase MCP (2026-03-01):
-    // user_credits columns used: user_id, purchased_credits, subscription_credits, credits_remaining
+    // user_credits columns used: user_id, credits_remaining
     // credit_transactions columns used: user_id, type, amount, description, created_at
     const { data: existingReward } = await supabaseAdmin
       .from('credit_transactions')
@@ -64,9 +64,7 @@ export async function POST(req: Request) {
       .upsert(
         {
           user_id: userId,
-          purchased_credits: 0,
-          subscription_credits: 0,
-          has_purchased: false,
+          credits_remaining: 0,
         },
         {
           onConflict: 'user_id',
@@ -79,7 +77,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Failed to prepare user credits' }, { status: 500 });
     }
 
-    // Use existing credit ledger logic: negative deduction refunds/credits purchased_credits.
+    // Use deductCredits with negative value to add credits (refund pattern)
     const grantResult = await deductCredits(userId, -FEATURE_INTEREST_REWARD_AMOUNT);
     if (!grantResult.success) {
       return NextResponse.json(

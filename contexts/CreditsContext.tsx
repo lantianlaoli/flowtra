@@ -8,9 +8,6 @@ import type { UserCredits } from '@/lib/supabase';
 
 interface CreditsData {
   credits_remaining: number;
-  subscription_credits: number;
-  purchased_credits: number;
-  has_purchased: boolean;
 }
 
 interface CreditsContextType {
@@ -70,7 +67,7 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
 
           if (data?.success && data?.credits) {
             if (isMountedRef.current) {
-              // data.credits is now an object with subscription_credits, purchased_credits, etc.
+              // data.credits contains credits_remaining
               setCreditsData(data.credits);
               setCredits(data.credits.credits_remaining);
             }
@@ -147,9 +144,6 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
             const newCredits = payload.new as UserCredits;
             setCreditsData({
               credits_remaining: newCredits.credits_remaining,
-              subscription_credits: newCredits.subscription_credits,
-              purchased_credits: newCredits.purchased_credits,
-              has_purchased: newCredits.has_purchased,
             });
             setCredits(newCredits.credits_remaining);
           }

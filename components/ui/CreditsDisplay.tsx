@@ -5,8 +5,7 @@ import { cn } from '@/lib/utils';
 
 interface CreditsDisplayProps {
   credits: number;
-  subscriptionCredits?: number;
-  purchasedCredits?: number;
+  hasSubscription?: boolean;
   onAddCredits: () => void;
   onManageSubscription?: () => void;
 }
@@ -19,12 +18,11 @@ const sidebarPrimaryIconButtonClassName =
 
 export default function CreditsDisplay({
   credits,
-  subscriptionCredits = 0,
-  purchasedCredits = 0,
+  hasSubscription = false,
   onAddCredits,
   onManageSubscription
 }: CreditsDisplayProps) {
-  const hasSubscription = subscriptionCredits > 0;
+  // hasSubscription reflects whether user has an active subscription (credits_remaining > 0)
 
   return (
     <div className="sidebar-credits-shell inline-flex w-fit max-w-full items-center gap-2 rounded-[24px] border px-2.5 py-2 backdrop-blur-xl">

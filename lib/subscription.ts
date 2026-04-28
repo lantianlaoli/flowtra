@@ -33,8 +33,7 @@ export async function grantSubscriptionAccess(
   const { error } = await supabase
     .from('user_credits')
     .update({
-      subscription_credits: monthlyCredits,
-      has_purchased: true  // Mark user as having purchased (subscription counts as purchase)
+      credits_remaining: monthlyCredits
     })
     .eq('user_id', userId)
 
@@ -64,8 +63,7 @@ export async function grantSubscriptionAccess(
   return { success: true }
 }
 
-// Revoke subscription access by zeroing out subscription credits
-// IMPORTANT: Keep purchased_credits intact (grandfathering)
+// Revoke subscription access by zeroing out credits
 export async function revokeSubscriptionAccess(
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
@@ -73,7 +71,7 @@ export async function revokeSubscriptionAccess(
 
   const { error } = await supabase
     .from('user_credits')
-    .update({ subscription_credits: 0 }) // Only zero out subscription credits
+    .update({ credits_remaining: 0 })
     .eq('user_id', userId)
 
   if (error) {
@@ -104,10 +102,10 @@ export async function resetMonthlyCredits(
     return { success: false, error: 'Subscription not found' }
   }
 
-  // Reset subscription_credits to monthly allocation
+  // Reset credits_remaining to monthly allocation
   const { error: updateError } = await supabase
     .from('user_credits')
-    .update({ subscription_credits: subscription.monthly_credits })
+    .update({ credits_remaining: subscription.monthly_credits })
     .eq('user_id', userId)
 
   if (updateError) {
@@ -149,7 +147,7 @@ export async function resetMonthlyCredits(
 
 // Schema verified via Supabase MCP (2026-01-14):
 // user_subscriptions: id, creem_subscription_id, status
-// user_credits: user_id, credits_remaining, subscription_credits, updated_at
+// user_credits: user_id, credits_remaining, updated_at
 // credit_transactions: user_id, type, amount, description, history_id, created_at
 type TrialCreditCleanupDeps = {
   supabase?: ReturnType<typeof getSupabaseAdmin>
@@ -183,7 +181,7 @@ export async function clearTrialCreditsOnCancellation(
 
   const { data: credits, error: creditsError } = await supabase
     .from('user_credits')
-    .select('credits_remaining, subscription_credits')
+    .select('credits_remaining')
     .eq('user_id', userId)
     .single()
 
@@ -198,7 +196,6 @@ export async function clearTrialCreditsOnCancellation(
     .from('user_credits')
     .update({
       credits_remaining: 0,
-      subscription_credits: 0,
       updated_at: now()
     })
     .eq('user_id', userId)

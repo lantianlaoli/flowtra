@@ -32,8 +32,6 @@ type ViewTransitionCapableDocument = Document & {
 
 interface CreditsData {
   credits_remaining: number;
-  subscription_credits?: number;
-  purchased_credits?: number;
 }
 
 interface SidebarProps {
@@ -65,8 +63,7 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
   });
 
   const displayCredits = creditsData?.credits_remaining ?? credits;
-  const subscriptionCredits = creditsData?.subscription_credits ?? 0;
-  const purchasedCredits = creditsData?.purchased_credits ?? 0;
+  const hasSubscription = (creditsData?.credits_remaining ?? 0) > 0;
   const primaryNavigation = [
     { name: sidebarMessages.home, href: '/dashboard', icon: Home },
     { name: sidebarMessages.agent, href: '/dashboard/agent', icon: MessageCircle },
@@ -228,8 +225,7 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
         {displayCredits !== undefined ? (
           <CreditsDisplay
             credits={displayCredits}
-            subscriptionCredits={subscriptionCredits}
-            purchasedCredits={purchasedCredits}
+            hasSubscription={hasSubscription}
             onAddCredits={() => { window.location.href = '/#pricing'; }}
           />
         ) : null}

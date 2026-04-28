@@ -50,7 +50,7 @@ function createSupabaseMock({
           },
           async single() {
             return {
-              data: { credits_remaining: creditsRemaining, subscription_credits: creditsRemaining },
+              data: { credits_remaining: creditsRemaining },
               error: null
             }
           }

@@ -65,17 +65,12 @@ export async function initializeUserCredits(userId: string, initialCredits: numb
   try {
     const supabase = getSupabaseAdmin() // Use admin client to bypass RLS
     
-    // Schema verified via Supabase MCP (2026-03-14):
-    // user_credits columns used: user_id, has_purchased, subscription_credits, purchased_credits.
-    // credits_remaining is derived by the compute_total_credits trigger.
     // Use UPSERT to prevent duplicate initialization
     const { data: credits, error } = await supabase
       .from('user_credits')
       .upsert({
         user_id: userId,
-        has_purchased: false,
-        subscription_credits: 0,
-        purchased_credits: initialCredits
+        credits_remaining: initialCredits
       }, {
         onConflict: 'user_id',
         ignoreDuplicates: true  // Don't update if record already exists
@@ -192,7 +187,7 @@ export async function hasUserPurchased(userId: string): Promise<{
     const supabase = getSupabaseAdmin()
     const { data: credits, error } = await supabase
       .from('user_credits')
-      .select('has_purchased')
+      .select('credits_remaining')
       .eq('user_id', userId)
       .single()
 
@@ -202,11 +197,10 @@ export async function hasUserPurchased(userId: string): Promise<{
     }
 
     if (!credits) {
-      // User has no credit record, treat as not purchased
       return { success: true, hasPurchased: false }
     }
 
-    return { success: true, hasPurchased: credits.has_purchased ?? false }
+    return { success: true, hasPurchased: credits.credits_remaining > 0 }
   } catch (error) {
     console.error('Check purchase status error:', error)
     return { success: false, error: 'Something went wrong' }
@@ -267,7 +261,6 @@ export async function checkCredits(userId: string, requiredCredits: number): Pro
 }
 
 // Deduct credits from user account (supports negative values for refunds)
-// PRIORITY: Deduct from subscription_credits first, then purchased_credits
 export async function deductCredits(userId: string, creditsToDeduct: number): Promise<{
   success: boolean
   remainingCredits?: number
@@ -276,10 +269,10 @@ export async function deductCredits(userId: string, creditsToDeduct: number): Pr
   try {
     const supabase = getSupabaseAdmin()
 
-    // Get current credit balances
+    // Get current credit balance
     const { data: credits, error: fetchError } = await supabase
       .from('user_credits')
-      .select('subscription_credits, purchased_credits, credits_remaining')
+      .select('credits_remaining')
       .eq('user_id', userId)
       .single()
 
@@ -291,44 +284,21 @@ export async function deductCredits(userId: string, creditsToDeduct: number): Pr
       }
     }
 
-    const totalAvailable = credits.subscription_credits + credits.purchased_credits
-
-    // Check if user has enough total credits (for positive deductions)
-    if (creditsToDeduct > 0 && totalAvailable < creditsToDeduct) {
-      console.warn(`Insufficient credits for user ${userId}: needs ${creditsToDeduct}, has ${totalAvailable}`)
+    // Check if user has enough credits (for positive deductions)
+    if (creditsToDeduct > 0 && credits.credits_remaining < creditsToDeduct) {
+      console.warn(`Insufficient credits for user ${userId}: needs ${creditsToDeduct}, has ${credits.credits_remaining}`)
       return {
         success: false,
         error: 'Insufficient credits'
       }
     }
 
-    let newSubscriptionCredits = credits.subscription_credits
-    let newPurchasedCredits = credits.purchased_credits
+    // For refunds (negative), add to balance; for deductions, subtract
+    const newCreditsRemaining = credits.credits_remaining - creditsToDeduct
 
-    // Handle refunds (negative deductions)
-    if (creditsToDeduct < 0) {
-      // Add to purchased_credits for refunds
-      newPurchasedCredits += Math.abs(creditsToDeduct)
-    } else {
-      // PRIORITY: Deduct from subscription credits first
-      if (credits.subscription_credits >= creditsToDeduct) {
-        // Enough subscription credits to cover the full amount
-        newSubscriptionCredits -= creditsToDeduct
-      } else {
-        // Use all subscription credits, then deduct remainder from purchased credits
-        const remainder = creditsToDeduct - credits.subscription_credits
-        newSubscriptionCredits = 0
-        newPurchasedCredits -= remainder
-      }
-    }
-
-    // Update both credit columns (trigger will auto-update credits_remaining)
     const { error: updateError } = await supabase
       .from('user_credits')
-      .update({
-        subscription_credits: newSubscriptionCredits,
-        purchased_credits: newPurchasedCredits
-      })
+      .update({ credits_remaining: newCreditsRemaining })
       .eq('user_id', userId)
 
     if (updateError) {
@@ -339,38 +309,12 @@ export async function deductCredits(userId: string, creditsToDeduct: number): Pr
       }
     }
 
-    // Track subscription usage for analytics (only if deducting positive amount from subscription)
-    if (creditsToDeduct > 0 && credits.subscription_credits > 0) {
-      const creditsUsedFromSubscription = Math.min(creditsToDeduct, credits.subscription_credits)
-
-      // Get current subscription data to increment credits_used_this_cycle
-      const { data: subscription } = await supabase
-        .from('user_subscriptions')
-        .select('credits_used_this_cycle')
-        .eq('user_id', userId)
-        .single()
-
-      if (subscription) {
-        // Update credits_used_this_cycle by adding the new usage
-        await supabase
-          .from('user_subscriptions')
-          .update({
-            credits_used_this_cycle: subscription.credits_used_this_cycle + creditsUsedFromSubscription
-          })
-          .eq('user_id', userId)
-      }
-    }
-
-    const totalRemaining = newSubscriptionCredits + newPurchasedCredits
-
     console.log(`💳 Deducted ${creditsToDeduct} credits from user ${userId}`)
-    console.log(`   Subscription: ${credits.subscription_credits} → ${newSubscriptionCredits}`)
-    console.log(`   Purchased: ${credits.purchased_credits} → ${newPurchasedCredits}`)
-    console.log(`   Total remaining: ${totalRemaining}`)
+    console.log(`   credits_remaining: ${credits.credits_remaining} → ${newCreditsRemaining}`)
 
     return {
       success: true,
-      remainingCredits: totalRemaining
+      remainingCredits: newCreditsRemaining
     }
   } catch (error) {
     console.error('Deduct credits error:', error)

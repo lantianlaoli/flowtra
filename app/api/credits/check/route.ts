@@ -67,15 +67,9 @@ export async function GET() {
 
     let credits = result.credits
 
-    // Backfill one-time welcome credits for older unpurchased users that were initialized at 0.
-    // Schema verified via Supabase MCP (2026-02-22):
-    // user_credits columns used: has_purchased, credits_remaining, purchased_credits, subscription_credits
-    // credit_transactions columns used: user_id, type, amount, description
+    // Backfill welcome credits if user has 0 credits
     const shouldBackfillWelcomeBonus =
-      !credits.has_purchased &&
       credits.credits_remaining === 0 &&
-      credits.purchased_credits === 0 &&
-      credits.subscription_credits === 0 &&
       INITIAL_FREE_CREDITS > 0
 
     if (shouldBackfillWelcomeBonus) {

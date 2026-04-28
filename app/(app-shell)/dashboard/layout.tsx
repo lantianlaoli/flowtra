@@ -43,24 +43,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (!isLoaded || !user) return
 
       try {
-        // TEMPORARY: Disabled subscription check to allow all users into dashboard
-        // TODO: Re-enable after fixing webhook handling
-        /*
         // Call API to check purchase status
         const response = await fetch('/api/credits/check')
         const data = await response.json()
 
         if (data.success && data.credits) {
-          // Allow access if user has purchased OR has subscription credits (subscription active)
-          const hasAccess = data.credits.has_purchased || data.credits.subscription_credits > 0
+          // Allow access if user has credits_remaining > 0 (active subscription)
+          const hasAccess = data.credits.credits_remaining > 0
 
           if (!hasAccess) {
-            // User hasn't purchased and has no subscription, redirect to plan selection
+            // User has no credits, redirect to plan selection
             router.push('/select-plan')
             return
           }
         }
-        */
 
         setIsCheckingPurchase(false)
       } catch (error) {

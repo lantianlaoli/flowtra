@@ -98,7 +98,7 @@ export async function ensureClerkUserWelcomeState(userId: string) {
   const supabase = getSupabaseAdmin()
 
   // Schema verified via Supabase MCP (2026-03-14):
-  // public.user_credits includes user_id, has_purchased, subscription_credits, purchased_credits.
+  // public.user_credits includes user_id, credits_remaining.
   const { data: existingCredits, error: fetchCreditsError } = await supabase
     .from('user_credits')
     .select('user_id')
@@ -116,9 +116,7 @@ export async function ensureClerkUserWelcomeState(userId: string) {
       .from('user_credits')
       .insert({
         user_id: userId,
-        has_purchased: false,
-        subscription_credits: 0,
-        purchased_credits: INITIAL_FREE_CREDITS,
+        credits_remaining: INITIAL_FREE_CREDITS,
       })
 
     if (insertCreditsError) {

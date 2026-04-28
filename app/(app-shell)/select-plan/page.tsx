@@ -28,11 +28,10 @@ export default function SelectPlanPage() {
         const response = await fetch('/api/credits/check');
         const data = await response.json();
 
-        const hasPurchased = Boolean(data?.credits?.has_purchased);
         const creditsRemaining = data?.credits?.credits_remaining || 0;
 
-        // Show for new (not purchased) users; hide only for purchased users.
-        if (!hasPurchased) {
+        // Show welcome bonus card for users with 0 credits (new users with no subscription)
+        if (creditsRemaining === 0) {
           setShowWelcomeBonusCard(true);
           setWelcomeBonusCredits(Math.max(100, creditsRemaining));
         } else {
@@ -61,9 +60,8 @@ export default function SelectPlanPage() {
         const data = await response.json();
 
         if (data.success && data.credits) {
-          // User has access if they have purchased OR have active subscription
-          const hasAccess = data.credits.has_purchased ||
-                           (data.credits.subscription_credits || 0) > 0;
+          // User has access if they have an active subscription (credits_remaining > 0)
+          const hasAccess = data.credits.credits_remaining > 0;
 
           if (hasAccess) {
             // User has already purchased or subscribed, redirect to dashboard
@@ -94,9 +92,8 @@ export default function SelectPlanPage() {
         const data = await response.json();
 
         if (data.success && data.credits) {
-          // Check if user has purchased OR has active subscription
-          const hasAccess = data.credits.has_purchased ||
-                           (data.credits.subscription_credits || 0) > 0;
+          // Check if user has active subscription (credits_remaining > 0)
+          const hasAccess = data.credits.credits_remaining > 0;
 
           if (hasAccess) {
             clearInterval(pollInterval);
