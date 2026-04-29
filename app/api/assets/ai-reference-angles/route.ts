@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import { getSupabaseAdmin } from '@/lib/supabase';
-import { hasActiveSubscription } from '@/lib/subscription';
 import type { AiReferenceAngleAssetType, AiReferenceAngleJobStatus } from '@/lib/ai-reference-angle-jobs';
 import { createKieGptImageTask } from '@/lib/kie-image-generation';
 import { createJob, getJobsByIdsAndUser } from '@/lib/ai-reference-angle-store';
@@ -141,37 +139,6 @@ export async function POST(request: NextRequest) {
         error: 'Webhook URL not configured. Please contact support.',
         details: 'NEXT_PUBLIC_SITE_URL environment variable is required for AI reference angle generation.'
       }, { status: 500 });
-    }
-
-    // tool_daily_usage columns: user_id, tool_key, usage_date, count.
-    const supabase = getSupabaseAdmin();
-    const isSubscriber = await hasActiveSubscription(userId);
-
-    if (!isSubscriber) {
-      const today = new Date().toISOString().slice(0, 10);
-      const { data: usageRow } = await supabase
-        .from('tool_daily_usage')
-        .select('count')
-        .eq('user_id', userId)
-        .eq('tool_key', 'ai-angle-generator')
-        .eq('usage_date', today)
-        .maybeSingle();
-
-      const currentCount = usageRow?.count ?? 0;
-      const DAILY_LIMIT = 3;
-      if (currentCount >= DAILY_LIMIT) {
-        return NextResponse.json(
-          { error: 'Daily limit reached for free accounts (3 uses/day). Subscribe for unlimited use and try again tomorrow.' },
-          { status: 429 }
-        );
-      }
-
-      await supabase
-        .from('tool_daily_usage')
-        .upsert(
-          { user_id: userId, tool_key: 'ai-angle-generator', usage_date: today, count: currentCount + 1 },
-          { onConflict: 'user_id,tool_key,usage_date' }
-        );
     }
 
     const body = await request.json();

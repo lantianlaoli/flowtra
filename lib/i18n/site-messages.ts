@@ -262,6 +262,27 @@ type SiteMessages = {
       aspectRatios: Record<string, string>;
       resolutions: Record<string, string>;
     };
+    adShortFilm: {
+      eyebrow: string;
+      title: string;
+      description: string;
+      productPhotoLabel: string;
+      selectProductPhoto: string;
+      uploading: string;
+      generatingStoryboard: string;
+      generatingStoryboardImage: string;
+      generatingVideo: string;
+      generate: string;
+      generating: string;
+      download: string;
+      copyUrl: string;
+      copied: string;
+      tryAgain: string;
+      completed: string;
+      resultTitle: string;
+      noResultYet: string;
+      signInAndRetry: string;
+    };
   };
   featurePages: {
     aiAgent: {
@@ -602,6 +623,11 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
             title: 'Image Clone',
             description: 'Upload your product photo and reference images to generate a cloned commercial image.',
           },
+          {
+            href: '/tools/ad-short-film',
+            title: 'AI Ad Short Film',
+            description: 'Upload a product photo and generate a 15-second cinematic ad video.',
+          },
         ],
       },
       aiAngleGenerator: {
@@ -693,6 +719,27 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
           '2K': '2K (Standard)',
           '4K': '4K (High Quality)',
         },
+      },
+      adShortFilm: {
+        eyebrow: 'Tools',
+        title: 'AI Ad Short Film',
+        description: 'Upload a product photo and generate a 15-second cinematic ad video.',
+        productPhotoLabel: 'Product Photo',
+        selectProductPhoto: 'Upload',
+        uploading: 'Uploading product photo...',
+        generatingStoryboard: 'Generating storyboard prompt...',
+        generatingStoryboardImage: 'Generating storyboard image...',
+        generatingVideo: 'Generating ad video...',
+        generate: 'Generate Ad Video',
+        generating: 'Generating...',
+        download: 'Download',
+        copyUrl: 'Copy URL',
+        copied: 'Copied',
+        tryAgain: 'Try Again',
+        completed: 'Video generated successfully!',
+        resultTitle: 'Generated Video',
+        noResultYet: 'Your ad video will appear here',
+        signInAndRetry: 'Sign in and try again',
       },
     },
     featurePages: {
@@ -1093,6 +1140,11 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
             title: '图片复刻',
             description: '上传你的产品图和参考图，生成商业化的复刻图片。',
           },
+          {
+            href: '/tools/ad-short-film',
+            title: 'AI 广告短片',
+            description: '上传产品照片，生成15秒电影级广告短片。',
+          },
         ],
       },
       aiAngleGenerator: {
@@ -1177,6 +1229,27 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
           '2K': '2K (标准)',
           '4K': '4K (高质量)',
         },
+      },
+      adShortFilm: {
+        eyebrow: '工具',
+        title: 'AI 广告短片',
+        description: '上传产品照片，生成15秒电影级广告短片。',
+        productPhotoLabel: '产品照片',
+        selectProductPhoto: '上传',
+        uploading: '正在上传产品照片...',
+        generatingStoryboard: '正在生成故事板提示词...',
+        generatingStoryboardImage: '正在生成分镜图...',
+        generatingVideo: '正在生成广告视频...',
+        generate: '生成广告视频',
+        generating: '生成中...',
+        download: '下载',
+        copyUrl: '复制链接',
+        copied: '已复制',
+        tryAgain: '重试',
+        completed: '视频生成成功！',
+        resultTitle: '生成的视频',
+        noResultYet: '你的广告视频将显示在这里',
+        signInAndRetry: '登录后重试',
       },
     },
     featurePages: {

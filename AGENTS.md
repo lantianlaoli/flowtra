@@ -5,6 +5,7 @@
 - **Package Manager**: ALWAYS use `pnpm` for ALL dependency operations
 - **Lock File**: EVERY pnpm operation must update `pnpm-lock.yaml` - commit it
 - **Git Branching**: DO NOT create new branches unless the user explicitly requests one; default delivery is direct to `master`
+- **Build/Type Checks**: DO NOT run `pnpm build`, `pnpm type-check`, `pnpm lint`, or E2E tests after code edits unless the user explicitly requests verification, commit/push prep, deployment prep, or CI debugging. Prefer targeted inspection and explain that expensive checks were skipped.
 - **Database Schema Verification**: ALWAYS use Supabase MCP to verify schema BEFORE any database code
 - **RLS**: For CRUD features, do NOT configure Supabase RLS policies. User identity and access are handled by Clerk.
 - **RLS**: Do NOT configure RLS when building CRUD features; user identity and access are handled by Clerk
@@ -389,7 +390,7 @@ When you (AI Agent) complete ANY significant task, you MUST execute the sound no
 
 1. User requests: "Implement feature X"
 2. You plan and execute the feature
-3. You verify it works (run build, tests, etc.)
+3. You verify only if explicitly requested, or if the user asked for commit/push/deploy/CI work
 4. You run `./task-complete-sound.sh` to notify the user
 5. You report completion to the user
 
@@ -538,23 +539,27 @@ pnpm db:types
 # Commit lib/database.types.ts to git
 ```
 
-### Pre-Deployment Checklist
+### Verification Policy
 
-Run these commands before EVERY commit/push:
+Do NOT automatically run expensive project-wide checks after code edits. These commands are opt-in unless the user explicitly asks for them, or the task itself is about preparing a commit/push/deploy or debugging CI.
+
+Only run these when requested or when the user's request explicitly includes release/commit/push/deploy/CI preparation:
 
 ```bash
-pnpm lint                       # Fix all ESLint errors
-pnpm type-check                 # Fix all TypeScript errors
-pnpm build                      # Ensure production build succeeds
-pnpm test:e2e                   # Run E2E tests (NEW)
+pnpm lint                       # ESLint verification
+pnpm type-check                 # TypeScript verification
+pnpm build                      # Production build verification
+pnpm test:e2e                   # E2E verification
 git diff pnpm-lock.yaml         # Verify lock file updated (if deps changed)
 ```
+
+For small edits, use focused checks only when they are cheap and directly relevant, such as reading the changed file, checking the diff, or running a narrow unit/test command if one exists. In the final response, say which expensive checks were skipped.
 
 **Additional Checks**:
 
 - Verify no secrets in .env committed
 - **Database code: MCP verification documented in comments** (NEW)
-- Test locally: `pnpm start` (production server)
+- Test locally with `pnpm start` only when explicitly requested or validating a deployment-style issue
 - If dependencies changed: Lock file MUST be updated
 
 ### Local Development
@@ -999,16 +1004,16 @@ git commit -m "docs: update AGENTS.md with pnpm requirements"
 ### PR Guidelines
 
 - Keep PRs focused (one feature/fix per PR)
-- Run `pnpm lint && pnpm type-check && pnpm build` before pushing
+- Run `pnpm lint && pnpm type-check && pnpm build` before pushing only when the user asks to push/prepare a PR/release
 - Document pricing changes in `lib/constants.ts` first
 - Update corresponding UI components and documentation
 - Include screenshots for UI changes
 
 ### Build Parity Checklist
 
-- **Always run `pnpm install --frozen-lockfile` before CI-critical builds**
+- **Only run `pnpm install --frozen-lockfile` before CI-critical builds when explicitly preparing CI/release work**
 - **For type union changes**: Audit every setter/handler that consumes the type
-- **Before pushing**: Run `pnpm lint && pnpm build` from clean state (delete `.next`)
+- **Before pushing**: Run `pnpm lint && pnpm build` from clean state only when the user explicitly asks to push/prepare release work
 - **If Vercel fails**: Capture exact stack trace and add regression tests
 
 ## Common Errors & Solutions

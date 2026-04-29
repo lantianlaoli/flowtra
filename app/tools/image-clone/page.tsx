@@ -9,6 +9,12 @@ import { Check, Copy, Download, Loader2, Upload, X, FileText, Type, Crop, Image 
 import { OpenAI } from "@lobehub/icons";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
 import { useI18n } from "@/providers/I18nProvider";
+import {
+  canUseTool,
+  incrementLimitedToolUsage,
+  TOOL_LIMIT_MESSAGES,
+} from "@/lib/tools/usage-limits";
+import { useToolUsageAccess } from "@/lib/tools/use-tool-usage-access";
 
 type GenerationStatus = "idle" | "uploading" | "generating" | "success" | "error";
 
@@ -115,6 +121,7 @@ function ImageSlotCard({
 export default function ImageClonePage() {
   const { messages } = useI18n();
   const toolMessages = messages.tools.imageClone;
+  const { isLoading: isToolAccessLoading, hasUnlimitedAccess } = useToolUsageAccess();
 
   const primaryButtonClass = "landing-press-button landing-press-button--compact text-sm font-medium";
   const secondaryButtonClass = "landing-press-button landing-press-button--secondary landing-press-button--compact text-sm font-medium";
@@ -264,6 +271,14 @@ export default function ImageClonePage() {
     setError(null);
 
     try {
+      if (isToolAccessLoading) {
+        throw new Error("Checking subscription status. Please try again in a moment.");
+      }
+
+      if (!canUseTool("image-clone", { hasUnlimitedAccess })) {
+        throw new Error(TOOL_LIMIT_MESSAGES["image-clone"]);
+      }
+
       const response = await fetch("/api/tools/image-clone", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -283,6 +298,7 @@ export default function ImageClonePage() {
         throw new Error(data.error || "Failed to start generation.");
       }
 
+      incrementLimitedToolUsage("image-clone", { hasUnlimitedAccess });
       const resultImageUrl = await pollJobStatus(data.jobId);
       setResultUrls((prev) => [...prev, resultImageUrl]);
       setCurrentJobId(data.jobId);

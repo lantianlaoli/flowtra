@@ -224,6 +224,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/roas-calculator', title: 'ROAS Calculator' },
         { href: '/tools/ai-angle-generator', title: 'Multi-Angle Photo' },
         { href: '/tools/image-clone', title: 'Image Clone' },
+        { href: '/tools/ad-short-film', title: 'AI Ad Short Film' },
       ],
     },
     hero: {
@@ -512,6 +513,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/roas-calculator', label: 'ROAS Calculator' },
         { href: '/tools/ai-angle-generator', label: 'Multi-Angle Photo' },
         { href: '/tools/image-clone', label: 'Image Clone' },
+        { href: '/tools/ad-short-film', label: 'AI Ad Short Film' },
       ],
     },
   },
@@ -545,6 +547,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/roas-calculator', title: 'ROAS 计算器' },
         { href: '/tools/ai-angle-generator', title: 'AI 多角度图片' },
         { href: '/tools/image-clone', title: '图片复刻' },
+        { href: '/tools/ad-short-film', title: 'AI 广告短片' },
       ],
     },
     hero: {
@@ -833,6 +836,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/roas-calculator', label: 'ROAS 计算器' },
         { href: '/tools/ai-angle-generator', label: 'AI 多角度图片' },
         { href: '/tools/image-clone', label: '图片复刻' },
+        { href: '/tools/ad-short-film', label: 'AI 广告短片' },
       ],
     },
   },

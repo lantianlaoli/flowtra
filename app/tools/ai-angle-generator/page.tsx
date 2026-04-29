@@ -10,9 +10,14 @@ import { Check, Copy, Download, Loader2, RefreshCw, Upload } from "lucide-react"
 import { OpenAI } from "@lobehub/icons";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
 import { useI18n } from "@/providers/I18nProvider";
-import { useSupabaseBrowserClient } from "@/lib/supabase/client";
 import { waitForAiReferenceAngleJobs } from "@/lib/ai-reference-angle-jobs-client";
 import type { AiReferenceAngleCreateJobResponse } from "@/lib/ai-reference-angle-jobs";
+import {
+  canUseTool,
+  incrementLimitedToolUsage,
+  TOOL_LIMIT_MESSAGES,
+} from "@/lib/tools/usage-limits";
+import { useToolUsageAccess } from "@/lib/tools/use-tool-usage-access";
 
 type GenerationStatus = "idle" | "uploading" | "generating" | "success" | "error";
 
@@ -80,8 +85,8 @@ function AngleSkeletonCard({ label }: { label: string }) {
 
 export default function AiAngleGeneratorPage() {
   const { messages } = useI18n();
+  const { isLoading: isToolAccessLoading, hasUnlimitedAccess } = useToolUsageAccess();
   const toolMessages = messages.tools.aiAngleGenerator;
-  const supabase = useSupabaseBrowserClient();
   const imageInputId = "tool-angle-image-upload";
   const primaryButtonClass =
     "landing-press-button landing-press-button--compact text-sm font-medium";
@@ -231,7 +236,7 @@ export default function AiAngleGeneratorPage() {
 
     try {
       const resolvedJobs = await waitForAiReferenceAngleJobs({
-        supabase,
+        supabase: null,
         jobIds: jobs.map((job) => job.id),
         onJobsUpdated: (updatedJobs) => {
           setGeneratedImages(buildGeneratedImages(jobs, updatedJobs));
@@ -266,7 +271,7 @@ export default function AiAngleGeneratorPage() {
       setError(message);
       setStatus("error");
     }
-  }, [buildGeneratedImages, clearRecoveryState, supabase]);
+  }, [buildGeneratedImages, clearRecoveryState]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -310,6 +315,15 @@ export default function AiAngleGeneratorPage() {
       const { imageDataUrl, sourceAspect } = await validateAndReadDataUrl(file);
       setFrontalPreview(imageDataUrl);
       setSourceAspect(sourceAspect);
+
+      if (isToolAccessLoading) {
+        throw new Error("Checking subscription status. Please try again in a moment.");
+      }
+
+      if (!canUseTool("ai-angle-generator", { hasUnlimitedAccess })) {
+        throw new Error(TOOL_LIMIT_MESSAGES["ai-angle-generator"]);
+      }
+
       setStatus("generating");
 
       const createResponse = await fetch("/api/assets/ai-reference-angles", {
@@ -330,17 +344,12 @@ export default function AiAngleGeneratorPage() {
         throw new Error("Please sign in to use this tool.");
       }
 
-      if (createResponse.status === 429) {
-        throw new Error(
-          createPayload?.error || "Daily limit reached for free accounts (3 uses/day). Subscribe for unlimited use."
-        );
-      }
-
       if (!createResponse.ok || !Array.isArray(createPayload?.jobs) || createPayload.jobs.length !== 3) {
         throw new Error(createPayload?.error || "Failed to start AI generation.");
       }
 
       const jobs = createPayload.jobs as AiReferenceAngleCreateJobResponse[];
+      incrementLimitedToolUsage("ai-angle-generator", { hasUnlimitedAccess });
       persistRecoveryState(jobs, file.name);
       await resolveGeneration(jobs, file.name);
     } catch (err) {
@@ -359,6 +368,14 @@ export default function AiAngleGeneratorPage() {
     setError(null);
 
     try {
+      if (isToolAccessLoading) {
+        throw new Error("Checking subscription status. Please try again in a moment.");
+      }
+
+      if (!canUseTool("ai-angle-generator", { hasUnlimitedAccess })) {
+        throw new Error(TOOL_LIMIT_MESSAGES["ai-angle-generator"]);
+      }
+
       const createResponse = await fetch("/api/assets/ai-reference-angles", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -377,21 +394,16 @@ export default function AiAngleGeneratorPage() {
         throw new Error("Please sign in to use this tool.");
       }
 
-      if (createResponse.status === 429) {
-        throw new Error(
-          createPayload?.error || "Daily limit reached for free accounts (3 uses/day). Subscribe for unlimited use."
-        );
-      }
-
       if (!createResponse.ok || !Array.isArray(createPayload?.jobs) || createPayload.jobs.length !== 1) {
         throw new Error(createPayload?.error || "Failed to start AI regeneration.");
       }
 
       const jobs = createPayload.jobs as AiReferenceAngleCreateJobResponse[];
       const targetJob = jobs[0];
+      incrementLimitedToolUsage("ai-angle-generator", { hasUnlimitedAccess });
 
       const resolvedJobs = await waitForAiReferenceAngleJobs({
-        supabase,
+        supabase: null,
         jobIds: [targetJob.id],
       });
 
