@@ -77,14 +77,37 @@ function ImageSlotCard({
         className={`group relative block cursor-pointer overflow-hidden rounded-xl border border-dashed border-[#BEBEBE] bg-[#F8F8F8] transition-colors ${disabled || isLoading ? "pointer-events-none opacity-50" : "hover:border-black"}`}
       >
         {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt={label}
-            width={400}
-            height={400}
-            className="aspect-square h-auto w-full object-cover"
-            unoptimized
-          />
+          <>
+            <Image
+              src={imageUrl}
+              alt={label}
+              width={400}
+              height={400}
+              className="aspect-square h-auto w-full object-cover"
+              unoptimized
+            />
+            {/* Hover overlay for re-upload */}
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="flex flex-col items-center gap-1 text-white">
+                <Upload className="h-5 w-5" />
+                <span className="text-xs font-medium">Re-upload</span>
+              </div>
+            </div>
+            {/* X remove icon top-right */}
+            {onRemove && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onRemove();
+                }}
+                className="absolute right-1.5 top-1.5 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/80"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </>
         ) : (
           <div className="flex aspect-square w-full flex-col items-center justify-center gap-1.5">
             {isLoading ? (
@@ -104,16 +127,6 @@ function ImageSlotCard({
           className="sr-only"
         />
       </label>
-      {imageUrl && onRemove && (
-        <button
-          type="button"
-          onClick={onRemove}
-          className="mt-1.5 flex h-7 w-full cursor-pointer items-center justify-center gap-1 rounded-lg border border-[#E5E5E5] bg-white px-2 text-[11px] font-medium text-[#666666] hover:border-red-300 hover:bg-red-50 hover:text-red-600"
-        >
-          <X className="h-3 w-3" />
-          Remove
-        </button>
-      )}
     </div>
   );
 }
@@ -355,6 +368,7 @@ export default function ImageClonePage() {
                   imageUrl={productPhotoUrl}
                   isLoading={status === "uploading"}
                   onFileSelect={handleProductPhotoUpload}
+                  onRemove={productPhotoUrl ? () => setProductPhotoUrl(null) : undefined}
                   disabled={isBusy}
                 />
                 <ImageSlotCard
