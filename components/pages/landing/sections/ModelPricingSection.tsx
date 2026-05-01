@@ -1,6 +1,6 @@
 'use client';
 
-import { Google, ByteDance, Kling, Qwen } from '@lobehub/icons';
+import { OpenAI, ByteDance, Kling, Qwen } from '@lobehub/icons';
 import { BadgeDollarSign, Boxes, Coins, ScanLine } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 
@@ -40,11 +40,13 @@ export default function ModelPricingSection() {
     {
       name: 'GPT Image 2',
       description: 'Consistent image generation for multi-angle and reference photos',
-      icon: Google,
+      icon: OpenAI,
       durationRange: '8-64s',
       billingType: 'generation' as const,
       pricingOptions: [
         { resolution: '1K', credits: 0 },
+        { resolution: '2K', credits: 0 },
+        { resolution: '4K', credits: 0 },
       ] as PricingOption[],
     },
     {

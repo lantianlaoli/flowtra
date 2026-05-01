@@ -359,43 +359,6 @@ All models use unified generation-time billing.
 
 ## Development Workflow
 
-### Task Completion Notification (AI Agents)
-
-**CRITICAL: Sound notification on task completion**
-
-When you (AI Agent) complete ANY significant task, you MUST execute the sound notification script:
-
-- ✅ Completing planned implementation tasks
-- ✅ Finishing code generation or refactoring work
-- ✅ Successfully running builds, tests, or deployments
-- ✅ Completing database migrations or API integrations
-- ✅ Finishing multi-step workflow execution
-
-**Command to run**:
-
-```bash
-./task-complete-sound.sh
-```
-
-**When to trigger**:
-
-- After marking all todos as completed
-- After successful build/test/deployment operations
-- After finishing any task that took multiple steps
-- When you would normally report "Completed successfully" or "Done"
-
-**Sound**: Ping.aiff (clean, professional - suitable for agent workflows)
-
-**Example workflow**:
-
-1. User requests: "Implement feature X"
-2. You plan and execute the feature
-3. You verify only if explicitly requested, or if the user asked for commit/push/deploy/CI work
-4. You run `./task-complete-sound.sh` to notify the user
-5. You report completion to the user
-
-This ensures the user is immediately notified when tasks complete, especially useful when they're working on other things.
-
 ### CRITICAL: pnpm Dependency Management
 
 **ALWAYS use pnpm** (never npm or yarn):
