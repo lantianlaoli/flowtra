@@ -21,7 +21,7 @@ function getKieApiKey(): string {
 export type ImageCloneInput = {
   productPhotoDataUrl: string;
   referencePhotoDataUrls?: string[];
-  userRequirement: string;
+  userRequirement?: string;
   copyText?: string;
   styleDirection?: string;
   aspectRatio: string;

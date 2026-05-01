@@ -1,7 +1,7 @@
 export type ImageClonePromptParams = {
   productTitle?: string;
   productDescription?: string;
-  userRequirement: string;
+  userRequirement?: string;
   copyText?: string;
   styleDirection?: string;
   aspectRatio: string;

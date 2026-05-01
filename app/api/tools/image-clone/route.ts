@@ -35,13 +35,11 @@ export async function POST(request: NextRequest) {
 
     // Default: create new image clone job
     const { productPhotoDataUrl, referencePhotoDataUrls, userRequirement, copyText, styleDirection, aspectRatio, resolution, userId } = data;
+    const normalizedUserRequirement =
+      typeof userRequirement === 'string' ? userRequirement.trim() : '';
 
     if (!productPhotoDataUrl) {
       return NextResponse.json({ error: 'Missing productPhotoDataUrl' }, { status: 400 });
-    }
-
-    if (!userRequirement) {
-      return NextResponse.json({ error: 'Missing userRequirement' }, { status: 400 });
     }
 
     if (!aspectRatio || !['1:1', '9:16', '16:9', '4:3', '3:4'].includes(aspectRatio)) {
@@ -55,7 +53,7 @@ export async function POST(request: NextRequest) {
     const result = await createImageCloneTask({
       productPhotoDataUrl,
       referencePhotoDataUrls: referencePhotoDataUrls || [],
-      userRequirement,
+      userRequirement: normalizedUserRequirement,
       copyText: copyText || '',
       styleDirection: styleDirection || '',
       aspectRatio,
