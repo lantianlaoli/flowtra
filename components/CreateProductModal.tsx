@@ -7,6 +7,7 @@ import { UserProduct, UserProductPhoto } from '@/lib/supabase';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import { waitForAiReferenceAngleJobs } from '@/lib/ai-reference-angle-jobs-client';
 import type { AiReferenceAngleCreateJobResponse } from '@/lib/ai-reference-angle-jobs';
+import { PRODUCT_REFERENCE_GENERATION_ASSET_TYPE } from '@/lib/asset-reference-generation';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 import { useI18n } from '@/providers/I18nProvider';
 import AssetCreationFields from './AssetCreationFields';
@@ -181,7 +182,7 @@ export default function CreateProductModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          assetType: 'product',
+          assetType: PRODUCT_REFERENCE_GENERATION_ASSET_TYPE,
           imageDataUrl: frontalImage.preview,
           existingReferenceCount: referenceImages.length,
           count: missingCount

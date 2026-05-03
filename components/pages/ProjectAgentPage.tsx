@@ -61,6 +61,7 @@ import {
   type ProjectAgentCanvasNode,
   type ProjectAgentCanvasRunStatus,
   type ProjectAgentCanvasState,
+  type ProjectAgentFeatureNodeConfig,
   type ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
 import {
@@ -1580,6 +1581,23 @@ export default function ProjectAgentPage() {
     });
   }, [pageMessages.defaults.text, updateCanvas]);
 
+  const handleUpdateFeatureNodeConfig = useCallback((
+    nodeId: string,
+    config: Partial<ProjectAgentFeatureNodeConfig>
+  ) => {
+    updateCanvas((current) => {
+      const node = getProjectAgentCanvasNodeById(current, nodeId);
+      if (!node || !isProjectAgentFeatureNode(node.type)) return current;
+      return upsertCanvasNode(current, {
+        ...node,
+        config: {
+          ...(node.config || {}),
+          ...config,
+        },
+      });
+    });
+  }, [updateCanvas]);
+
   const handleFormatLayout = useCallback(() => {
     updateCanvas((current) => {
       const ASSET_X = 80;
@@ -1591,7 +1609,7 @@ export default function ProjectAgentPage() {
       const getNodeHeight = (node: ProjectAgentCanvasNode) => {
         if (node.type === 'video') return 308;
         if (isProjectAgentAssetNode(node.type)) return 210;
-        if (isProjectAgentFeatureNode(node.type)) return 216;
+        if (isProjectAgentFeatureNode(node.type)) return getProjectAgentCanvasNodeSize(node).height;
         return 308;
       };
 
@@ -1965,6 +1983,7 @@ export default function ProjectAgentPage() {
                     }
                     return setSingleSelectedNode(current, nodeId);
                   })}
+                  onUpdateFeatureNodeConfig={handleUpdateFeatureNodeConfig}
                   onUpdateNodeContent={handleUpdateNodeContent}
                   pendingConnectionSourceId={pendingConnectionSourceId}
                   selectedEdgeId={selectedEdgeId}

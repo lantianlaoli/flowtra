@@ -10,7 +10,9 @@ export const toProjectAgentVideoAssets = (value: unknown): ProjectAgentCanvasAss
       if (sourceType === 'reference_video') return true;
 
       const coverUrl = typeof item.cover_url === 'string' ? item.cover_url.trim() : '';
-      return coverUrl.length > 0;
+      const videoUrl = typeof item.video_url === 'string' ? item.video_url.trim() : '';
+      const videoCdnUrl = typeof item.video_cdn_url === 'string' ? item.video_cdn_url.trim() : '';
+      return coverUrl.length > 0 || videoUrl.length > 0 || videoCdnUrl.length > 0;
     })
     .map((item) => ({
       id: String(item.id),

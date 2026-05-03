@@ -48,6 +48,70 @@ test('continuation scenes wait for previous first frame before starting', () => 
   );
 });
 
+test('project agent Seedance mode skips first-frame generation gate', () => {
+  assert.equal(
+    __test__.isProjectAgentSeedanceReferenceImageMode({
+      requestSource: 'project_agent_clone',
+      videoModel: 'seedance_2_fast'
+    }),
+    true
+  );
+  assert.equal(
+    __test__.isProjectAgentSeedanceReferenceImageMode({
+      requestSource: 'project_agent_clone',
+      videoModel: 'kling_3'
+    }),
+    false
+  );
+});
+
+test('Seedance reference-image request body does not mix first or last frame inputs', () => {
+  const requestBody = __test__.buildSeedanceVideoRequestBody({
+    projectId: 'project-1',
+    segmentIndex: 0,
+    model: 'seedance_2_fast',
+    prompt: 'A creator demonstrates the product in the same rhythm as the reference video.',
+    inputUrls: ['https://example.com/first.png', 'https://example.com/last.png'],
+    referenceImageUrls: ['https://example.com/avatar.png', 'https://example.com/product.png'],
+    aspectRatio: '9:16',
+    resolution: '720p',
+    duration: 15
+  });
+
+  const input = requestBody.input as Record<string, unknown>;
+  assert.equal(requestBody.model, 'bytedance/seedance-2-fast');
+  assert.deepEqual(input.reference_image_urls, [
+    'https://example.com/avatar.png',
+    'https://example.com/product.png'
+  ]);
+  assert.equal(input.aspect_ratio, '9:16');
+  assert.equal(input.resolution, '720p');
+  assert.equal(input.duration, 15);
+  assert.equal(input.generate_audio, true);
+  assert.equal(input.web_search, true);
+  assert.equal('input_urls' in input, false);
+  assert.equal('first_frame_url' in input, false);
+  assert.equal('last_frame_url' in input, false);
+});
+
+test('project agent Seedance reference images are collected from clone assets', () => {
+  const urls = __test__.getProjectAgentSeedanceReferenceImageUrls({
+    video_model: 'seedance_2_fast',
+    selected_inputs: { workflowSource: 'project_agent_clone' },
+    video_prompts: {
+      clone_reference_assets: {
+        avatarPhotoUrls: ['https://example.com/avatar.png'],
+        productImageUrls: ['https://example.com/product.png', 'https://example.com/avatar.png']
+      }
+    }
+  });
+
+  assert.deepEqual(urls, [
+    'https://example.com/avatar.png',
+    'https://example.com/product.png'
+  ]);
+});
+
 test('structured video prompt payload keeps only shot content', () => {
   const payload = __test__.buildStructuredVideoPromptPayload({
     normalizedShots: [{

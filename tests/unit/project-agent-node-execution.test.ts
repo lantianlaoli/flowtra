@@ -25,6 +25,20 @@ test('buildVideoCloneStartPayload maps connected assets into clone request field
   assert.equal(payload.videoModel, 'kling_3');
 });
 
+test('buildVideoCloneStartPayload passes Seedance 2 Fast for project agent clone nodes', () => {
+  const payload = buildVideoCloneStartPayload({
+    avatar: { id: 'avatar-1', name: 'Avatar' },
+    product: { id: 'product-1', name: 'Product' },
+    video: { id: 'video-1', name: 'Video', sourceType: 'creator', analysisLanguage: 'en' },
+    config: { videoDuration: '16', videoModel: 'seedance_2_fast', videoQuality: '720p', aspectRatio: '9:16', language: 'en' },
+  });
+
+  assert.equal(payload.videoModel, 'seedance_2_fast');
+  assert.equal(payload.videoDuration, '16');
+  assert.deepEqual(payload.selectedAvatarIds, ['avatar-1']);
+  assert.deepEqual(payload.selectedProductIds, ['product-1']);
+});
+
 test('buildVideoCloneStartPayload supports product-only replacements', () => {
   const payload = buildVideoCloneStartPayload({
     product: { id: 'product-1', name: 'Product' },

@@ -3,6 +3,8 @@ import { auth } from '@clerk/nextjs/server';
 import {
   buildSegmentStatusPayload,
   hydrateSerializedSegmentPrompt,
+  getProjectAgentSeedanceReferenceImageUrls,
+  isProjectAgentSeedanceReferenceImageProject,
   startSegmentVideoTask,
   type SerializedSegmentPlanSegment
 } from '@/lib/video-clone-workflow';
@@ -63,6 +65,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     projectGenerationCreditsUsed = Number(project.generation_credits_used || 0);
+    const isSeedanceReferenceImageMode = isProjectAgentSeedanceReferenceImageProject(project as SingleVideoProject);
+    const seedanceReferenceImageUrls = isSeedanceReferenceImageMode
+      ? getProjectAgentSeedanceReferenceImageUrls(project as SingleVideoProject)
+      : [];
+
+    if (isSeedanceReferenceImageMode && seedanceReferenceImageUrls.length === 0) {
+      return NextResponse.json(
+        { error: 'Seedance 2 Fast reference-image mode requires avatar or product images.' },
+        { status: 400 }
+      );
+    }
 
     let segments: Array<VideoCloneSegment> = [];
     let framesReady = 0;
@@ -112,7 +125,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           .eq('id', id);
       }
 
-      if (!total || framesReady < total) {
+      if (!isSeedanceReferenceImageMode && (!total || framesReady < total)) {
         return NextResponse.json({ error: 'Frames are not ready yet. Please wait a moment and try again.' }, { status: 409 });
       }
     }
@@ -157,7 +170,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           continue;
         }
 
-        if (!segment.first_frame_url) {
+        if (!isSeedanceReferenceImageMode && !segment.first_frame_url) {
           startErrors.push(`Segment ${segmentIndex + 1}: first frame is missing.`);
           continue;
         }
@@ -168,7 +181,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
 
         const nextSegment = segments[i + 1];
-        const closingFrameUrl = segment.closing_frame_url || nextSegment?.first_frame_url || null;
+        const closingFrameUrl = isSeedanceReferenceImageMode
+          ? null
+          : segment.closing_frame_url || nextSegment?.first_frame_url || null;
         const segmentPrompt = hydrateSerializedSegmentPrompt(
           segment.prompt as SerializedSegmentPlanSegment,
           segmentIndex,
@@ -274,7 +289,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           const videoTaskId = await startSegmentVideoTask(
             normalizedProject,
             entry.segmentPrompt,
-            entry.segment.first_frame_url as string,
+            isSeedanceReferenceImageMode ? null : entry.segment.first_frame_url as string,
             entry.closingFrameUrl,
             entry.segmentIndex,
             project.segment_count || segments.length

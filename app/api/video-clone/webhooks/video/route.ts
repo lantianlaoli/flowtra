@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, type VideoCloneSegment, type SingleVideoProject } from '@/lib/supabase';
-import { buildSegmentStatusPayload, startSegmentVideoTask, type SegmentPrompt } from '@/lib/video-clone-workflow';
+import {
+  buildSegmentStatusPayload,
+  isProjectAgentSeedanceReferenceImageProject,
+  startSegmentVideoTask,
+  type SegmentPrompt
+} from '@/lib/video-clone-workflow';
 import { isKlingPromptValidationError } from '@/lib/kling-prompt-budget';
 import { mergeVideosWithFal } from '@/lib/video-merge';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
@@ -448,7 +453,9 @@ export async function POST(request: NextRequest) {
             throw new Error('Project not found for retry');
           }
 
-          if (!segment.first_frame_url || !segment.prompt) {
+          const isSeedanceReferenceImageMode = isProjectAgentSeedanceReferenceImageProject(project as SingleVideoProject);
+
+          if ((!isSeedanceReferenceImageMode && !segment.first_frame_url) || !segment.prompt) {
             throw new Error('Missing first frame or prompt for retry');
           }
 
@@ -456,8 +463,8 @@ export async function POST(request: NextRequest) {
           const taskId = await startSegmentVideoTask(
             project as SingleVideoProject,
             segmentPrompt,
-            segment.first_frame_url,
-            segment.closing_frame_url,
+            isSeedanceReferenceImageMode ? null : segment.first_frame_url,
+            isSeedanceReferenceImageMode ? null : segment.closing_frame_url,
             segment.segment_index,
             project.segment_count
           );

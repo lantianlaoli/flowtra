@@ -364,7 +364,7 @@ export const buildVideoCloneStartPayload = (input: {
   selectedAvatarIds: input.avatar?.id ? [input.avatar.id] : [],
   selectedProductIds: input.product?.id ? [input.product.id] : [],
   supplementalText: input.text?.content?.trim() || undefined,
-  videoModel: 'kling_3' as const,
+  videoModel: input.config?.videoModel === 'seedance_2_fast' ? 'seedance_2_fast' as const : 'kling_3' as const,
   videoAspectRatio: input.config?.aspectRatio || '9:16',
   videoDuration: input.config?.videoDuration || '8',
   videoQuality: input.config?.videoQuality || '720p',
@@ -461,6 +461,8 @@ export const normalizeCloneExecutionStatus = (
   const progress = toProgress(payload.progress_percentage, toProgress(payload.progress, status === 'completed' ? 100 : 20));
   const awaitingMerge = Boolean(data.awaitingMerge) || status === 'awaiting_merge';
   const step = typeof payload.current_step === 'string' ? payload.current_step : '';
+  const isSeedanceReferenceImageMode = data.videoModel === 'seedance_2_fast' &&
+    data.workflowSource === 'project_agent_clone';
   const segments = Array.isArray(data.segments)
     ? data.segments as Array<Record<string, unknown>>
     : [];
@@ -489,10 +491,10 @@ export const normalizeCloneExecutionStatus = (
   const executionState = completed ? 'completed' : failed ? 'failed' : 'running';
   const currentMilestoneKey = getCurrentMilestoneForClone(
     status,
-    step,
+    isSeedanceReferenceImageMode && needsVideoStart ? 'generating_video' : step,
     awaitingMerge,
     needsVideoStart,
-    hasActiveVideoGeneration,
+    hasActiveVideoGeneration || (isSeedanceReferenceImageMode && needsVideoStart),
   );
   const error = typeof data.errorMessage === 'string' ? data.errorMessage : null;
   const { retryable, userFacingError } = getProjectAgentCanvasErrorInfo(error);

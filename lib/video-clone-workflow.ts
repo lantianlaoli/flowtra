@@ -447,6 +447,52 @@ const collectDistinctUrls = (values: Array<string | null | undefined>, max = 10)
   return output;
 };
 
+export const isProjectAgentSeedanceReferenceImageMode = (input: {
+  requestSource?: string | null;
+  videoModel?: VideoModel | null;
+  resolvedVideoModel?: VideoModel | null;
+}) => (
+  input.requestSource === 'project_agent_clone' &&
+  (input.resolvedVideoModel || input.videoModel) === 'seedance_2_fast'
+);
+
+export const isProjectAgentSeedanceReferenceImageProject = (
+  project: Pick<SingleVideoProject, 'video_model' | 'selected_inputs'>
+) => {
+  const selectedInputs = project.selected_inputs && typeof project.selected_inputs === 'object'
+    ? project.selected_inputs as Record<string, unknown>
+    : null;
+  return project.video_model === 'seedance_2_fast' &&
+    selectedInputs?.workflowSource === 'project_agent_clone';
+};
+
+export const getProjectAgentSeedanceReferenceImageUrls = (
+  project: Pick<SingleVideoProject, 'video_model' | 'selected_inputs' | 'video_prompts'>,
+  max = 9
+) => {
+  if (!isProjectAgentSeedanceReferenceImageProject(project)) return [];
+
+  const prompts = project.video_prompts && typeof project.video_prompts === 'object'
+    ? project.video_prompts as Record<string, unknown>
+    : {};
+  const cloneAssets = prompts.clone_reference_assets && typeof prompts.clone_reference_assets === 'object'
+    ? prompts.clone_reference_assets as Record<string, unknown>
+    : {};
+  const avatarPhotoUrls = Array.isArray(cloneAssets.avatarPhotoUrls)
+    ? cloneAssets.avatarPhotoUrls
+    : [];
+  const productImageUrls = Array.isArray(cloneAssets.productImageUrls)
+    ? cloneAssets.productImageUrls
+    : [];
+
+  return collectDistinctUrls(
+    [...avatarPhotoUrls, ...productImageUrls].map((url) => (
+      typeof url === 'string' ? url : null
+    )),
+    max
+  );
+};
+
 async function resolveCloneReferenceAssets(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   request: StartWorkflowRequest
@@ -3048,6 +3094,11 @@ async function startSegmentedWorkflow(
     8
   );
   const serializedPlan = serializeSegmentPlan(normalizedSegments);
+  const useSeedanceReferenceImages = isProjectAgentSeedanceReferenceImageMode({
+    requestSource: request.requestSource,
+    videoModel: request.videoModel,
+    resolvedVideoModel: request.resolvedVideoModel
+  });
     const metadataSource = {
       ...(prompts as Record<string, unknown>),
       clone_reference_assets: {
@@ -3081,7 +3132,7 @@ async function startSegmentedWorkflow(
   const segmentRows = normalizedSegments.map((segmentPrompt, index) => ({
     project_id: projectId,
     segment_index: index,
-    status: 'pending_first_frame',
+    status: useSeedanceReferenceImages ? 'ready_for_video' : 'pending_first_frame',
     prompt: serializeSegmentPrompt(segmentPrompt)
   }));
 
@@ -3102,12 +3153,23 @@ async function startSegmentedWorkflow(
     .update({
       video_prompts: storedVideoPrompts,
       segment_plan: serializedPlan,
-      current_step: 'generating_segment_frames',
-      progress_percentage: 35,
+      current_step: useSeedanceReferenceImages ? 'ready_for_video' : 'generating_segment_frames',
+      progress_percentage: useSeedanceReferenceImages ? 60 : 35,
       last_processed_at: now,
       segment_status: buildSegmentStatusPayload(segments)
     })
     .eq('id', projectId);
+
+  if (useSeedanceReferenceImages) {
+    await supabase
+      .from('video_clone_projects')
+      .update({
+        segment_status: buildSegmentStatusPayload(segments),
+        last_processed_at: new Date().toISOString()
+      })
+      .eq('id', projectId);
+    return;
+  }
 
   const segmentsToStart: VideoCloneSegment[] = [];
 
@@ -3884,7 +3946,7 @@ export async function createSmartSegmentFrame(
 export async function startSegmentVideoTask(
   project: SingleVideoProject,
   segmentPrompt: SegmentPrompt,
-  firstFrameUrl: string,
+  firstFrameUrl: string | null,
   closingFrameUrl: string | null | undefined,
   segmentIndex: number,
   totalSegments: number
@@ -3942,6 +4004,9 @@ export async function startSegmentVideoTask(
   }
 
   if (videoModel === 'kling_3') {
+    if (!firstFrameUrl) {
+      throw new Error('Kling video generation requires a first frame.');
+    }
     return await startSegmentVideoTaskKling(
       project,
       compiledSegmentPrompt,
@@ -4759,6 +4824,42 @@ function buildKlingVideoRequestBody(input: {
   return requestBody;
 }
 
+function buildSeedanceVideoRequestBody(input: {
+  projectId: string;
+  segmentIndex: number;
+  model: 'seedance_2_fast' | 'seedance_2';
+  prompt: string;
+  inputUrls: string[];
+  referenceImageUrls?: string[];
+  aspectRatio: '16:9' | '9:16';
+  resolution: '480p' | '720p' | '1080p';
+  duration: number;
+}) {
+  const referenceImageUrls = collectDistinctUrls(input.referenceImageUrls || [], 9);
+  const useReferenceImageMode = input.model === 'seedance_2_fast' && referenceImageUrls.length > 0;
+  const requestInput: Record<string, unknown> = {
+    prompt: input.prompt,
+    aspect_ratio: input.aspectRatio,
+    resolution: input.resolution,
+    duration: input.duration,
+    generate_audio: true,
+    web_search: true
+  };
+
+  if (useReferenceImageMode) {
+    requestInput.reference_image_urls = referenceImageUrls;
+  } else {
+    requestInput.input_urls = input.inputUrls;
+    requestInput.fixed_lens = false;
+  }
+
+  return {
+    model: input.model === 'seedance_2_fast' ? 'bytedance/seedance-2-fast' : 'bytedance/seedance-2',
+    input: requestInput,
+    callBackUrl: buildSegmentVideoWebhookUrl(input.projectId, input.segmentIndex)
+  };
+}
+
 /**
  * Start video generation task using Seedance 2 / Seedance 2 Fast API.
  * Uses generic jobs/createTask endpoint (same as frame generation).
@@ -4766,7 +4867,7 @@ function buildKlingVideoRequestBody(input: {
 async function startSegmentVideoTaskSeedance(
   project: SingleVideoProject,
   segmentPrompt: SegmentPrompt,
-  firstFrameUrl: string,
+  firstFrameUrl: string | null,
   closingFrameUrl: string | null | undefined,
   segmentIndex: number,
   totalSegments: number,
@@ -4777,9 +4878,22 @@ async function startSegmentVideoTaskSeedance(
     throw new Error('KIE_API_KEY environment variable is not configured');
   }
 
-  // Prepare input_urls: first frame is required, closing frame optional
-  const hasClosingFrame = !!closingFrameUrl && closingFrameUrl !== firstFrameUrl;
-  const inputUrls = hasClosingFrame ? [firstFrameUrl, closingFrameUrl] : [firstFrameUrl];
+  const referenceImageUrls = model === 'seedance_2_fast'
+    ? getProjectAgentSeedanceReferenceImageUrls(project)
+    : [];
+  const useReferenceImageMode = referenceImageUrls.length > 0;
+  if (!useReferenceImageMode && !firstFrameUrl) {
+    throw new Error('Seedance video generation requires a first frame or reference images.');
+  }
+
+  // Prepare input_urls for legacy first/last-frame mode. This is mutually exclusive
+  // with Seedance 2 Fast multimodal reference-image mode.
+  const hasClosingFrame = !useReferenceImageMode && !!closingFrameUrl && closingFrameUrl !== firstFrameUrl;
+  const inputUrls = useReferenceImageMode
+    ? []
+    : hasClosingFrame
+      ? [firstFrameUrl as string, closingFrameUrl as string]
+      : [firstFrameUrl as string];
   const segmentDuration = resolveTaskDurationSeconds(
     project,
     model,
@@ -4787,7 +4901,7 @@ async function startSegmentVideoTaskSeedance(
     totalSegments
   );
 
-  console.log(`🎬 Seedance Segment ${segmentIndex + 1}/${totalSegments}: Images count = ${inputUrls.length} ${hasClosingFrame ? '(first + closing)' : '(first only)'}`);
+  console.log(`🎬 Seedance Segment ${segmentIndex + 1}/${totalSegments}: Images count = ${useReferenceImageMode ? referenceImageUrls.length : inputUrls.length} ${useReferenceImageMode ? '(reference images)' : hasClosingFrame ? '(first + closing)' : '(first only)'}`);
 
   const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
   const resolution = mapCloneQualityToSeedanceResolution(project.video_quality);
@@ -4873,20 +4987,17 @@ async function startSegmentVideoTaskSeedance(
     externalId: `user_${project.user_id}:video_clone_${project.id}:segment_${segmentIndex}:video`,
   });
 
-  const requestBody = {
-    model: model === 'seedance_2_fast' ? 'bytedance/seedance-2-fast' : 'bytedance/seedance-2',
-    input: {
-      prompt: promptText,
-      input_urls: inputUrls,
-      aspect_ratio: aspectRatio, // '16:9' or '9:16'
-      resolution,
-      duration: segmentDuration,
-      fixed_lens: false, // Allow dynamic camera movement
-      generate_audio: true, // Enable audio generation
-      web_search: true
-    },
-    callBackUrl: buildSegmentVideoWebhookUrl(project.id, segmentIndex)
-  };
+  const requestBody = buildSeedanceVideoRequestBody({
+    projectId: project.id,
+    segmentIndex,
+    model,
+    prompt: promptText,
+    inputUrls,
+    referenceImageUrls: useReferenceImageMode ? referenceImageUrls : [],
+    aspectRatio,
+    resolution,
+    duration: segmentDuration
+  });
 
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
     method: 'POST',
@@ -4918,8 +5029,12 @@ export const __test__ = {
   shouldWaitForContinuationFrame,
   buildStructuredVideoPromptPayload,
   buildKlingVideoRequestBody,
+  buildSeedanceVideoRequestBody,
   buildKlingElementName,
   getPromptSegmentDurationSeconds,
   getTimeRangeDurationSeconds,
-  deriveKlingShotDurationsFromSourceShots
+  deriveKlingShotDurationsFromSourceShots,
+  isProjectAgentSeedanceReferenceImageMode,
+  isProjectAgentSeedanceReferenceImageProject,
+  getProjectAgentSeedanceReferenceImageUrls
 };

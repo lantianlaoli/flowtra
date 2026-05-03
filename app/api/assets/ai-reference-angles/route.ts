@@ -4,116 +4,13 @@ import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import type { AiReferenceAngleAssetType, AiReferenceAngleJobStatus } from '@/lib/ai-reference-angle-jobs';
 import { createKieGptImageTask } from '@/lib/kie-image-generation';
 import { createJob, getJobsByIdsAndUser } from '@/lib/ai-reference-angle-store';
+import {
+  getReferenceAngleAspectRatio,
+  selectAnglePresets,
+  type SourceAspect
+} from '@/lib/ai-reference-angle-presets';
 
 const KIE_UPLOAD_ENDPOINT = 'https://kieai.redpandaai.co/api/file-base64-upload';
-
-type SourceAspect = 'portrait' | 'square' | 'landscape';
-
-type AnglePreset = {
-  key: string;
-  label: string;
-  prompt: string;
-};
-
-const STYLE_LOCK_SUFFIX = [
-  'Maintain exact stylistic consistency with the reference image.',
-  'Preserve the original visual medium, rendering approach, and image character.',
-  'If the reference image is an illustration, animation frame, painting, sketch, 3D render, product render, or casual mobile photo, retain that format rather than converting it into a different visual style.',
-  'Preserve the original color palette, lighting quality, tonal balance, contrast, saturation, texture treatment, and background atmosphere.',
-  'Do not restyle, embellish, beautify, or reinterpret the reference.'
-].join(' ');
-
-function withStyleLock(prompt: string) {
-  return `${prompt} ${STYLE_LOCK_SUFFIX}`;
-}
-
-const CAMERA_LEFT_DEFINITION =
-  'Stand at the left side of the subject, facing diagonally toward the front-right corner. The image must show the left side plane and left face of the subject prominently. Do not return a near-frontal view, and do not mirror and produce the right-side view.';
-
-const CAMERA_RIGHT_DEFINITION =
-  'Stand at the right side of the subject, facing diagonally toward the front-left corner. The image must show the right side plane and right face of the subject prominently. Do not return a near-frontal view, and do not mirror and produce the left-side view.';
-
-const ANGLE_PRESETS: Record<AiReferenceAngleAssetType, AnglePreset[]> = {
-  product: [
-    {
-      key: 'front_left_45',
-      label: '45° Front Left',
-      prompt: withStyleLock(
-        `Generate the same product from a 45-degree front-left perspective. ${CAMERA_LEFT_DEFINITION} Show the left-front plane and left-side depth more prominently than the right side. Preserve the exact product identity, materials, labels, colors, proportions, and compositional structure. Maintain a clean background and high visual fidelity.`
-      )
-    },
-    {
-      key: 'front_right_45',
-      label: '45° Front Right',
-      prompt: withStyleLock(
-        `Generate the same product from a 45-degree front-right perspective. ${CAMERA_RIGHT_DEFINITION} Show the right-front plane and right-side depth more prominently than the left side. Preserve the exact product identity, materials, labels, colors, proportions, and compositional structure. Maintain a clean background and high visual fidelity.`
-      )
-    },
-    {
-      key: 'back_view',
-      label: 'Back View',
-      prompt: withStyleLock(
-        'Generate the same product from a centered rear view. Preserve the exact product identity, shape language, materials, labels, and design details. Maintain a clean background and high visual fidelity.'
-      )
-    }
-  ],
-  avatar: [
-    {
-      key: 'left_45_portrait',
-      label: '45° Left Portrait',
-      prompt: withStyleLock(
-        `Generate the same person from a 45-degree left portrait angle. ${CAMERA_LEFT_DEFINITION} The viewer should see more of the left cheek, left jawline, and left ear than the right side of the face. Preserve identity, facial structure, hairstyle, skin tone, expression, posture, and clothing characteristics. Maintain a clean background and faithful lighting.`
-      )
-    },
-    {
-      key: 'right_45_portrait',
-      label: '45° Right Portrait',
-      prompt: withStyleLock(
-        `Generate the same person from a 45-degree right portrait angle. ${CAMERA_RIGHT_DEFINITION} The viewer should see more of the right cheek, right jawline, and right ear than the left side of the face. Preserve identity, facial structure, hairstyle, skin tone, expression, posture, and clothing characteristics. Maintain a clean background and faithful lighting.`
-      )
-    },
-    {
-      key: 'side_profile',
-      label: 'Side Profile',
-      prompt: withStyleLock(
-        'Generate a side-profile portrait of the same person. Preserve identity, facial structure, hairstyle, skin tone, expression, posture, and clothing characteristics. Maintain a clean background and faithful lighting.'
-      )
-    }
-  ],
-  universal: [
-    {
-      key: 'front_left_45',
-      label: '45° Front Left',
-      prompt: withStyleLock(
-        `Generate the same subject, object, or entity from a 45-degree front-left perspective. ${CAMERA_LEFT_DEFINITION} Preserve identity and all defining visual characteristics, including shape, proportions, colors, textures, fur or material detail, and distinguishing marks. Do not introduce new objects, products, logos, text, packaging, accessories, or props. Maintain a clean background and high detail.`
-      )
-    },
-    {
-      key: 'front_right_45',
-      label: '45° Front Right',
-      prompt: withStyleLock(
-        `Generate the same subject, object, or entity from a 45-degree front-right perspective. ${CAMERA_RIGHT_DEFINITION} Preserve identity and all defining visual characteristics, including shape, proportions, colors, textures, fur or material detail, and distinguishing marks. Do not introduce new objects, products, logos, text, packaging, accessories, or props. Maintain a clean background and high detail.`
-      )
-    },
-    {
-      key: 'back_view',
-      label: 'Back View',
-      prompt: withStyleLock(
-        'Generate a centered rear-view image of the same subject, object, or entity. Preserve identity and all defining visual characteristics, including shape, proportions, colors, textures, fur or material detail, and distinguishing marks. Do not introduce new objects, products, logos, text, packaging, accessories, or props. Maintain a clean background and high detail.'
-      )
-    }
-  ]
-};
-
-function getUniversalImageSize(sourceAspect?: SourceAspect): '9:16' | '1:1' {
-  return sourceAspect === 'portrait' ? '9:16' : '1:1';
-}
-
-function getAspectRatio(assetType: AiReferenceAngleAssetType, sourceAspect?: SourceAspect): '9:16' | '1:1' {
-  if (assetType === 'avatar') return '9:16';
-  if (assetType === 'product') return '1:1';
-  return getUniversalImageSize(sourceAspect);
-}
 
 function getImageExtensionFromDataUrl(dataUrl: string): string {
   const match = dataUrl.match(/^data:image\/(png|jpeg|jpg|webp);base64,/i);
@@ -202,7 +99,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: uploadResult?.msg || 'Source image upload failed' }, { status: 500 });
     }
 
-    const presets = ANGLE_PRESETS[assetType].slice(existingReferenceCount, existingReferenceCount + count);
+    const presets = selectAnglePresets(assetType, existingReferenceCount, count);
     const callBackUrl = `${siteUrl}/api/assets/ai-reference-angles/webhooks`;
     const jobsPayload: Array<{
       user_id: string;
@@ -216,7 +113,7 @@ export async function POST(request: NextRequest) {
     }> = [];
 
     for (const preset of presets) {
-      const aspectRatio = getAspectRatio(assetType, sourceAspect);
+      const aspectRatio = getReferenceAngleAspectRatio(assetType, sourceAspect);
       const taskId = await createKieGptImageTask({
         prompt: preset.prompt,
         referenceImageUrls: [sourceImageUrl],
