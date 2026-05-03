@@ -17,6 +17,7 @@ import { uploadImageForClone } from "@/lib/image-clone";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
+const BULK_REGENERATION_MAX_RETRIES = 2;
 
 function isHttpUrl(value: unknown): value is string {
   if (typeof value !== "string") return false;
@@ -103,6 +104,12 @@ export async function POST(request: Request) {
       taskId,
       status: "waiting",
       updatedAt: new Date().toISOString(),
+      prompt,
+      inputUrls: [body.resultUrl, ...(body.fontReferenceUrl ? [body.fontReferenceUrl] : []), ...localImageUrls],
+      aspectRatio,
+      resolution,
+      retryCount: 0,
+      maxRetries: BULK_REGENERATION_MAX_RETRIES,
     });
 
     return NextResponse.json({

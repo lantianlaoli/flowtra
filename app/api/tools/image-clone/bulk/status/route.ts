@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { getImageCloneBulkKieStatus } from "@/lib/image-clone-bulk-kie";
+import {
+  createImageCloneBulkKieTask,
+  getImageCloneBulkKieStatus,
+  isRetryableImageCloneBulkKieError,
+} from "@/lib/image-clone-bulk-kie";
 import {
   getImageCloneBulkJobStatus,
   setImageCloneBulkJobStatus,
@@ -21,7 +25,41 @@ export async function GET(request: Request) {
     }
 
     const status = await getImageCloneBulkKieStatus(taskId);
+    if (status.status === "fail" && isRetryableImageCloneBulkKieError(status.error) && stored?.prompt && stored.inputUrls?.length && stored.aspectRatio && stored.resolution) {
+      const retryCount = stored.retryCount ?? 0;
+      const maxRetries = stored.maxRetries ?? 2;
+      if (retryCount < maxRetries) {
+        const retryTaskId = await createImageCloneBulkKieTask({
+          prompt: stored.prompt,
+          inputUrls: stored.inputUrls,
+          aspectRatio: stored.aspectRatio,
+          resolution: stored.resolution,
+        });
+        const retryStatus = {
+          taskId: retryTaskId,
+          status: "waiting" as const,
+          updatedAt: new Date().toISOString(),
+          prompt: stored.prompt,
+          inputUrls: stored.inputUrls,
+          aspectRatio: stored.aspectRatio,
+          resolution: stored.resolution,
+          retryCount: retryCount + 1,
+          maxRetries,
+        };
+        setImageCloneBulkJobStatus(retryStatus);
+        setImageCloneBulkJobStatus({
+          ...stored,
+          taskId,
+          status: "processing",
+          error: `Automatic retry ${retryCount + 1}/${maxRetries} started.`,
+          updatedAt: new Date().toISOString(),
+        });
+        return NextResponse.json(retryStatus);
+      }
+    }
+
     const nextStatus = {
+      ...stored,
       taskId,
       status: status.status,
       resultUrl: status.resultUrl,

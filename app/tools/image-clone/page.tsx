@@ -830,6 +830,14 @@ export default function ImageClonePage() {
     setIsRegeneratingBulkJob(true);
     setRegenerationError(null);
     try {
+      if (isToolAccessLoading) {
+        throw new Error("Checking subscription status. Please try again in a moment.");
+      }
+
+      if (!canUseTool("image-clone", { hasUnlimitedAccess })) {
+        throw new Error(TOOL_LIMIT_MESSAGES["image-clone"]);
+      }
+
       const response = await fetch("/api/tools/image-clone/bulk/regenerate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -848,6 +856,7 @@ export default function ImageClonePage() {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to start regeneration.");
+      incrementLimitedToolUsage("image-clone", { hasUnlimitedAccess });
       const replacementJob = payload.job as ImageCloneBulkJob;
       setBulkJobs((jobs) => jobs.map((job) => (job.rowId === replacementJob.rowId ? replacementJob : job)));
       setRegenerationModal({
@@ -874,9 +883,10 @@ export default function ImageClonePage() {
           if (!response.ok) throw new Error(payload.error || "Status check failed.");
           return {
             ...job,
+            taskId: payload.taskId ?? job.taskId,
             status: payload.status,
             resultUrl: payload.resultUrl ?? job.resultUrl,
-            error: payload.error ?? job.error,
+            error: payload.error ?? (payload.taskId && payload.taskId !== job.taskId ? undefined : job.error),
           } satisfies ImageCloneBulkJob;
         } catch (pollError) {
           return {
@@ -937,6 +947,14 @@ export default function ImageClonePage() {
     );
 
     try {
+      if (isToolAccessLoading) {
+        throw new Error("Checking subscription status. Please try again in a moment.");
+      }
+
+      if (!canUseTool("image-clone", { hasUnlimitedAccess })) {
+        throw new Error(TOOL_LIMIT_MESSAGES["image-clone"]);
+      }
+
       const response = await fetch("/api/tools/image-clone/bulk/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -947,6 +965,7 @@ export default function ImageClonePage() {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to start generation.");
+      incrementLimitedToolUsage("image-clone", { hasUnlimitedAccess });
       setBulkJobs(payload.jobs);
       if (payload.jobs.every((job: ImageCloneBulkJob) => job.status === "success" || job.status === "fail")) {
         setPageMode("bulkDone");
