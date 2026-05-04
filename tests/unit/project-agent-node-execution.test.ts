@@ -5,6 +5,7 @@ import {
   buildAvatarAdsStartPayload,
   buildMotionCloneStartPayload,
   buildVideoCloneStartPayload,
+  getProjectAgentCanvasErrorInfo,
   normalizeAvatarExecutionStatus,
   normalizeCloneExecutionStatus,
   normalizeMotionCloneExecutionStatus,
@@ -23,6 +24,16 @@ test('buildVideoCloneStartPayload maps connected assets into clone request field
   assert.deepEqual(payload.selectedProductIds, []);
   assert.equal(payload.videoDuration, '16');
   assert.equal(payload.videoModel, 'kling_3');
+});
+
+test('canvas error info treats insufficient credits as a user-facing setup issue', () => {
+  const info = getProjectAgentCanvasErrorInfo('Insufficient credits. Need 120 credits, you have 40.', {
+    code: 'INSUFFICIENT_CREDITS',
+  });
+
+  assert.equal(info.retryable, false);
+  assert.equal(info.maintenanceMode, false);
+  assert.equal(info.userFacingError, 'Insufficient credits. Need 120 credits, you have 40.');
 });
 
 test('buildVideoCloneStartPayload passes Seedance 2 Fast for project agent clone nodes', () => {
@@ -148,6 +159,77 @@ test('normalizeCloneExecutionStatus requests automatic downstream actions', () =
     data: { awaitingMerge: true },
   });
   assert.equal(mergeStatus.nextAction, 'merge_clone_video');
+});
+
+test('normalizeCloneExecutionStatus does not restart video generation after request is locked', () => {
+  const status = normalizeCloneExecutionStatus({
+    status: 'processing',
+    current_step: 'generating_segment_videos',
+    data: {
+      videoGenerationRequested: true,
+      segmentStatus: {
+        total: 2,
+        framesReady: 2,
+        videosReady: 0,
+      },
+    },
+  });
+
+  assert.equal(status.nextAction, 'none');
+  assert.equal(status.statusLabel, 'Running clone workflow');
+});
+
+test('normalizeCloneExecutionStatus resumes a stale locked clone with no video task', () => {
+  const status = normalizeCloneExecutionStatus({
+    status: 'ready_for_video',
+    current_step: 'ready_for_video',
+    data: {
+      videoGenerationRequested: true,
+      videoModel: 'seedance_2_fast',
+      workflowSource: 'project_agent_clone',
+      segments: [
+        {
+          status: 'ready_for_video',
+          videoTaskId: null,
+          videoUrl: null,
+        },
+      ],
+    },
+  });
+
+  assert.equal(status.nextAction, 'start_clone_video');
+  assert.equal(status.currentMilestoneKey, 'generating_video');
+});
+
+test('normalizeCloneExecutionStatus skips frame milestone for Seedance direct clone mode', () => {
+  const status = normalizeCloneExecutionStatus({
+    status: 'ready_for_video',
+    current_step: 'ready_for_video',
+    data: {
+      videoModel: 'seedance_2_fast',
+      workflowSource: 'project_agent_clone',
+      videoGenerationRequested: true,
+    },
+  });
+
+  assert.equal(status.currentMilestoneKey, 'generating_video');
+  assert.equal(status.milestones.some((milestone) => milestone.key === 'generating_frames'), false);
+  assert.deepEqual(
+    status.milestones.map((milestone) => milestone.label),
+    ['Preparing prompt', 'Generating video', 'Merging video', 'Completed']
+  );
+});
+
+test('normalizeCloneExecutionStatus still starts video generation when ready and unlocked', () => {
+  const status = normalizeCloneExecutionStatus({
+    status: 'ready_for_video',
+    current_step: 'ready_for_video',
+    data: {
+      videoGenerationRequested: false,
+    },
+  });
+
+  assert.equal(status.nextAction, 'start_clone_video');
 });
 
 test('normalizeAvatarExecutionStatus auto-confirms review state', () => {

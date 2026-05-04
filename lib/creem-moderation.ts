@@ -1,5 +1,3 @@
-import 'server-only';
-
 export const CREEM_MODERATION_BLOCKED_MESSAGE =
   'Your prompt could not be processed. Please revise and try again.';
 

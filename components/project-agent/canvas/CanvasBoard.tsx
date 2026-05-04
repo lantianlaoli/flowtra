@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Circle,
   Clapperboard,
+  Coins,
   Download,
   GripVertical,
   Keyboard,
@@ -27,7 +28,13 @@ import {
   WandSparkles,
 } from 'lucide-react';
 import { ByteDance, Kling } from '@lobehub/icons';
-import { GENERATION_COSTS } from '@/lib/constants';
+import {
+  GENERATION_COSTS,
+  getGenerationCost,
+  getMotionCloneGenerationCost,
+  type PersistedVideoQuality,
+  type VideoModel,
+} from '@/lib/constants';
 import {
   getProjectAgentCanvasNodeSize,
   getProjectAgentAssetDisplayName,
@@ -38,6 +45,8 @@ import {
   isProjectAgentRuntimeActive,
   PROJECT_AGENT_FEATURE_ANY_OF_INPUTS,
   PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS,
+  getProjectAgentCanvasSourceHandlePosition,
+  getProjectAgentCanvasTargetHandlePosition,
   type ProjectAgentAssetNodeType,
   type ProjectAgentCanvasNode,
   type ProjectAgentCanvasState,
@@ -85,25 +94,11 @@ type CanvasBoardProps = {
 };
 
 const getNodeSize = (node: ProjectAgentCanvasNode) => getProjectAgentCanvasNodeSize(node);
-
-const getSourceHandlePosition = (node: ProjectAgentCanvasNode) => {
-  const size = getNodeSize(node);
-  return {
-    x: node.x + size.width,
-    y: node.y + size.height / 2,
-  };
-};
-
+const getSourceHandlePosition = getProjectAgentCanvasSourceHandlePosition;
 const getTargetHandlePosition = (
   node: ProjectAgentCanvasNode,
-  _handle: ProjectAgentAssetNodeType
-) => {
-  const size = getNodeSize(node);
-  return {
-    x: node.x,
-    y: node.y + size.height / 2,
-  };
-};
+  _handle?: ProjectAgentAssetNodeType
+) => getProjectAgentCanvasTargetHandlePosition(node);
 
 const renderEdgePath = (source: { x: number; y: number }, target: { x: number; y: number }) => {
   const dx = Math.max(60, Math.abs(target.x - source.x) / 2);
@@ -230,6 +225,51 @@ const getVideoCloneModelOption = (model: ProjectAgentFeatureNodeConfig['videoMod
   PROJECT_AGENT_VIDEO_CLONE_MODELS.find((option) => option.value === model) ||
   PROJECT_AGENT_VIDEO_CLONE_MODELS[0]
 );
+
+const getConnectedAssetForFeature = (
+  canvas: ProjectAgentCanvasState,
+  nodeId: string,
+  handle: ProjectAgentAssetNodeType
+) => {
+  const edge = canvas.edges.find((candidate) => (
+    candidate.targetNodeId === nodeId &&
+    candidate.targetHandle === handle
+  ));
+  if (!edge) return null;
+  return canvas.nodes.find((candidate) => candidate.id === edge.sourceNodeId)?.asset || null;
+};
+
+const getFeatureEstimatedCredits = (
+  canvas: ProjectAgentCanvasState,
+  node: ProjectAgentCanvasNode
+) => {
+  if (!isProjectAgentFeatureNode(node.type)) return null;
+
+  const runCount = Math.max(1, Number(node.config?.runCount || 1));
+  const duration = node.config?.videoDuration || (node.type === 'avatar_ads' ? '16' : '8');
+
+  if (node.type === 'avatar_ads') {
+    return getGenerationCost('kling_3', duration, 'standard') * runCount;
+  }
+
+  if (node.type === 'video_clone') {
+    const model: VideoModel = node.config?.videoModel === 'seedance_2_fast'
+      ? 'seedance_2_fast'
+      : 'kling_3';
+    return getGenerationCost(model, duration, 'standard') * runCount;
+  }
+
+  const connectedVideo = getConnectedAssetForFeature(canvas, node.id, 'video');
+  const durationSeconds = Number(connectedVideo?.durationSeconds);
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    return null;
+  }
+
+  return getMotionCloneGenerationCost(
+    durationSeconds,
+    node.config?.videoQuality as PersistedVideoQuality | undefined
+  ) * runCount;
+};
 
 export default function CanvasBoard({
   canvas,
@@ -494,6 +534,11 @@ export default function CanvasBoard({
           const failedState = executionState === 'failed';
           const canRetryFailure = failedState && !maintenanceBlocked;
           const userFacingError = node.runtime?.userFacingError || null;
+          const insufficientCredits = Boolean(
+            userFacingError?.toLowerCase().includes('insufficient credits') ||
+            node.runtime?.error?.toLowerCase().includes('insufficient credits')
+          );
+          const estimatedCredits = isFeatureNode ? getFeatureEstimatedCredits(canvas, node) : null;
           const showRunningState = executionState === 'running' && isProjectAgentRuntimeActive(node.runtime);
           const canChangeModel = isFeatureNode && node.type === 'video_clone' && !showRunningState;
           const selectedVideoModel = node.config?.videoModel === 'seedance_2_fast'
@@ -878,7 +923,7 @@ export default function CanvasBoard({
                       </div>
                     ) : (
                       <button
-                        className={`project-agent-press-button flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${
+                        className={`project-agent-press-button flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold ${
                           canRetryFailure || canStart
                             ? 'project-agent-press-button--active cursor-pointer'
                             : maintenanceBlocked
@@ -901,21 +946,57 @@ export default function CanvasBoard({
                           onRunFeatureNode(node.id);
                         }}
                         type="button"
+                        title={estimatedCredits !== null ? `${estimatedCredits} credits` : undefined}
                       >
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-white/15">
+                          {canRetryFailure || insufficientCredits ? (
+                            <RefreshCcw className="h-2.5 w-2.5" />
+                          ) : canStart ? (
+                            <Play className="h-2.5 w-2.5 fill-current" />
+                          ) : maintenanceBlocked ? (
+                            <AlertTriangle className="h-2.5 w-2.5 text-amber-700" />
+                          ) : blockedReason ? (
+                            <AlertTriangle className="h-2.5 w-2.5 text-amber-700" />
+                          ) : failedState ? (
+                            <AlertCircle className="h-2.5 w-2.5 text-red-500" />
+                          ) : (
+                            <Play className="h-2.5 w-2.5 fill-current" />
+                          )}
+                        </span>
                         {canRetryFailure ? (
-                          <RefreshCcw className="h-2.5 w-2.5" />
-                        ) : canStart ? (
-                          <Play className="h-2.5 w-2.5 fill-white text-white" />
+                          <span>Retry</span>
+                        ) : insufficientCredits ? (
+                          <span>Retry</span>
                         ) : maintenanceBlocked ? (
-                          <AlertTriangle className="h-2.5 w-2.5 text-amber-700" />
+                          <span>Maintenance</span>
                         ) : blockedReason ? (
-                          <AlertTriangle className="h-2.5 w-2.5 text-amber-700" />
+                          <span>Warning</span>
                         ) : failedState ? (
-                          <AlertCircle className="h-2.5 w-2.5 text-red-500" />
-                        ) : (
-                          <Play className="h-2.5 w-2.5 fill-[#b8b5ad] text-[#b8b5ad]" />
-                        )}
-                        {canRetryFailure ? 'Retry' : maintenanceBlocked ? 'Maintenance' : blockedReason ? 'Warning' : failedState ? 'Failed' : 'Start'}
+                          <span>Failed</span>
+                        ) : null}
+                        {estimatedCredits !== null ? (
+                          <span className={`flex items-center gap-1 ${
+                            canRetryFailure || canStart
+                              ? 'text-white'
+                              : maintenanceBlocked || blockedReason
+                                ? 'text-amber-700'
+                                : failedState
+                                  ? 'text-red-500'
+                                  : 'text-[#b8b5ad]'
+                          }`}>
+                            <span className={`h-3 w-px ${
+                              canRetryFailure || canStart
+                                ? 'bg-white/30'
+                                : maintenanceBlocked || blockedReason
+                                  ? 'bg-amber-300'
+                                  : failedState
+                                    ? 'bg-red-200'
+                                    : 'bg-[#d7d3c8]'
+                            }`} />
+                            <Coins className="h-2.5 w-2.5" />
+                            <span>{estimatedCredits}</span>
+                          </span>
+                        ) : null}
                       </button>
                     )}
                   </div>

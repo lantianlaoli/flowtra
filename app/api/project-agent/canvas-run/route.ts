@@ -38,11 +38,17 @@ export const revalidate = 0;
 
 type CanvasRunRequestBody = {
   nodeType?: ProjectAgentFeatureNodeType;
-  mode?: 'start' | 'advance' | 'retry';
+  mode?: 'start' | 'advance' | 'retry' | 'preflight';
   projectId?: string | null;
   runCount?: number | null;
   config?: ProjectAgentFeatureNodeConfig | null;
   connectedAssets?: ProjectAgentConnectedFeatureInputs | null;
+};
+
+type CanvasCreditPreflightResult = {
+  requiredCredits: number;
+  currentCredits: number;
+  hasEnoughCredits: true;
 };
 
 const normalizeRunCount = (value: unknown) => {
@@ -79,6 +85,20 @@ class CanvasRunApiError extends Error {
     this.name = 'CanvasRunApiError';
     this.status = status;
     this.code = code ?? null;
+  }
+}
+
+class CanvasInsufficientCreditsError extends Error {
+  status = 402;
+  code = 'INSUFFICIENT_CREDITS';
+  requiredCredits: number;
+  currentCredits: number;
+
+  constructor(requiredCredits: number, currentCredits: number) {
+    super(`Insufficient credits. Need ${requiredCredits}, have ${currentCredits}.`);
+    this.name = 'CanvasInsufficientCreditsError';
+    this.requiredCredits = requiredCredits;
+    this.currentCredits = currentCredits;
   }
 }
 
@@ -144,17 +164,28 @@ const resolveAgentAvatarSpokenLanguage = async (
   }
 };
 
-const ensureEnoughCredits = async (userId: string, requiredCredits: number) => {
-  if (requiredCredits <= 0) return;
+const ensureEnoughCredits = async (
+  userId: string,
+  requiredCredits: number
+): Promise<CanvasCreditPreflightResult> => {
+  const normalizedRequiredCredits = Math.max(0, Math.ceil(requiredCredits));
 
-  const creditCheck = await checkCredits(userId, requiredCredits);
+  const creditCheck = await checkCredits(userId, normalizedRequiredCredits);
   if (!creditCheck.success) {
     throw new Error(creditCheck.error || 'Failed to check credits.');
   }
 
+  const currentCredits = creditCheck.currentCredits || 0;
+
   if (!creditCheck.hasEnoughCredits) {
-    throw new Error(`Insufficient credits. Need ${requiredCredits}, have ${creditCheck.currentCredits || 0}.`);
+    throw new CanvasInsufficientCreditsError(normalizedRequiredCredits, currentCredits);
   }
+
+  return {
+    requiredCredits: normalizedRequiredCredits,
+    currentCredits,
+    hasEnoughCredits: true,
+  };
 };
 
 const chargeCredits = async (
@@ -172,8 +203,10 @@ const chargeCredits = async (
     throw new Error(creditCheck.error || 'Failed to check credits.');
   }
 
+  const currentCredits = creditCheck.currentCredits || 0;
+
   if (!creditCheck.hasEnoughCredits) {
-    throw new Error(`Insufficient credits. Need ${amount}, have ${creditCheck.currentCredits || 0}.`);
+    throw new CanvasInsufficientCreditsError(amount, currentCredits);
   }
 
   const deduction = await deductCredits(userId, amount);
@@ -222,12 +255,12 @@ const assertAvatarCredits = async (userId: string, body: CanvasRunRequestBody, r
       }).totalDurationSeconds
     : payload.videoDurationSeconds;
 
-  await ensureEnoughCredits(
+  const credits = await ensureEnoughCredits(
     userId,
     getGenerationCost(payload.videoModel, String(plannedDurationSeconds)) * runCount
   );
 
-  return resolvedSpokenLanguage;
+  return { resolvedSpokenLanguage, credits };
 };
 
 const assertVideoCloneCredits = async (userId: string, body: CanvasRunRequestBody, runCount = 1) => {
@@ -247,7 +280,7 @@ const assertVideoCloneCredits = async (userId: string, body: CanvasRunRequestBod
     config: body.config,
   });
 
-  await ensureEnoughCredits(
+  return ensureEnoughCredits(
     userId,
     getGenerationCost(payload.videoModel, payload.videoDuration, 'standard') * runCount
   );
@@ -303,7 +336,7 @@ const assertMotionCloneCredits = async (userId: string, body: CanvasRunRequestBo
     payload.mode
   );
 
-  await ensureEnoughCredits(userId, requiredCredits * runCount);
+  return ensureEnoughCredits(userId, requiredCredits * runCount);
 };
 
 const buildFailedExecutionStatus = (
@@ -333,6 +366,36 @@ const buildFailedExecutionStatus = (
     })),
     currentMilestoneKey: 'preparing_prompt',
     raw: null,
+  };
+};
+
+const checkNodeCreditsForStart = async (
+  userId: string,
+  nodeType: ProjectAgentFeatureNodeType,
+  body: CanvasRunRequestBody,
+  runCount: number
+): Promise<{
+  credits: CanvasCreditPreflightResult;
+  avatarSpokenLanguage: LanguageCode | null;
+}> => {
+  if (nodeType === 'avatar_ads') {
+    const result = await assertAvatarCredits(userId, body, runCount);
+    return {
+      credits: result.credits,
+      avatarSpokenLanguage: result.resolvedSpokenLanguage,
+    };
+  }
+
+  if (nodeType === 'video_clone') {
+    return {
+      credits: await assertVideoCloneCredits(userId, body, runCount),
+      avatarSpokenLanguage: null,
+    };
+  }
+
+  return {
+    credits: await assertMotionCloneCredits(userId, body, runCount),
+    avatarSpokenLanguage: null,
   };
 };
 
@@ -976,6 +1039,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, execution: advancedStatus });
     }
 
+    const runCount = normalizeRunCount(body.runCount ?? body.config?.runCount);
+
+    if (body.mode === 'preflight') {
+      const preflight = await checkNodeCreditsForStart(userId, nodeType, body, runCount);
+      return NextResponse.json({
+        success: true,
+        requiredCredits: preflight.credits.requiredCredits,
+        currentCredits: preflight.credits.currentCredits,
+        hasEnoughCredits: preflight.credits.hasEnoughCredits,
+      });
+    }
+
     if (body.mode === 'retry') {
       if (!body.projectId) {
         return NextResponse.json({ error: 'projectId is required for retry' }, { status: 400 });
@@ -990,15 +1065,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, execution: retriedStatus });
     }
 
-    const runCount = normalizeRunCount(body.runCount ?? body.config?.runCount);
-    let avatarSpokenLanguage: LanguageCode | null = null;
-    if (nodeType === 'avatar_ads') {
-      avatarSpokenLanguage = await assertAvatarCredits(userId, body, runCount);
-    } else if (nodeType === 'video_clone') {
-      await assertVideoCloneCredits(userId, body, runCount);
-    } else if (nodeType === 'motion_clone') {
-      await assertMotionCloneCredits(userId, body, runCount);
-    }
+    const creditPreflight = await checkNodeCreditsForStart(userId, nodeType, body, runCount);
+    const avatarSpokenLanguage = creditPreflight.avatarSpokenLanguage;
 
     const startOne = () => (
       nodeType === 'avatar_ads'
@@ -1020,6 +1088,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, execution, executions });
   } catch (error) {
     console.error('[Project Agent Canvas Run] Error:', error);
+    if (error instanceof CanvasInsufficientCreditsError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+          requiredCredits: error.requiredCredits,
+          currentCredits: error.currentCredits,
+          hasEnoughCredits: false,
+        },
+        { status: error.status }
+      );
+    }
     if (error instanceof CanvasRunApiError) {
       const errorInfo = getProjectAgentCanvasErrorInfo(error.message, {
         code: error.code,

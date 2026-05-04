@@ -1678,7 +1678,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           : 'generating_cover',
       progress_percentage: request.useCustomScript ? 50 : isReferenceCloneCreate ? 60 : hasSegmentFlow ? 25 : 20,
       credits_cost: generationCost, // Only generation cost (download cost charged separately)
-      generation_credits_used: isReferenceCloneCreate ? 0 : generationCost,
+      generation_credits_used: isReferenceCloneCreate || request.requestSource === 'project_agent_clone'
+        ? 0
+        : generationCost,
       language: request.language || 'en', // Language for AI-generated content
       // Generic video fields
       video_duration: duration || '8',
@@ -3148,7 +3150,7 @@ async function startSegmentedWorkflow(
 
   const segments = insertedSegments as VideoCloneSegment[];
 
-  await supabase
+  const { error: projectPromptUpdateError } = await supabase
     .from('video_clone_projects')
     .update({
       video_prompts: storedVideoPrompts,
@@ -3159,15 +3161,23 @@ async function startSegmentedWorkflow(
       segment_status: buildSegmentStatusPayload(segments)
     })
     .eq('id', projectId);
+  if (projectPromptUpdateError) {
+    console.error('Failed to update segmented project prompt state:', projectPromptUpdateError);
+    throw new Error('Failed to finalize segmented prompt state');
+  }
 
   if (useSeedanceReferenceImages) {
-    await supabase
+    const { error: directModeUpdateError } = await supabase
       .from('video_clone_projects')
       .update({
         segment_status: buildSegmentStatusPayload(segments),
         last_processed_at: new Date().toISOString()
       })
       .eq('id', projectId);
+    if (directModeUpdateError) {
+      console.error('Failed to update Seedance direct segment status:', directModeUpdateError);
+      throw new Error('Failed to finalize Seedance direct segment status');
+    }
     return;
   }
 
@@ -4837,19 +4847,20 @@ function buildSeedanceVideoRequestBody(input: {
 }) {
   const referenceImageUrls = collectDistinctUrls(input.referenceImageUrls || [], 9);
   const useReferenceImageMode = input.model === 'seedance_2_fast' && referenceImageUrls.length > 0;
+  const inputUrls = collectDistinctUrls(input.inputUrls || [], 2);
   const requestInput: Record<string, unknown> = {
     prompt: input.prompt,
     aspect_ratio: input.aspectRatio,
     resolution: input.resolution,
     duration: input.duration,
     generate_audio: true,
-    web_search: true
+    web_search: !useReferenceImageMode && inputUrls.length === 0
   };
 
   if (useReferenceImageMode) {
     requestInput.reference_image_urls = referenceImageUrls;
-  } else {
-    requestInput.input_urls = input.inputUrls;
+  } else if (inputUrls.length > 0) {
+    requestInput.input_urls = inputUrls;
     requestInput.fixed_lens = false;
   }
 

@@ -194,6 +194,22 @@ export const getProjectAgentCanvasNodeSize = (node: Pick<ProjectAgentCanvasNode,
   return { width: 336, height: 272 };
 };
 
+export const getProjectAgentCanvasSourceHandlePosition = (node: Pick<ProjectAgentCanvasNode, 'type' | 'x' | 'y'>) => {
+  const size = getProjectAgentCanvasNodeSize(node);
+  return {
+    x: node.x + size.width,
+    y: node.y + size.height / 2,
+  };
+};
+
+export const getProjectAgentCanvasTargetHandlePosition = (node: Pick<ProjectAgentCanvasNode, 'type' | 'x' | 'y'>) => {
+  const size = getProjectAgentCanvasNodeSize(node);
+  return {
+    x: node.x,
+    y: node.y + size.height / 2,
+  };
+};
+
 export const PROJECT_AGENT_FEATURE_INPUTS: Record<
   ProjectAgentFeatureNodeType,
   ProjectAgentAssetNodeType[]
