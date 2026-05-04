@@ -91,6 +91,14 @@ export const getProjectAgentCanvasErrorInfo = (
   error: string | null | undefined,
   options?: { code?: string | null }
 ): CanvasErrorInfo => {
+  if (options?.code === 'INSUFFICIENT_CREDITS') {
+    return {
+      retryable: false,
+      userFacingError: error || 'Insufficient credits.',
+      maintenanceMode: false,
+    };
+  }
+
   if (options?.code === 'MAINTENANCE_MODE') {
     return {
       retryable: false,
@@ -108,6 +116,15 @@ export const getProjectAgentCanvasErrorInfo = (
   }
 
   const normalized = error.toLowerCase();
+
+  if (normalized.includes('insufficient credits')) {
+    return {
+      retryable: false,
+      userFacingError: error,
+      maintenanceMode: false,
+    };
+  }
+
   const isRetryable = RETRYABLE_ERROR_PATTERNS.some((pattern) => normalized.includes(pattern))
     && !NON_RETRYABLE_INPUT_PATTERNS.some((pattern) => normalized.includes(pattern));
 
@@ -203,9 +220,21 @@ export const getProjectAgentCanvasErrorInfo = (
   };
 };
 
-const getMilestoneLabels = (nodeType: ProjectAgentFeatureNodeType) => {
+const getMilestoneLabels = (
+  nodeType: ProjectAgentFeatureNodeType,
+  options?: { skipCloneFrames?: boolean }
+) => {
   switch (nodeType) {
     case 'video_clone':
+      if (options?.skipCloneFrames) {
+        return [
+          ['preparing_prompt', 'Preparing prompt'],
+          ['generating_video', 'Generating video'],
+          ['merging', 'Merging video'],
+          ['completed', 'Completed'],
+        ] as const;
+      }
+
       return [
         ['preparing_prompt', 'Preparing prompt'],
         ['generating_frames', 'Generating frames'],
@@ -236,8 +265,9 @@ const buildMilestones = (
   nodeType: ProjectAgentFeatureNodeType,
   currentMilestoneKey: string,
   executionState: 'ready' | 'running' | 'completed' | 'failed',
+  options?: { skipCloneFrames?: boolean },
 ): ProjectAgentCanvasMilestone[] => {
-  const labels = getMilestoneLabels(nodeType);
+  const labels = getMilestoneLabels(nodeType, options);
   const currentIndex = Math.max(0, labels.findIndex(([key]) => key === currentMilestoneKey));
 
   return labels.map(([key, label], index) => {
@@ -272,10 +302,22 @@ const getCurrentMilestoneForClone = (
   awaitingMerge: boolean,
   needsVideoStart: boolean,
   hasActiveVideoGeneration: boolean,
+  isReferenceImageDirectMode = false,
 ) => {
   if (status === 'completed') return 'completed';
   if (awaitingMerge || step === 'merging' || status === 'merging') return 'merging';
   if (hasActiveVideoGeneration) {
+    return 'generating_video';
+  }
+  if (
+    isReferenceImageDirectMode &&
+    (
+      step === 'reviewing_segment_frames' ||
+      step === 'ready_for_video' ||
+      status === 'segment_frames_ready' ||
+      status === 'ready_for_video'
+    )
+  ) {
     return 'generating_video';
   }
   if (
@@ -364,7 +406,7 @@ export const buildVideoCloneStartPayload = (input: {
   selectedAvatarIds: input.avatar?.id ? [input.avatar.id] : [],
   selectedProductIds: input.product?.id ? [input.product.id] : [],
   supplementalText: input.text?.content?.trim() || undefined,
-  videoModel: 'kling_3' as const,
+  videoModel: input.config?.videoModel === 'seedance_2_fast' ? 'seedance_2_fast' as const : 'kling_3' as const,
   videoAspectRatio: input.config?.aspectRatio || '9:16',
   videoDuration: input.config?.videoDuration || '8',
   videoQuality: input.config?.videoQuality || '720p',
@@ -460,7 +502,10 @@ export const normalizeCloneExecutionStatus = (
   const coverImage = typeof data.coverImageUrl === 'string' ? data.coverImageUrl : null;
   const progress = toProgress(payload.progress_percentage, toProgress(payload.progress, status === 'completed' ? 100 : 20));
   const awaitingMerge = Boolean(data.awaitingMerge) || status === 'awaiting_merge';
+  const videoGenerationRequested = data.videoGenerationRequested === true;
   const step = typeof payload.current_step === 'string' ? payload.current_step : '';
+  const isSeedanceReferenceImageMode = data.videoModel === 'seedance_2_fast' &&
+    data.workflowSource === 'project_agent_clone';
   const segments = Array.isArray(data.segments)
     ? data.segments as Array<Record<string, unknown>>
     : [];
@@ -478,7 +523,16 @@ export const normalizeCloneExecutionStatus = (
     status === 'video_generating' ||
     hasSegmentVideoTask
   );
-  const needsVideoStart = (
+  const hasStaleVideoStartLock = videoGenerationRequested &&
+    !hasActiveVideoGeneration &&
+    !mergedVideo &&
+    (
+      step === 'ready_for_video' ||
+      step === 'reviewing_segment_frames' ||
+      status === 'segment_frames_ready' ||
+      status === 'ready_for_video'
+    );
+  const needsVideoStart = (!videoGenerationRequested || hasStaleVideoStartLock) && (
     step === 'ready_for_video' ||
     step === 'reviewing_segment_frames' ||
     status === 'segment_frames_ready' ||
@@ -489,10 +543,11 @@ export const normalizeCloneExecutionStatus = (
   const executionState = completed ? 'completed' : failed ? 'failed' : 'running';
   const currentMilestoneKey = getCurrentMilestoneForClone(
     status,
-    step,
+    isSeedanceReferenceImageMode && needsVideoStart ? 'generating_video' : step,
     awaitingMerge,
     needsVideoStart,
-    hasActiveVideoGeneration,
+    hasActiveVideoGeneration || (isSeedanceReferenceImageMode && needsVideoStart),
+    isSeedanceReferenceImageMode,
   );
   const error = typeof data.errorMessage === 'string' ? data.errorMessage : null;
   const { retryable, userFacingError } = getProjectAgentCanvasErrorInfo(error);
@@ -524,7 +579,9 @@ export const normalizeCloneExecutionStatus = (
       : needsVideoStart
         ? 'start_clone_video'
         : 'none',
-    milestones: buildMilestones('video_clone', currentMilestoneKey, executionState),
+    milestones: buildMilestones('video_clone', currentMilestoneKey, executionState, {
+      skipCloneFrames: isSeedanceReferenceImageMode,
+    }),
     currentMilestoneKey,
     raw: payload,
   };

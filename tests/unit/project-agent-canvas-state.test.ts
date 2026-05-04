@@ -8,6 +8,8 @@ import {
   createProjectAgentAssetNode,
   createProjectAgentCanvasEdgeId,
   createProjectAgentFeatureNode,
+  getProjectAgentCanvasNodeSize,
+  getProjectAgentCanvasTargetHandlePosition,
   getMissingFeatureInputs,
   isProjectAgentRuntimeActive,
   normalizeCanvasState,
@@ -113,6 +115,21 @@ test('video clone requires a reference video plus either avatar or product', () 
   });
   assert.deepEqual(getMissingFeatureInputs(state, featureNode.id), []);
   assert.equal(canRunFeatureNode(state, featureNode.id), true);
+});
+
+test('feature target handle position tracks the rendered feature node size', () => {
+  const featureNode = createProjectAgentFeatureNode({
+    type: 'video_clone',
+    x: 360,
+    y: 80,
+  });
+  const size = getProjectAgentCanvasNodeSize(featureNode);
+
+  assert.deepEqual(size, { width: 336, height: 272 });
+  assert.deepEqual(getProjectAgentCanvasTargetHandlePosition(featureNode), {
+    x: 360,
+    y: 80 + size.height / 2,
+  });
 });
 
 test('video clone accepts an optional text node without changing required inputs', () => {

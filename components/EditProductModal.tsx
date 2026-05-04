@@ -8,6 +8,7 @@ import { UserProduct, UserProductPhoto } from '@/lib/supabase';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import { waitForAiReferenceAngleJobs } from '@/lib/ai-reference-angle-jobs-client';
 import type { AiReferenceAngleCreateJobResponse } from '@/lib/ai-reference-angle-jobs';
+import { PRODUCT_REFERENCE_GENERATION_ASSET_TYPE } from '@/lib/asset-reference-generation';
 import { cn } from '@/lib/utils';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 import ReferenceImageGrid, { PRODUCT_REFERENCE_SLOTS } from './ReferenceImageGrid';
@@ -321,7 +322,7 @@ export default function EditProductModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          assetType: 'product',
+          assetType: PRODUCT_REFERENCE_GENERATION_ASSET_TYPE,
           imageDataUrl,
           existingReferenceCount: referencePhotos.length,
           count: missingCount

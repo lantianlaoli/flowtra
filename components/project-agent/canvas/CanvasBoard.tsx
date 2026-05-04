@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentType } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
   BrushCleaning,
+  Check,
   CheckCircle2,
+  ChevronDown,
   Circle,
   Clapperboard,
+  Coins,
   Download,
   GripVertical,
   Keyboard,
@@ -24,6 +27,14 @@ import {
   Video as VideoIcon,
   WandSparkles,
 } from 'lucide-react';
+import { ByteDance, Kling } from '@lobehub/icons';
+import {
+  GENERATION_COSTS,
+  getGenerationCost,
+  getMotionCloneGenerationCost,
+  type PersistedVideoQuality,
+  type VideoModel,
+} from '@/lib/constants';
 import {
   getProjectAgentCanvasNodeSize,
   getProjectAgentAssetDisplayName,
@@ -34,9 +45,12 @@ import {
   isProjectAgentRuntimeActive,
   PROJECT_AGENT_FEATURE_ANY_OF_INPUTS,
   PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS,
+  getProjectAgentCanvasSourceHandlePosition,
+  getProjectAgentCanvasTargetHandlePosition,
   type ProjectAgentAssetNodeType,
   type ProjectAgentCanvasNode,
   type ProjectAgentCanvasState,
+  type ProjectAgentFeatureNodeConfig,
   type ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
 import { getProjectAgentFeaturePlaceholderCopy } from '@/lib/project-agent/canvas-ui';
@@ -70,6 +84,7 @@ type CanvasBoardProps = {
   onRunFeatureNode: (nodeId: string) => void;
   onRetryFeatureNode: (nodeId: string) => void;
   onRegenerateFeatureNode: (nodeId: string) => void;
+  onUpdateFeatureNodeConfig: (nodeId: string, config: Partial<ProjectAgentFeatureNodeConfig>) => void;
   onUpdateNodeContent: (nodeId: string, content: string) => void;
   onFormatLayout: () => void;
   onBeginConnection: (event: React.PointerEvent<HTMLButtonElement>, nodeId: string) => void;
@@ -79,25 +94,11 @@ type CanvasBoardProps = {
 };
 
 const getNodeSize = (node: ProjectAgentCanvasNode) => getProjectAgentCanvasNodeSize(node);
-
-const getSourceHandlePosition = (node: ProjectAgentCanvasNode) => {
-  const size = getNodeSize(node);
-  return {
-    x: node.x + size.width,
-    y: node.y + size.height / 2,
-  };
-};
-
+const getSourceHandlePosition = getProjectAgentCanvasSourceHandlePosition;
 const getTargetHandlePosition = (
   node: ProjectAgentCanvasNode,
-  _handle: ProjectAgentAssetNodeType
-) => {
-  const size = getNodeSize(node);
-  return {
-    x: node.x,
-    y: node.y + size.height / 2,
-  };
-};
+  _handle?: ProjectAgentAssetNodeType
+) => getProjectAgentCanvasTargetHandlePosition(node);
 
 const renderEdgePath = (source: { x: number; y: number }, target: { x: number; y: number }) => {
   const dx = Math.max(60, Math.abs(target.x - source.x) / 2);
@@ -200,6 +201,76 @@ const getPlayableVideoUrl = (asset: ProjectAgentCanvasNode['asset']) => {
   return videoUrl || null;
 };
 
+const PROJECT_AGENT_VIDEO_CLONE_MODELS = [
+  {
+    value: 'kling_3' as const,
+    label: 'Kling 3',
+    Icon: Kling,
+    creditsPerSecond: GENERATION_COSTS.kling_3,
+  },
+  {
+    value: 'seedance_2_fast' as const,
+    label: 'Seedance 2 Fast',
+    Icon: ByteDance,
+    creditsPerSecond: GENERATION_COSTS.seedance_2_fast,
+  },
+] satisfies Array<{
+  value: NonNullable<ProjectAgentFeatureNodeConfig['videoModel']>;
+  label: string;
+  Icon: ComponentType<{ className?: string }>;
+  creditsPerSecond: number;
+}>;
+
+const getVideoCloneModelOption = (model: ProjectAgentFeatureNodeConfig['videoModel'] | null | undefined) => (
+  PROJECT_AGENT_VIDEO_CLONE_MODELS.find((option) => option.value === model) ||
+  PROJECT_AGENT_VIDEO_CLONE_MODELS[0]
+);
+
+const getConnectedAssetForFeature = (
+  canvas: ProjectAgentCanvasState,
+  nodeId: string,
+  handle: ProjectAgentAssetNodeType
+) => {
+  const edge = canvas.edges.find((candidate) => (
+    candidate.targetNodeId === nodeId &&
+    candidate.targetHandle === handle
+  ));
+  if (!edge) return null;
+  return canvas.nodes.find((candidate) => candidate.id === edge.sourceNodeId)?.asset || null;
+};
+
+const getFeatureEstimatedCredits = (
+  canvas: ProjectAgentCanvasState,
+  node: ProjectAgentCanvasNode
+) => {
+  if (!isProjectAgentFeatureNode(node.type)) return null;
+
+  const runCount = Math.max(1, Number(node.config?.runCount || 1));
+  const duration = node.config?.videoDuration || (node.type === 'avatar_ads' ? '16' : '8');
+
+  if (node.type === 'avatar_ads') {
+    return getGenerationCost('kling_3', duration, 'standard') * runCount;
+  }
+
+  if (node.type === 'video_clone') {
+    const model: VideoModel = node.config?.videoModel === 'seedance_2_fast'
+      ? 'seedance_2_fast'
+      : 'kling_3';
+    return getGenerationCost(model, duration, 'standard') * runCount;
+  }
+
+  const connectedVideo = getConnectedAssetForFeature(canvas, node.id, 'video');
+  const durationSeconds = Number(connectedVideo?.durationSeconds);
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    return null;
+  }
+
+  return getMotionCloneGenerationCost(
+    durationSeconds,
+    node.config?.videoQuality as PersistedVideoQuality | undefined
+  ) * runCount;
+};
+
 export default function CanvasBoard({
   canvas,
   transientSelectedNodeIds = [],
@@ -223,6 +294,7 @@ export default function CanvasBoard({
   onRunFeatureNode,
   onRetryFeatureNode,
   onRegenerateFeatureNode,
+  onUpdateFeatureNodeConfig,
   onUpdateNodeContent,
   onFormatLayout,
   onBeginConnection,
@@ -237,6 +309,7 @@ export default function CanvasBoard({
   const hoverTimeoutRef = useRef<number | null>(null);
   const [edgeHoverPoint, setEdgeHoverPoint] = useState<{ edgeId: string; x: number; y: number } | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [modelMenuNodeId, setModelMenuNodeId] = useState<string | null>(null);
 
   const getSvgPoint = (event: React.PointerEvent<SVGGElement>) => {
     const svg = event.currentTarget.ownerSVGElement;
@@ -257,6 +330,16 @@ export default function CanvasBoard({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!modelMenuNodeId) return;
+
+    const closeModelMenu = () => setModelMenuNodeId(null);
+    window.addEventListener('click', closeModelMenu);
+    return () => {
+      window.removeEventListener('click', closeModelMenu);
+    };
+  }, [modelMenuNodeId]);
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
@@ -451,7 +534,19 @@ export default function CanvasBoard({
           const failedState = executionState === 'failed';
           const canRetryFailure = failedState && !maintenanceBlocked;
           const userFacingError = node.runtime?.userFacingError || null;
+          const insufficientCredits = Boolean(
+            userFacingError?.toLowerCase().includes('insufficient credits') ||
+            node.runtime?.error?.toLowerCase().includes('insufficient credits')
+          );
+          const estimatedCredits = isFeatureNode ? getFeatureEstimatedCredits(canvas, node) : null;
           const showRunningState = executionState === 'running' && isProjectAgentRuntimeActive(node.runtime);
+          const canChangeModel = isFeatureNode && node.type === 'video_clone' && !showRunningState;
+          const selectedVideoModel = node.config?.videoModel === 'seedance_2_fast'
+            ? 'seedance_2_fast'
+            : 'kling_3';
+          const selectedVideoModelOption = getVideoCloneModelOption(selectedVideoModel);
+          const SelectedVideoModelIcon = selectedVideoModelOption.Icon;
+          const modelMenuOpen = modelMenuNodeId === node.id;
           const hasAnyInput = isFeatureNode
             ? canvas.edges.some((e) => e.targetNodeId === node.id)
             : false;
@@ -753,6 +848,69 @@ export default function CanvasBoard({
                         </TooltipContent>
                       </Tooltip>
                     ) : null}
+                    {isFeatureNode && node.type === 'video_clone' ? (
+                      <div
+                        className="relative shrink-0"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <button
+                          aria-expanded={modelMenuOpen}
+                          aria-label="Video Clone model"
+                          className={`project-agent-press-button flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold ${
+                            canChangeModel
+                              ? 'project-agent-press-button--active cursor-pointer'
+                              : 'cursor-not-allowed bg-[#f3f1ea] text-[#aaa69c]'
+                          }`}
+                          disabled={!canChangeModel}
+                          onClick={() => setModelMenuNodeId((current) => current === node.id ? null : node.id)}
+                          title="Video Clone model"
+                          type="button"
+                        >
+                          <SelectedVideoModelIcon className="h-3 w-3 shrink-0" />
+                          <span className="max-w-[112px] truncate">{selectedVideoModelOption.label}</span>
+                          <ChevronDown className={`h-2.5 w-2.5 shrink-0 transition-transform ${modelMenuOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {modelMenuOpen ? (
+                          <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-[174px] rounded-[12px] border border-[#cfcfcb] bg-[#f1f1ef] p-1.5 shadow-[0_14px_28px_rgba(0,0,0,0.16)]">
+                            {PROJECT_AGENT_VIDEO_CLONE_MODELS.map((option) => {
+                              const OptionIcon = option.Icon;
+                              const active = option.value === selectedVideoModel;
+                              return (
+                                <Tooltip key={option.value}>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      className={`flex w-full items-center gap-2 rounded-[9px] px-2 py-2 text-left text-[11px] font-semibold transition-colors ${
+                                        active
+                                          ? 'bg-black text-white'
+                                          : 'text-[#2a2a2a] hover:bg-white'
+                                      }`}
+                                      onClick={() => {
+                                        onUpdateFeatureNodeConfig(node.id, {
+                                          videoModel: option.value,
+                                        });
+                                        setModelMenuNodeId(null);
+                                      }}
+                                      type="button"
+                                    >
+                                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
+                                        active ? 'border-white/20 bg-white text-black' : 'border-[#d8d5cc] bg-white text-[#2a2a2a]'
+                                      }`}>
+                                        <OptionIcon className="h-3.5 w-3.5" />
+                                      </span>
+                                      <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                                      {active ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" sideOffset={10}>
+                                    {option.creditsPerSecond} credits / sec
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                     {showRunningState ? (
                       <div className="flex shrink-0 items-center gap-1 rounded-full bg-black px-2 py-1 text-[10px] font-semibold text-white">
                         <Loader2 className="h-2.5 w-2.5 animate-spin" />
@@ -765,7 +923,7 @@ export default function CanvasBoard({
                       </div>
                     ) : (
                       <button
-                        className={`project-agent-press-button flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${
+                        className={`project-agent-press-button flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold ${
                           canRetryFailure || canStart
                             ? 'project-agent-press-button--active cursor-pointer'
                             : maintenanceBlocked
@@ -788,21 +946,57 @@ export default function CanvasBoard({
                           onRunFeatureNode(node.id);
                         }}
                         type="button"
+                        title={estimatedCredits !== null ? `${estimatedCredits} credits` : undefined}
                       >
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-white/15">
+                          {canRetryFailure || insufficientCredits ? (
+                            <RefreshCcw className="h-2.5 w-2.5" />
+                          ) : canStart ? (
+                            <Play className="h-2.5 w-2.5 fill-current" />
+                          ) : maintenanceBlocked ? (
+                            <AlertTriangle className="h-2.5 w-2.5 text-amber-700" />
+                          ) : blockedReason ? (
+                            <AlertTriangle className="h-2.5 w-2.5 text-amber-700" />
+                          ) : failedState ? (
+                            <AlertCircle className="h-2.5 w-2.5 text-red-500" />
+                          ) : (
+                            <Play className="h-2.5 w-2.5 fill-current" />
+                          )}
+                        </span>
                         {canRetryFailure ? (
-                          <RefreshCcw className="h-2.5 w-2.5" />
-                        ) : canStart ? (
-                          <Play className="h-2.5 w-2.5 fill-white text-white" />
+                          <span>Retry</span>
+                        ) : insufficientCredits ? (
+                          <span>Retry</span>
                         ) : maintenanceBlocked ? (
-                          <AlertTriangle className="h-2.5 w-2.5 text-amber-700" />
+                          <span>Maintenance</span>
                         ) : blockedReason ? (
-                          <AlertTriangle className="h-2.5 w-2.5 text-amber-700" />
+                          <span>Warning</span>
                         ) : failedState ? (
-                          <AlertCircle className="h-2.5 w-2.5 text-red-500" />
-                        ) : (
-                          <Play className="h-2.5 w-2.5 fill-[#b8b5ad] text-[#b8b5ad]" />
-                        )}
-                        {canRetryFailure ? 'Retry' : maintenanceBlocked ? 'Maintenance' : blockedReason ? 'Warning' : failedState ? 'Failed' : 'Start'}
+                          <span>Failed</span>
+                        ) : null}
+                        {estimatedCredits !== null ? (
+                          <span className={`flex items-center gap-1 ${
+                            canRetryFailure || canStart
+                              ? 'text-white'
+                              : maintenanceBlocked || blockedReason
+                                ? 'text-amber-700'
+                                : failedState
+                                  ? 'text-red-500'
+                                  : 'text-[#b8b5ad]'
+                          }`}>
+                            <span className={`h-3 w-px ${
+                              canRetryFailure || canStart
+                                ? 'bg-white/30'
+                                : maintenanceBlocked || blockedReason
+                                  ? 'bg-amber-300'
+                                  : failedState
+                                    ? 'bg-red-200'
+                                    : 'bg-[#d7d3c8]'
+                            }`} />
+                            <Coins className="h-2.5 w-2.5" />
+                            <span>{estimatedCredits}</span>
+                          </span>
+                        ) : null}
                       </button>
                     )}
                   </div>

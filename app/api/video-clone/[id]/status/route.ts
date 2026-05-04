@@ -66,6 +66,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       firstFrameUrl: string | null;
       closingFrameUrl: string | null;
       videoUrl: string | null;
+      videoTaskId: string | null;
       errorMessage?: string | null;
       prompt: Record<string, unknown> | null;
       updatedAt: string | null;
@@ -73,11 +74,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const recordModel = (record.video_model ?? null) as VideoModel | null;
     const perSegmentDuration = record.segment_duration_seconds || getSegmentDurationForModel(recordModel);
+    const shouldUseSegmentRows = Boolean(record.is_segmented) || Number(record.segment_count || 0) > 0;
 
-    if (record.is_segmented) {
-      // Schema verified via Supabase MCP (2026-03-03): video_clone_segments columns include
+    if (shouldUseSegmentRows) {
+      // Schema verified via Supabase MCP (2026-05-03): video_clone_segments columns include
       // segment_index, status, first_frame_task_id, first_frame_url, closing_frame_url,
-      // video_url, prompt, updated_at, error_message.
+      // video_url, video_task_id, prompt, updated_at, error_message.
       const { data: segmentRows, error: segmentError } = await supabase
         .from('video_clone_segments')
         .select('segment_index,status,first_frame_task_id,first_frame_url,closing_frame_url,video_url,video_task_id,prompt,updated_at,error_message')
@@ -108,7 +110,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const storedMergeUrl =
       (record.segment_status as { mergedVideoUrl?: string | null } | null)?.mergedVideoUrl || null;
-    const segmentStatus = record.is_segmented
+    const segmentStatus = shouldUseSegmentRows
       ? buildSegmentStatusFallback(segments, storedMergeUrl)
       : null;
 
@@ -120,16 +122,36 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const segmentPlanPayload = normalizedPlanSegments.length > 0
       ? { segments: normalizedPlanSegments }
       : null;
+    const selectedInputs = record.selected_inputs && typeof record.selected_inputs === 'object'
+      ? record.selected_inputs as Record<string, unknown>
+      : null;
+    const isProjectAgentSeedanceDirectMode = record.video_model === 'seedance_2_fast' &&
+      selectedInputs?.workflowSource === 'project_agent_clone';
+    const hasReadySegmentWithoutVideoTask = Boolean(
+      isProjectAgentSeedanceDirectMode &&
+      segments?.length &&
+      segments.every((segment) => (
+        segment.status === 'ready_for_video' &&
+        !segment.videoTaskId &&
+        !segment.videoUrl
+      ))
+    );
+    const effectiveCurrentStep = hasReadySegmentWithoutVideoTask
+      ? 'ready_for_video'
+      : record.current_step;
+    const effectiveProgress = hasReadySegmentWithoutVideoTask
+      ? Math.max(record.progress_percentage || 0, 60)
+      : (record.progress_percentage || 0);
 
     const response = {
       success: true,
       projectId: record.id,
       workflowStatus: record.status,
-      currentStep: record.current_step,
-      progress: record.progress_percentage || 0,
+      currentStep: effectiveCurrentStep,
+      progress: effectiveProgress,
       status: record.status,
-      current_step: record.current_step,
-      progress_percentage: record.progress_percentage || 0,
+      current_step: effectiveCurrentStep,
+      progress_percentage: effectiveProgress,
       language: record.language || null,
       video_prompts: record.video_prompts || null,
       data: {
@@ -142,10 +164,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         errorMessage: record.error_message || null,
         creditsUsed: record.generation_credits_used || 0,
         videoModel: record.video_model || 'seedance_2_fast',
+        workflowSource: typeof selectedInputs?.workflowSource === 'string' ? selectedInputs.workflowSource : null,
         videoDuration: record.video_duration || null,
         segmentCount: record.segment_count || null,
         segmentDurationSeconds: record.segment_duration_seconds || null,
-        isSegmented: record.is_segmented || false,
+        isSegmented: shouldUseSegmentRows,
         videoAspectRatio: record.video_aspect_ratio || null,
         segmentStatus,
         segmentPlan: segmentPlanPayload,

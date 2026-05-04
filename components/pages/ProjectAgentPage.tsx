@@ -43,6 +43,7 @@ import {
   createProjectAgentCanvasNodeId,
   createProjectAgentFeatureNode,
   getProjectAgentCanvasNodeSize,
+  getProjectAgentCanvasTargetHandlePosition,
   getConnectedAssetNodeMap,
   getCanvasConnectionError,
   getFeatureStartBlockedReason,
@@ -61,6 +62,7 @@ import {
   type ProjectAgentCanvasNode,
   type ProjectAgentCanvasRunStatus,
   type ProjectAgentCanvasState,
+  type ProjectAgentFeatureNodeConfig,
   type ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
 import {
@@ -844,6 +846,9 @@ export default function ProjectAgentPage() {
           }
         }
       }
+    } catch {
+      // Status polling is best-effort; transient network failures should not surface
+      // as unhandled rejections because Realtime/interval refreshes will retry.
     } finally {
       statusFetchInFlightRef.current.delete(inFlightKey);
     }
@@ -999,10 +1004,7 @@ export default function ProjectAgentPage() {
       distance: number;
       errorMessage: string | null;
     } | null>((closest, node) => {
-      const targetPoint = {
-        x: node.x,
-        y: node.y + 108,  // feature node height (216) / 2
-      };
+      const targetPoint = getProjectAgentCanvasTargetHandlePosition(node);
       const distance = Math.hypot(point.x - targetPoint.x, point.y - targetPoint.y);
       if (distance > 50) return closest;
       if (!closest || distance < closest.distance) {
@@ -1580,6 +1582,23 @@ export default function ProjectAgentPage() {
     });
   }, [pageMessages.defaults.text, updateCanvas]);
 
+  const handleUpdateFeatureNodeConfig = useCallback((
+    nodeId: string,
+    config: Partial<ProjectAgentFeatureNodeConfig>
+  ) => {
+    updateCanvas((current) => {
+      const node = getProjectAgentCanvasNodeById(current, nodeId);
+      if (!node || !isProjectAgentFeatureNode(node.type)) return current;
+      return upsertCanvasNode(current, {
+        ...node,
+        config: {
+          ...(node.config || {}),
+          ...config,
+        },
+      });
+    });
+  }, [updateCanvas]);
+
   const handleFormatLayout = useCallback(() => {
     updateCanvas((current) => {
       const ASSET_X = 80;
@@ -1591,7 +1610,7 @@ export default function ProjectAgentPage() {
       const getNodeHeight = (node: ProjectAgentCanvasNode) => {
         if (node.type === 'video') return 308;
         if (isProjectAgentAssetNode(node.type)) return 210;
-        if (isProjectAgentFeatureNode(node.type)) return 216;
+        if (isProjectAgentFeatureNode(node.type)) return getProjectAgentCanvasNodeSize(node).height;
         return 308;
       };
 
@@ -1676,6 +1695,62 @@ export default function ProjectAgentPage() {
     const node = getProjectAgentCanvasNodeById(canvas, nodeId);
     if (!node || !isProjectAgentFeatureNode(node.type)) return;
     const connectedAssets = buildNodeConnectedAssetsPayload(nodeId);
+
+    const preflightResponse = await fetch('/api/project-agent/canvas-run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nodeType: node.type,
+        mode: 'preflight',
+        config: node.config,
+        connectedAssets,
+      }),
+    });
+
+    const preflightPayload = await preflightResponse.json().catch(() => ({})) as {
+      error?: string;
+      code?: string;
+      requiredCredits?: number;
+      currentCredits?: number;
+    };
+
+    if (!preflightResponse.ok) {
+      const requiredCredits = typeof preflightPayload.requiredCredits === 'number'
+        ? preflightPayload.requiredCredits
+        : null;
+      const currentCredits = typeof preflightPayload.currentCredits === 'number'
+        ? preflightPayload.currentCredits
+        : null;
+      const insufficientCreditsMessage = preflightPayload.code === 'INSUFFICIENT_CREDITS' && requiredCredits !== null
+        ? currentCredits !== null
+          ? `Insufficient credits. Need ${requiredCredits} credits, you have ${currentCredits}.`
+          : `Insufficient credits. Need ${requiredCredits} credits.`
+        : preflightPayload.error || 'Unable to start this run.';
+      const errorInfo = getProjectAgentCanvasErrorInfo(insufficientCreditsMessage, {
+        code: preflightPayload.code,
+      });
+
+      updateCanvas((current) => {
+        const nextNode = getProjectAgentCanvasNodeById(current, nodeId);
+        if (!nextNode) return current;
+        return upsertCanvasNode(current, {
+          ...nextNode,
+          runtime: {
+            ...(nextNode.runtime || {}),
+            executionState: 'invalid',
+            error: insufficientCreditsMessage,
+            userFacingError: errorInfo.userFacingError,
+            retryable: false,
+            maintenanceBlocked: false,
+            canStart: true,
+            statusLabel: preflightPayload.code === 'INSUFFICIENT_CREDITS'
+              ? 'Insufficient credits'
+              : 'Unable to start',
+          },
+        });
+      });
+      return;
+    }
 
     updateCanvas((current) => {
       const nextNode = getProjectAgentCanvasNodeById(current, nodeId);
@@ -1965,6 +2040,7 @@ export default function ProjectAgentPage() {
                     }
                     return setSingleSelectedNode(current, nodeId);
                   })}
+                  onUpdateFeatureNodeConfig={handleUpdateFeatureNodeConfig}
                   onUpdateNodeContent={handleUpdateNodeContent}
                   pendingConnectionSourceId={pendingConnectionSourceId}
                   selectedEdgeId={selectedEdgeId}
