@@ -7,6 +7,7 @@ import {
   Video as VideoIcon,
   ArrowRight,
   Coins,
+  AlertCircle,
 } from "lucide-react";
 import GenerationProgressDisplay, {
   type Generation,
@@ -1097,6 +1098,19 @@ export default function MotionClonePage() {
         userEmail={user?.primaryEmailAddress?.emailAddress}
         userImageUrl={user?.imageUrl}
       />
+      <div className="fixed top-0 right-0 bottom-0 z-[90] flex items-center justify-center bg-white/[0.78] px-4 backdrop-blur-[6px]" style={{ left: 'var(--dashboard-sidebar-width, 14rem)' }}>
+        <div className="w-full max-w-md rounded-[24px] border border-border bg-white p-6 text-center shadow-[0_24px_70px_rgba(0,0,0,0.12)]">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#F7F7F7] text-black">
+            <AlertCircle className="h-6 w-6" />
+          </div>
+          <h2 className="text-2xl font-semibold tracking-tight text-black">
+            Motion Clone is being upgraded
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-[#666666]">
+            We're improving motion cloning quality and adding new model options. This workspace will be back soon.
+          </p>
+        </div>
+      </div>
       <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
         <div className="flex-1 flex flex-col min-h-0">
           <section className="flex-1 flex px-8 md:px-12 lg:px-16 pb-24 md:pb-28 min-h-0">
