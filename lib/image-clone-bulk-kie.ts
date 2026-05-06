@@ -8,6 +8,7 @@ import type {
 const KIE_CREATE_TASK_URL = "https://api.kie.ai/api/v1/jobs/createTask";
 const KIE_RECORD_INFO_URL = "https://api.kie.ai/api/v1/jobs/recordInfo";
 const KIE_MODEL = "gpt-image-2-image-to-image";
+const CREATE_TASK_MAX_ATTEMPTS = 3;
 
 type KieRecordInfo = {
   code?: number;
@@ -27,7 +28,39 @@ function getKieApiKey() {
   return apiKey;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function isRetryableImageCloneBulkKieError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /\binternal error\b|please try again later|temporar|timeout|timed out|5\d\d|bad gateway|service unavailable|gateway timeout/i.test(message);
+}
+
 export async function createImageCloneBulkKieTask(input: {
+  prompt: string;
+  inputUrls: string[];
+  aspectRatio: ImageCloneBulkAspectRatio;
+  resolution: ImageCloneBulkResolution;
+}) {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= CREATE_TASK_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await createImageCloneBulkKieTaskOnce(input);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= CREATE_TASK_MAX_ATTEMPTS || !isRetryableImageCloneBulkKieError(error)) {
+        throw error;
+      }
+      const delay = Math.min(1000 * 2 ** (attempt - 1), 4000);
+      console.warn(`[image-clone-bulk] KIE createTask failed, retrying ${attempt}/${CREATE_TASK_MAX_ATTEMPTS}`, error);
+      await sleep(delay);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("KIE task creation failed.");
+}
+
+async function createImageCloneBulkKieTaskOnce(input: {
   prompt: string;
   inputUrls: string[];
   aspectRatio: ImageCloneBulkAspectRatio;

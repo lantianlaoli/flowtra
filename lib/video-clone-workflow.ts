@@ -4915,7 +4915,9 @@ async function startSegmentVideoTaskSeedance(
   console.log(`🎬 Seedance Segment ${segmentIndex + 1}/${totalSegments}: Images count = ${useReferenceImageMode ? referenceImageUrls.length : inputUrls.length} ${useReferenceImageMode ? '(reference images)' : hasClosingFrame ? '(first + closing)' : '(first only)'}`);
 
   const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
-  const resolution = mapCloneQualityToSeedanceResolution(project.video_quality);
+  const resolution = model === 'seedance_2_fast'
+    ? '720p'
+    : mapCloneQualityToSeedanceResolution(project.video_quality);
 
   // Build prompt text from segment fields
   const promptParts: string[] = [];

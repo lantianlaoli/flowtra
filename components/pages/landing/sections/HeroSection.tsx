@@ -12,7 +12,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
-import { Google, Kling } from "@lobehub/icons";
+import { OpenAI, Kling } from "@lobehub/icons";
 import TikTokInputHero from "@/components/pages/landing/TikTokInputHero";
 import { LazyVideoPlayer } from "@/components/pages/landing/LazyVideoPlayer";
 import BlackFridayBadge from "@/components/landing/BlackFridayBadge";
@@ -86,7 +86,7 @@ export default function HeroSection() {
             className="inline-flex rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
           >
             <LiveModelBadge
-              icon={<Google className="w-3.5 h-3.5 text-[#37352f]" />}
+              icon={<OpenAI className="w-3.5 h-3.5 text-[#37352f]" />}
               label={heroMessages.badges.gptImage2Live}
             />
           </a>

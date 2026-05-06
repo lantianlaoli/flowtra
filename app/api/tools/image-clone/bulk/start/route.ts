@@ -14,6 +14,7 @@ import { uploadImageForClone } from "@/lib/image-clone";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
+const BULK_GENERATION_MAX_RETRIES = 2;
 
 function dedupeImages(images: ImageCloneBulkImage[]) {
   const seen = new Set<string>();
@@ -106,6 +107,12 @@ export async function POST(request: Request) {
         taskId,
         status: "waiting",
         updatedAt: new Date().toISOString(),
+        prompt,
+        inputUrls,
+        aspectRatio: row.aspectRatio,
+        resolution: row.resolution,
+        retryCount: 0,
+        maxRetries: BULK_GENERATION_MAX_RETRIES,
       });
 
       jobs.push({

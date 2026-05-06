@@ -6,6 +6,7 @@ import { Check, ChevronDown, CircleHelp, Lock, MonitorPlay } from 'lucide-react'
 import { cn } from '@/lib/utils';
 import {
   GENERATION_COSTS,
+  SEEDANCE_2_QUALITY_COSTS,
   normalizeCloneVideoQualityForModel,
   type CloneVideoQuality,
   type VideoModel
@@ -45,6 +46,13 @@ function getQualityOptions(model: VideoModel): QualityOption[] {
   if (model === 'seedance_2_fast') {
     return [
       { value: '720p', label: '720p', creditsPerSecondLabel: '33 credits / s' }
+    ];
+  }
+
+  if (model === 'seedance_2') {
+    return [
+      { value: '720p', label: '720p', creditsPerSecondLabel: `${SEEDANCE_2_QUALITY_COSTS['720p']} credits / s` },
+      { value: '1080p', label: '1080p', creditsPerSecondLabel: `${SEEDANCE_2_QUALITY_COSTS['1080p']} credits / s` }
     ];
   }
 

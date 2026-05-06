@@ -937,7 +937,11 @@ const buildSystemPrompt = (state: SessionState) => {
   const motionCloneQuality = state.motionClone?.videoQuality || '720p';
   const motionCloneCredits = typeof state.motionClone?.creditsCost === 'number' ? state.motionClone.creditsCost : 'unset';
   const motionCloneError = state.motionClone?.error || 'none';
-  const selectedVideoModel = normalizeProjectAgentVideoModel(state.videoModel, 'kling_3', state.intent);
+  const selectedVideoModel = normalizeProjectAgentVideoModel(
+    state.videoModel,
+    state.intent === 'video_clone' ? 'seedance_2' : 'kling_3',
+    state.intent
+  );
   const effectiveVideoModel = getEffectiveProjectAgentVideoModel(state.intent, state.videoModel);
   const canvasSummary = summarizeProjectAgentCanvas(state.canvas ?? normalizeCanvasState(null));
   const pendingUiRequestSummary = state.pendingUiRequest
@@ -1207,7 +1211,11 @@ const mergeState = (state: SessionState, patch: Partial<SessionState>) => {
 
   return {
     ...nextState,
-    videoModel: normalizeProjectAgentVideoModel(nextState.videoModel, 'kling_3', nextState.intent)
+    videoModel: normalizeProjectAgentVideoModel(
+      nextState.videoModel,
+      nextState.intent === 'video_clone' ? 'seedance_2' : 'kling_3',
+      nextState.intent
+    )
   };
 };
 
@@ -1215,7 +1223,7 @@ const buildFreshCloneState = (state: SessionState): SessionState => ({
   ...state,
   intent: 'video_clone',
   canvasIntent: null,
-  videoModel: 'kling_3',
+  videoModel: 'seedance_2',
   pendingUiRequest: null,
   cloneReferenceVideo: undefined,
   cloneReplacementDraft: undefined,
@@ -1380,7 +1388,7 @@ const toCloneExecutionFromStatusPayload = (projectId: string, payload: Record<st
   }));
 
   const videoModel = data.videoModel;
-  const normalizedModel = normalizeProjectAgentVideoModel(videoModel, 'kling_3', 'video_clone');
+  const normalizedModel = normalizeProjectAgentVideoModel(videoModel, 'seedance_2', 'video_clone');
 
   return {
     projectId,

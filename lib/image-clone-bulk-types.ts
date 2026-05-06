@@ -56,4 +56,10 @@ export type ImageCloneBulkJob = {
 export type ImageCloneBulkStoredJobStatus = Pick<ImageCloneBulkJob, "status" | "resultUrl" | "error"> & {
   taskId: string;
   updatedAt: string;
+  prompt?: string;
+  inputUrls?: string[];
+  aspectRatio?: ImageCloneBulkAspectRatio;
+  resolution?: ImageCloneBulkResolution;
+  retryCount?: number;
+  maxRetries?: number;
 };

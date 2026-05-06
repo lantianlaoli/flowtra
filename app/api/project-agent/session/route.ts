@@ -104,7 +104,11 @@ const normalizeSessionPatchState = (state: Record<string, unknown>) => {
       ? state.appliedCanvasActionCallIds.filter((item): item is string => typeof item === 'string').slice(-200)
       : [],
     motionClone,
-    videoModel: normalizeProjectAgentVideoModel(state.videoModel, 'kling_3', intent)
+    videoModel: normalizeProjectAgentVideoModel(
+      state.videoModel,
+      intent === 'video_clone' ? 'seedance_2' : 'kling_3',
+      intent
+    )
   };
 };
 

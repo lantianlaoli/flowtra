@@ -406,10 +406,14 @@ export const buildVideoCloneStartPayload = (input: {
   selectedAvatarIds: input.avatar?.id ? [input.avatar.id] : [],
   selectedProductIds: input.product?.id ? [input.product.id] : [],
   supplementalText: input.text?.content?.trim() || undefined,
-  videoModel: input.config?.videoModel === 'seedance_2_fast' ? 'seedance_2_fast' as const : 'kling_3' as const,
+  videoModel: input.config?.videoModel === 'seedance_2_fast'
+    ? 'seedance_2_fast' as const
+    : input.config?.videoModel === 'seedance_2'
+      ? 'seedance_2' as const
+      : 'kling_3' as const,
   videoAspectRatio: input.config?.aspectRatio || '9:16',
   videoDuration: input.config?.videoDuration || '8',
-  videoQuality: input.config?.videoQuality || '720p',
+  videoQuality: input.config?.videoQuality || (input.config?.videoModel === 'seedance_2' ? '1080p' : '720p'),
   language: input.config?.language || input.video.analysisLanguage || 'en',
   shouldGenerateVideo: true,
   photoOnly: false,
