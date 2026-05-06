@@ -1986,7 +1986,7 @@ export default function VideoClonePage() {
     <>
       <div className="min-h-screen bg-background">
         <Sidebar {...sidebarProps} />
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-white/[0.78] px-4 backdrop-blur-[6px]">
+        <div className="fixed top-0 right-0 bottom-0 z-[90] flex items-center justify-center bg-white/[0.78] px-4 backdrop-blur-[6px]" style={{ left: 'var(--dashboard-sidebar-width, 14rem)' }}>
           <div className="w-full max-w-md rounded-[24px] border border-border bg-white p-6 text-center shadow-[0_24px_70px_rgba(0,0,0,0.12)]">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#F7F7F7] text-black">
               <AlertCircle className="h-6 w-6" />
