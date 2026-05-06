@@ -30,6 +30,7 @@ import {
 import { ByteDance, Kling } from '@lobehub/icons';
 import {
   GENERATION_COSTS,
+  SEEDANCE_2_QUALITY_COSTS,
   getGenerationCost,
   getMotionCloneGenerationCost,
   type PersistedVideoQuality,
@@ -203,6 +204,12 @@ const getPlayableVideoUrl = (asset: ProjectAgentCanvasNode['asset']) => {
 
 const PROJECT_AGENT_VIDEO_CLONE_MODELS = [
   {
+    value: 'seedance_2' as const,
+    label: 'Seedance 2 1080p',
+    Icon: ByteDance,
+    creditsPerSecond: SEEDANCE_2_QUALITY_COSTS['1080p'],
+  },
+  {
     value: 'kling_3' as const,
     label: 'Kling 3',
     Icon: Kling,
@@ -253,10 +260,15 @@ const getFeatureEstimatedCredits = (
   }
 
   if (node.type === 'video_clone') {
-    const model: VideoModel = node.config?.videoModel === 'seedance_2_fast'
-      ? 'seedance_2_fast'
-      : 'kling_3';
-    return getGenerationCost(model, duration, 'standard') * runCount;
+    const model: VideoModel =
+      node.config?.videoModel === 'seedance_2_fast' ||
+      node.config?.videoModel === 'seedance_2'
+        ? node.config.videoModel
+        : 'kling_3';
+    const quality = model === 'seedance_2'
+      ? '1080p'
+      : node.config?.videoQuality || 'standard';
+    return getGenerationCost(model, duration, quality) * runCount;
   }
 
   const connectedVideo = getConnectedAssetForFeature(canvas, node.id, 'video');
@@ -541,9 +553,11 @@ export default function CanvasBoard({
           const estimatedCredits = isFeatureNode ? getFeatureEstimatedCredits(canvas, node) : null;
           const showRunningState = executionState === 'running' && isProjectAgentRuntimeActive(node.runtime);
           const canChangeModel = isFeatureNode && node.type === 'video_clone' && !showRunningState;
-          const selectedVideoModel = node.config?.videoModel === 'seedance_2_fast'
-            ? 'seedance_2_fast'
-            : 'kling_3';
+          const selectedVideoModel =
+            node.config?.videoModel === 'seedance_2_fast' ||
+            node.config?.videoModel === 'seedance_2'
+              ? node.config.videoModel
+              : 'kling_3';
           const selectedVideoModelOption = getVideoCloneModelOption(selectedVideoModel);
           const SelectedVideoModelIcon = selectedVideoModelOption.Icon;
           const modelMenuOpen = modelMenuNodeId === node.id;
@@ -887,6 +901,7 @@ export default function CanvasBoard({
                                       onClick={() => {
                                         onUpdateFeatureNodeConfig(node.id, {
                                           videoModel: option.value,
+                                          videoQuality: option.value === 'seedance_2' ? '1080p' : '720p',
                                         });
                                         setModelMenuNodeId(null);
                                       }}

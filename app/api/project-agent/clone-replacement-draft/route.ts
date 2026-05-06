@@ -864,7 +864,7 @@ export async function POST(request: NextRequest) {
 
     const nextState: SessionState = {
       ...state,
-      videoModel: 'kling_3',
+      videoModel: 'seedance_2',
       cloneReplacementDraft
     };
 

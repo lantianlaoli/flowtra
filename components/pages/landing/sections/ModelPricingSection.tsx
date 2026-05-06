@@ -35,6 +35,7 @@ export default function ModelPricingSection() {
       billingType: 'generation' as const,
       pricingOptions: [
         { resolution: '720p', credits: 2460 },
+        { resolution: '1080p', credits: 6120 },
       ] as PricingOption[],
     },
     {

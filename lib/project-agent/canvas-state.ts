@@ -329,8 +329,10 @@ export const createProjectAgentFeatureNode = (input: {
     videoDuration: input.type === 'avatar_ads' ? '16' : '8',
     videoModel: input.type === 'avatar_ads'
       ? 'kling_3'
-      : 'kling_3',
-    videoQuality: '720p',
+      : input.type === 'video_clone'
+        ? 'seedance_2'
+        : 'kling_3',
+    videoQuality: input.type === 'video_clone' ? '1080p' : '720p',
     ...input.config,
   },
   runtime: {

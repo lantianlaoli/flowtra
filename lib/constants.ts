@@ -10,6 +10,11 @@ export const GENERATION_COSTS = {
   'wan_27': 24 // Wan 2.7 (1080p): 24 credits per second
 } as const;
 
+export const SEEDANCE_2_QUALITY_COSTS = {
+  '720p': 41,
+  '1080p': 102
+} as const;
+
 export const KLING_QUALITY_COSTS = {
   '720p': 20,
   '1080p': 27
@@ -149,7 +154,17 @@ export function getGenerationCost(
     return Math.ceil(duration) * perSecondCost;
   }
 
-  if (model === 'seedance_2_fast' || model === 'seedance_2') {
+  if (model === 'seedance_2') {
+    const perSecondCost = normalizedCloneQuality === '1080p'
+      ? SEEDANCE_2_QUALITY_COSTS['1080p']
+      : SEEDANCE_2_QUALITY_COSTS['720p'];
+    if (!Number.isFinite(duration) || duration <= 0) {
+      return perSecondCost * DEFAULT_SEGMENT_DURATION_SECONDS;
+    }
+    return Math.ceil(duration) * perSecondCost;
+  }
+
+  if (model === 'seedance_2_fast') {
     if (!Number.isFinite(duration) || duration <= 0) {
       return GENERATION_COSTS[model] * DEFAULT_SEGMENT_DURATION_SECONDS;
     }
@@ -362,7 +377,10 @@ export function getDefaultCloneVideoQuality(model: VideoModel): CloneVideoQualit
   if (model === 'wan_27') {
     return '1080p';
   }
-  if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2') {
+  if (model === 'seedance_2') {
+    return '1080p';
+  }
+  if (model === 'kling_3' || model === 'seedance_2_fast') {
     return '720p';
   }
   return '720p';
@@ -386,7 +404,11 @@ export function normalizeCloneVideoQualityForModel(
     return normalized === '1080p' ? '1080p' : '720p';
   }
 
-  if (model === 'seedance_2_fast' || model === 'seedance_2') {
+  if (model === 'seedance_2') {
+    return normalized === '720p' ? '720p' : '1080p';
+  }
+
+  if (model === 'seedance_2_fast') {
     return '720p';
   }
 
@@ -400,8 +422,13 @@ export function mapCloneQualityToKlingMode(quality?: PersistedVideoQuality | nul
 
 export function mapCloneQualityToSeedanceResolution(
   quality?: PersistedVideoQuality | null
-): '720p' {
-  return '720p';
+): '720p' | '1080p' {
+  const normalized = quality === 'standard'
+    ? '720p'
+    : quality === 'high'
+      ? '1080p'
+      : quality;
+  return normalized === '1080p' ? '1080p' : '720p';
 }
 
 export function getCloneSegmentVideoGenerationCost(
@@ -422,7 +449,18 @@ export function getCloneSegmentVideoGenerationCost(
     return effectiveDuration * perSecondCost;
   }
 
-  if (model === 'seedance_2_fast' || model === 'seedance_2' || model === 'wan_27') {
+  if (model === 'seedance_2') {
+    const duration = Number(segmentDurationSeconds);
+    const effectiveDuration = Number.isFinite(duration) && duration > 0
+      ? Math.ceil(duration)
+      : DEFAULT_SEGMENT_DURATION_SECONDS;
+    const perSecondCost = normalizedQuality === '1080p'
+      ? SEEDANCE_2_QUALITY_COSTS['1080p']
+      : SEEDANCE_2_QUALITY_COSTS['720p'];
+    return effectiveDuration * perSecondCost;
+  }
+
+  if (model === 'seedance_2_fast' || model === 'wan_27') {
     const duration = Number(segmentDurationSeconds);
     const effectiveDuration = Number.isFinite(duration) && duration > 0
       ? Math.ceil(duration)

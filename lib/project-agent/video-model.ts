@@ -2,7 +2,7 @@ import type { VideoModel } from '@/lib/constants';
 
 export type ProjectAgentIntent = 'avatar_ads' | 'video_clone' | 'motion_clone';
 
-export const PROJECT_AGENT_VIDEO_MODELS: VideoModel[] = ['kling_3'];
+export const PROJECT_AGENT_VIDEO_MODELS: VideoModel[] = ['seedance_2', 'kling_3', 'seedance_2_fast'];
 
 export function getProjectAgentVideoModels(intent?: ProjectAgentIntent): VideoModel[] {
   return PROJECT_AGENT_VIDEO_MODELS;
@@ -23,15 +23,18 @@ export function normalizeProjectAgentVideoModel(
   if (isProjectAgentVideoModel(value, intent)) {
     return value;
   }
-  return 'kling_3';
+  return isProjectAgentVideoModel(fallback, intent) ? fallback : 'kling_3';
 }
 
 export function getEffectiveProjectAgentVideoModel(
   intent: ProjectAgentIntent | undefined,
   preferredModel: unknown
 ): VideoModel {
-  if (intent === 'avatar_ads' || intent === 'video_clone') {
+  if (intent === 'avatar_ads') {
     return 'kling_3';
+  }
+  if (intent === 'video_clone') {
+    return normalizeProjectAgentVideoModel(preferredModel, 'seedance_2', intent);
   }
   return normalizeProjectAgentVideoModel(preferredModel, 'kling_3', intent);
 }
@@ -40,5 +43,8 @@ export function isProjectAgentModelDisabledForIntent(
   model: VideoModel,
   intent: ProjectAgentIntent | undefined
 ): boolean {
+  if (intent === 'video_clone') {
+    return model !== 'seedance_2' && model !== 'kling_3' && model !== 'seedance_2_fast';
+  }
   return model !== 'kling_3';
 }

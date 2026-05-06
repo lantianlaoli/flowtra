@@ -7,9 +7,11 @@ import { ByteDance, Kling, Qwen } from '@lobehub/icons';
 import { cn } from '@/lib/utils';
 import {
   GENERATION_COSTS,
+  SEEDANCE_2_QUALITY_COSTS,
   getProcessingTime,
   getModelCostByConfig,
   getVideoModelDisplayName,
+  normalizeCloneVideoQualityForModel,
   type PersistedVideoQuality,
   type VideoDuration,
   type VideoModel
@@ -63,6 +65,16 @@ export default function VideoModelSelector({
 
   // Model options with Generation-Time Billing (downloads are FREE)
   const modelOptions = useMemo(() => {
+    const getCreditsPerSecond = (model: VideoModel): number => {
+      if (model === 'seedance_2') {
+        const quality = normalizeCloneVideoQualityForModel(model, videoQuality);
+        return quality === '1080p'
+          ? SEEDANCE_2_QUALITY_COSTS['1080p']
+          : SEEDANCE_2_QUALITY_COSTS['720p'];
+      }
+      return GENERATION_COSTS[model] || 0;
+    };
+
     // Helper function to calculate duration-based cost
     const calculateDurationCost = (model: VideoModel): number => {
       if (!videoDurationSeconds) {
@@ -73,7 +85,7 @@ export default function VideoModelSelector({
         // Fallback to base cost if no config provided
         return GENERATION_COSTS[model] || 0;
       }
-      return Math.ceil(videoDurationSeconds) * (GENERATION_COSTS[model] || 0);
+      return Math.ceil(videoDurationSeconds) * getCreditsPerSecond(model);
     };
 
     // Check if model is supported by current quality config or disabledModels list
@@ -105,9 +117,9 @@ export default function VideoModelSelector({
         description: 'Higher-fidelity ByteDance generation',
         icon: ByteDance,
         cost: calculateDurationCost('seedance_2'),
-        creditsPerSecond: GENERATION_COSTS['seedance_2'],
+        creditsPerSecond: getCreditsPerSecond('seedance_2'),
         processingTime: getProcessingTime('seedance_2'),
-        features: 'Native 720p, richer motion',
+        features: '720p or 1080p, richer motion',
         supported: isModelSupported('seedance_2'),
         badge: 'Pro'
       },

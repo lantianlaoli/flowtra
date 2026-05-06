@@ -1986,6 +1986,19 @@ export default function VideoClonePage() {
     <>
       <div className="min-h-screen bg-background">
         <Sidebar {...sidebarProps} />
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-white/[0.78] px-4 backdrop-blur-[6px]">
+          <div className="w-full max-w-md rounded-[24px] border border-border bg-white p-6 text-center shadow-[0_24px_70px_rgba(0,0,0,0.12)]">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#F7F7F7] text-black">
+              <AlertCircle className="h-6 w-6" />
+            </div>
+            <h2 className="text-2xl font-semibold tracking-tight text-black">
+              Video Clone is being upgraded
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-[#666666]">
+              This workspace is temporarily unavailable while we improve generation quality and model options.
+            </p>
+          </div>
+        </div>
         <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen flex flex-col min-h-0 pt-16 md:pt-12">
           <div className="flex-1 flex flex-col min-h-0">
             {/* Main Content Area - Progress Display */}
