@@ -5,7 +5,7 @@ import { DefaultChatTransport } from 'ai';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import { useUser } from '@clerk/nextjs';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { AlertTriangle, ArrowUpRight, HelpCircle, History, Loader2, MessageCircle, Plus, Search, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowUpRight, HelpCircle, History, Loader2, MessageCircle, Plus, Search, X } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import CreateAvatarModal from '@/components/CreateAvatarModal';
@@ -2211,141 +2211,18 @@ export default function ProjectAgentPage() {
                 </div>
               </div>
 
-              {statusNote ? (
-                <div className="project-agent-chat-collapsible project-agent-status-note mx-4 mt-3 inline-flex items-start gap-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 max-[1320px]:hidden">
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <span>{statusNote}</span>
-                </div>
-              ) : null}
-
-              {pendingUiRequest?.type === 'confirmation' ? (
-                <div className="project-agent-chat-collapsible project-agent-confirmation mx-4 mt-3 rounded-[14px] border border-[#d9d9d7] bg-[#f7f7f5] px-4 py-3 max-[1320px]:hidden">
-                  <p className="project-agent-confirmation-title text-sm font-semibold text-[#1f1f1e]">{pendingUiRequest.title}</p>
-                  <p className="project-agent-confirmation-copy mt-1 text-xs leading-5 text-[#6c6c66]">{pendingUiRequest.message}</p>
-                  <div className="mt-3 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleConfirmPendingAction}
-                      className="project-agent-confirmation-primary rounded-[12px] bg-[#111111] px-3 py-2 text-xs font-semibold text-white"
-                    >
-                      Confirm
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCancelPendingAction}
-                      className="project-agent-confirmation-secondary rounded-[12px] border border-[#d3d3d0] bg-white px-3 py-2 text-xs font-semibold text-[#1f1f1e]"
-                    >
-                      Cancel
-                    </button>
+              <div className="project-agent-chat-collapsible min-h-0 flex-1 flex items-center justify-center px-6 py-10 max-[1320px]:hidden">
+                <div className="w-full max-w-sm text-center">
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#F7F7F7] text-black">
+                    <AlertCircle className="h-6 w-6" />
                   </div>
+                  <h3 className="text-lg font-semibold tracking-tight text-[#1f1f1e]">
+                    AI Agent is being upgraded
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-[#666666]">
+                    We're improving agent capabilities and canvas workflows. This feature will be back soon.
+                  </p>
                 </div>
-              ) : null}
-
-              <div ref={chatScrollContainerRef} className="project-agent-chat-collapsible min-h-0 flex-1 overflow-y-auto px-4 py-4 max-[1320px]:hidden">
-                <div className="space-y-4">
-                  {displayMessages.map((message, index) => {
-                    const { visibleText, reasoningText } = parseProjectAgentMessageParts(message);
-                    const messageText = visibleText.trim();
-                    const reasoning = reasoningText.trim();
-                    const isUserMessage = message.role === 'user';
-                    const shouldRenderBubble = isUserMessage || messageText.length > 0;
-
-                    return (
-                      <div key={getProjectAgentDisplayMessageKey(message, index)} className={isUserMessage ? 'ml-auto w-fit max-w-[94%]' : 'max-w-[94%]'}>
-                        {!isUserMessage && reasoning ? (
-                          <details className="mb-2 rounded-[12px] border border-[#d9d9d7] bg-[#f7f7f5] px-3 py-2 text-[#6c6c66]">
-                            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-medium marker:hidden">
-                              <span>Analyzed your request</span>
-                              <span className="text-[11px] text-[#9b9b98]">Show</span>
-                            </summary>
-                            <div className="mt-2 border-l border-[#d4d4d1] pl-3 text-sm italic leading-6 text-[#7a7a75]">
-                              {reasoning}
-                            </div>
-                          </details>
-                        ) : null}
-
-                        {shouldRenderBubble ? (
-                          <div
-                            className={`project-agent-chat-bubble rounded-[12px] px-4 py-3 text-sm ${
-                              isUserMessage
-                                ? 'project-agent-chat-bubble--user bg-[#0f0f0f] text-white leading-7'
-                                : 'project-agent-chat-bubble--assistant bg-[#efefed] text-[#1f1f1e] leading-6'
-                            }`}
-                          >
-                            {isUserMessage ? (
-                              messageText
-                            ) : (
-                              <MarkdownRenderer
-                                content={messageText}
-                                className="project-agent-markdown [&_h1]:!mt-0 [&_h2]:!mt-0 [&_h3]:!mt-0 [&_p:last-child]:!mb-0 [&_p]:!mb-3 [&_p]:!text-[#1f1f1e] [&_li]:!text-[#1f1f1e] [&_ol]:!mb-3 [&_ol]:!text-[#1f1f1e] [&_strong]:!text-[#111111] [&_ul]:!mb-3 [&_ul]:!text-[#1f1f1e]"
-                              />
-                            )}
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-
-                  {awaitingAssistantTurn ? (
-                    <div className="project-agent-chat-bubble project-agent-chat-bubble--assistant max-w-[94%] rounded-[12px] bg-[#efefed] px-4 py-3 text-sm text-[#787876]">
-                      <div className="project-agent-thinking-row flex items-center gap-2.5">
-                        <FlowgenThinkingMark
-                          size={22}
-                          animated
-                          tone="inherit"
-                          className="project-agent-thinking-mark shrink-0"
-                        />
-                        <span>{status === 'submitted' ? 'Analyzing...' : 'thinking...'}</span>
-                      </div>
-                    </div>
-                  ) : null}
-                  <div ref={chatBottomRef} />
-                </div>
-              </div>
-
-              <div className="project-agent-chat-collapsible project-agent-chat-footer px-4 py-4 max-[1320px]:hidden">
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void handleSend();
-                  }}
-                  className="project-agent-chat-input flex items-end gap-2 rounded-[18px] border border-[#d9d9d7] bg-white p-2 shadow-[0_18px_40px_rgba(15,15,15,0.06)]"
-                >
-                  <textarea
-                    ref={composerInputRef}
-                    value={draft}
-                    onChange={(event) => {
-                      setDraft(event.target.value);
-                      resizeComposerInput(event.target);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' && !event.shiftKey) {
-                        event.preventDefault();
-                        void handleSend();
-                      }
-                    }}
-                    placeholder={chatInputPlaceholder}
-                    rows={1}
-                    className="project-agent-chat-input-field flex-1 rounded-[14px] bg-transparent px-4 py-3 text-sm leading-6 text-[#1f1f1e] placeholder:text-[#9b9b98] focus:outline-none disabled:opacity-50 resize-none overflow-y-auto"
-                    disabled={awaitingAssistantTurn}
-                  />
-                  <button
-                    type="submit"
-                    disabled={awaitingAssistantTurn || !draft.trim()}
-                    aria-label={awaitingAssistantTurn ? 'Waiting for response' : 'Send message'}
-                    className={`project-agent-send-button inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] border text-white transition-all duration-200 ease-out disabled:opacity-50 ${
-                      awaitingAssistantTurn
-                        ? 'project-agent-press-button project-agent-press-button--disabled bg-[#8d8d8a]'
-                        : 'project-agent-press-button project-agent-press-button--active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1f1f1e]/12'
-                    }`}
-                  >
-                    {awaitingAssistantTurn ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <ArrowUpRight className="h-4 w-4 -translate-y-[0.5px] translate-x-[0.5px]" />
-                    )}
-                  </button>
-                </form>
               </div>
             </section>
           </div>
