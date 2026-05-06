@@ -3382,6 +3382,95 @@ body {
   backdrop-filter: blur(18px);
 }
 
+.project-agent-surface {
+  container-name: project-agent-canvas;
+  container-type: inline-size;
+}
+
+@container project-agent-canvas (max-width: 1040px) {
+  .project-agent-canvas-actions {
+    bottom: 1rem !important;
+    left: 1rem !important;
+    gap: 0.375rem !important;
+  }
+
+  .project-agent-canvas-action-button {
+    width: 2.5rem !important;
+    justify-content: center !important;
+    gap: 0 !important;
+    padding-inline: 0 !important;
+  }
+
+  .project-agent-canvas-action-label,
+  .project-agent-insert-trigger-label,
+  .project-agent-insert-trigger-chevron {
+    display: none !important;
+  }
+
+  .project-agent-insert-toolbar {
+    padding: 0.375rem !important;
+  }
+
+  .project-agent-insert-trigger-row {
+    gap: 0.25rem !important;
+  }
+
+  .project-agent-insert-trigger {
+    width: 2.75rem !important;
+    justify-content: center !important;
+    gap: 0 !important;
+    padding-inline: 0 !important;
+  }
+}
+
+@media (max-width: 1320px) {
+  .project-agent-layout-grid {
+    grid-template-columns: minmax(0, 1fr) 56px !important;
+  }
+
+  .project-agent-chat-surface {
+    min-width: 56px;
+  }
+
+  .project-agent-chat-surface .project-agent-chat-header {
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  .project-agent-chat-surface .project-agent-chat-title {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .project-agent-chat-surface .project-agent-chat-title span,
+  .project-agent-chat-surface .project-agent-chat-collapsible,
+  .project-agent-chat-surface .project-agent-history-new-label {
+    display: none !important;
+  }
+
+  .project-agent-chat-surface .project-agent-chat-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .project-agent-chat-surface .project-agent-toolbar-button {
+    width: 40px !important;
+    height: 40px;
+    justify-content: center;
+    padding-inline: 0 !important;
+  }
+
+  .project-agent-chat-surface .project-agent-history-popover {
+    top: 0;
+    right: calc(100% + 0.5rem);
+  }
+}
+
 .project-agent-canvas-shell {
   background:
     radial-gradient(circle at top left, rgba(255, 251, 240, 0.44), transparent 32%),

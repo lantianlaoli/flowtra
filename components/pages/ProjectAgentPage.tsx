@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { DefaultChatTransport } from 'ai';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import { useUser } from '@clerk/nextjs';
@@ -10,6 +10,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import CreateAvatarModal from '@/components/CreateAvatarModal';
 import CreateProductModal from '@/components/CreateProductModal';
+import VideoImportModal from '@/components/VideoImportModal';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import FlowgenThinkingMark from '@/components/ui/FlowgenThinkingMark';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
@@ -95,6 +96,8 @@ type HistoryItem = {
   title: string;
   updatedAt: string;
 };
+
+type ProjectAgentVideoImportHandler = ComponentProps<typeof VideoImportModal>['onImported'];
 
 const CANVAS_NOTICE_TIMEOUT_MS = 5000;
 
@@ -287,6 +290,7 @@ export default function ProjectAgentPage() {
   const [toolbarOpenKey, setToolbarOpenKey] = useState<'avatar' | 'product' | 'video' | 'feature' | null>(null);
   const [showCreateAvatarModal, setShowCreateAvatarModal] = useState(false);
   const [showCreateProductModal, setShowCreateProductModal] = useState(false);
+  const [showVideoImportModal, setShowVideoImportModal] = useState(false);
   const [avatars, setAvatars] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [products, setProducts] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [videos, setVideos] = useState<ProjectAgentCanvasAssetRef[]>([]);
@@ -1138,9 +1142,13 @@ export default function ProjectAgentPage() {
     applyCanvasActions(actions, asset);
   }, [applyCanvasActions, pendingUiRequest]);
 
-  const handleQuickUploadRequest = useCallback((assetType: 'avatar' | 'product') => {
+  const handleQuickUploadRequest = useCallback((assetType: 'avatar' | 'product' | 'video') => {
     if (assetType === 'avatar') {
       setShowCreateAvatarModal(true);
+      return;
+    }
+    if (assetType === 'video') {
+      setShowVideoImportModal(true);
       return;
     }
     setShowCreateProductModal(true);
@@ -1186,6 +1194,33 @@ export default function ProjectAgentPage() {
       setToolbarOpenKey(null);
     }
   }, [handleToolbarAssetSelect, loadAssets, pageMessages.defaults.product, pendingUiRequest]);
+
+  const handleVideosImported = useCallback<ProjectAgentVideoImportHandler>((newVideos, options) => {
+    const importedAssets = toProjectAgentVideoAssets(newVideos);
+    if (importedAssets.length > 0) {
+      setVideos((current) => {
+        const importedIds = new Set(importedAssets.map((asset) => asset.id));
+        return [
+          ...importedAssets,
+          ...current.filter((asset) => !importedIds.has(asset.id)),
+        ];
+      });
+    }
+
+    if (!options?.skipRefresh) {
+      void loadAssets();
+    }
+    setShowVideoImportModal(false);
+
+    if (
+      importedAssets.length > 0 &&
+      pendingUiRequest?.type === 'asset_selection' &&
+      pendingUiRequest.assetType === 'video'
+    ) {
+      handleToolbarAssetSelect('video', importedAssets[0]);
+      setToolbarOpenKey(null);
+    }
+  }, [handleToolbarAssetSelect, loadAssets, pendingUiRequest]);
 
   const handleConfirmPendingAction = useCallback(() => {
     if (!pendingUiRequest || pendingUiRequest.type !== 'confirmation') return;
@@ -2005,7 +2040,7 @@ export default function ProjectAgentPage() {
 
       <DashboardContentTransition className="dashboard-content-offset bg-background h-[100dvh] overflow-hidden min-h-0">
         <div className="h-full box-border min-h-0 p-3 md:py-3 md:pr-3 md:pl-0">
-          <div className="grid h-full min-h-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
+          <div className="project-agent-layout-grid grid h-full min-h-0 grid-cols-[minmax(0,1fr)_56px] gap-3 min-[1321px]:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
             <section className="project-agent-panel-shell project-agent-surface relative h-full min-h-0 overflow-visible rounded-[20px]">
               <div className="h-full w-full p-0" ref={canvasContainerRef}>
                 <CanvasBoard
@@ -2080,17 +2115,17 @@ export default function ProjectAgentPage() {
               </div>
             </section>
 
-            <section className="project-agent-panel-shell project-agent-chat-surface flowgen-chat-font relative flex h-full min-h-0 flex-col overflow-hidden rounded-[20px]">
-              <div className="project-agent-chat-header relative flex items-center justify-between px-4 py-3">
-                <div className="flex min-w-0 items-center gap-2 text-[#1f1f1e]">
+            <section className="project-agent-panel-shell project-agent-chat-surface flowgen-chat-font relative flex h-full min-h-0 min-w-14 flex-col overflow-hidden rounded-[20px] min-[1321px]:min-w-0">
+              <div className="project-agent-chat-header relative flex h-full min-h-0 flex-col items-center justify-start gap-2 p-2 min-[1321px]:h-auto min-[1321px]:flex-row min-[1321px]:justify-between min-[1321px]:px-4 min-[1321px]:py-3">
+                <div className="project-agent-chat-title flex min-w-0 items-center gap-2 text-[#1f1f1e]">
                   <MessageCircle className="h-4 w-4" />
-                  <span className="truncate whitespace-nowrap text-sm font-semibold">{activeChatTitle}</span>
+                  <span className="truncate whitespace-nowrap text-sm font-semibold max-[1320px]:hidden">{activeChatTitle}</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="project-agent-chat-actions flex flex-col items-center gap-2 min-[1321px]:flex-row">
                   <button
                     type="button"
                     onClick={() => setIsWelcomeTourOpen(true)}
-                    className="project-agent-press-button project-agent-toolbar-button inline-flex h-9 items-center gap-1.5 rounded-[12px] border px-3 text-xs font-semibold text-[#1f1f1e]"
+                    className="project-agent-press-button project-agent-toolbar-button inline-flex h-9 items-center gap-1.5 rounded-[12px] border px-3 text-xs font-semibold text-[#1f1f1e] max-[1320px]:h-10 max-[1320px]:w-10 max-[1320px]:justify-center max-[1320px]:px-0"
                     aria-label="Open AI Agent tutorial"
                   >
                     <HelpCircle className="h-4 w-4" />
@@ -2139,7 +2174,7 @@ export default function ProjectAgentPage() {
                             className="project-agent-press-button project-agent-toolbar-button mt-2 inline-flex min-h-8 items-center gap-1 rounded-[12px] border px-2.5 text-xs font-medium text-[#1f1f1e]"
                           >
                             <Plus className="h-3.5 w-3.5" />
-                            {pageMessages.history.newChat}
+                            <span className="project-agent-history-new-label max-[1320px]:hidden">{pageMessages.history.newChat}</span>
                           </button>
                         </div>
                         <div className="max-h-[360px] space-y-1 overflow-y-auto p-2">
@@ -2177,14 +2212,14 @@ export default function ProjectAgentPage() {
               </div>
 
               {statusNote ? (
-                <div className="project-agent-status-note mx-4 mt-3 inline-flex items-start gap-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <div className="project-agent-chat-collapsible project-agent-status-note mx-4 mt-3 inline-flex items-start gap-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 max-[1320px]:hidden">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span>{statusNote}</span>
                 </div>
               ) : null}
 
               {pendingUiRequest?.type === 'confirmation' ? (
-                <div className="project-agent-confirmation mx-4 mt-3 rounded-[14px] border border-[#d9d9d7] bg-[#f7f7f5] px-4 py-3">
+                <div className="project-agent-chat-collapsible project-agent-confirmation mx-4 mt-3 rounded-[14px] border border-[#d9d9d7] bg-[#f7f7f5] px-4 py-3 max-[1320px]:hidden">
                   <p className="project-agent-confirmation-title text-sm font-semibold text-[#1f1f1e]">{pendingUiRequest.title}</p>
                   <p className="project-agent-confirmation-copy mt-1 text-xs leading-5 text-[#6c6c66]">{pendingUiRequest.message}</p>
                   <div className="mt-3 flex items-center gap-2">
@@ -2206,7 +2241,7 @@ export default function ProjectAgentPage() {
                 </div>
               ) : null}
 
-              <div ref={chatScrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+              <div ref={chatScrollContainerRef} className="project-agent-chat-collapsible min-h-0 flex-1 overflow-y-auto px-4 py-4 max-[1320px]:hidden">
                 <div className="space-y-4">
                   {displayMessages.map((message, index) => {
                     const { visibleText, reasoningText } = parseProjectAgentMessageParts(message);
@@ -2268,7 +2303,7 @@ export default function ProjectAgentPage() {
                 </div>
               </div>
 
-              <div className="project-agent-chat-footer px-4 py-4">
+              <div className="project-agent-chat-collapsible project-agent-chat-footer px-4 py-4 max-[1320px]:hidden">
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
@@ -2331,6 +2366,12 @@ export default function ProjectAgentPage() {
         isOpen={showCreateProductModal}
         onClose={() => setShowCreateProductModal(false)}
         onProductCreated={handleProductCreated}
+      />
+      <VideoImportModal
+        isOpen={showVideoImportModal}
+        onClose={() => setShowVideoImportModal(false)}
+        onImported={handleVideosImported}
+        onError={(error) => setStatusNote(error)}
       />
       <ProjectAgentWelcomeTourModal
         open={isWelcomeTourOpen}
