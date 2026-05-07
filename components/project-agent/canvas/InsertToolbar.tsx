@@ -16,6 +16,7 @@ type InsertToolbarProps = {
   avatars: ProjectAgentCanvasAssetRef[];
   products: ProjectAgentCanvasAssetRef[];
   videos: ProjectAgentCanvasAssetRef[];
+  orientation?: 'horizontal' | 'vertical';
   openKey?: InsertToolbarKey | null;
   onOpenKeyChange?: (next: InsertToolbarKey | null) => void;
   onQuickUploadRequest?: (assetType: Extract<ProjectAgentSelectableAssetType, 'avatar' | 'product' | 'video'>) => void;
@@ -252,6 +253,7 @@ export default function InsertToolbar({
   avatars,
   products,
   videos,
+  orientation = 'horizontal',
   openKey: controlledOpenKey,
   onOpenKeyChange,
   onQuickUploadRequest,
@@ -271,6 +273,7 @@ export default function InsertToolbar({
   const featureTypes: ProjectAgentFeatureNodeType[] = ['video_clone', 'avatar_ads', 'motion_clone'];
   const openKey = controlledOpenKey ?? internalOpenKey;
   const messages = getToolbarMessages(locale);
+  const isVertical = orientation === 'vertical';
 
   const setOpenKey = useCallback((next: InsertToolbarKey | null) => {
     onOpenKeyChange?.(next);
@@ -305,8 +308,10 @@ export default function InsertToolbar({
       const toolbarRect = toolbarRef.current?.getBoundingClientRect();
       const triggerRect = triggerRefs.current[openKey]?.getBoundingClientRect();
       if (!toolbarRect || !triggerRect) return;
-      const desiredLeft = triggerRect.left - toolbarRect.left;
-      setDropdownOffset(Math.max(0, desiredLeft));
+      const desiredOffset = isVertical
+        ? triggerRect.top - toolbarRect.top
+        : triggerRect.left - toolbarRect.left;
+      setDropdownOffset(Math.max(0, desiredOffset));
     };
 
     updateOffset();
@@ -316,7 +321,7 @@ export default function InsertToolbar({
     return () => {
       window.removeEventListener('resize', updateOffset);
     };
-  }, [openKey]);
+  }, [isVertical, openKey]);
 
   const renderDropdownContent = () => {
     if (openKey === 'avatar') return <AssetList items={avatars} type="avatar" locale={locale} selectionMode={selectionMode} onAssetSelect={onAssetSelect} onQuickUploadRequest={onQuickUploadRequest} />;
@@ -345,17 +350,25 @@ export default function InsertToolbar({
   return (
     <div
       ref={toolbarRef}
-      className="project-agent-insert-toolbar pointer-events-auto relative max-w-full rounded-[20px] border border-[#cdcdca] bg-[#f1f1ef] p-2 shadow-[0_14px_30px_rgba(0,0,0,0.08)] backdrop-blur max-[1320px]:p-1.5"
+      className={`project-agent-insert-toolbar pointer-events-auto relative max-w-full rounded-[20px] border border-[#cdcdca] bg-[#f1f1ef] p-2 shadow-[0_14px_30px_rgba(0,0,0,0.08)] backdrop-blur max-[1320px]:p-1.5 ${
+        isVertical ? 'project-agent-insert-toolbar--vertical' : ''
+      }`}
     >
       {openKey ? (
         <div
-          className="project-agent-insert-dropdown absolute bottom-[calc(100%+10px)] z-20 inline-flex w-fit max-w-[360px] rounded-[16px] border border-[#cdcdca] bg-[#f1f1ef] p-2 shadow-[0_16px_36px_rgba(0,0,0,0.10)]"
-          style={{ left: dropdownOffset, width: 'fit-content' }}
+          className={`project-agent-insert-dropdown absolute z-20 inline-flex w-fit max-w-[360px] rounded-[16px] border border-[#cdcdca] bg-[#f1f1ef] p-2 shadow-[0_16px_36px_rgba(0,0,0,0.10)] ${
+            isVertical ? 'left-[calc(100%+10px)]' : 'bottom-[calc(100%+10px)]'
+          }`}
+          style={isVertical
+            ? { top: dropdownOffset, width: 'fit-content' }
+            : { left: dropdownOffset, width: 'fit-content' }}
         >
           {renderDropdownContent()}
         </div>
       ) : null}
-      <div className="project-agent-insert-trigger-row flex items-end gap-1.5 max-[1320px]:gap-1">
+      <div className={`project-agent-insert-trigger-row flex gap-1.5 max-[1320px]:gap-1 ${
+        isVertical ? 'flex-col items-center' : 'items-end'
+      }`}>
         {([
           { key: 'avatar', label: messages.categories.avatar },
           { key: 'product', label: messages.categories.product },
@@ -371,7 +384,9 @@ export default function InsertToolbar({
               ref={(element) => {
                 triggerRefs.current[entry.key] = element;
               }}
-              className={`project-agent-insert-trigger flex h-11 min-w-0 items-center gap-1.5 rounded-[12px] border px-3 py-2 text-sm font-semibold transition-all duration-150 max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0 ${
+              className={`project-agent-insert-trigger flex h-11 min-w-0 items-center rounded-[12px] border py-2 text-sm font-semibold transition-all duration-150 max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0 ${
+                isVertical ? 'w-11 justify-center gap-0 px-0' : 'gap-1.5 px-3'
+              } ${
                 open
                   ? 'project-agent-insert-trigger--active border-[#111111] bg-[#111111] text-white shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_3px_0_rgba(20,20,20,0.95),0_12px_20px_rgba(0,0,0,0.16)] hover:-translate-y-[1px] hover:bg-[#1a1a1a] hover:shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_5px_0_rgba(20,20,20,0.95),0_16px_24px_rgba(0,0,0,0.18)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.06)_inset,0_1px_0_rgba(20,20,20,0.9),0_8px_12px_rgba(0,0,0,0.14)]'
                   : 'border-[#cfcfcb] bg-white text-[#2a2a2a] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f6f6f4] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)]'
@@ -382,8 +397,8 @@ export default function InsertToolbar({
               title={entry.label}
             >
               <EntryIcon className="h-4 w-4 shrink-0" />
-              <span className="project-agent-insert-trigger-label truncate max-[1320px]:hidden">{entry.label}</span>
-              <ChevronDown className={`project-agent-insert-trigger-chevron h-3.5 w-3.5 shrink-0 transition-transform max-[1320px]:hidden ${open ? 'rotate-180' : ''}`} />
+              <span className={`project-agent-insert-trigger-label truncate max-[1320px]:hidden ${isVertical ? 'hidden' : ''}`}>{entry.label}</span>
+              <ChevronDown className={`project-agent-insert-trigger-chevron h-3.5 w-3.5 shrink-0 transition-transform max-[1320px]:hidden ${isVertical ? 'hidden' : ''} ${open ? 'rotate-180' : ''}`} />
             </button>
           </div>
           );
@@ -391,7 +406,9 @@ export default function InsertToolbar({
 
         {/* Text node — directly draggable, no dropdown */}
         <div
-          className="project-agent-insert-trigger project-agent-insert-text-trigger flex h-11 shrink cursor-grab items-center gap-1.5 overflow-hidden rounded-[12px] border border-[#cfcfcb] bg-white px-3 py-2 text-sm font-semibold text-[#2a2a2a] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f6f6f4] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:cursor-grabbing active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)] max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0"
+          className={`project-agent-insert-trigger project-agent-insert-text-trigger flex h-11 shrink cursor-grab items-center overflow-hidden rounded-[12px] border border-[#cfcfcb] bg-white py-2 text-sm font-semibold text-[#2a2a2a] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f6f6f4] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:cursor-grabbing active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)] max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0 ${
+            isVertical ? 'w-11 justify-center gap-0 px-0' : 'gap-1.5 px-3'
+          }`}
           draggable
           onDragStart={(event) => {
             event.dataTransfer.effectAllowed = 'copy';
@@ -401,7 +418,7 @@ export default function InsertToolbar({
           title={messages.text}
         >
           <Type className="h-4 w-4 shrink-0" />
-          <span className="project-agent-insert-trigger-label max-[1320px]:hidden">{messages.text}</span>
+          <span className={`project-agent-insert-trigger-label max-[1320px]:hidden ${isVertical ? 'hidden' : ''}`}>{messages.text}</span>
         </div>
       </div>
     </div>

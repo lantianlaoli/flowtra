@@ -5,15 +5,14 @@ import { DefaultChatTransport } from 'ai';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import { useUser } from '@clerk/nextjs';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { AlertCircle, AlertTriangle, ArrowUpRight, HelpCircle, History, Loader2, MessageCircle, Plus, Search, X } from 'lucide-react';
+import { AlertTriangle, Clapperboard, Construction, Sparkles, Type, User, X } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import CreateAvatarModal from '@/components/CreateAvatarModal';
 import CreateProductModal from '@/components/CreateProductModal';
 import VideoImportModal from '@/components/VideoImportModal';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
-import FlowgenThinkingMark from '@/components/ui/FlowgenThinkingMark';
-import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
+import { PromptInputBox, type PromptCommand } from '@/components/ui/ai-prompt-box';
 import {
   ProjectAgentWelcomeTourModal,
   isProjectAgentWelcomeTourDismissed,
@@ -91,12 +90,6 @@ type PersistedSessionPayload = {
   } | null;
 };
 
-type HistoryItem = {
-  sessionId: string;
-  title: string;
-  updatedAt: string;
-};
-
 type ProjectAgentVideoImportHandler = ComponentProps<typeof VideoImportModal>['onImported'];
 
 const CANVAS_NOTICE_TIMEOUT_MS = 5000;
@@ -110,7 +103,6 @@ type SnappedConnectionTarget = {
 
 const SESSION_STORAGE_KEY = 'flowtra_project_agent_session_id';
 const HISTORY_STORAGE_KEY = 'flowtra_project_agent_history_ids';
-const MAX_HISTORY_ITEMS = 8;
 
 const createSessionId = () => {
   try {
@@ -165,12 +157,6 @@ export const getProjectAgentDisplayMessageKey = (message: UIMessage, index: numb
   return `${message.id}:${message.role}:${contentSignature}:${index}`;
 };
 
-const buildHistoryTitle = (messages: UIMessage[]) => {
-  const firstUserMessage = messages.find((message) => message.role === 'user' && getProjectAgentVisibleMessageText(message).trim().length > 0);
-  if (!firstUserMessage) return 'New canvas session';
-  return getProjectAgentVisibleMessageText(firstUserMessage).trim().slice(0, 80);
-};
-
 const toAvatarAssets = (payload: Record<string, unknown>) => {
   const avatars = Array.isArray(payload.avatars) ? payload.avatars : [];
   return avatars
@@ -216,6 +202,26 @@ const toProductAssets = (payload: Record<string, unknown>) => {
 const toVideoAssets = (payload: Record<string, unknown>) => (
   toProjectAgentVideoAssets(payload.videos) as ProjectAgentCanvasAssetRef[]
 );
+
+const quoteCommandAssetName = (name: string) => name.replace(/"/g, '\\"');
+
+const createPromptCommandForAsset = (
+  assetType: 'avatar' | 'product' | 'video',
+  asset: ProjectAgentCanvasAssetRef
+): PromptCommand => {
+  const typeLabel = assetType === 'avatar' ? 'Avatar' : assetType === 'product' ? 'Product' : 'Video';
+  return {
+    id: `${assetType}:${asset.id}`,
+    label: asset.name,
+    chipLabel: `${typeLabel}: ${asset.name}`,
+    prompt: `Add ${assetType} "${quoteCommandAssetName(asset.name)}" to the canvas.`,
+    kind: 'asset',
+    groupLabel: `${typeLabel}s`,
+    assetType,
+    assetId: asset.id,
+    imageUrl: asset.imageUrl,
+  };
+};
 
 const getDefaultNodePlacement = (canvas: ProjectAgentCanvasState) => ({
   x: 240 - canvas.viewport.x / canvas.viewport.zoom,
@@ -282,7 +288,6 @@ export default function ProjectAgentPage() {
   const [sessionId, setSessionId] = useState('');
   const [canvas, setCanvas] = useState<ProjectAgentCanvasState>(DEFAULT_PROJECT_AGENT_CANVAS_STATE);
   const [draft, setDraft] = useState('');
-  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const [statusNote, setStatusNote] = useState('');
   const [canvasNotice, setCanvasNotice] = useState<ProjectAgentCanvasNotice | null>(null);
   const [pendingUiRequest, setPendingUiRequest] = useState<ProjectAgentPendingUiRequest | null>(null);
@@ -291,6 +296,8 @@ export default function ProjectAgentPage() {
   const [showCreateAvatarModal, setShowCreateAvatarModal] = useState(false);
   const [showCreateProductModal, setShowCreateProductModal] = useState(false);
   const [showVideoImportModal, setShowVideoImportModal] = useState(false);
+  const [pendingPromptAssetType, setPendingPromptAssetType] = useState<'avatar' | 'product' | 'video' | null>(null);
+  const [injectedPromptCommandToken, setInjectedPromptCommandToken] = useState<{ nonce: string; command: PromptCommand } | null>(null);
   const [avatars, setAvatars] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [products, setProducts] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [videos, setVideos] = useState<ProjectAgentCanvasAssetRef[]>([]);
@@ -310,19 +317,12 @@ export default function ProjectAgentPage() {
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
   const [pendingConnectionSourceId, setPendingConnectionSourceId] = useState<string | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
-  const [isHistoryPopoverOpen, setIsHistoryPopoverOpen] = useState(false);
-  const [historyQuery, setHistoryQuery] = useState('');
   const [isWelcomeTourOpen, setIsWelcomeTourOpen] = useState(false);
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<ProjectAgentCanvasState>(DEFAULT_PROJECT_AGENT_CANVAS_STATE);
-  const historyPopoverRef = useRef<HTMLDivElement | null>(null);
-  const chatScrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const chatBottomRef = useRef<HTMLDivElement | null>(null);
-  const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
   const persistenceTimeoutRef = useRef<number | null>(null);
   const canvasNoticeTimeoutRef = useRef<number | null>(null);
   const dragMovedRef = useRef(false);
-  const previousAwaitingAssistantTurnRef = useRef(false);
   const statusFetchInFlightRef = useRef<Set<string>>(new Set());
   const subscriptionsRef = useRef<Map<string, RealtimeChannel>>(new Map());
   const supabaseRef = useRef(supabase);
@@ -337,38 +337,6 @@ export default function ProjectAgentPage() {
     const next = [id, ...current.filter((item) => item !== id)];
     writeHistoryIds(next);
   }, []);
-
-  const refreshHistory = useCallback(async () => {
-    if (!user) {
-      setHistoryItems([]);
-      return;
-    }
-
-    const ids = readHistoryIds().slice(0, MAX_HISTORY_ITEMS);
-    if (ids.length === 0) {
-      setHistoryItems([]);
-      return;
-    }
-
-    const loaded = await Promise.all(ids.map(async (id) => {
-      try {
-        const response = await fetch(`/api/project-agent/session?sessionId=${id}`, { cache: 'no-store' });
-        if (!response.ok) return null;
-        const payload = await response.json() as PersistedSessionPayload;
-        const session = payload.session;
-        const sessionMessages = Array.isArray(session?.messages) ? session.messages : [];
-        return {
-          sessionId: id,
-          title: buildHistoryTitle(sessionMessages),
-          updatedAt: typeof session?.updated_at === 'string' ? session.updated_at : new Date().toISOString(),
-        } as HistoryItem;
-      } catch {
-        return null;
-      }
-    }));
-
-    setHistoryItems(loaded.filter((item): item is HistoryItem => Boolean(item)));
-  }, [user]);
 
   useEffect(() => {
     pendingUiRequestRef.current = pendingUiRequest;
@@ -466,13 +434,6 @@ export default function ProjectAgentPage() {
     });
   }, [locale, persistSessionState]);
 
-  const resizeComposerInput = useCallback((element: HTMLTextAreaElement | null) => {
-    if (!element) return;
-    element.style.height = '0px';
-    const nextHeight = Math.min(element.scrollHeight, 220);
-    element.style.height = `${Math.max(nextHeight, 48)}px`;
-  }, []);
-
   const {
     messages,
     setMessages,
@@ -496,9 +457,6 @@ export default function ProjectAgentPage() {
         },
       }),
     }),
-    onFinish: () => {
-      void refreshHistory();
-    },
     onError: (error) => {
       const message = error instanceof Error ? error.message : String(error);
       setStatusNote(message || 'Chat request failed.');
@@ -610,7 +568,6 @@ export default function ProjectAgentPage() {
         await Promise.all([
           loadAssets(),
           fetchSession(sessionId),
-          refreshHistory(),
         ]);
         if (!cancelled) {
           setSessionReady(true);
@@ -626,7 +583,7 @@ export default function ProjectAgentPage() {
     return () => {
       cancelled = true;
     };
-  }, [fetchSession, loadAssets, refreshHistory, sessionId, user]);
+  }, [fetchSession, loadAssets, sessionId, user]);
 
   useEffect(() => {
     if (!sessionId || !sessionReady || isStreaming) return;
@@ -649,27 +606,6 @@ export default function ProjectAgentPage() {
     if (!sessionId || !sessionReady) return;
     persistSessionState({ language: locale });
   }, [locale, persistSessionState, sessionId, sessionReady]);
-
-  useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (historyPopoverRef.current?.contains(target)) return;
-      setIsHistoryPopoverOpen(false);
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsHistoryPopoverOpen(false);
-      }
-    };
-
-    window.addEventListener('mousedown', handlePointerDown);
-    window.addEventListener('keydown', handleEscape);
-    return () => {
-      window.removeEventListener('mousedown', handlePointerDown);
-      window.removeEventListener('keydown', handleEscape);
-    };
-  }, []);
 
   useEffect(() => {
     setCanvas((current) => {
@@ -1150,6 +1086,20 @@ export default function ProjectAgentPage() {
   }, [applyCanvasActions, pendingUiRequest]);
 
   const handleQuickUploadRequest = useCallback((assetType: 'avatar' | 'product' | 'video') => {
+    setPendingPromptAssetType(null);
+    if (assetType === 'avatar') {
+      setShowCreateAvatarModal(true);
+      return;
+    }
+    if (assetType === 'video') {
+      setShowVideoImportModal(true);
+      return;
+    }
+    setShowCreateProductModal(true);
+  }, []);
+
+  const handlePromptAssetCreateRequest = useCallback((assetType: 'avatar' | 'product' | 'video') => {
+    setPendingPromptAssetType(assetType);
     if (assetType === 'avatar') {
       setShowCreateAvatarModal(true);
       return;
@@ -1175,11 +1125,19 @@ export default function ProjectAgentPage() {
     void loadAssets();
     setShowCreateAvatarModal(false);
 
+    if (pendingPromptAssetType === 'avatar') {
+      setInjectedPromptCommandToken({
+        nonce: `avatar:${createdAsset.id}:${Date.now()}`,
+        command: createPromptCommandForAsset('avatar', createdAsset),
+      });
+      setPendingPromptAssetType(null);
+    }
+
     if (pendingUiRequest?.type === 'asset_selection' && pendingUiRequest.assetType === 'avatar') {
       handleToolbarAssetSelect('avatar', createdAsset);
       setToolbarOpenKey(null);
     }
-  }, [handleToolbarAssetSelect, loadAssets, pageMessages.defaults.avatar, pendingUiRequest]);
+  }, [handleToolbarAssetSelect, loadAssets, pageMessages.defaults.avatar, pendingPromptAssetType, pendingUiRequest]);
 
   const handleProductCreated = useCallback((product: UserProduct) => {
     const photoUrls = Array.isArray(product.user_product_photos)
@@ -1196,11 +1154,19 @@ export default function ProjectAgentPage() {
     void loadAssets();
     setShowCreateProductModal(false);
 
+    if (pendingPromptAssetType === 'product') {
+      setInjectedPromptCommandToken({
+        nonce: `product:${createdAsset.id}:${Date.now()}`,
+        command: createPromptCommandForAsset('product', createdAsset),
+      });
+      setPendingPromptAssetType(null);
+    }
+
     if (pendingUiRequest?.type === 'asset_selection' && pendingUiRequest.assetType === 'product') {
       handleToolbarAssetSelect('product', createdAsset);
       setToolbarOpenKey(null);
     }
-  }, [handleToolbarAssetSelect, loadAssets, pageMessages.defaults.product, pendingUiRequest]);
+  }, [handleToolbarAssetSelect, loadAssets, pageMessages.defaults.product, pendingPromptAssetType, pendingUiRequest]);
 
   const handleVideosImported = useCallback<ProjectAgentVideoImportHandler>((newVideos, options) => {
     const importedAssets = toProjectAgentVideoAssets(newVideos);
@@ -1218,6 +1184,15 @@ export default function ProjectAgentPage() {
       void loadAssets();
     }
 
+    if (importedAssets.length > 0 && pendingPromptAssetType === 'video') {
+      const importedAsset = importedAssets[0];
+      setInjectedPromptCommandToken({
+        nonce: `video:${importedAsset.id}:${Date.now()}`,
+        command: createPromptCommandForAsset('video', importedAsset),
+      });
+      setPendingPromptAssetType(null);
+    }
+
     if (
       importedAssets.length > 0 &&
       pendingUiRequest?.type === 'asset_selection' &&
@@ -1226,7 +1201,7 @@ export default function ProjectAgentPage() {
       handleToolbarAssetSelect('video', importedAssets[0]);
       setToolbarOpenKey(null);
     }
-  }, [handleToolbarAssetSelect, loadAssets, pendingUiRequest]);
+  }, [handleToolbarAssetSelect, loadAssets, pendingPromptAssetType, pendingUiRequest]);
 
   const handleContinueInAgentFeatures = useCallback(() => {
     setShowVideoImportModal(false);
@@ -1261,10 +1236,10 @@ export default function ProjectAgentPage() {
     });
   }, [locale, persistSessionState]);
 
-  const handleSend = useCallback(async () => {
-    if (!sessionId || !draft.trim()) return;
+  const handleSend = useCallback(async (messageOverride?: string) => {
+    const text = (messageOverride ?? draft).trim();
+    if (!sessionId || !text) return;
     ensureHistoryTracked(sessionId);
-    const text = draft;
     setDraft('');
     setStatusNote('');
     dismissCanvasNotice();
@@ -1385,10 +1360,6 @@ export default function ProjectAgentPage() {
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, [canvas.selectedNodeId, canvas.selectedNodeIds, updateCanvas]);
-
-  useEffect(() => {
-    resizeComposerInput(composerInputRef.current);
-  }, [draft, resizeComposerInput]);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -1979,67 +1950,92 @@ export default function ProjectAgentPage() {
     };
   }, [selectionStartPoint]);
 
-  const displayMessages = useMemo(
-    () => messages.filter((message) => {
-      const parsed = parseProjectAgentMessageParts(message);
-      return parsed.visibleText.trim().length > 0 || parsed.reasoningText.trim().length > 0;
-    }),
-    [messages],
-  );
-
-  const activeChatTitle = useMemo(() => {
-    const matchedHistoryItem = historyItems.find((item) => item.sessionId === sessionId);
-    return matchedHistoryItem?.title || buildHistoryTitle(messages);
-  }, [historyItems, messages, sessionId]);
-
-  const filteredHistoryItems = useMemo(() => {
-    const query = historyQuery.trim().toLowerCase();
-    if (!query) return historyItems;
-    return historyItems.filter((item) => item.title?.toLowerCase().includes(query));
-  }, [historyItems, historyQuery]);
-
-  const awaitingAssistantTurn = isStreaming;
-  const chatInputPlaceholder = 'Edit the canvas...';
-
-  const scrollChatToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
-    const container = chatScrollContainerRef.current;
-    if (!container) return;
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior,
-    });
-  }, []);
-
-  useEffect(() => {
-    const wasAwaitingAssistantTurn = previousAwaitingAssistantTurnRef.current;
-    previousAwaitingAssistantTurnRef.current = awaitingAssistantTurn;
-
-    if (!awaitingAssistantTurn || wasAwaitingAssistantTurn) {
-      return;
-    }
-
-    let frameOne = 0;
-    let frameTwo = 0;
-
-    frameOne = window.requestAnimationFrame(() => {
-      scrollChatToBottom('auto');
-      frameTwo = window.requestAnimationFrame(() => {
-        scrollChatToBottom('auto');
-      });
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frameOne);
-      window.cancelAnimationFrame(frameTwo);
-    };
-  }, [awaitingAssistantTurn, scrollChatToBottom]);
-
   const sidebarProps = useMemo(() => ({
     credits,
     creditsData,
     userEmail: user?.primaryEmailAddress?.emailAddress,
     userImageUrl: user?.imageUrl,
   }), [credits, creditsData, user?.imageUrl, user?.primaryEmailAddress?.emailAddress]);
+
+  const promptCommands = useMemo<PromptCommand[]>(() => {
+    const avatarCommands = avatars.map((avatar) => ({
+      id: `avatar:${avatar.id}`,
+      label: avatar.name,
+      chipLabel: `Avatar: ${avatar.name}`,
+      prompt: `Add avatar "${quoteCommandAssetName(avatar.name)}" to the canvas.`,
+      kind: 'asset' as const,
+      groupLabel: 'Avatars',
+      assetType: 'avatar' as const,
+      assetId: avatar.id,
+      imageUrl: avatar.imageUrl,
+    }));
+
+    const productCommands = products.map((product) => ({
+      id: `product:${product.id}`,
+      label: product.name,
+      chipLabel: `Product: ${product.name}`,
+      prompt: `Add product "${quoteCommandAssetName(product.name)}" to the canvas.`,
+      kind: 'asset' as const,
+      groupLabel: 'Products',
+      assetType: 'product' as const,
+      assetId: product.id,
+      imageUrl: product.imageUrl,
+    }));
+
+    const videoCommands = videos.map((video) => ({
+      id: `video:${video.id}`,
+      label: video.name,
+      chipLabel: `Video: ${video.name}`,
+      prompt: `Add video "${quoteCommandAssetName(video.name)}" to the canvas.`,
+      kind: 'asset' as const,
+      groupLabel: 'Videos',
+      assetType: 'video' as const,
+      assetId: video.id,
+      imageUrl: video.imageUrl,
+    }));
+
+    const functionCommands: PromptCommand[] = [
+      {
+        id: 'feature:video-clone',
+        label: 'Video Clone',
+        prompt: 'Add a Video Clone node to the canvas.',
+        kind: 'feature',
+        groupLabel: 'Functions',
+        icon: Clapperboard,
+      },
+      {
+        id: 'feature:avatar-ads',
+        label: 'Avatar Ads',
+        prompt: 'Add an Avatar Ads node to the canvas.',
+        kind: 'feature',
+        groupLabel: 'Functions',
+        icon: User,
+      },
+      {
+        id: 'feature:motion-clone',
+        label: 'Motion Clone',
+        prompt: 'Add a Motion Clone node to the canvas.',
+        kind: 'feature',
+        groupLabel: 'Functions',
+        icon: Sparkles,
+      },
+      {
+        id: 'text',
+        label: 'Text',
+        prompt: 'Add a Text node to the canvas.',
+        kind: 'text',
+        groupLabel: 'Functions',
+        icon: Type,
+      },
+    ];
+
+    return [
+      ...avatarCommands,
+      ...productCommands,
+      ...videoCommands,
+      ...functionCommands,
+    ];
+  }, [avatars, products, videos]);
 
   if (!isLoaded || isPageLoading) {
     return <FlowtraLoading />;
@@ -2051,7 +2047,7 @@ export default function ProjectAgentPage() {
 
       <DashboardContentTransition className="dashboard-content-offset bg-background h-[100dvh] overflow-hidden min-h-0">
         <div className="h-full box-border min-h-0 p-3 md:py-3 md:pr-3 md:pl-0">
-          <div className="project-agent-layout-grid grid h-full min-h-0 grid-cols-[minmax(0,1fr)_56px] gap-3 min-[1321px]:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
+          <div className="h-full min-h-0">
             <section className="project-agent-panel-shell project-agent-surface relative h-full min-h-0 overflow-visible rounded-[20px]">
               <div className="h-full w-full p-0" ref={canvasContainerRef}>
                 <CanvasBoard
@@ -2108,11 +2104,12 @@ export default function ProjectAgentPage() {
                   </div>
                 </div>
               ) : null}
-              <div data-canvas-ui="true" className="pointer-events-none absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 justify-center">
+              <div data-canvas-ui="true" className="pointer-events-none absolute left-5 top-1/2 z-30 flex -translate-y-1/2 justify-center">
                 <InsertToolbar
                   avatars={avatars}
                   products={products}
                   videos={videos}
+                  orientation="vertical"
                   openKey={toolbarOpenKey}
                   onOpenKeyChange={setToolbarOpenKey}
                   onQuickUploadRequest={handleQuickUploadRequest}
@@ -2124,115 +2121,33 @@ export default function ProjectAgentPage() {
                   onAssetSelect={handleToolbarAssetSelect}
                 />
               </div>
-            </section>
-
-            <section className="project-agent-panel-shell project-agent-chat-surface flowgen-chat-font relative flex h-full min-h-0 min-w-14 flex-col overflow-hidden rounded-[20px] min-[1321px]:min-w-0">
-              <div className="project-agent-chat-header relative flex h-full min-h-0 flex-col items-center justify-start gap-2 p-2 min-[1321px]:h-auto min-[1321px]:flex-row min-[1321px]:justify-between min-[1321px]:px-4 min-[1321px]:py-3">
-                <div className="project-agent-chat-title flex min-w-0 items-center gap-2 text-[#1f1f1e]">
-                  <MessageCircle className="h-4 w-4" />
-                  <span className="truncate whitespace-nowrap text-sm font-semibold max-[1320px]:hidden">{activeChatTitle}</span>
-                </div>
-                <div className="project-agent-chat-actions flex flex-col items-center gap-2 min-[1321px]:flex-row">
-                  <button
-                    type="button"
-                    onClick={() => setIsWelcomeTourOpen(true)}
-                    className="project-agent-press-button project-agent-toolbar-button inline-flex h-9 items-center gap-1.5 rounded-[12px] border px-3 text-xs font-semibold text-[#1f1f1e] max-[1320px]:h-10 max-[1320px]:w-10 max-[1320px]:justify-center max-[1320px]:px-0"
-                    aria-label="Open AI Agent tutorial"
-                  >
-                    <HelpCircle className="h-4 w-4" />
-                    <span className="max-[1320px]:hidden">Tutorial</span>
-                  </button>
-                  <div ref={historyPopoverRef} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setIsHistoryPopoverOpen((prev) => !prev)}
-                      className="project-agent-press-button project-agent-toolbar-button inline-flex h-9 w-9 items-center justify-center rounded-[12px] border text-[#1f1f1e]"
-                      aria-label={pageMessages.history.open}
-                    >
-                      <History className="h-4 w-4" />
-                    </button>
-                    {isHistoryPopoverOpen ? (
-                      <div className="project-agent-history-popover absolute right-0 top-11 z-50 w-[320px] max-w-[calc(100vw-2rem)] rounded-[16px] border border-[#e6e6e4] bg-white shadow-[0_12px_36px_rgba(0,0,0,0.14)]">
-                        <div className="px-3 py-3">
-                          <p className="text-xs font-semibold text-[#1f1f1e]">{pageMessages.history.title}</p>
-                          <div className="relative mt-2">
-                            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9b9b98]" />
-                            <input
-                              value={historyQuery}
-                              onChange={(event) => setHistoryQuery(event.target.value)}
-                              placeholder={pageMessages.history.searchPlaceholder}
-                              className="project-agent-history-search h-9 w-full rounded-[12px] border border-[#d9d9d7] bg-[#fbfbfa] pl-8 pr-3 text-xs text-[#1f1f1e] placeholder:text-[#a3a3a0] focus:outline-none focus:ring-2 focus:ring-black"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const nextSessionId = createSessionId();
-                              writeCurrentSessionId(nextSessionId);
-                              ensureHistoryTracked(nextSessionId);
-                              setSessionId(nextSessionId);
-                              setCanvas(DEFAULT_PROJECT_AGENT_CANVAS_STATE);
-                              setPendingUiRequest(null);
-                              setAppliedCanvasActionCallIds([]);
-                              setToolbarOpenKey(null);
-                              setMessages([]);
-                              setDraft('');
-                              setStatusNote('');
-                              dismissCanvasNotice();
-                              setHistoryQuery('');
-                              setIsHistoryPopoverOpen(false);
-                            }}
-                            className="project-agent-press-button project-agent-toolbar-button mt-2 inline-flex min-h-8 items-center gap-1 rounded-[12px] border px-2.5 text-xs font-medium text-[#1f1f1e]"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                            <span className="project-agent-history-new-label max-[1320px]:hidden">{pageMessages.history.newChat}</span>
-                          </button>
-                        </div>
-                        <div className="max-h-[360px] space-y-1 overflow-y-auto p-2">
-                          {filteredHistoryItems.length === 0 ? (
-                            <div className="px-2 py-3 text-xs text-[#787876]">{pageMessages.history.empty}</div>
-                          ) : (
-                            filteredHistoryItems.map((item) => (
-                              <button
-                                key={item.sessionId}
-                                type="button"
-                                onClick={() => {
-                                  writeCurrentSessionId(item.sessionId);
-                                  ensureHistoryTracked(item.sessionId);
-                                  setSessionId(item.sessionId);
-                                  setIsHistoryPopoverOpen(false);
-                                }}
-                                className={`project-agent-history-item w-full rounded-[12px] border px-2.5 py-2 text-left transition-colors ${
-                                  item.sessionId === sessionId
-                                    ? 'project-agent-history-item--active border-[#1f1f1e] bg-[#f7f7f5]'
-                                    : 'project-agent-history-item--idle border-transparent bg-transparent hover:border-[#e6e6e4] hover:bg-[#f7f7f5]'
-                                }`}
-                              >
-                                <div className="truncate text-[12px] font-medium text-[#1f1f1e]">{item.title}</div>
-                                <div className="mt-0.5 text-[10px] text-[#9b9b98]">
-                                  {new Date(item.updatedAt).toLocaleString()}
-                                </div>
-                              </button>
-                            ))
-                          )}
-                        </div>
+              <div data-canvas-ui="true" className="pointer-events-none absolute bottom-5 left-1/2 z-30 flex w-full -translate-x-1/2 justify-center px-6">
+                <div className="pointer-events-auto relative w-full max-w-[720px]">
+                  <PromptInputBox
+                    value={draft}
+                    onValueChange={setDraft}
+                    onSend={(message) => {
+                      void handleSend(message);
+                    }}
+                    isLoading={isStreaming}
+                    placeholder="Describe what to add or change on the canvas..."
+                    statusNote={statusNote}
+                    commands={promptCommands}
+                    onAssetCreateRequest={handlePromptAssetCreateRequest}
+                    injectedCommandToken={injectedPromptCommandToken}
+                    className="max-w-none opacity-90"
+                  />
+                  <div className="absolute inset-0 z-50 flex items-center justify-center rounded-[16px] border border-white/35 bg-white/18 px-5 text-center shadow-[0_8px_20px_rgba(30,24,14,0.05)] backdrop-blur-[3px] backdrop-saturate-125">
+                    <div className="flex items-center gap-3 text-left">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-black text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)]">
+                        <Construction className="h-5 w-5" />
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold text-[#151515]">Agent mode is under development.</p>
+                        <p className="mt-1 text-xs font-medium text-[#66615a]">Please use the draggable nodes on the left.</p>
                       </div>
-                    ) : null}
+                    </div>
                   </div>
-                </div>
-              </div>
-
-              <div className="project-agent-chat-collapsible min-h-0 flex-1 flex items-center justify-center px-6 py-10 max-[1320px]:hidden">
-                <div className="w-full max-w-sm text-center">
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#F7F7F7] text-black">
-                    <AlertCircle className="h-6 w-6" />
-                  </div>
-                  <h3 className="text-lg font-semibold tracking-tight text-[#1f1f1e]">
-                    AI Agent is being upgraded
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-[#666666]">
-                    We are improving agent capabilities and canvas workflows. This feature will be back soon.
-                  </p>
                 </div>
               </div>
             </section>
@@ -2247,17 +2162,32 @@ export default function ProjectAgentPage() {
       />
       <CreateAvatarModal
         isOpen={showCreateAvatarModal}
-        onClose={() => setShowCreateAvatarModal(false)}
+        onClose={() => {
+          setShowCreateAvatarModal(false);
+          if (pendingPromptAssetType === 'avatar') {
+            setPendingPromptAssetType(null);
+          }
+        }}
         onAvatarCreated={handleAvatarCreated}
       />
       <CreateProductModal
         isOpen={showCreateProductModal}
-        onClose={() => setShowCreateProductModal(false)}
+        onClose={() => {
+          setShowCreateProductModal(false);
+          if (pendingPromptAssetType === 'product') {
+            setPendingPromptAssetType(null);
+          }
+        }}
         onProductCreated={handleProductCreated}
       />
       <VideoImportModal
         isOpen={showVideoImportModal}
-        onClose={() => setShowVideoImportModal(false)}
+        onClose={() => {
+          setShowVideoImportModal(false);
+          if (pendingPromptAssetType === 'video') {
+            setPendingPromptAssetType(null);
+          }
+        }}
         onImported={handleVideosImported}
         onError={(error) => setStatusNote(error)}
         onContinueInAgentFeatures={handleContinueInAgentFeatures}

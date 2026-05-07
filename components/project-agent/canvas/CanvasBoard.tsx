@@ -205,7 +205,7 @@ const getPlayableVideoUrl = (asset: ProjectAgentCanvasNode['asset']) => {
 const PROJECT_AGENT_VIDEO_CLONE_MODELS = [
   {
     value: 'seedance_2' as const,
-    label: 'Seedance 2 1080p',
+    label: 'Seedance 2',
     Icon: ByteDance,
     creditsPerSecond: SEEDANCE_2_QUALITY_COSTS['1080p'],
   },

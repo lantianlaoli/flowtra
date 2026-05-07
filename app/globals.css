@@ -4623,6 +4623,12 @@ body {
   outline-offset: 2px;
 }
 
+.project-agent-chat-input-field:focus,
+.project-agent-chat-input-field:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 /* Selection styles */
 ::selection {
   background-color: var(--accent);
