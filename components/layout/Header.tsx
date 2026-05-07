@@ -24,6 +24,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useI18n } from "@/providers/I18nProvider";
+import { trackLandingToolClick } from "@/lib/analytics/landing-tools";
 
 interface HeaderProps {
   showAuthButtons?: boolean;
@@ -301,7 +302,13 @@ export default function Header({
                 <div className="landing-floating-panel absolute left-1/2 top-full z-50 mt-4 min-w-[15.5rem] w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-[22px] border border-[#E5E5E5] bg-white p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.12)] invisible opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
                   <div className="flex flex-col gap-2 py-2">
                     {toolItems.map((item) => (
-                      <HeaderMenuItem key={item.href} {...item} />
+                      <HeaderMenuItem
+                        key={item.href}
+                        {...item}
+                        onClick={() =>
+                          trackLandingToolClick(item.href, "landing_header_desktop_tools")
+                        }
+                      />
                     ))}
                   </div>
                 </div>
@@ -397,7 +404,10 @@ export default function Header({
                   <HeaderMobileTileItem
                     key={item.href}
                     {...item}
-                    onClick={() => setMobileMenuOpen(false)}
+                    onClick={() => {
+                      trackLandingToolClick(item.href, "landing_header_mobile_tools");
+                      setMobileMenuOpen(false);
+                    }}
                   />
                 ))}
               </div>

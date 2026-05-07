@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { getSocialMediaLinks } from '@/lib/social-links';
 import { useI18n } from '@/providers/I18nProvider';
+import { trackLandingToolClick } from '@/lib/analytics/landing-tools';
 
 export default function Footer() {
   const { messages } = useI18n();
@@ -94,7 +95,11 @@ export default function Footer() {
               <ul className="space-y-3">
               {footerMessages.toolItems.map((item) => (
                 <li key={item.href}>
-                  <Link href={item.href} className="text-[13px] leading-5 text-[#666666] transition-colors hover:text-black">
+                  <Link
+                    href={item.href}
+                    className="text-[13px] leading-5 text-[#666666] transition-colors hover:text-black"
+                    onClick={() => trackLandingToolClick(item.href, 'landing_footer_tools')}
+                  >
                     {item.label}
                   </Link>
                 </li>

@@ -5,6 +5,7 @@ export const ANALYTICS_EVENTS = {
   landing_store_link_submitted: 'landing_store_link_submitted',
   landing_pricing_cta_clicked: 'landing_pricing_cta_clicked',
   landing_sign_in_clicked: 'landing_sign_in_clicked',
+  landing_tool_clicked: 'landing_tool_clicked',
   landing_demo_video_played: 'landing_demo_video_played',
   landing_section_viewed: 'landing_section_viewed',
   checkout_started: 'checkout_started',

@@ -5,6 +5,7 @@ import { Calculator, Sparkles, Upload } from "lucide-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { useI18n } from "@/providers/I18nProvider";
+import { trackLandingToolClick } from "@/lib/analytics/landing-tools";
 
 export default function ToolsPage() {
   const { messages } = useI18n();
@@ -38,6 +39,7 @@ export default function ToolsPage() {
                 key={href}
                 href={href}
                 className="group rounded-2xl border border-[#E5E5E5] bg-white p-5 sm:p-6 shadow-[0_24px_60px_rgba(0,0,0,0.08)] transition-all hover:-translate-y-0.5 hover:shadow-[0_30px_70px_rgba(0,0,0,0.1)]"
+                onClick={() => trackLandingToolClick(href, "tools_index_card")}
               >
                 <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#E5E5E5] bg-[#F7F7F7]">
                   <Icon className="h-5 w-5 text-black" />
