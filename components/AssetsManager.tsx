@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Loader2, Package, ExternalLink, Plus, UserCircle, Video } from 'lucide-react';
 import { UserProduct, UserAvatar } from '@/lib/supabase';
@@ -412,7 +412,7 @@ export default function AssetsManager() {
     setSelectedVideo((current) => (current?.id === videoId ? null : current));
   };
 
-  const handleVideoUpdated = (updatedVideo: VideoAsset) => {
+  const handleVideoUpdated = useCallback((updatedVideo: VideoAsset) => {
     setAssetsData((prev) => {
       const nextVideos = dedupeVideoAssets(
         prev.videos.map((video) => (video.id === updatedVideo.id ? { ...video, ...updatedVideo } : video)),
@@ -431,7 +431,7 @@ export default function AssetsManager() {
     setSelectedVideo((current) => (
       current?.id === updatedVideo.id ? { ...current, ...updatedVideo } : current
     ));
-  };
+  }, []);
 
   const handleContinueVideoInAgentFeatures = () => {
     setShowVideoDetails(false);
@@ -760,6 +760,7 @@ export default function AssetsManager() {
         isOpen={showVideoImportModal}
         onClose={() => setShowVideoImportModal(false)}
         onImported={handleVideosImported}
+        onVideoUpdated={handleVideoUpdated}
         onError={(error) => showError(error)}
       />
       <VideoAssetDetailsModal

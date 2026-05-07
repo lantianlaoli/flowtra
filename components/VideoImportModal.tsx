@@ -38,6 +38,7 @@ interface VideoImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImported: (videos: ImportedVideo[], options?: { message?: string; skipRefresh?: boolean }) => void;
+  onVideoUpdated?: (video: ImportedVideo) => void;
   onError?: (error: string) => void;
   onContinueInAgentFeatures?: () => void;
 }
@@ -183,6 +184,7 @@ export default function VideoImportModal({
   isOpen,
   onClose,
   onImported,
+  onVideoUpdated,
   onError,
   onContinueInAgentFeatures
 }: VideoImportModalProps) {
@@ -282,6 +284,9 @@ export default function VideoImportModal({
 
     const applyVideoUpdate = (next: ImportedVideo) => {
       setProcessingVideo(next);
+      if (next.id) {
+        onVideoUpdated?.(next);
+      }
       if (next.analysis_status === 'failed') {
         setProcessingMessage('Video added. Analysis failed.');
       } else if (next.analysis_status === 'completed' || next.analysis_result) {
@@ -327,7 +332,7 @@ export default function VideoImportModal({
       window.clearInterval(interval);
       void supabase.removeChannel(channel);
     };
-  }, [processingVideo?.analysis_result, processingVideo?.analysis_status, processingVideo?.id, step, supabase]);
+  }, [onVideoUpdated, processingVideo?.analysis_result, processingVideo?.analysis_status, processingVideo?.id, step, supabase]);
 
   const requiresFirstFrameForMotionClone = processingOrigin === 'upload';
   const hasFirstFrameImage = Boolean(processingVideo?.cover_url);
