@@ -63,7 +63,14 @@ const isTransientProviderError = (message: string) => {
   const normalized = message.toLowerCase();
   return normalized.includes('provider_code=500')
     || normalized.includes('status=500')
-    || normalized.includes('internal server error');
+    || normalized.includes('internal server error')
+    || normalized.includes('timeout')
+    || normalized.includes('aborted')
+    || normalized.includes('network')
+    || normalized.includes('fetch failed')
+    || normalized.includes('econnreset')
+    || normalized.includes('etimedout')
+    || normalized.includes('eai_again');
 };
 
 const MAX_ANALYSIS_RETRIES = 2;
@@ -411,8 +418,9 @@ Requirements:
       }
     ]
   }, {
-    maxRetries: 10,
-    timeoutMs: 45000
+    maxRetries: 2,
+    timeoutMs: 120000,
+    transport: 'fetch'
   });
 };
 
@@ -795,6 +803,7 @@ export const analyzeCreatorVideoAndUpdate = async ({
 
 export const __test__ = {
   hasSpeechSignal,
+  isTransientProviderError,
   parseCreatorVideoAnalysisResponse,
   validateStrictShotSchema,
 };

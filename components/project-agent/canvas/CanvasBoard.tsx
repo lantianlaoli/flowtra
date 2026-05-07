@@ -1091,7 +1091,7 @@ export default function CanvasBoard({
         Zoom {Math.round(canvas.viewport.zoom * 100)}%
       </div>
 
-      <div data-canvas-ui="true" className="pointer-events-auto absolute bottom-5 left-5 z-30 flex items-end gap-2 max-[1500px]:gap-1.5">
+      <div data-canvas-ui="true" className="project-agent-canvas-actions pointer-events-auto absolute bottom-5 left-5 z-30 flex items-end gap-2 max-[1320px]:bottom-4 max-[1320px]:left-4 max-[1320px]:gap-1.5">
         <div className="relative" data-canvas-ui="true" ref={shortcutsRef}>
           {shortcutsOpen ? (
             <div className="project-agent-card absolute bottom-[calc(100%+10px)] left-0 w-[300px] rounded-[20px] border p-3 shadow-[0_14px_32px_rgba(0,0,0,0.10)] backdrop-blur">
@@ -1134,7 +1134,7 @@ export default function CanvasBoard({
             </div>
           ) : null}
           <button
-            className={`project-agent-press-button flex h-10 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold max-[1500px]:w-10 max-[1500px]:justify-center max-[1500px]:px-0 ${
+            className={`project-agent-canvas-action-button project-agent-press-button flex h-10 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold max-[1320px]:w-10 max-[1320px]:justify-center max-[1320px]:px-0 ${
               shortcutsOpen
                 ? 'project-agent-press-button--active'
                 : ''
@@ -1145,19 +1145,19 @@ export default function CanvasBoard({
             title="Shortcuts"
           >
             <Keyboard className="h-3.5 w-3.5" />
-            <span className="max-[1500px]:hidden">Shortcuts</span>
+            <span className="project-agent-canvas-action-label max-[1320px]:hidden">Shortcuts</span>
           </button>
         </div>
 
         <button
-          className="project-agent-press-button flex h-10 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold max-[1500px]:w-10 max-[1500px]:justify-center max-[1500px]:px-0"
+          className="project-agent-canvas-action-button project-agent-press-button flex h-10 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold max-[1320px]:w-10 max-[1320px]:justify-center max-[1320px]:px-0"
           onClick={onFormatLayout}
           type="button"
           aria-label="Format"
           title="Format"
         >
           <BrushCleaning className="h-3.5 w-3.5" />
-          <span className="max-[1500px]:hidden">Format</span>
+          <span className="project-agent-canvas-action-label max-[1320px]:hidden">Format</span>
         </button>
       </div>
     </div>

@@ -18,7 +18,7 @@ type InsertToolbarProps = {
   videos: ProjectAgentCanvasAssetRef[];
   openKey?: InsertToolbarKey | null;
   onOpenKeyChange?: (next: InsertToolbarKey | null) => void;
-  onQuickUploadRequest?: (assetType: Extract<ProjectAgentSelectableAssetType, 'avatar' | 'product'>) => void;
+  onQuickUploadRequest?: (assetType: Extract<ProjectAgentSelectableAssetType, 'avatar' | 'product' | 'video'>) => void;
   selectionMode?: {
     assetType: ProjectAgentSelectableAssetType;
     title: string;
@@ -91,6 +91,7 @@ const getToolbarMessages = (locale: string) => {
       quickUpload: {
         avatar: '上传头像',
         product: '上传产品',
+        video: 'Upload video',
       },
       empty: {
         avatar: '还没有头像资源。',
@@ -111,6 +112,7 @@ const getToolbarMessages = (locale: string) => {
     quickUpload: {
       avatar: 'Upload avatar',
       product: 'Upload product',
+      video: 'Upload video',
     },
     empty: {
       avatar: 'No avatar assets yet.',
@@ -164,11 +166,11 @@ const QuickUploadTile = ({
   onClick,
   label,
 }: {
-  assetType: Extract<ProjectAgentSelectableAssetType, 'avatar' | 'product'>;
+  assetType: Extract<ProjectAgentSelectableAssetType, 'avatar' | 'product' | 'video'>;
   onClick: () => void;
   label: string;
 }) => {
-  const Icon = assetType === 'avatar' ? User : Package2;
+  const Icon = assetType === 'avatar' ? User : assetType === 'product' ? Package2 : Video;
 
   return (
     <button
@@ -200,7 +202,7 @@ const AssetList = ({
   onQuickUploadRequest?: InsertToolbarProps['onQuickUploadRequest'];
   locale: string;
 }) => {
-  const hasQuickUpload = (type === 'avatar' || type === 'product') && Boolean(onQuickUploadRequest);
+  const hasQuickUpload = (type === 'avatar' || type === 'product' || type === 'video') && Boolean(onQuickUploadRequest);
   const messages = getToolbarMessages(locale);
 
   return (
@@ -236,9 +238,9 @@ const AssetList = ({
       {hasQuickUpload && onQuickUploadRequest ? (
         <div className="project-agent-insert-footer sticky bottom-0 mt-2 w-full border-t border-[#d9d9d6] bg-[#f1f1ef] pt-2">
           <QuickUploadTile
-            assetType={type as 'avatar' | 'product'}
-            label={messages.quickUpload[type as 'avatar' | 'product']}
-            onClick={() => onQuickUploadRequest(type as 'avatar' | 'product')}
+            assetType={type as 'avatar' | 'product' | 'video'}
+            label={messages.quickUpload[type as 'avatar' | 'product' | 'video']}
+            onClick={() => onQuickUploadRequest(type as 'avatar' | 'product' | 'video')}
           />
         </div>
       ) : null}
@@ -319,7 +321,7 @@ export default function InsertToolbar({
   const renderDropdownContent = () => {
     if (openKey === 'avatar') return <AssetList items={avatars} type="avatar" locale={locale} selectionMode={selectionMode} onAssetSelect={onAssetSelect} onQuickUploadRequest={onQuickUploadRequest} />;
     if (openKey === 'product') return <AssetList items={products} type="product" locale={locale} selectionMode={selectionMode} onAssetSelect={onAssetSelect} onQuickUploadRequest={onQuickUploadRequest} />;
-    if (openKey === 'video') return <AssetList items={videos} type="video" locale={locale} selectionMode={selectionMode} onAssetSelect={onAssetSelect} />;
+    if (openKey === 'video') return <AssetList items={videos} type="video" locale={locale} selectionMode={selectionMode} onAssetSelect={onAssetSelect} onQuickUploadRequest={onQuickUploadRequest} />;
     if (openKey === 'feature') {
       return (
         <div className="flex flex-col items-start gap-2">
@@ -343,7 +345,7 @@ export default function InsertToolbar({
   return (
     <div
       ref={toolbarRef}
-      className="project-agent-insert-toolbar pointer-events-auto relative max-w-full rounded-[20px] border border-[#cdcdca] bg-[#f1f1ef] p-2 shadow-[0_14px_30px_rgba(0,0,0,0.08)] backdrop-blur"
+      className="project-agent-insert-toolbar pointer-events-auto relative max-w-full rounded-[20px] border border-[#cdcdca] bg-[#f1f1ef] p-2 shadow-[0_14px_30px_rgba(0,0,0,0.08)] backdrop-blur max-[1320px]:p-1.5"
     >
       {openKey ? (
         <div
@@ -353,7 +355,7 @@ export default function InsertToolbar({
           {renderDropdownContent()}
         </div>
       ) : null}
-      <div className="flex items-end gap-1.5 max-[1320px]:gap-1.5">
+      <div className="project-agent-insert-trigger-row flex items-end gap-1.5 max-[1320px]:gap-1">
         {([
           { key: 'avatar', label: messages.categories.avatar },
           { key: 'product', label: messages.categories.product },
@@ -380,8 +382,8 @@ export default function InsertToolbar({
               title={entry.label}
             >
               <EntryIcon className="h-4 w-4 shrink-0" />
-              <span className="truncate max-[1320px]:hidden">{entry.label}</span>
-              <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+              <span className="project-agent-insert-trigger-label truncate max-[1320px]:hidden">{entry.label}</span>
+              <ChevronDown className={`project-agent-insert-trigger-chevron h-3.5 w-3.5 shrink-0 transition-transform max-[1320px]:hidden ${open ? 'rotate-180' : ''}`} />
             </button>
           </div>
           );
@@ -399,7 +401,7 @@ export default function InsertToolbar({
           title={messages.text}
         >
           <Type className="h-4 w-4 shrink-0" />
-          <span className="max-[1320px]:hidden">{messages.text}</span>
+          <span className="project-agent-insert-trigger-label max-[1320px]:hidden">{messages.text}</span>
         </div>
       </div>
     </div>

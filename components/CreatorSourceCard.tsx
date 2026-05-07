@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useRef, useState } from 'react';
-import { ChevronDown, ExternalLink, Trash2, RefreshCw, Users, Video, Volume2, VolumeX, Play, Heart, MessageCircle, Share2, Wand2 } from 'lucide-react';
+import { ChevronDown, ExternalLink, Trash2, RefreshCw, Users, Video, Volume2, VolumeX, Play, Heart, MessageCircle, Share2, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface CreatorSourcePlatform {
@@ -213,10 +213,13 @@ function CreatorSourceVideoTile({ video, sourceId }: { video: CreatorSourceVideo
   const shareCount = getStat('shareCount');
   const collectCount = getStat('collectCount');
 
-  const handleUseInMotionClone = (event: React.MouseEvent) => {
+  const handleContinueInAgent = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    router.push(`/dashboard/motion-clone?videoId=${video.id}`);
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('project_agent_open_feature_toolbar', '1');
+    }
+    router.push('/dashboard/agent');
   };
 
   return (
@@ -281,11 +284,11 @@ function CreatorSourceVideoTile({ video, sourceId }: { video: CreatorSourceVideo
           </span>
         </div>
         <button
-          onClick={handleUseInMotionClone}
+          onClick={handleContinueInAgent}
           className="w-full px-3 py-2 text-xs font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
         >
-          <Wand2 className="w-3 h-3" />
-          Use in Motion Clone
+          <ArrowRight className="w-3 h-3" />
+          Continue in Agent
         </button>
       </div>
     </div>

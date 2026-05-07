@@ -6,17 +6,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
   Loader2,
-  Sparkles,
-  Shuffle,
+  ArrowRight,
   Clock,
   Languages,
   Film,
   Trash2,
   Upload,
-  AlertTriangle,
   Save,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useToast } from "@/contexts/ToastContext";
 import VideoPlayer from "@/components/ui/VideoPlayer";
 import ReferenceVideoShotsEditor from "@/components/ReferenceVideoShotsEditor";
@@ -48,12 +45,10 @@ interface VideoAssetDetailsModalProps {
   onClose: () => void;
   video: VideoAsset | null;
   size?: "default" | "compact";
-  onUseForClone?: (video: VideoAsset) => Promise<void> | void;
-  cloneActionLabel?: string;
+  onContinueInAgentFeatures?: (video: VideoAsset) => void;
   onDeleteVideo?: (video: VideoAsset) => Promise<void> | void;
   onVideoDeleted?: (videoId: string) => void;
   onVideoUpdated?: (video: VideoAsset) => void;
-  requireFirstFrameForClone?: boolean;
 }
 
 export default function VideoAssetDetailsModal({
@@ -61,16 +56,12 @@ export default function VideoAssetDetailsModal({
   onClose,
   video,
   size = "default",
-  onUseForClone,
-  cloneActionLabel = "Use for Clone",
+  onContinueInAgentFeatures,
   onDeleteVideo,
   onVideoDeleted,
   onVideoUpdated,
-  requireFirstFrameForClone = false,
 }: VideoAssetDetailsModalProps) {
-  const router = useRouter();
   const { showError, showSuccess } = useToast();
-  const [isCreatingClone, setIsCreatingClone] = useState(false);
   const [deletingVideoIds, setDeletingVideoIds] = useState<Set<string>>(new Set());
   const [currentVideo, setCurrentVideo] = useState<VideoAsset | null>(video);
   const [isUploadingFirstFrame, setIsUploadingFirstFrame] = useState(false);
@@ -125,30 +116,8 @@ export default function VideoAssetDetailsModal({
   }, [currentVideo?.analysis_result, currentVideo?.analysis_language]);
 
   const hasAnalysis = Boolean(currentVideo?.analysis_result);
-  const hasFirstFrame = Boolean(currentVideo?.cover_url);
   const isSystemVideo = Boolean(currentVideo?.isSystem);
   const isCompact = size === "compact";
-  const isAgentSelectionMode = Boolean(onUseForClone);
-  const cloneActionNeedsFirstFrame = Boolean(
-    requireFirstFrameForClone &&
-    currentVideo?.source_type === "creator",
-  );
-  const cloneActionBlockedByFirstFrame = cloneActionNeedsFirstFrame && !hasFirstFrame;
-  const cloneActionDisabled = !hasAnalysis || cloneActionBlockedByFirstFrame || isCreatingClone;
-  const cloneActionText = cloneActionBlockedByFirstFrame
-    ? "First frame required"
-    : cloneActionLabel;
-  const cloneActionClassName = cloneActionBlockedByFirstFrame
-    ? "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-all duration-200 disabled:cursor-not-allowed"
-    : "assets-video-details-action flex w-full items-center justify-center gap-2 rounded-lg border border-[#0f0f0f] bg-[#0f0f0f] px-3 py-2.5 text-sm text-white transition-all duration-200 group/btn hover:bg-[#1d1d1d] disabled:cursor-not-allowed disabled:border-[#cfcfca] disabled:bg-[#e9e9e6] disabled:text-[#6f6f6a]";
-  const cloneActionStyle = cloneActionBlockedByFirstFrame
-    ? {
-        border: "1px solid #fecaca",
-        background: "#fef2f2",
-        color: "#b91c1c",
-        boxShadow: "none",
-      }
-    : undefined;
   const shouldShowFirstFramePanel = currentVideo?.source_type === "creator";
   const previewWidth = isCompact ? 252 : 324;
   const previewHeight = Math.round((previewWidth * 16) / 9);
@@ -182,68 +151,15 @@ export default function VideoAssetDetailsModal({
     !isSavingVideoName,
   );
 
-  const handleUseForClone = async () => {
-    if (!currentVideo?.analysis_result || !currentVideo) {
+  const handleContinueInAgentFeatures = () => {
+    if (!currentVideo) return;
+    if (!currentVideo.analysis_result) {
       showError("Video analysis is still running. Please try again shortly.");
       return;
     }
 
-    if (onUseForClone) {
-      // Agent selection flow: close immediately for snappy UX,
-      // then continue async work in the background.
-      onClose();
-      try {
-        await onUseForClone(currentVideo);
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Failed to start clone flow";
-        showError(message);
-      }
-      return;
-    }
-
-    setIsCreatingClone(true);
-    try {
-      if (typeof window !== "undefined") {
-        window.sessionStorage.setItem(
-          "preselect_reference_video",
-          JSON.stringify({
-            videoId: currentVideo.id,
-            analysis: currentVideo.analysis_result,
-            language: currentVideo.analysis_language || "en",
-            videoUrl: currentVideo.video_cdn_url || null,
-            tiktokUrl: currentVideo.video_url || null,
-          }),
-        );
-      }
-
-      showSuccess("Analysis ready. Continue to clone setup.");
-      onClose();
-      router.push("/dashboard/video-clone");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to start clone flow";
-      showError(message);
-    } finally {
-      setIsCreatingClone(false);
-    }
-  };
-
-  const handleUseInMotionClone = () => {
-    if (!currentVideo) return;
-
-    if (typeof window !== "undefined") {
-      window.sessionStorage.setItem(
-        "preselect_motion_clone_video",
-        JSON.stringify({
-          videoId: currentVideo.id,
-        }),
-      );
-    }
-
-    showSuccess("Video selected for Motion Clone.");
     onClose();
-    router.push("/dashboard/motion-clone");
+    onContinueInAgentFeatures?.(currentVideo);
   };
 
   const handleDeleteVideo = async () => {
@@ -624,52 +540,31 @@ export default function VideoAssetDetailsModal({
 
                 <div className="assets-video-details-actions mt-auto flex flex-col gap-2 pt-2">
                   <button
-                    onClick={handleUseForClone}
-                    disabled={cloneActionDisabled}
-                    className={cloneActionClassName}
-                    style={cloneActionStyle}
+                    onClick={handleContinueInAgentFeatures}
+                    disabled={!hasAnalysis}
+                    className="assets-video-details-action flex w-full items-center justify-center gap-2 rounded-xl border border-[#0f0f0f] bg-[#0f0f0f] px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#1d1d1d] disabled:cursor-not-allowed disabled:border-[#cfcfca] disabled:bg-[#e9e9e6] disabled:text-[#6f6f6a]"
                   >
-                    <span className="font-medium flex items-center gap-2">
-                      {isCreatingClone ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : cloneActionBlockedByFirstFrame ? (
-                        <AlertTriangle className="w-4 h-4 text-red-600" />
-                      ) : (
-                        <Sparkles className="w-4 h-4 text-white/80 group-hover/btn:text-white transition-colors" />
-                      )}
-                      {cloneActionText}
+                    <span className="flex items-center gap-2">
+                      Continue in Agent
+                      <ArrowRight className="h-4 w-4" />
                     </span>
                   </button>
-                  {!isAgentSelectionMode ? (
-                    <>
-                      <button
-                        onClick={handleUseInMotionClone}
-                        disabled={!currentVideo.source_id}
-                        className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-black text-white rounded-lg border border-black hover:bg-gray-900 transition-all duration-200 group/btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <span className="font-medium flex items-center gap-2">
-                          <Shuffle className="w-4 h-4 text-white/90" />
-                          Use in Motion Clone
-                        </span>
-                      </button>
-                      {!isSystemVideo && onDeleteVideo && (
-                        <button
-                          onClick={handleDeleteVideo}
-                          disabled={isDeletingCurrentVideo}
-                          className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-white text-red-600 rounded-lg border border-red-200 hover:bg-red-50 hover:border-red-300 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="font-medium flex items-center gap-2">
-                            {isDeletingCurrentVideo ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="w-4 h-4" />
-                            )}
-                            Delete Video
-                          </span>
-                        </button>
-                      )}
-                    </>
-                  ) : null}
+                  {!isSystemVideo && onDeleteVideo && (
+                    <button
+                      onClick={handleDeleteVideo}
+                      disabled={isDeletingCurrentVideo}
+                      className="assets-video-details-action w-full min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-white text-red-600 rounded-lg border border-red-200 hover:bg-red-50 hover:border-red-300 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="font-medium flex items-center gap-2">
+                        {isDeletingCurrentVideo ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                        Delete Video
+                      </span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
