@@ -390,6 +390,13 @@ export default function ProjectAgentPage() {
     }
   }, [pendingUiRequest]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.sessionStorage.getItem('project_agent_open_feature_toolbar') !== '1') return;
+    window.sessionStorage.removeItem('project_agent_open_feature_toolbar');
+    setToolbarOpenKey('feature');
+  }, []);
+
   useEffect(() => () => {
     if (canvasNoticeTimeoutRef.current) {
       window.clearTimeout(canvasNoticeTimeoutRef.current);
@@ -1210,7 +1217,6 @@ export default function ProjectAgentPage() {
     if (!options?.skipRefresh) {
       void loadAssets();
     }
-    setShowVideoImportModal(false);
 
     if (
       importedAssets.length > 0 &&
@@ -1221,6 +1227,11 @@ export default function ProjectAgentPage() {
       setToolbarOpenKey(null);
     }
   }, [handleToolbarAssetSelect, loadAssets, pendingUiRequest]);
+
+  const handleContinueInAgentFeatures = useCallback(() => {
+    setShowVideoImportModal(false);
+    setToolbarOpenKey('feature');
+  }, []);
 
   const handleConfirmPendingAction = useCallback(() => {
     if (!pendingUiRequest || pendingUiRequest.type !== 'confirmation') return;
@@ -2220,7 +2231,7 @@ export default function ProjectAgentPage() {
                     AI Agent is being upgraded
                   </h3>
                   <p className="mt-2 text-sm leading-6 text-[#666666]">
-                    We're improving agent capabilities and canvas workflows. This feature will be back soon.
+                    We are improving agent capabilities and canvas workflows. This feature will be back soon.
                   </p>
                 </div>
               </div>
@@ -2249,6 +2260,7 @@ export default function ProjectAgentPage() {
         onClose={() => setShowVideoImportModal(false)}
         onImported={handleVideosImported}
         onError={(error) => setStatusNote(error)}
+        onContinueInAgentFeatures={handleContinueInAgentFeatures}
       />
       <ProjectAgentWelcomeTourModal
         open={isWelcomeTourOpen}

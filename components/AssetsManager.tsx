@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Search, Loader2, Package, ExternalLink, Plus, UserCircle, Video } from 'lucide-react';
 import { UserProduct, UserAvatar } from '@/lib/supabase';
 import type { SystemAvatar } from '@/lib/default-avatars';
@@ -90,6 +91,7 @@ export default function AssetsManager() {
   const { messages } = useI18n();
   const assetsMessages = messages.dashboard.assets;
   const { showSuccess, showError } = useToast();
+  const router = useRouter();
   const [assetsData, setAssetsData] = useState<AssetsData>({
     creatorSources: [],
     products: [],
@@ -431,6 +433,14 @@ export default function AssetsManager() {
     ));
   };
 
+  const handleContinueVideoInAgentFeatures = () => {
+    setShowVideoDetails(false);
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('project_agent_open_feature_toolbar', '1');
+    }
+    router.push('/dashboard/agent');
+  };
+
   const handleDeleteVideo = async (video: VideoAsset) => {
     if (video.isSystem) {
       showError('System videos cannot be deleted', 4000);
@@ -758,6 +768,7 @@ export default function AssetsManager() {
         video={selectedVideo}
         onDeleteVideo={handleDeleteVideo}
         onVideoUpdated={handleVideoUpdated}
+        onContinueInAgentFeatures={handleContinueVideoInAgentFeatures}
       />
     </div>
   );

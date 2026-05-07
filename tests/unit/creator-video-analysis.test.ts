@@ -244,3 +244,8 @@ test('creator video analysis parser keeps Arabic as a valid detected language', 
 
   assert.equal(result.parsed.detected_language, 'ar');
 });
+
+test('creator video analysis treats request timeouts as transient', () => {
+  assert.equal(__test__.isTransientProviderError('The operation was aborted due to timeout'), true);
+  assert.equal(__test__.isTransientProviderError('OpenRouter provider error: invalid request'), false);
+});

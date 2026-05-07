@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
-import { X, Link, Upload, Loader2, ArrowLeft, Info, Sparkles, Shuffle, RotateCcw, Type, Languages, Film, Clock, Save } from 'lucide-react';
+import { X, Link, Upload, Loader2, ArrowLeft, ArrowRight, Info, AlertCircle, RotateCcw, Languages, Film, Clock, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useRouter } from 'next/navigation';
 import ReferenceVideoShotsEditor from '@/components/ReferenceVideoShotsEditor';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { parseShotsFromAnalysis } from '@/lib/reference-video-shot-form';
@@ -40,6 +39,7 @@ interface VideoImportModalProps {
   onClose: () => void;
   onImported: (videos: ImportedVideo[], options?: { message?: string; skipRefresh?: boolean }) => void;
   onError?: (error: string) => void;
+  onContinueInAgentFeatures?: () => void;
 }
 
 type ImportStep = 'choose' | 'link' | 'upload' | 'creator' | 'creator-preview' | 'processing' | 'processing-batch';
@@ -183,7 +183,8 @@ export default function VideoImportModal({
   isOpen,
   onClose,
   onImported,
-  onError
+  onError,
+  onContinueInAgentFeatures
 }: VideoImportModalProps) {
   const supabase = useSupabaseBrowserClient();
   const [step, setStep] = useState<ImportStep>('choose');
@@ -211,8 +212,12 @@ export default function VideoImportModal({
   const videoNameAutoSaveTimerRef = useRef<number | null>(null);
   const previousProcessingVideoIdRef = useRef<string | null>(null);
   const previousVideoDescriptionRef = useRef('');
-  const router = useRouter();
   const isProcessingStep = step === 'processing' || step === 'processing-batch';
+  const canContinueInAgentFeatures = Boolean(
+    onContinueInAgentFeatures &&
+    processingVideo?.analysis_result &&
+    processingVideo.analysis_status !== 'failed'
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -324,14 +329,8 @@ export default function VideoImportModal({
     };
   }, [processingVideo?.analysis_result, processingVideo?.analysis_status, processingVideo?.id, step, supabase]);
 
-  const canUseForClone = Boolean(processingVideo?.analysis_result);
   const requiresFirstFrameForMotionClone = processingOrigin === 'upload';
   const hasFirstFrameImage = Boolean(processingVideo?.cover_url);
-  const canUseForMotionClone = Boolean(
-    processingVideo?.source_id &&
-    processingVideo?.id &&
-    (!requiresFirstFrameForMotionClone || hasFirstFrameImage)
-  );
   const previewWidth = 324;
   const previewHeight = 576;
   const previewCardClassName = 'flex-none overflow-hidden rounded-xl';
@@ -723,30 +722,6 @@ export default function VideoImportModal({
       }
       return next;
     });
-  };
-
-  const handleUseForClone = () => {
-    if (!processingVideo?.analysis_result) {
-      setError('Analysis is still running. Please wait a moment.');
-      return;
-    }
-
-    if (typeof window !== 'undefined') {
-      window.sessionStorage.setItem('showcase_tiktok_analysis', JSON.stringify({
-        analysis: processingVideo.analysis_result,
-        language: processingVideo.analysis_language || 'en',
-        videoUrl: processingVideo.video_cdn_url || null,
-        tiktokUrl: processingVideo.video_url || null
-      }));
-    }
-
-    onClose();
-    router.push('/dashboard/video-clone');
-  };
-
-  const handleUseInMotionClone = () => {
-    onClose();
-    router.push(`/dashboard/motion-clone?videoId=${processingVideo?.id}`);
   };
 
   const handleRetryAnalysis = async () => {
@@ -1256,21 +1231,29 @@ export default function VideoImportModal({
                       <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
                         <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1">
                           <Clock className="h-4 w-4 shrink-0 text-gray-400" />
-                          <span className="font-medium text-gray-800">
-                            {processingDisplayDurationSeconds ? `${processingDisplayDurationSeconds}s` : '—'}
-                          </span>
+                          {isAnalysisPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-gray-500" aria-label="Loading duration" />
+                          ) : (
+                            <span className="font-medium text-gray-800">
+                              {processingDisplayDurationSeconds ? `${processingDisplayDurationSeconds}s` : '—'}
+                            </span>
+                          )}
                         </div>
                         <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1">
                           <Languages className="h-4 w-4 shrink-0 text-gray-400" />
                           {isAnalysisPending ? (
-                            <GlassLoadingBar className="h-4 w-16" />
+                            <Loader2 className="h-4 w-4 animate-spin text-gray-500" aria-label="Loading language" />
                           ) : (
                             <span className="font-medium text-gray-800">{processingVideo?.analysis_language || '—'}</span>
                           )}
                         </div>
                         <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1">
                           <Film className="h-4 w-4 shrink-0 text-gray-400" />
-                          <span className="font-medium text-gray-800">{processingShotCount || '—'}</span>
+                          {isAnalysisPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-gray-500" aria-label="Loading shot count" />
+                          ) : (
+                            <span className="font-medium text-gray-800">{processingShotCount || '—'}</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1280,19 +1263,22 @@ export default function VideoImportModal({
                         Structure Analysis
                       </p>
                       {processingVideo?.analysis_status === 'failed' ? (
-                        <div className="rounded-lg border border-red-200 p-4 text-sm text-red-700 space-y-3">
-                          <p>Analysis failed. Retry to regenerate the structure.</p>
-                          {processingVideo.analysis_error ? (
-                            <p className="text-xs text-red-500">{processingVideo.analysis_error}</p>
-                          ) : null}
+                        <div className="flex min-h-[220px] flex-1 flex-col items-center justify-center rounded-2xl border border-gray-200 bg-gray-50 px-6 py-8 text-center">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-800 shadow-sm">
+                            <AlertCircle className="h-5 w-5" />
+                          </div>
+                          <h4 className="mt-4 text-base font-semibold text-gray-900">System issue</h4>
+                          <p className="mt-2 max-w-[260px] text-sm leading-6 text-gray-500">
+                            Analysis could not finish. Please retry.
+                          </p>
                           <button
                             type="button"
                             onClick={() => void handleRetryAnalysis()}
                             disabled={isRetryingAnalysis}
-                            className="inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-red-200 bg-white px-3.5 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="mt-5 inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-black bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {isRetryingAnalysis ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-                            {isRetryingAnalysis ? 'Retrying...' : 'Retry Analysis'}
+                            {isRetryingAnalysis ? 'Retrying...' : 'Retry'}
                           </button>
                         </div>
                       ) : processingVideo?.analysis_result ? (
@@ -1328,28 +1314,19 @@ export default function VideoImportModal({
                       )}
                     </div>
 
-                    <div className="mt-auto flex flex-col gap-2 pt-2">
-                      <button
-                        onClick={handleUseForClone}
-                        disabled={!canUseForClone}
-                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#0f0f0f] bg-[#0f0f0f] px-3 py-2.5 text-sm text-white transition-all duration-200 hover:bg-[#1d1d1d] disabled:cursor-not-allowed disabled:border-[#cfcfca] disabled:bg-[#e9e9e6] disabled:text-[#6f6f6a]"
-                      >
-                        <span className="font-medium flex items-center gap-2">
-                          <Sparkles className="w-4 h-4 text-white/80" />
-                          Go to Clone Video
-                        </span>
-                      </button>
-                      <button
-                        onClick={handleUseInMotionClone}
-                        disabled={!canUseForMotionClone || isFirstFrameUploading}
-                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-black bg-black px-3 py-2.5 text-sm text-white transition-all duration-200 hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <span className="font-medium flex items-center gap-2">
-                          <Shuffle className="w-4 h-4 text-white/90" />
-                          Go to Motion Clone
-                        </span>
-                      </button>
-                    </div>
+                    {canContinueInAgentFeatures ? (
+                      <div className="mt-auto pt-2">
+                        <button
+                          type="button"
+                          onClick={onContinueInAgentFeatures}
+                          className="flex w-full items-center justify-center gap-2 rounded-xl border border-black bg-black px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-900"
+                        >
+                          Continue in Agent
+                          <ArrowRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : null}
+
                   </div>
                 </div>
               </div>

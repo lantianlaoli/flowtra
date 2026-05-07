@@ -25,6 +25,7 @@ type OpenRouterChatOptions = {
   headers?: HeadersInit;
   httpReferer?: string;
   xTitle?: string;
+  transport?: 'sdk' | 'fetch';
 };
 
 const DEFAULT_INITIAL_RETRY_INTERVAL_MS = 1000;
@@ -224,6 +225,10 @@ export async function sendOpenRouterChat(
       : operationXTitle,
     headers: resolvedHeaders
   };
+
+  if (resolvedOptions.transport === 'fetch') {
+    return sendOpenRouterChatWithRawFetch(request, resolvedOptions);
+  }
 
   try {
     return await getOpenRouterClient().chat.send(
