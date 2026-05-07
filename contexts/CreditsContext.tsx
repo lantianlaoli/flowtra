@@ -49,6 +49,25 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
 
   const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
+  const readCreditsRemaining = (creditsPayload: unknown): number | undefined => {
+    if (typeof creditsPayload === 'number' && Number.isFinite(creditsPayload)) {
+      return creditsPayload;
+    }
+
+    if (
+      creditsPayload &&
+      typeof creditsPayload === 'object' &&
+      'credits_remaining' in creditsPayload
+    ) {
+      const value = (creditsPayload as { credits_remaining?: unknown }).credits_remaining;
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+      }
+    }
+
+    return undefined;
+  };
+
   const fetchCredits = useCallback(async () => {
     if (!user?.id) {
       setIsLoading(false);
@@ -64,12 +83,12 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
         try {
           const response = await fetch('/api/credits/check', { cache: 'no-store' });
           const data = await response.json();
+          const remainingCredits = readCreditsRemaining(data?.credits);
 
-          if (data?.success && data?.credits) {
+          if (data?.success && remainingCredits !== undefined) {
             if (isMountedRef.current) {
-              // data.credits contains credits_remaining
-              setCreditsData(data.credits);
-              setCredits(data.credits.credits_remaining);
+              setCreditsData({ credits_remaining: remainingCredits });
+              setCredits(remainingCredits);
             }
             lastError = undefined;
             break;
