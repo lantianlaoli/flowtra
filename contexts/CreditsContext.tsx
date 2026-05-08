@@ -94,6 +94,15 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
             break;
           }
 
+          if (data?.success && data?.credits == null) {
+            if (isMountedRef.current) {
+              setCreditsData({ credits_remaining: 0 });
+              setCredits(0);
+            }
+            lastError = undefined;
+            break;
+          }
+
           // If API responded but not successful, treat as retryable unless final attempt
           lastError = new Error(data?.error || 'Unknown credits API error');
         } catch (err) {

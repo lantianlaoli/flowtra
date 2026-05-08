@@ -1,29 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ComponentType } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useCredits } from "@/contexts/CreditsContext";
 import {
-  Zap,
-  TrendingUp,
-  Hand,
   Compass,
-  Image as ImageIcon,
-  Video as VideoIcon,
-  BarChart3,
-  Clock,
   LayoutGrid,
   Copy,
   User,
   RefreshCw,
+  PlayCircle,
 } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
 import DashboardContentTransition from "@/components/layout/DashboardContentTransition";
 import { useRef, useMemo, useCallback } from "react";
 import OnboardingProgress from "@/components/onboarding/OnboardingProgress";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import FlowtraLoading from "@/components/ui/FlowtraLoading";
 import { useI18n } from "@/providers/I18nProvider";
 
@@ -32,12 +25,6 @@ export default function HomePage() {
   const homeMessages = messages.dashboard.home;
   const { user, isLoaded } = useUser();
   const { credits, creditsData } = useCredits();
-  const [stats, setStats] = useState({
-    totalVideos: 0,
-    thisMonth: 0,
-    creditsUsed: 0,
-    hoursSaved: 0,
-  });
   const [onboardingProgress, setOnboardingProgress] = useState<{
     hasImportedTiktok: boolean;
     hasProduct: boolean;
@@ -47,23 +34,22 @@ export default function HomePage() {
     totalTasks: number;
   } | null>(null);
 
-  // Fetch recent videos and stats
+  // Fetch onboarding progress for the compact dashboard header.
   useEffect(() => {
     if (user) {
-      fetchStats();
+      fetchOnboardingProgress();
     }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchStats = async () => {
+  const fetchOnboardingProgress = async () => {
     try {
       const response = await fetch("/api/user-stats");
       if (response.ok) {
         const data = await response.json();
-        setStats(data.stats || stats);
         setOnboardingProgress(data.onboardingProgress || null);
       }
     } catch (error) {
-      console.error("Failed to fetch stats:", error);
+      console.error("Failed to fetch onboarding progress:", error);
     }
   };
 
@@ -92,89 +78,23 @@ export default function HomePage() {
       />
 
       <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen">
-        <div className="px-8 md:px-12 lg:px-16 pb-12 max-w-[1280px] mx-auto pt-8 md:pt-6">
-          {/* Header Section - Minimalist with generous spacing */}
-          <div className="mb-8">
-            <h1 className="text-5xl md:text-6xl font-bold text-foreground tracking-tight mb-3">
+        <div className="px-6 md:px-10 lg:px-12 pb-10 max-w-[1280px] mx-auto pt-6 md:pt-5">
+          <div className="mb-4">
+            <h1 className="text-3xl md:text-4xl font-semibold text-foreground tracking-tight mb-1.5">
+              <span aria-hidden="true" className="mr-2">
+                👋
+              </span>
               {homeMessages.greetingPrefix}, {getUserName()}
             </h1>
-            <p className="text-base text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {homeMessages.subtitle}
             </p>
           </div>
 
-          {/* Stats Cards - Notion minimalist horizontal layout */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
-            <Card className="bg-card border border-border/60 rounded-lg p-4 hover:border-border transition-colors duration-200">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-muted rounded-md flex items-center justify-center shrink-0">
-                  <BarChart3 className="w-4 h-4 text-foreground" />
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <div className="text-2xl font-semibold text-foreground">
-                    {stats.totalVideos}
-                  </div>
-                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {homeMessages.stats.totalVideos}
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="bg-card border border-border/60 rounded-lg p-4 hover:border-border transition-colors duration-200">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-muted rounded-md flex items-center justify-center shrink-0">
-                  <TrendingUp className="w-4 h-4 text-foreground" />
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <div className="text-2xl font-semibold text-foreground">
-                    {stats.thisMonth}
-                  </div>
-                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {homeMessages.stats.thisMonth}
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="bg-card border border-border/60 rounded-lg p-4 hover:border-border transition-colors duration-200">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-muted rounded-md flex items-center justify-center shrink-0">
-                  <Zap className="w-4 h-4 text-foreground" />
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <div className="text-2xl font-semibold text-foreground">
-                    {stats.creditsUsed}
-                  </div>
-                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {homeMessages.stats.creditsUsed}
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="bg-card border border-border/60 rounded-lg p-4 hover:border-border transition-colors duration-200">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-muted rounded-md flex items-center justify-center shrink-0">
-                  <Clock className="w-4 h-4 text-foreground" />
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <div className="text-2xl font-semibold text-foreground">
-                    {stats.hoursSaved}
-                  </div>
-                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {homeMessages.stats.hoursSaved}
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          {/* Onboarding Progress Component */}
           {onboardingProgress && (
             <OnboardingProgress
               progress={onboardingProgress}
-              className="mb-3"
+              className="mb-4"
             />
           )}
 
@@ -206,6 +126,12 @@ const VIDEO_URL_PATTERN = /\.(mp4|mov|webm|m4v)(?:[?#].*)?$/i;
 function isVideoLikeUrl(url?: string) {
   return typeof url === "string" && VIDEO_URL_PATTERN.test(url);
 }
+
+const discoverTypeMeta: Record<Exclude<DiscoverType, "all">, { label: string; icon: ComponentType<{ className?: string }> }> = {
+  "video-clone": { label: "Video Clone", icon: Copy },
+  character: { label: "Character", icon: User },
+  "motion-clone": { label: "Motion Clone", icon: RefreshCw },
+};
 
 function DiscoverSection() {
   const { messages } = useI18n();
@@ -275,52 +201,49 @@ function DiscoverSection() {
   };
 
   return (
-    <Card className="bg-card border border-border/60 rounded-xl overflow-hidden">
-      {/* Header with title left, tabs right */}
-      <div className="px-4 py-2.5 border-b border-border/60">
+    <Card className="bg-card/95 border border-border/60 rounded-xl overflow-hidden shadow-[0_16px_44px_rgba(15,23,42,0.05)]">
+      <div className="px-3 py-2 border-b border-border/60 md:px-4">
         <Tabs
           value={filter}
           onValueChange={(v) => setFilter(v as DiscoverType)}
           className="w-full"
         >
-          <div className="flex items-center justify-between">
-            {/* Title left */}
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-muted rounded-lg flex items-center justify-center">
-                <Compass className="w-5 h-5 text-foreground" />
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center">
+                <Compass className="w-4 h-4 text-foreground" />
               </div>
-              <h2 className="text-2xl font-semibold text-foreground">
+              <h2 className="text-xl font-semibold text-foreground tracking-tight">
                 {discoverMessages.title}
               </h2>
             </div>
-            {/* Tabs right */}
-            <TabsList className="bg-muted border border-border/60 rounded-lg p-0.5 h-auto shrink-0">
+            <TabsList className="bg-muted border border-border/60 rounded-lg p-0.5 h-auto shrink-0 self-start md:self-auto">
               <TabsTrigger
                 value="all"
-                className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md px-3 py-1.5 text-sm font-medium transition-all gap-2"
+                className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md px-2.5 py-1.5 text-xs font-medium transition-all gap-1.5"
               >
-                <LayoutGrid className="w-4 h-4" />
+                <LayoutGrid className="w-3.5 h-3.5" />
                 {discoverMessages.all}
               </TabsTrigger>
               <TabsTrigger
                 value="video-clone"
-                className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md px-3 py-1.5 text-sm font-medium transition-all gap-2"
+                className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md px-2.5 py-1.5 text-xs font-medium transition-all gap-1.5"
               >
-                <Copy className="w-4 h-4" />
+                <Copy className="w-3.5 h-3.5" />
                 {discoverMessages.viralClone}
               </TabsTrigger>
               <TabsTrigger
                 value="character"
-                className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md px-3 py-1.5 text-sm font-medium transition-all gap-2"
+                className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md px-2.5 py-1.5 text-xs font-medium transition-all gap-1.5"
               >
-                <User className="w-4 h-4" />
+                <User className="w-3.5 h-3.5" />
                 {discoverMessages.character}
               </TabsTrigger>
               <TabsTrigger
                 value="motion-clone"
-                className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md px-3 py-1.5 text-sm font-medium transition-all gap-2"
+                className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md px-2.5 py-1.5 text-xs font-medium transition-all gap-1.5"
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className="w-3.5 h-3.5" />
                 {discoverMessages.motionClone}
               </TabsTrigger>
             </TabsList>
@@ -328,14 +251,13 @@ function DiscoverSection() {
         </Tabs>
       </div>
 
-      {/* 4-column grid */}
-      <div className="px-3 py-2">
+      <div className="px-2.5 pb-2.5 pt-2 md:px-3">
         {loading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
-                className="h-64 bg-muted rounded-xl animate-pulse border border-border"
+                className="aspect-[4/5] bg-muted rounded-xl animate-pulse border border-border"
               />
             ))}
           </div>
@@ -366,7 +288,7 @@ function DiscoverSection() {
               return (
                 <div key={item.id} className="break-inside-avoid">
                   <div
-                    className="group relative w-full rounded-xl overflow-hidden border border-border/60 bg-muted hover:border-border transition-all duration-200"
+                    className="group relative w-full aspect-[4/5] rounded-xl overflow-hidden border border-border/60 bg-muted shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-border hover:shadow-[0_18px_42px_rgba(15,23,42,0.14)]"
                     onMouseEnter={() =>
                       item.videoUrl && handleMouseEnter(item.id)
                     }
@@ -378,7 +300,7 @@ function DiscoverSection() {
                       <video
                         ref={(el) => setVideoRef(item.id, el)}
                         src={item.videoUrl}
-                        className="w-full h-auto block"
+                        className="h-full w-full object-cover"
                         playsInline
                         muted={audibleId !== item.id}
                         loop
@@ -390,9 +312,9 @@ function DiscoverSection() {
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={item.coverImageUrl}
-                          alt="ad"
+                          alt={`${discoverTypeMeta[item.type].label} example`}
                           loading="lazy"
-                          className="w-full h-auto block"
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.025]"
                           onError={() => handleImageError(item.id)}
                         />
 
@@ -401,7 +323,7 @@ function DiscoverSection() {
                           <video
                             ref={(el) => setVideoRef(item.id, el)}
                             src={item.videoUrl}
-                            className="absolute inset-0 w-full h-full object-cover"
+                            className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-200 group-hover:opacity-100"
                             playsInline
                             muted={audibleId !== item.id}
                             loop
@@ -411,6 +333,19 @@ function DiscoverSection() {
                         )}
                       </>
                     )}
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 via-black/18 to-transparent opacity-85" />
+                    <div className="pointer-events-none absolute left-2.5 top-2.5 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-black/45 px-2.5 py-1 text-[11px] font-medium text-white shadow-sm backdrop-blur-md">
+                      {(() => {
+                        const TypeIcon = discoverTypeMeta[item.type].icon;
+                        return <TypeIcon className="h-3 w-3" />;
+                      })()}
+                      <span>{discoverTypeMeta[item.type].label}</span>
+                    </div>
+                    {item.videoUrl ? (
+                      <div className="pointer-events-none absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-full border border-white/25 bg-black/50 text-white shadow-sm backdrop-blur-md">
+                        <PlayCircle className="h-4 w-4" />
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               );

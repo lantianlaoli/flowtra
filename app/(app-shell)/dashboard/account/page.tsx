@@ -1,5 +1,5 @@
-import CreditsPage from '@/components/pages/CreditsPage';
+import { redirect } from 'next/navigation';
 
 export default function AccountPage() {
-  return <CreditsPage />;
+  redirect('/dashboard');
 }

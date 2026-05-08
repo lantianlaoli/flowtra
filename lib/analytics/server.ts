@@ -6,17 +6,17 @@ import {
   sanitizeAnalyticsProperties,
   type CommonAnalyticsProperties,
 } from '@/lib/analytics/properties';
+import { isPostHogEnabled } from '@/lib/analytics/posthog-env';
 
 let posthogServerClient: PostHog | null = null;
 
 export function getPostHogServerClient(): PostHog {
   if (!posthogServerClient) {
-    const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-    if (!apiKey) {
-      throw new Error('NEXT_PUBLIC_POSTHOG_KEY is not set');
+    if (!isPostHogEnabled()) {
+      throw new Error('PostHog is not enabled');
     }
 
-    posthogServerClient = new PostHog(apiKey, {
+    posthogServerClient = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY!, {
       host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
       flushAt: 1,
       flushInterval: 0,
@@ -38,7 +38,7 @@ export function captureServerEvent(
     request?: NextRequest | Request | null;
   } = {}
 ) {
-  if (!process.env.NEXT_PUBLIC_POSTHOG_KEY) {
+  if (!isPostHogEnabled()) {
     return;
   }
 
@@ -63,7 +63,7 @@ export function captureServerException(
   distinctId?: string,
   properties?: Record<string, unknown>
 ) {
-  if (!process.env.NEXT_PUBLIC_POSTHOG_KEY) {
+  if (!isPostHogEnabled()) {
     return;
   }
 

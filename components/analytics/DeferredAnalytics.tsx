@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import Script from 'next/script'
+import { isPostHogEnabled } from '@/lib/analytics/posthog-env'
 import { useCookieConsent } from '@/providers/cookie-consent'
 
 const PostHogPageView = dynamic(
@@ -38,7 +39,7 @@ export function DeferredAnalytics() {
           gtag('config', 'G-CP7HSQFTCP');
         `}
       </Script>
-      <PostHogPageView />
+      {isPostHogEnabled() ? <PostHogPageView /> : null}
       <Analytics />
       <SpeedInsights />
     </>

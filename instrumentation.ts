@@ -1,5 +1,5 @@
 export async function register() {
-  if (process.env.NEXT_RUNTIME === 'nodejs') {
+  if (process.env.NEXT_RUNTIME === 'nodejs' && process.env.NODE_ENV !== 'development') {
     const { captureServerException } = await import('./lib/posthog-server')
 
     // Register global error handler for uncaught exceptions
@@ -38,7 +38,7 @@ export async function onRequestError(
     routeType?: 'render' | 'route' | 'action' | 'middleware'
   }
 ) {
-  if (process.env.NEXT_RUNTIME === 'nodejs') {
+  if (process.env.NEXT_RUNTIME === 'nodejs' && process.env.NODE_ENV !== 'development') {
     const { captureServerException } = await import('./lib/posthog-server')
 
     // Extract user information from headers if available

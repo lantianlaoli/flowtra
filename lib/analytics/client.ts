@@ -6,9 +6,10 @@ import {
   buildCommonProperties,
   type CommonAnalyticsProperties,
 } from '@/lib/analytics/properties';
+import { isPostHogEnabled } from '@/lib/analytics/posthog-env';
 
 export function isPostHogClientAvailable() {
-  return typeof window !== 'undefined' && Boolean(process.env.NEXT_PUBLIC_POSTHOG_KEY);
+  return typeof window !== 'undefined' && isPostHogEnabled();
 }
 
 export function trackEvent(

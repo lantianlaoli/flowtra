@@ -1,6 +1,7 @@
 'use client'
 
 import posthog from 'posthog-js'
+import { isPostHogEnabled } from '@/lib/analytics/posthog-env'
 
 interface ErrorContext {
   component?: string
@@ -16,6 +17,10 @@ export function captureException(
   error: Error,
   context?: ErrorContext
 ) {
+  if (!isPostHogEnabled()) {
+    return
+  }
+
   try {
     posthog.captureException(error, {
       $exception_level: 'error',
@@ -38,6 +43,10 @@ export function captureErrorEvent(
   message: string,
   context?: ErrorContext
 ) {
+  if (!isPostHogEnabled()) {
+    return
+  }
+
   try {
     posthog.capture('$exception', {
       $exception_message: message,

@@ -93,7 +93,7 @@ export default function OnboardingProgress({ progress, className = '' }: Onboard
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className={`onboarding-shell rounded-[28px] border shadow-sm ${className}`}
+      className={`onboarding-shell rounded-xl border shadow-sm ${className}`}
     >
       <div className="p-6">
         {/* Header */}
@@ -143,7 +143,7 @@ export default function OnboardingProgress({ progress, className = '' }: Onboard
                 transition={{ delay: index * 0.1 }}
                 onClick={() => handleTaskClick(task)}
                 className={`
-                  onboarding-task group flex items-start gap-4 rounded-[22px] border p-4 transition-all
+                  onboarding-task group flex items-start gap-4 rounded-xl border p-4 transition-all
                   ${task.completed
                     ? 'onboarding-task--complete cursor-pointer hover:shadow-sm'
                     : 'onboarding-task--pending cursor-pointer hover:shadow-sm'
@@ -152,7 +152,7 @@ export default function OnboardingProgress({ progress, className = '' }: Onboard
               >
                 {/* Icon */}
                 <div className={`
-                  onboarding-task-icon flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px]
+                  onboarding-task-icon flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg
                   ${task.completed ? 'onboarding-task-icon--complete' : 'onboarding-task-icon--pending'}
                 `}>
                   <Icon className={`h-5 w-5 ${task.completed ? 'onboarding-task-icon-svg--complete' : 'onboarding-task-icon-svg--pending'}`} />

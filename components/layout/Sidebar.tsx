@@ -244,7 +244,6 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
             onToggleDarkMode={toggleDarkMode}
             onNavigateTo={navigateTo}
             onNavigate={onNavigate}
-            accountHref="/dashboard/account"
           />
         </div>
       </div>
