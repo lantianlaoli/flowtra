@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type ComponentType, type KeyboardEvent } from 'react';
-import { ArrowUp, Clapperboard, Film, Package2, Plus, Sparkles, Type, User, Video } from 'lucide-react';
+import { ArrowUp, Clapperboard, Film, Package2, Plus, Rocket, Sparkles, Type, User, Video } from 'lucide-react';
 
 export type PromptCommandKind = 'asset' | 'feature' | 'text';
 export type PromptCommandAssetType = 'avatar' | 'product' | 'video';
@@ -19,16 +19,28 @@ export type PromptCommand = {
   icon?: ComponentType<{ className?: string }>;
 };
 
+export type PromptSubmitPayload = {
+  message: string;
+  commands: PromptCommand[];
+  detailText: string;
+  tikTokLinks: string[];
+};
+
+export type PromptTemplatePart =
+  | { type: 'text'; text: string }
+  | { type: 'command'; command: PromptCommand };
+
 type PromptInputBoxProps = {
   value: string;
   onValueChange: (value: string) => void;
-  onSend: (message: string) => void;
+  onSend: (message: string, payload: PromptSubmitPayload) => void;
   isLoading?: boolean;
   placeholder?: string;
   statusNote?: string;
   commands?: PromptCommand[];
   onAssetCreateRequest?: (assetType: PromptCommandAssetType) => void;
   injectedCommandToken?: { nonce: string; command: PromptCommand } | null;
+  injectedPromptTemplate?: { nonce: string; parts: PromptTemplatePart[] } | null;
   className?: string;
 };
 
@@ -120,6 +132,7 @@ export function PromptInputBox({
   commands = DEFAULT_COMMANDS,
   onAssetCreateRequest,
   injectedCommandToken,
+  injectedPromptTemplate,
   className = '',
 }: PromptInputBoxProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -127,12 +140,15 @@ export function PromptInputBox({
   const commandButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const promptPartIdRef = useRef(0);
   const lastInjectedCommandNonceRef = useRef<string | null>(null);
+  const lastInjectedTemplateNonceRef = useRef<string | null>(null);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [commandMenuTrigger, setCommandMenuTrigger] = useState<'/' | '@' | null>(null);
   const [commandTriggerRange, setCommandTriggerRange] = useState<ActiveCommandTrigger | null>(null);
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
   const [promptParts, setPromptParts] = useState<PromptPart[]>([]);
   const [uploadMenuOpen, setUploadMenuOpen] = useState(false);
+  const [promptFlowActive, setPromptFlowActive] = useState(false);
+  const promptFlowTimeoutRef = useRef<number | null>(null);
 
   const committedText = useMemo(
     () => promptParts.map((part) => (part.type === 'text' ? part.text : '')).join(''),
@@ -171,6 +187,12 @@ export function PromptInputBox({
     element.style.height = '0px';
     element.style.height = `${Math.min(Math.max(element.scrollHeight, 52), 180)}px`;
   }, [value]);
+
+  useEffect(() => () => {
+    if (promptFlowTimeoutRef.current) {
+      window.clearTimeout(promptFlowTimeoutRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     const activeTrigger = getActiveCommandTrigger(value);
@@ -251,9 +273,45 @@ export function PromptInputBox({
     window.requestAnimationFrame(() => textareaRef.current?.focus());
   }, [injectedCommandToken]);
 
+  useEffect(() => {
+    if (!injectedPromptTemplate || lastInjectedTemplateNonceRef.current === injectedPromptTemplate.nonce) return;
+    lastInjectedTemplateNonceRef.current = injectedPromptTemplate.nonce;
+    const nextParts = injectedPromptTemplate.parts.map((part) => {
+      if (part.type === 'text') {
+        return {
+          id: `text:${promptPartIdRef.current++}`,
+          type: 'text' as const,
+          text: part.text,
+        };
+      }
+
+      return {
+        id: `command:${promptPartIdRef.current++}`,
+        type: 'command' as const,
+        command: part.command,
+      };
+    });
+    setPromptParts(nextParts);
+    onValueChange('');
+    setCommandMenuOpen(false);
+    setUploadMenuOpen(false);
+    window.requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [injectedPromptTemplate, onValueChange]);
+
   const handleUploadOptionClick = (assetType: PromptCommandAssetType) => {
     setUploadMenuOpen(false);
     onAssetCreateRequest?.(assetType);
+  };
+
+  const triggerPromptFlowFeedback = () => {
+    setPromptFlowActive(true);
+    if (promptFlowTimeoutRef.current) {
+      window.clearTimeout(promptFlowTimeoutRef.current);
+    }
+    promptFlowTimeoutRef.current = window.setTimeout(() => {
+      setPromptFlowActive(false);
+      promptFlowTimeoutRef.current = null;
+    }, 3000);
   };
 
   const submit = () => {
@@ -267,9 +325,15 @@ export function PromptInputBox({
         ? `${commandPrompt}\n\nDetails: ${detailText}`
         : commandPrompt
       : detailText;
+    triggerPromptFlowFeedback();
     setCommandMenuOpen(false);
     setPromptParts([]);
-    onSend(message);
+    onSend(message, {
+      message,
+      commands: selectedCommands,
+      detailText,
+      tikTokLinks,
+    });
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -366,7 +430,7 @@ export function PromptInputBox({
         </div>
       ) : null}
 
-      <div className="rounded-[16px] border border-[#d8d5ca] bg-white/94 p-2 shadow-[0_18px_42px_rgba(30,24,14,0.18)] backdrop-blur-xl">
+      <div className={`project-agent-prompt-shell rounded-[16px] border border-[#d8d5ca] bg-white p-2 shadow-[0_18px_42px_rgba(30,24,14,0.18)] ${promptFlowActive || isLoading ? 'project-agent-prompt-shell-flowing' : ''}`}>
         {statusNote ? (
           <p className="mb-2 rounded-[10px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
             {statusNote}
@@ -438,15 +502,16 @@ export function PromptInputBox({
               <>
                 <div className="relative">
                   {uploadMenuOpen ? (
-                    <div className="absolute bottom-[calc(100%+8px)] left-0 z-50 w-[180px] rounded-[14px] border border-[#d8d8d4] bg-white p-1.5 shadow-[0_16px_36px_rgba(0,0,0,0.14)]">
-                      {UPLOAD_OPTIONS.map((option) => {
+                    <div className="project-agent-upload-menu absolute bottom-[calc(100%+8px)] left-0 z-[80] w-[180px] origin-bottom-left rounded-[14px] border border-[#d8d8d4] bg-white p-1.5 shadow-[0_16px_36px_rgba(0,0,0,0.14)]">
+                      {UPLOAD_OPTIONS.map((option, index) => {
                         const Icon = option.icon;
                         return (
                           <button
                             key={option.assetType}
                             type="button"
                             onClick={() => handleUploadOptionClick(option.assetType)}
-                            className="flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-sm font-semibold text-[#252525] transition-colors hover:bg-[#f5f5f2]"
+                            className="project-agent-upload-menu-item flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-sm font-semibold text-[#252525] transition-colors hover:bg-[#f5f5f2]"
+                            style={{ animationDelay: `${index * 42}ms` }}
                           >
                             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-[#f7f7f5] text-[#666]">
                               <Icon className="h-3.5 w-3.5" />
@@ -463,22 +528,26 @@ export function PromptInputBox({
                       setUploadMenuOpen((current) => !current);
                     }}
                     disabled={isLoading}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-[#6d6d68] transition-colors hover:bg-[#eeeeea] hover:text-[#222] disabled:cursor-not-allowed disabled:opacity-60"
+                    className={`project-agent-plus-button flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-[#6d6d68] transition-colors hover:bg-[#eeeeea] hover:text-[#222] disabled:cursor-not-allowed disabled:opacity-60 ${uploadMenuOpen ? 'project-agent-plus-button-open' : ''}`}
                     aria-label="Create asset"
                   >
-                    <Plus className="h-4 w-4" />
+                    <Plus className="h-4 w-4 transition-transform duration-300 ease-out" />
                   </button>
                 </div>
               </>
             ) : <span />}
             <button
               type="button"
+              onMouseDown={() => {
+                if (canSend) triggerPromptFlowFeedback();
+              }}
               onClick={submit}
               disabled={!canSend}
-              className="project-agent-send-button flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-white transition-all hover:-translate-y-0.5 hover:bg-[#222] disabled:cursor-not-allowed disabled:bg-[#d1cec3] disabled:hover:translate-y-0"
+              className="project-agent-send-button group relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-white transition-all hover:-translate-y-0.5 hover:bg-[#222] active:scale-95 disabled:cursor-not-allowed disabled:bg-[#d1cec3] disabled:hover:translate-y-0 disabled:active:scale-100"
               aria-label="Send prompt"
             >
-              <ArrowUp className="h-4 w-4" />
+              <ArrowUp className="absolute h-4 w-4 transition-all duration-300 ease-out group-hover:-translate-y-2 group-hover:scale-75 group-hover:opacity-0" />
+              <Rocket className="absolute h-4 w-4 translate-y-2 scale-75 opacity-0 transition-all duration-300 ease-out group-hover:translate-y-0 group-hover:scale-100 group-hover:opacity-100" />
             </button>
           </div>
         </div>

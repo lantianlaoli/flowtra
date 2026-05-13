@@ -3387,6 +3387,136 @@ body {
   container-type: inline-size;
 }
 
+@property --project-agent-flow-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.project-agent-prompt-shell {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(rgba(216, 213, 202, 1), rgba(216, 213, 202, 1)) border-box;
+}
+
+.project-agent-prompt-shell > * {
+  position: relative;
+  z-index: 2;
+}
+
+.project-agent-prompt-shell::before,
+.project-agent-prompt-shell::after {
+  content: "";
+  position: absolute;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.project-agent-prompt-shell::before {
+  z-index: 1;
+  inset: 1px;
+  border-radius: 15px;
+  background: #fff;
+}
+
+.project-agent-prompt-shell::after {
+  z-index: -1;
+  inset: -7px;
+  opacity: 0;
+  transition: opacity 260ms ease;
+  background:
+    linear-gradient(90deg, rgba(255, 78, 205, 0.28), rgba(39, 217, 255, 0.22), rgba(54, 245, 138, 0.20), rgba(255, 138, 52, 0.24));
+  filter: blur(14px);
+  transform: translate3d(-10%, 0, 0);
+}
+
+.project-agent-prompt-shell-flowing {
+  border-color: transparent;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    conic-gradient(
+      from var(--project-agent-flow-angle, 0deg),
+      #ff4ecd,
+      #7c5cff,
+      #27d9ff,
+      #36f58a,
+      #fff05a,
+      #ff8a34,
+      #ff4ecd
+    ) border-box;
+  animation: project-agent-rainbow-border 1.45s linear infinite;
+}
+
+.project-agent-prompt-shell-flowing::after {
+  opacity: 0.85;
+  animation: project-agent-rainbow-water 2.2s ease-in-out infinite;
+}
+
+.project-agent-upload-menu {
+  animation: project-agent-upload-menu-in 220ms cubic-bezier(0.2, 0.78, 0.22, 1) both;
+}
+
+.project-agent-upload-menu-item {
+  animation: project-agent-upload-item-in 220ms cubic-bezier(0.2, 0.78, 0.22, 1) both;
+}
+
+.project-agent-plus-button {
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    transform 180ms cubic-bezier(0.2, 0.78, 0.22, 1);
+}
+
+.project-agent-plus-button:active {
+  transform: scale(0.9) rotate(-10deg);
+}
+
+.project-agent-plus-button-open svg {
+  transform: rotate(45deg) scale(1.06);
+}
+
+@keyframes project-agent-upload-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes project-agent-upload-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes project-agent-rainbow-border {
+  to {
+    --project-agent-flow-angle: 360deg;
+  }
+}
+
+@keyframes project-agent-rainbow-water {
+  0% {
+    transform: translate3d(-12%, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(12%, 0, 0) scale(1.015);
+  }
+  100% {
+    transform: translate3d(-12%, 0, 0) scale(1);
+  }
+}
+
 @container project-agent-canvas (max-width: 1040px) {
   .project-agent-canvas-actions {
     bottom: 1rem !important;
@@ -5082,8 +5212,17 @@ body {
   .animate-bounce-in,
   .animate-slide-in-right,
   .animate-slide-in-left,
-  .animate-tiktok-shimmer {
+  .animate-tiktok-shimmer,
+  .project-agent-prompt-shell-flowing,
+  .project-agent-prompt-shell-flowing::after,
+  .project-agent-upload-menu,
+  .project-agent-upload-menu-item {
     animation: none !important;
+  }
+
+  .project-agent-prompt-shell-flowing::after {
+    opacity: 1;
+    transform: none !important;
   }
 
   /* Disable silk button animation */
