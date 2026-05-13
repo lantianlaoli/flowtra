@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
+import { useClerk, useUser } from "@clerk/nextjs";
 import { Calculator, CircleDollarSign, DollarSign, Package, ShoppingBag, TrendingUp } from "lucide-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -83,6 +84,8 @@ function InputField({
 }
 
 export default function RoasCalculatorPage() {
+  const { isLoaded, isSignedIn } = useUser();
+  const { openSignIn } = useClerk();
   const [currency, setCurrency] = useState<string>("USD");
   const [inputs, setInputs] = useState<Inputs>(DEFAULT_INPUTS);
 
@@ -144,6 +147,24 @@ export default function RoasCalculatorPage() {
             </p>
           </div>
 
+          {isLoaded && !isSignedIn ? (
+            <section className="mt-8 rounded-2xl border border-[#E5E5E5] bg-white p-6 text-center shadow-[0_24px_60px_rgba(0,0,0,0.08)] sm:p-8">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-[#E5E5E5] bg-[#F7F7F7] text-black">
+                <Calculator className="h-5 w-5" />
+              </div>
+              <h2 className="mt-4 text-xl font-semibold tracking-tight text-black">Sign in to use this calculator</h2>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#666666]">
+                ROAS Calculator is available to signed-in users. It does not consume credits.
+              </p>
+              <button
+                type="button"
+                onClick={() => openSignIn({ fallbackRedirectUrl: "/tools/roas-calculator" })}
+                className="landing-press-button landing-press-button--compact mt-6 justify-center text-sm font-medium"
+              >
+                Sign In
+              </button>
+            </section>
+          ) : (
           <div className="mt-8 sm:mt-10 grid gap-5 sm:gap-6 lg:grid-cols-[1.05fr_1fr]">
             <section className="rounded-2xl border border-[#E5E5E5] bg-white p-5 sm:p-6 shadow-[0_24px_60px_rgba(0,0,0,0.08)]">
               <div className="mb-6 flex items-center gap-3">
@@ -274,6 +295,7 @@ export default function RoasCalculatorPage() {
               </article>
             </section>
           </div>
+          )}
         </section>
       </main>
       <Footer />

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { createImageCloneBulkKieTask } from "@/lib/image-clone-bulk-kie";
 import {
   buildImageCloneBulkRegenerationPrompt,
@@ -14,6 +15,12 @@ import type {
   ImageCloneBulkResolution,
 } from "@/lib/image-clone-bulk-types";
 import { uploadImageForClone } from "@/lib/image-clone";
+import {
+  IMAGE_GENERATION_CREDIT_COST,
+  chargeToolGenerationCredits,
+  refundToolGenerationCredits,
+  toolBillingErrorPayload,
+} from "@/lib/tools/billing";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -31,6 +38,11 @@ function isHttpUrl(value: unknown): value is string {
 
 export async function POST(request: Request) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     if (!process.env.KIE_API_KEY) {
       return NextResponse.json({ error: "KIE API key not configured" }, { status: 500 });
     }
@@ -77,50 +89,74 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: localImageError }, { status: 400 });
     }
 
-    const localImageUrls = await Promise.all(
-      localImages.map((image, index) =>
-        uploadImageForClone(
-          image.dataUrl ?? "",
-          `bulk-regenerate-row-${job.rowNumber}-${index + 1}-${image.fileName ?? "reference.png"}`,
-          "flowtra/image-clone-bulk/edit-uploads"
+    const charge = await chargeToolGenerationCredits({
+      userId,
+      amount: IMAGE_GENERATION_CREDIT_COST,
+      description: "Image Clone Bulk - regeneration",
+      historyId: job.taskId,
+    });
+    if (!charge.success) {
+      return NextResponse.json(toolBillingErrorPayload(charge), { status: charge.status });
+    }
+
+    try {
+      const localImageUrls = await Promise.all(
+        localImages.map((image, index) =>
+          uploadImageForClone(
+            image.dataUrl ?? "",
+            `bulk-regenerate-row-${job.rowNumber}-${index + 1}-${image.fileName ?? "reference.png"}`,
+            "flowtra/image-clone-bulk/edit-uploads"
+          )
         )
-      )
-    );
+      );
 
-    const prompt = buildImageCloneBulkRegenerationPrompt({
-      originalPrompt: job.prompt,
-      refinement,
-      localImageCount: localImageUrls.length,
-    });
+      const prompt = buildImageCloneBulkRegenerationPrompt({
+        originalPrompt: job.prompt,
+        refinement,
+        localImageCount: localImageUrls.length,
+      });
 
-    const taskId = await createImageCloneBulkKieTask({
-      prompt,
-      inputUrls: [body.resultUrl, ...(body.fontReferenceUrl ? [body.fontReferenceUrl] : []), ...localImageUrls],
-      aspectRatio,
-      resolution,
-    });
-
-    setImageCloneBulkJobStatus({
-      taskId,
-      status: "waiting",
-      updatedAt: new Date().toISOString(),
-      prompt,
-      inputUrls: [body.resultUrl, ...(body.fontReferenceUrl ? [body.fontReferenceUrl] : []), ...localImageUrls],
-      aspectRatio,
-      resolution,
-      retryCount: 0,
-      maxRetries: BULK_REGENERATION_MAX_RETRIES,
-    });
-
-    return NextResponse.json({
-      job: createImageCloneBulkReplacementJob({
-        job,
-        taskId,
+      const inputUrls = [body.resultUrl, ...(body.fontReferenceUrl ? [body.fontReferenceUrl] : []), ...localImageUrls];
+      const taskId = await createImageCloneBulkKieTask({
         prompt,
+        inputUrls,
         aspectRatio,
         resolution,
-      }),
-    });
+      });
+
+      setImageCloneBulkJobStatus({
+        taskId,
+        status: "waiting",
+        updatedAt: new Date().toISOString(),
+        prompt,
+        inputUrls,
+        aspectRatio,
+        resolution,
+        retryCount: 0,
+        maxRetries: BULK_REGENERATION_MAX_RETRIES,
+        userId,
+        billedCredits: charge.chargedCredits,
+        billingRefundedAt: null,
+      });
+
+      return NextResponse.json({
+        job: createImageCloneBulkReplacementJob({
+          job,
+          taskId,
+          prompt,
+          aspectRatio,
+          resolution,
+        }),
+      });
+    } catch (error) {
+      await refundToolGenerationCredits({
+        userId,
+        amount: charge.chargedCredits,
+        reason: "Image Clone Bulk regeneration failed to start",
+        historyId: job.taskId,
+      });
+      throw error;
+    }
   } catch (error) {
     console.error("[tools/image-clone/bulk/regenerate]", error);
     return NextResponse.json(

@@ -16,6 +16,8 @@ export interface AiReferenceAngleJob {
   created_at: string;
   updated_at: string;
   aspect_ratio: string | null;
+  billed_credits: number;
+  billing_refunded_at: string | null;
 }
 
 // In-memory job store: kieTaskId -> JobState
@@ -32,6 +34,7 @@ export function createJob(params: {
   presetLabel: string;
   kieTaskId: string;
   aspectRatio: string;
+  billedCredits?: number;
 }): AiReferenceAngleJob {
   const now = new Date().toISOString();
   const job: AiReferenceAngleJob = {
@@ -49,6 +52,8 @@ export function createJob(params: {
     created_at: now,
     updated_at: now,
     aspect_ratio: params.aspectRatio,
+    billed_credits: params.billedCredits ?? 0,
+    billing_refunded_at: null,
   };
   jobStore.set(params.kieTaskId, job);
   return job;
@@ -82,6 +87,7 @@ export function updateJob(
     resultImageUrl?: string | null;
     errorMessage?: string | null;
     webhookReceivedAt?: string | null;
+    billingRefundedAt?: string | null;
   }
 ): AiReferenceAngleJob | undefined {
   const job = jobStore.get(kieTaskId);
@@ -92,6 +98,7 @@ export function updateJob(
   if (params.resultImageUrl !== undefined) job.result_image_url = params.resultImageUrl;
   if (params.errorMessage !== undefined) job.error_message = params.errorMessage;
   if (params.webhookReceivedAt !== undefined) job.webhook_received_at = params.webhookReceivedAt;
+  if (params.billingRefundedAt !== undefined) job.billing_refunded_at = params.billingRefundedAt;
   job.updated_at = now;
 
   notifySseSubscribers(job);

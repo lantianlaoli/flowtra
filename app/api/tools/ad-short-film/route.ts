@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import {
   createAdShortFilmJob,
   executeWorkflow,
   pollAdShortFilmJobStatus,
 } from '@/lib/ad-short-film-workflow';
 import { getJob } from '@/lib/ad-short-film-job-store';
+import {
+  AD_SHORT_FILM_TOTAL_CREDIT_COST,
+  chargeToolGenerationCredits,
+  refundToolGenerationCredits,
+  toolBillingErrorPayload,
+} from '@/lib/tools/billing';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,19 +36,43 @@ export async function POST(request: NextRequest) {
     }
 
     // Default: create new ad short film job
-    const { productPhotoDataUrl, userId } = body;
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const { productPhotoDataUrl } = body;
 
     if (!productPhotoDataUrl) {
       return NextResponse.json({ error: 'Missing productPhotoDataUrl' }, { status: 400 });
     }
 
-    const result = await createAdShortFilmJob({
-      productPhotoDataUrl,
-      userId: userId || 'anonymous',
+    const charge = await chargeToolGenerationCredits({
+      userId,
+      amount: AD_SHORT_FILM_TOTAL_CREDIT_COST,
+      description: 'AI Ad Short Film - 15s video generation',
     });
+    if (!charge.success) {
+      return NextResponse.json(toolBillingErrorPayload(charge), { status: charge.status });
+    }
+
+    let result;
+    try {
+      result = await createAdShortFilmJob({
+        productPhotoDataUrl,
+        userId,
+        billedCredits: charge.chargedCredits,
+      });
+    } catch (error) {
+      await refundToolGenerationCredits({
+        userId,
+        amount: charge.chargedCredits,
+        reason: 'AI Ad Short Film failed to start',
+      });
+      throw error;
+    }
 
     // Fire-and-forget workflow execution
-    executeWorkflow(result.jobId, productPhotoDataUrl, userId || 'anonymous').catch(
+    executeWorkflow(result.jobId, productPhotoDataUrl, userId).catch(
       console.error
     );
 

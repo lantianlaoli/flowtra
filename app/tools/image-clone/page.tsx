@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   ChevronDown,
   Check,
+  Coins,
   Copy,
   Crop,
   Download,
@@ -35,12 +36,11 @@ import {
 import { OpenAI } from "@lobehub/icons";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
 import { useI18n } from "@/providers/I18nProvider";
-import {
-  canUseTool,
-  incrementLimitedToolUsage,
-  TOOL_LIMIT_MESSAGES,
-} from "@/lib/tools/usage-limits";
 import { useToolUsageAccess } from "@/lib/tools/use-tool-usage-access";
+import {
+  IMAGE_GENERATION_CREDIT_COST,
+  getImageGenerationCreditCost,
+} from "@/lib/tools/billing-constants";
 import type {
   ImageCloneBulkAspectRatio,
   ImageCloneBulkJob,
@@ -599,8 +599,8 @@ export default function ImageClonePage() {
         throw new Error("Checking subscription status. Please try again in a moment.");
       }
 
-      if (!canUseTool("image-clone", { hasUnlimitedAccess })) {
-        throw new Error(TOOL_LIMIT_MESSAGES["image-clone"]);
+      if (!hasUnlimitedAccess) {
+        throw new Error("An active subscription is required to use this generation tool.");
       }
 
       const response = await fetch("/api/tools/image-clone", {
@@ -621,7 +621,6 @@ export default function ImageClonePage() {
         throw new Error(data.error || "Failed to start generation.");
       }
 
-      incrementLimitedToolUsage("image-clone", { hasUnlimitedAccess });
       const resultImageUrl = await pollJobStatus(data.jobId);
       setResultUrls((prev) => [...prev, resultImageUrl]);
       setQuickStatus("success");
@@ -834,8 +833,8 @@ export default function ImageClonePage() {
         throw new Error("Checking subscription status. Please try again in a moment.");
       }
 
-      if (!canUseTool("image-clone", { hasUnlimitedAccess })) {
-        throw new Error(TOOL_LIMIT_MESSAGES["image-clone"]);
+      if (!hasUnlimitedAccess) {
+        throw new Error("An active subscription is required to use this generation tool.");
       }
 
       const response = await fetch("/api/tools/image-clone/bulk/regenerate", {
@@ -856,7 +855,6 @@ export default function ImageClonePage() {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to start regeneration.");
-      incrementLimitedToolUsage("image-clone", { hasUnlimitedAccess });
       const replacementJob = payload.job as ImageCloneBulkJob;
       setBulkJobs((jobs) => jobs.map((job) => (job.rowId === replacementJob.rowId ? replacementJob : job)));
       setRegenerationModal({
@@ -951,8 +949,8 @@ export default function ImageClonePage() {
         throw new Error("Checking subscription status. Please try again in a moment.");
       }
 
-      if (!canUseTool("image-clone", { hasUnlimitedAccess })) {
-        throw new Error(TOOL_LIMIT_MESSAGES["image-clone"]);
+      if (!hasUnlimitedAccess) {
+        throw new Error("An active subscription is required to use this generation tool.");
       }
 
       const response = await fetch("/api/tools/image-clone/bulk/start", {
@@ -965,7 +963,6 @@ export default function ImageClonePage() {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to start generation.");
-      incrementLimitedToolUsage("image-clone", { hasUnlimitedAccess });
       setBulkJobs(payload.jobs);
       if (payload.jobs.every((job: ImageCloneBulkJob) => job.status === "success" || job.status === "fail")) {
         setPageMode("bulkDone");
@@ -1167,9 +1164,9 @@ export default function ImageClonePage() {
                   <button
                     type="button"
                     onClick={handleGenerate}
-                    disabled={isQuickBusy || !productPhotoUrl}
+                    disabled={isQuickBusy || isToolAccessLoading || !productPhotoUrl}
                     className={`landing-press-button w-full justify-center text-sm font-medium ${primaryButtonClass} ${
-                      isQuickBusy || !productPhotoUrl ? "opacity-50" : ""
+                      isQuickBusy || isToolAccessLoading || !productPhotoUrl ? "opacity-50" : ""
                     }`}
                   >
                     {isQuickBusy ? (
@@ -1178,7 +1175,14 @@ export default function ImageClonePage() {
                         {toolMessages.generating}
                       </>
                     ) : (
-                      toolMessages.generate
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        <span>Generate Image</span>
+                        <span className="inline-flex items-center gap-1">
+                          <Coins className="h-4 w-4" />
+                          {IMAGE_GENERATION_CREDIT_COST}
+                        </span>
+                      </>
                     )}
                   </button>
                 </div>
@@ -1214,6 +1218,7 @@ export default function ImageClonePage() {
               }}
               onReparse={handleBulkFile}
               onOpenRegenerate={openRegenerationModal}
+              isAccessLoading={isToolAccessLoading}
               jobsSectionRef={bulkJobsSectionRef}
             />
           ) : null}
@@ -1249,6 +1254,7 @@ export default function ImageClonePage() {
           referenceJobs={completedRegenerationReferenceJobs}
           isAnalyzingText={isAnalyzingRegenerationText}
           isRegenerating={isRegeneratingBulkJob}
+          isAccessLoading={isToolAccessLoading}
           error={regenerationError}
           primaryButtonClass={primaryButtonClass}
           secondaryButtonClass={secondaryButtonClass}
@@ -1454,6 +1460,7 @@ function BulkRegenerationModal({
   referenceJobs,
   isAnalyzingText,
   isRegenerating,
+  isAccessLoading,
   error,
   primaryButtonClass,
   secondaryButtonClass,
@@ -1481,6 +1488,7 @@ function BulkRegenerationModal({
   referenceJobs: ImageCloneBulkJob[];
   isAnalyzingText: boolean;
   isRegenerating: boolean;
+  isAccessLoading: boolean;
   error: string | null;
   primaryButtonClass: string;
   secondaryButtonClass: string;
@@ -1778,11 +1786,15 @@ function BulkRegenerationModal({
           </button>
           <button
             type="submit"
-            disabled={isGenerating || !isOutputSizeValid}
-            className={`${primaryButtonClass} justify-center ${isGenerating || !isOutputSizeValid ? "opacity-50" : ""}`}
+            disabled={isGenerating || isAccessLoading || !isOutputSizeValid}
+            className={`${primaryButtonClass} justify-center ${isGenerating || isAccessLoading || !isOutputSizeValid ? "opacity-50" : ""}`}
           >
             {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            Regenerate
+            <span>Regenerate</span>
+            <span className="inline-flex items-center gap-1">
+              <Coins className="h-4 w-4" />
+              {IMAGE_GENERATION_CREDIT_COST}
+            </span>
           </button>
         </div>
       </form>
@@ -1902,6 +1914,7 @@ function BulkWorkspace({
   onStartGeneration,
   onReparse,
   onOpenRegenerate,
+  isAccessLoading,
   jobsSectionRef,
 }: {
   workbook: ImageCloneBulkWorkbook;
@@ -1916,8 +1929,11 @@ function BulkWorkspace({
   onStartGeneration: () => void;
   onReparse: (file: File) => void;
   onOpenRegenerate: (job: ImageCloneBulkJob) => void;
+  isAccessLoading: boolean;
   jobsSectionRef: React.RefObject<HTMLElement | null>;
 }) {
+  const bulkCreditCost = getImageGenerationCreditCost(rows.length);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 border-b border-[#E5E5E5] pb-5 md:flex-row md:items-end md:justify-between">
@@ -1994,9 +2010,9 @@ function BulkWorkspace({
           <div className="mt-4 shrink-0 border-t border-[#E5E5E5] pt-4">
             <button
               type="button"
-              disabled={isBusy || !rows.length}
+              disabled={isBusy || isAccessLoading || !rows.length}
               onClick={onStartGeneration}
-              className={`${primaryButtonClass} w-full justify-center ${isBusy || !rows.length ? "opacity-50" : ""}`}
+              className={`${primaryButtonClass} w-full justify-center ${isBusy || isAccessLoading || !rows.length ? "opacity-50" : ""}`}
             >
               {isBusy ? (
                 <>
@@ -2006,7 +2022,11 @@ function BulkWorkspace({
               ) : (
                 <>
                   <Play className="h-4 w-4" />
-                  Start Generation
+                  <span>Generate Bulk Images</span>
+                  <span className="inline-flex items-center gap-1">
+                    <Coins className="h-4 w-4" />
+                    {bulkCreditCost}
+                  </span>
                 </>
               )}
             </button>

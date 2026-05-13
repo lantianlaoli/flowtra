@@ -6,6 +6,7 @@ import {
   type ImageCloneJobStatus,
 } from './image-clone-job-store';
 import { buildImageClonePrompt } from './image-clone-prompt';
+import { refundToolGenerationCredits } from '@/lib/tools/billing';
 
 const KIE_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-base64-upload';
 const KIE_CREATE_TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
@@ -27,6 +28,7 @@ export type ImageCloneInput = {
   aspectRatio: string;
   resolution: string;
   userId: string;
+  billedCredits?: number;
 };
 
 export type ImageCloneResult = {
@@ -89,6 +91,8 @@ export async function createImageCloneTask(
     kieTaskId: null,
     resultImageUrl: null,
     errorMessage: null,
+    billedCredits: input.billedCredits ?? 0,
+    billingRefundedAt: null,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
@@ -215,9 +219,18 @@ export async function pollImageCloneJobStatus(
   }
 
   if (kieStatus.status === 'failed') {
+    if (job.billedCredits > 0 && !job.billingRefundedAt) {
+      await refundToolGenerationCredits({
+        userId: job.userId,
+        amount: job.billedCredits,
+        reason: 'Image Clone generation failed',
+        historyId: job.id,
+      });
+    }
     updateJob(jobId, {
       status: 'failed',
       errorMessage: kieStatus.error ?? 'Generation failed',
+      billingRefundedAt: new Date().toISOString(),
     });
     return { status: 'failed', resultImageUrl: null, errorMessage: kieStatus.error ?? 'Generation failed' };
   }
@@ -274,7 +287,8 @@ async function getKieTaskStatus(taskId: string): Promise<KieTaskStatus> {
 
 export async function regenerateImageClone(
   jobId: string,
-  refinementText: string
+  refinementText: string,
+  billedCredits = 0
 ): Promise<ImageCloneResult> {
   const { getJob, updateJob, addJob: addJobFn, generateJobId: generateNewJobId } = await import('./image-clone-job-store');
   const originalJob = getJob(jobId);
@@ -298,6 +312,8 @@ export async function regenerateImageClone(
     kieTaskId: null,
     resultImageUrl: null,
     errorMessage: null,
+    billedCredits,
+    billingRefundedAt: null,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };

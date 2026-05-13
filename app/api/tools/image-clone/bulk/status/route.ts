@@ -8,6 +8,7 @@ import {
   getImageCloneBulkJobStatus,
   setImageCloneBulkJobStatus,
 } from "@/lib/image-clone-bulk-store";
+import { refundToolGenerationCredits } from "@/lib/tools/billing";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -45,6 +46,9 @@ export async function GET(request: Request) {
           resolution: stored.resolution,
           retryCount: retryCount + 1,
           maxRetries,
+          userId: stored.userId,
+          billedCredits: stored.billedCredits,
+          billingRefundedAt: stored.billingRefundedAt,
         };
         setImageCloneBulkJobStatus(retryStatus);
         setImageCloneBulkJobStatus({
@@ -58,6 +62,21 @@ export async function GET(request: Request) {
       }
     }
 
+    const shouldRefund =
+      status.status === "fail" &&
+      stored?.userId &&
+      (stored.billedCredits ?? 0) > 0 &&
+      !stored.billingRefundedAt;
+    const billingRefundedAt = shouldRefund ? new Date().toISOString() : stored?.billingRefundedAt;
+    if (shouldRefund) {
+      await refundToolGenerationCredits({
+        userId: stored.userId!,
+        amount: stored.billedCredits!,
+        reason: "Image Clone Bulk image failed",
+        historyId: taskId,
+      });
+    }
+
     const nextStatus = {
       ...stored,
       taskId,
@@ -65,6 +84,7 @@ export async function GET(request: Request) {
       resultUrl: status.resultUrl,
       error: status.error,
       updatedAt: new Date().toISOString(),
+      billingRefundedAt,
     };
     setImageCloneBulkJobStatus(nextStatus);
     return NextResponse.json(nextStatus);

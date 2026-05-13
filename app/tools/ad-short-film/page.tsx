@@ -5,15 +5,11 @@ import Image from "next/image";
 import imageCompression from "browser-image-compression";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { Check, Copy, Download, Loader2, Upload, Video, X, Play } from "lucide-react";
+import { Check, Coins, Copy, Download, Loader2, Upload, Video, X, Play } from "lucide-react";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
 import { useI18n } from "@/providers/I18nProvider";
-import {
-  canUseTool,
-  incrementLimitedToolUsage,
-  TOOL_LIMIT_MESSAGES,
-} from "@/lib/tools/usage-limits";
 import { useToolUsageAccess } from "@/lib/tools/use-tool-usage-access";
+import { AD_SHORT_FILM_TOTAL_CREDIT_COST } from "@/lib/tools/billing-constants";
 
 type GenerationStatus =
   | "idle"
@@ -221,8 +217,8 @@ export default function AdShortFilmPage() {
         throw new Error("Checking subscription status. Please try again in a moment.");
       }
 
-      if (!canUseTool("ad-short-film", { hasUnlimitedAccess })) {
-        throw new Error(TOOL_LIMIT_MESSAGES["ad-short-film"]);
+      if (!hasUnlimitedAccess) {
+        throw new Error("An active subscription is required to use this generation tool.");
       }
 
       const response = await fetch("/api/tools/ad-short-film", {
@@ -239,7 +235,6 @@ export default function AdShortFilmPage() {
         throw new Error(data.error || "Failed to start generation.");
       }
 
-      incrementLimitedToolUsage("ad-short-film", { hasUnlimitedAccess });
       setStatus("generating_storyboard");
 
       await pollJobStatus(data.jobId);
@@ -387,8 +382,8 @@ export default function AdShortFilmPage() {
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={isGenerating || !productPhotoUrl}
-              className={`${primaryButtonClass} mt-3 flex w-full items-center justify-center gap-2 rounded-lg ${isGenerating || !productPhotoUrl ? "opacity-50" : ""}`}
+              disabled={isGenerating || isToolAccessLoading || !productPhotoUrl}
+              className={`${primaryButtonClass} mt-3 flex w-full items-center justify-center gap-2 rounded-lg ${isGenerating || isToolAccessLoading || !productPhotoUrl ? "opacity-50" : ""}`}
             >
               {isGenerating ? (
                 <>
@@ -403,7 +398,11 @@ export default function AdShortFilmPage() {
               ) : (
                 <>
                   <Video className="h-4 w-4" />
-                  {toolMessages.generate || "Generate Ad Video"}
+                  <span>{toolMessages.generate || "Generate Ad Video"}</span>
+                  <span className="inline-flex items-center gap-1">
+                    <Coins className="h-4 w-4" />
+                    {AD_SHORT_FILM_TOTAL_CREDIT_COST}
+                  </span>
                 </>
               )}
             </button>

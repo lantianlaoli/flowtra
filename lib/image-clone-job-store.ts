@@ -12,6 +12,8 @@ export type ImageCloneJob = {
   kieTaskId: string | null;
   resultImageUrl: string | null;
   errorMessage: string | null;
+  billedCredits: number;
+  billingRefundedAt: string | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -33,7 +35,7 @@ export function getJob(jobId: string): ImageCloneJob | undefined {
 
 export function updateJob(
   jobId: string,
-  updates: Partial<Pick<ImageCloneJob, 'status' | 'kieTaskId' | 'resultImageUrl' | 'errorMessage' | 'prompt'>>
+  updates: Partial<Pick<ImageCloneJob, 'status' | 'kieTaskId' | 'resultImageUrl' | 'errorMessage' | 'prompt' | 'billingRefundedAt'>>
 ): void {
   const job = jobStore.get(jobId);
   if (job) {

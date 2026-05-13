@@ -5,6 +5,13 @@ import type { AiReferenceAngleAssetType, AiReferenceAngleJobStatus } from '@/lib
 import { createKieGptImageTask } from '@/lib/kie-image-generation';
 import { createJob, getJobsByIdsAndUser } from '@/lib/ai-reference-angle-store';
 import {
+  IMAGE_GENERATION_CREDIT_COST,
+  chargeToolGenerationCredits,
+  getImageGenerationCreditCost,
+  refundToolGenerationCredits,
+  toolBillingErrorPayload,
+} from '@/lib/tools/billing';
+import {
   getReferenceAngleAspectRatio,
   selectAnglePresets,
   type SourceAspect
@@ -73,89 +80,118 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Reference images are already full (3/3).' }, { status: 400 });
     }
 
-    const extension = getImageExtensionFromDataUrl(imageDataUrl);
-    const uploadResponse = await fetchWithRetry(KIE_UPLOAD_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.KIE_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        base64Data: imageDataUrl,
-        uploadPath: `assets/${assetType}/ai-reference-angles`,
-        fileName: `${assetType}-primary-${Date.now()}.${extension}`
-      })
+    const charge = await chargeToolGenerationCredits({
+      userId,
+      amount: getImageGenerationCreditCost(count),
+      description: `AI Angle Generator - ${count} image${count === 1 ? '' : 's'}`,
     });
-
-    if (!uploadResponse.ok) {
-      const uploadError = await uploadResponse.text();
-      return NextResponse.json({ error: 'Failed to upload source image', details: uploadError }, { status: uploadResponse.status });
+    if (!charge.success) {
+      return NextResponse.json(toolBillingErrorPayload(charge), { status: charge.status });
     }
 
-    const uploadResult = await uploadResponse.json();
-    const sourceImageUrl = uploadResult?.data?.downloadUrl as string | undefined;
-
-    if (!uploadResult?.success || !sourceImageUrl) {
-      return NextResponse.json({ error: uploadResult?.msg || 'Source image upload failed' }, { status: 500 });
-    }
-
-    const presets = selectAnglePresets(assetType, existingReferenceCount, count);
-    const callBackUrl = `${siteUrl}/api/assets/ai-reference-angles/webhooks`;
-    const jobsPayload: Array<{
-      user_id: string;
-      asset_type: AiReferenceAngleAssetType;
-      source_image_url: string;
-      preset_key: string;
-      preset_label: string;
-      kie_task_id: string;
-      status: AiReferenceAngleJobStatus;
-      aspect_ratio: string;
-    }> = [];
-
-    for (const preset of presets) {
-      const aspectRatio = getReferenceAngleAspectRatio(assetType, sourceAspect);
-      const taskId = await createKieGptImageTask({
-        prompt: preset.prompt,
-        referenceImageUrls: [sourceImageUrl],
-        aspectRatio,
-        callBackUrl,
-        moderationExternalId: `user_${userId}:ai_reference_angles:${assetType}:${preset.key}`
-      }, 3, 30000);
-
-      jobsPayload.push({
-        user_id: userId,
-        asset_type: assetType,
-        source_image_url: sourceImageUrl,
-        preset_key: preset.key,
-        preset_label: preset.label,
-        kie_task_id: taskId,
-        status: 'processing',
-        aspect_ratio: aspectRatio
+    try {
+      const extension = getImageExtensionFromDataUrl(imageDataUrl);
+      const uploadResponse = await fetchWithRetry(KIE_UPLOAD_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.KIE_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          base64Data: imageDataUrl,
+          uploadPath: `assets/${assetType}/ai-reference-angles`,
+          fileName: `${assetType}-primary-${Date.now()}.${extension}`
+        })
       });
+
+      if (!uploadResponse.ok) {
+        const uploadError = await uploadResponse.text();
+        await refundToolGenerationCredits({
+          userId,
+          amount: charge.chargedCredits,
+          reason: 'AI Angle Generator source upload failed',
+        });
+        return NextResponse.json({ error: 'Failed to upload source image', details: uploadError }, { status: uploadResponse.status });
+      }
+
+      const uploadResult = await uploadResponse.json();
+      const sourceImageUrl = uploadResult?.data?.downloadUrl as string | undefined;
+
+      if (!uploadResult?.success || !sourceImageUrl) {
+        await refundToolGenerationCredits({
+          userId,
+          amount: charge.chargedCredits,
+          reason: 'AI Angle Generator source upload failed',
+        });
+        return NextResponse.json({ error: uploadResult?.msg || 'Source image upload failed' }, { status: 500 });
+      }
+
+      const presets = selectAnglePresets(assetType, existingReferenceCount, count);
+      const callBackUrl = `${siteUrl}/api/assets/ai-reference-angles/webhooks`;
+      const jobsPayload: Array<{
+        user_id: string;
+        asset_type: AiReferenceAngleAssetType;
+        source_image_url: string;
+        preset_key: string;
+        preset_label: string;
+        kie_task_id: string;
+        status: AiReferenceAngleJobStatus;
+        aspect_ratio: string;
+      }> = [];
+
+      for (const preset of presets) {
+        const aspectRatio = getReferenceAngleAspectRatio(assetType, sourceAspect);
+        const taskId = await createKieGptImageTask({
+          prompt: preset.prompt,
+          referenceImageUrls: [sourceImageUrl],
+          aspectRatio,
+          callBackUrl,
+          moderationExternalId: `user_${userId}:ai_reference_angles:${assetType}:${preset.key}`
+        }, 3, 30000);
+
+        jobsPayload.push({
+          user_id: userId,
+          asset_type: assetType,
+          source_image_url: sourceImageUrl,
+          preset_key: preset.key,
+          preset_label: preset.label,
+          kie_task_id: taskId,
+          status: 'processing',
+          aspect_ratio: aspectRatio
+        });
+      }
+
+      const createdJobs = jobsPayload.map((payload) =>
+        createJob({
+          userId: payload.user_id,
+          assetType: payload.asset_type,
+          sourceImageUrl: payload.source_image_url,
+          presetKey: payload.preset_key,
+          presetLabel: payload.preset_label,
+          kieTaskId: payload.kie_task_id,
+          aspectRatio: payload.aspect_ratio,
+          billedCredits: IMAGE_GENERATION_CREDIT_COST,
+        })
+      );
+
+      return NextResponse.json({
+        success: true,
+        jobs: createdJobs.map((job) => ({
+          id: job.id,
+          presetKey: job.preset_key,
+          presetLabel: job.preset_label,
+          status: job.status,
+        })),
+        sourceImageUrl,
+      });
+    } catch (error) {
+      await refundToolGenerationCredits({
+        userId,
+        amount: charge.chargedCredits,
+        reason: 'AI Angle Generator failed to start',
+      });
+      throw error;
     }
-
-    const createdJobs = jobsPayload.map((payload) =>
-      createJob({
-        userId: payload.user_id,
-        assetType: payload.asset_type,
-        sourceImageUrl: payload.source_image_url,
-        presetKey: payload.preset_key,
-        presetLabel: payload.preset_label,
-        kieTaskId: payload.kie_task_id,
-        aspectRatio: payload.aspect_ratio,
-      })
-    );
-
-    return NextResponse.json({
-      success: true,
-      jobs: createdJobs.map((job) => ({
-        id: job.id,
-        presetKey: job.preset_key,
-        presetLabel: job.preset_label,
-        status: job.status,
-      })),
-      sourceImageUrl,
-    });
   } catch (error) {
     console.error('[ai-reference-angles] POST error:', error);
     return NextResponse.json(

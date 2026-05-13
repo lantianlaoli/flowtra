@@ -9,6 +9,7 @@ import {
   getJob,
 } from './ad-short-film-job-store';
 import { GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL } from '@/lib/constants';
+import { refundToolGenerationCredits } from '@/lib/tools/billing';
 
 const KIE_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-base64-upload';
 const KIE_CREATE_TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
@@ -29,6 +30,7 @@ function getOpenRouterApiKey(): string {
 export type CreateAdShortFilmInput = {
   productPhotoDataUrl: string;
   userId: string;
+  billedCredits?: number;
 };
 
 export type CreateAdShortFilmResult = {
@@ -52,6 +54,8 @@ export async function createAdShortFilmJob(
     videoUrl: null,
     videoTaskId: null,
     errorMessage: null,
+    billedCredits: input.billedCredits ?? 0,
+    billingRefundedAt: null,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
@@ -96,6 +100,16 @@ export async function executeWorkflow(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`[ad-short-film] Workflow error for job ${jobId}:`, errorMessage);
+    const job = getJob(jobId);
+    if (job && job.billedCredits > 0 && !job.billingRefundedAt) {
+      await refundToolGenerationCredits({
+        userId: job.userId,
+        amount: job.billedCredits,
+        reason: 'AI Ad Short Film generation failed',
+        historyId: job.id,
+      });
+      updateJob(jobId, { billingRefundedAt: new Date().toISOString() });
+    }
     updateJob(jobId, { status: 'failed', errorMessage });
   }
 }

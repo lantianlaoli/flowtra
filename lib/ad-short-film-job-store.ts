@@ -18,6 +18,8 @@ export type AdShortFilmJob = {
   videoUrl: string | null;
   videoTaskId: string | null;
   errorMessage: string | null;
+  billedCredits: number;
+  billingRefundedAt: string | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -50,6 +52,7 @@ export function updateJob(
       | 'videoUrl'
       | 'videoTaskId'
       | 'errorMessage'
+      | 'billingRefundedAt'
     >
   >
 ): void {

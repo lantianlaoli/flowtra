@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getJobByKieTaskId, updateJob } from '@/lib/ai-reference-angle-store';
+import { refundToolGenerationCredits } from '@/lib/tools/billing';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -85,10 +86,19 @@ export async function POST(request: NextRequest) {
 
     const errorMessage =
       failMsg || msg || (failCode ? `KIE task failed with code ${failCode}` : 'AI reference angle generation failed.');
+    if (state !== 'waiting' && job.billed_credits > 0 && !job.billing_refunded_at) {
+      await refundToolGenerationCredits({
+        userId: job.user_id,
+        amount: job.billed_credits,
+        reason: 'AI Angle Generator image failed',
+        historyId: job.id,
+      });
+    }
     updateJob(taskId, {
       status: state === 'waiting' ? 'processing' : 'failed',
       errorMessage: state === 'waiting' ? null : errorMessage,
       webhookReceivedAt: state === 'waiting' ? null : webhookReceivedAt,
+      billingRefundedAt: state === 'waiting' ? null : new Date().toISOString(),
     });
 
     return NextResponse.json({ success: true }, { status: 200 });

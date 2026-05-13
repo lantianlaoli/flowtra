@@ -6,18 +6,17 @@ import Image from "next/image";
 import imageCompression from "browser-image-compression";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { Check, Copy, Download, Loader2, RefreshCw, Upload } from "lucide-react";
+import { Check, Coins, Copy, Download, Loader2, RefreshCw, Upload } from "lucide-react";
 import { OpenAI } from "@lobehub/icons";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
 import { useI18n } from "@/providers/I18nProvider";
 import { waitForAiReferenceAngleJobs } from "@/lib/ai-reference-angle-jobs-client";
 import type { AiReferenceAngleCreateJobResponse } from "@/lib/ai-reference-angle-jobs";
-import {
-  canUseTool,
-  incrementLimitedToolUsage,
-  TOOL_LIMIT_MESSAGES,
-} from "@/lib/tools/usage-limits";
 import { useToolUsageAccess } from "@/lib/tools/use-tool-usage-access";
+import {
+  IMAGE_GENERATION_CREDIT_COST,
+  getImageGenerationCreditCost,
+} from "@/lib/tools/billing-constants";
 
 type GenerationStatus = "idle" | "uploading" | "generating" | "success" | "error";
 
@@ -58,6 +57,8 @@ const ANGLE_SLOTS: AngleSlot[] = [
     description: "Completes the rear view while preserving the same finish, palette, and overall image atmosphere.",
   },
 ];
+const INITIAL_GENERATION_COUNT = 3;
+const INITIAL_GENERATION_CREDIT_COST = getImageGenerationCreditCost(INITIAL_GENERATION_COUNT);
 
 function estimateDataUrlRequestSize(fileSize: number, mimeType: string) {
   const dataUrlPrefixLength = `data:${mimeType || "image/jpeg"};base64,`.length;
@@ -320,8 +321,8 @@ export default function AiAngleGeneratorPage() {
         throw new Error("Checking subscription status. Please try again in a moment.");
       }
 
-      if (!canUseTool("ai-angle-generator", { hasUnlimitedAccess })) {
-        throw new Error(TOOL_LIMIT_MESSAGES["ai-angle-generator"]);
+      if (!hasUnlimitedAccess) {
+        throw new Error("An active subscription is required to use this generation tool.");
       }
 
       setStatus("generating");
@@ -334,7 +335,7 @@ export default function AiAngleGeneratorPage() {
           sourceAspect,
           imageDataUrl,
           existingReferenceCount: 0,
-          count: 3,
+          count: INITIAL_GENERATION_COUNT,
         }),
       });
 
@@ -349,7 +350,6 @@ export default function AiAngleGeneratorPage() {
       }
 
       const jobs = createPayload.jobs as AiReferenceAngleCreateJobResponse[];
-      incrementLimitedToolUsage("ai-angle-generator", { hasUnlimitedAccess });
       persistRecoveryState(jobs, file.name);
       await resolveGeneration(jobs, file.name);
     } catch (err) {
@@ -372,8 +372,8 @@ export default function AiAngleGeneratorPage() {
         throw new Error("Checking subscription status. Please try again in a moment.");
       }
 
-      if (!canUseTool("ai-angle-generator", { hasUnlimitedAccess })) {
-        throw new Error(TOOL_LIMIT_MESSAGES["ai-angle-generator"]);
+      if (!hasUnlimitedAccess) {
+        throw new Error("An active subscription is required to use this generation tool.");
       }
 
       const createResponse = await fetch("/api/assets/ai-reference-angles", {
@@ -400,8 +400,6 @@ export default function AiAngleGeneratorPage() {
 
       const jobs = createPayload.jobs as AiReferenceAngleCreateJobResponse[];
       const targetJob = jobs[0];
-      incrementLimitedToolUsage("ai-angle-generator", { hasUnlimitedAccess });
-
       const resolvedJobs = await waitForAiReferenceAngleJobs({
         supabase: null,
         jobIds: [targetJob.id],
@@ -460,7 +458,7 @@ export default function AiAngleGeneratorPage() {
               type="file"
               accept={getAcceptedImageFormats()}
               onChange={handleFileChange}
-              disabled={isBusy}
+              disabled={isBusy || isToolAccessLoading}
               className="sr-only"
             />
 
@@ -488,6 +486,10 @@ export default function AiAngleGeneratorPage() {
                       )}
                       <span className="text-xs font-medium text-black">
                         {isBusy ? messages.common.processing : toolMessages.chooseImage}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full border border-[#E5E5E5] bg-white px-2 py-0.5 text-[10px] font-semibold text-[#666666]">
+                        <Coins className="h-3 w-3" />
+                        Generate 3 Photos · {INITIAL_GENERATION_CREDIT_COST}
                       </span>
                     </div>
                   )}
@@ -559,10 +561,15 @@ export default function AiAngleGeneratorPage() {
                           onClick={() => handleRegenerateSlot(slot, slotIndex)}
                           className={`${secondaryButtonClass} h-7 min-w-0 flex-1 justify-center px-2 text-xs`}
                           aria-label={toolMessages.regenerate}
-                          title={toolMessages.regenerate}
-                          disabled={isBusy || regeneratingSlotKey === slot.key}
+                          title={`Regenerate · ${IMAGE_GENERATION_CREDIT_COST}`}
+                          disabled={isBusy || isToolAccessLoading || regeneratingSlotKey === slot.key}
                         >
                           <RefreshCw className={`h-3.5 w-3.5 ${regeneratingSlotKey === slot.key ? "animate-spin" : ""}`} />
+                          <span className="sr-only">Regenerate</span>
+                          <span className="inline-flex items-center gap-0.5">
+                            <Coins className="h-3.5 w-3.5" />
+                            {IMAGE_GENERATION_CREDIT_COST}
+                          </span>
                         </button>
 
                         <a

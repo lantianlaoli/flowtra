@@ -62,4 +62,7 @@ export type ImageCloneBulkStoredJobStatus = Pick<ImageCloneBulkJob, "status" | "
   resolution?: ImageCloneBulkResolution;
   retryCount?: number;
   maxRetries?: number;
+  userId?: string;
+  billedCredits?: number;
+  billingRefundedAt?: string | null;
 };

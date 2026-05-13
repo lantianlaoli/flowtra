@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { createImageCloneBulkKieTask } from "@/lib/image-clone-bulk-kie";
 import { buildImageCloneBulkPrompt } from "@/lib/image-clone-bulk-prompt";
 import {
@@ -11,6 +12,13 @@ import type {
   ImageCloneBulkRow,
 } from "@/lib/image-clone-bulk-types";
 import { uploadImageForClone } from "@/lib/image-clone";
+import {
+  IMAGE_GENERATION_CREDIT_COST,
+  chargeToolGenerationCredits,
+  getImageGenerationCreditCost,
+  refundToolGenerationCredits,
+  toolBillingErrorPayload,
+} from "@/lib/tools/billing";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -45,6 +53,11 @@ function normalizeRows(input: {
 
 export async function POST(request: Request) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     if (!process.env.KIE_API_KEY) {
       return NextResponse.json({ error: "KIE API key not configured" }, { status: 500 });
     }
@@ -59,6 +72,15 @@ export async function POST(request: Request) {
     }
 
     const { workbook, rows } = normalized;
+    const charge = await chargeToolGenerationCredits({
+      userId,
+      amount: getImageGenerationCreditCost(rows.length),
+      description: `Image Clone Bulk - ${rows.length} image${rows.length === 1 ? "" : "s"}`,
+    });
+    if (!charge.success) {
+      return NextResponse.json(toolBillingErrorPayload(charge), { status: charge.status });
+    }
+
     const uploadedUrls = new Map<string, Promise<string>>();
     const uploadReference = (image: ImageCloneBulkImage, fileName: string) => {
       const key = `${image.id}:${image.fileName}`;
@@ -69,8 +91,9 @@ export async function POST(request: Request) {
       return upload;
     };
 
-    const jobs: ImageCloneBulkJob[] = [];
-    for (const row of rows) {
+    try {
+      const jobs: ImageCloneBulkJob[] = [];
+      for (const row of rows) {
       const prompt = buildImageCloneBulkPrompt(workbook, row);
       const references = dedupeImages([...workbook.product.images, ...row.referenceImages]).slice(0, 16);
 
@@ -87,8 +110,8 @@ export async function POST(request: Request) {
           resolution: row.resolution,
           sourceRow: row.source,
         });
-        continue;
-      }
+          continue;
+        }
 
       const inputUrls = await Promise.all(
         references.map((image, index) =>
@@ -103,32 +126,43 @@ export async function POST(request: Request) {
         resolution: row.resolution,
       });
 
-      setImageCloneBulkJobStatus({
-        taskId,
-        status: "waiting",
-        updatedAt: new Date().toISOString(),
-        prompt,
-        inputUrls,
-        aspectRatio: row.aspectRatio,
-        resolution: row.resolution,
-        retryCount: 0,
-        maxRetries: BULK_GENERATION_MAX_RETRIES,
-      });
+        setImageCloneBulkJobStatus({
+          taskId,
+          status: "waiting",
+          updatedAt: new Date().toISOString(),
+          prompt,
+          inputUrls,
+          aspectRatio: row.aspectRatio,
+          resolution: row.resolution,
+          retryCount: 0,
+          maxRetries: BULK_GENERATION_MAX_RETRIES,
+          userId,
+          billedCredits: IMAGE_GENERATION_CREDIT_COST,
+          billingRefundedAt: null,
+        });
 
-      jobs.push({
-        rowId: row.id,
-        rowNumber: row.rowNumber,
-        sequence: row.sequence,
-        taskId,
-        status: "waiting",
-        prompt,
-        aspectRatio: row.aspectRatio,
-        resolution: row.resolution,
-        sourceRow: row.source,
+        jobs.push({
+          rowId: row.id,
+          rowNumber: row.rowNumber,
+          sequence: row.sequence,
+          taskId,
+          status: "waiting",
+          prompt,
+          aspectRatio: row.aspectRatio,
+          resolution: row.resolution,
+          sourceRow: row.source,
+        });
+      }
+
+      return NextResponse.json({ jobs });
+    } catch (error) {
+      await refundToolGenerationCredits({
+        userId,
+        amount: charge.chargedCredits,
+        reason: "Image Clone Bulk failed to start",
       });
+      throw error;
     }
-
-    return NextResponse.json({ jobs });
   } catch (error) {
     console.error("[tools/image-clone/bulk/start]", error);
     return NextResponse.json(

@@ -17,6 +17,8 @@ export interface AiReferenceAngleJob {
   created_at: string;
   updated_at: string;
   aspect_ratio: string | null;
+  billed_credits?: number;
+  billing_refunded_at?: string | null;
 }
 
 export interface AiReferenceAngleCreateJobResponse {
