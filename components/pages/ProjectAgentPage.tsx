@@ -5,14 +5,14 @@ import { DefaultChatTransport } from 'ai';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import { useUser } from '@clerk/nextjs';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { AlertTriangle, Clapperboard, Construction, Sparkles, Type, User, X } from 'lucide-react';
+import { AlertTriangle, Clapperboard, Sparkles, Type, User, X } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import CreateAvatarModal from '@/components/CreateAvatarModal';
 import CreateProductModal from '@/components/CreateProductModal';
 import VideoImportModal from '@/components/VideoImportModal';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
-import { PromptInputBox, type PromptCommand } from '@/components/ui/ai-prompt-box';
+import { PromptInputBox, type PromptCommand, type PromptSubmitPayload, type PromptTemplatePart } from '@/components/ui/ai-prompt-box';
 import {
   ProjectAgentWelcomeTourModal,
   isProjectAgentWelcomeTourDismissed,
@@ -298,6 +298,7 @@ export default function ProjectAgentPage() {
   const [showVideoImportModal, setShowVideoImportModal] = useState(false);
   const [pendingPromptAssetType, setPendingPromptAssetType] = useState<'avatar' | 'product' | 'video' | null>(null);
   const [injectedPromptCommandToken, setInjectedPromptCommandToken] = useState<{ nonce: string; command: PromptCommand } | null>(null);
+  const [injectedPromptTemplate, setInjectedPromptTemplate] = useState<{ nonce: string; parts: PromptTemplatePart[] } | null>(null);
   const [avatars, setAvatars] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [products, setProducts] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [videos, setVideos] = useState<ProjectAgentCanvasAssetRef[]>([]);
@@ -1236,15 +1237,157 @@ export default function ProjectAgentPage() {
     });
   }, [locale, persistSessionState]);
 
-  const handleSend = useCallback(async (messageOverride?: string) => {
+  const buildPromptCanvasActions = useCallback((payload?: PromptSubmitPayload): ProjectAgentCanvasAction[] => {
+    if (!payload?.commands.length) return [];
+
+    const actions: ProjectAgentCanvasAction[] = [];
+    const assetAliases: Array<{ alias: string; type: ProjectAgentAssetNodeType }> = [];
+    const featureAliases: Array<{ alias: string; type: ProjectAgentFeatureNodeType }> = [];
+    let textAlias: string | null = null;
+
+    const resolveAsset = (command: PromptCommand): ProjectAgentCanvasAssetRef | null => {
+      if (!command.assetType || !command.assetId) return null;
+      const source = command.assetType === 'avatar'
+        ? avatars
+        : command.assetType === 'product'
+          ? products
+          : videos;
+      const existing = source.find((asset) => asset.id === command.assetId);
+      return existing || {
+        id: command.assetId,
+        name: command.label,
+        imageUrl: command.imageUrl,
+      };
+    };
+
+    const resolveFeatureType = (command: PromptCommand): ProjectAgentFeatureNodeType | null => {
+      if (command.id === 'feature:video-clone' || command.label === 'Video Clone') return 'video_clone';
+      if (command.id === 'feature:avatar-ads' || command.label === 'Avatar Ads') return 'avatar_ads';
+      if (command.id === 'feature:motion-clone' || command.label === 'Motion Clone') return 'motion_clone';
+      return null;
+    };
+
+    payload.commands.forEach((command) => {
+      if (command.kind === 'asset') {
+        const asset = resolveAsset(command);
+        if (!asset || !command.assetType) return;
+        const alias = `prompt_${command.assetType}_${asset.id}`;
+        assetAliases.push({ alias, type: command.assetType });
+        actions.push({
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'add_asset_node',
+            alias,
+            assetType: command.assetType,
+            asset,
+            reuseExisting: true,
+          },
+        });
+        return;
+      }
+
+      if (command.kind === 'feature') {
+        const featureType = resolveFeatureType(command);
+        if (!featureType) return;
+        const alias = `prompt_${featureType}`;
+        featureAliases.push({ alias, type: featureType });
+        actions.push({
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'add_feature_node',
+            alias,
+            featureType,
+            reuseExisting: true,
+          },
+        });
+        return;
+      }
+
+      if (command.kind === 'text' && !textAlias) {
+        textAlias = 'prompt_text';
+      }
+    });
+
+    const detailText = payload.detailText.trim();
+    if ((textAlias || (featureAliases.length > 0 && detailText.length > 0)) && detailText.length > 0) {
+      textAlias = textAlias || 'prompt_text';
+      actions.push({
+        kind: 'canvas_mutation',
+        mutation: {
+          type: 'add_text_node',
+          alias: textAlias,
+          content: detailText,
+          label: 'Text',
+        },
+      });
+    }
+
+    featureAliases.forEach((feature) => {
+      assetAliases.forEach((asset) => {
+        const compatibleInputs = [
+          ...PROJECT_AGENT_FEATURE_INPUTS[feature.type],
+          ...(PROJECT_AGENT_FEATURE_ANY_OF_INPUTS[feature.type] || []),
+          ...(PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS[feature.type] || []),
+        ];
+        if (!compatibleInputs.includes(asset.type)) return;
+        actions.push({
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: asset.alias },
+            target: { kind: 'alias', alias: feature.alias },
+            targetHandle: asset.type,
+          },
+        });
+      });
+
+      if (
+        textAlias &&
+        (
+          PROJECT_AGENT_FEATURE_INPUTS[feature.type].includes('text') ||
+          (PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS[feature.type] || []).includes('text')
+        )
+      ) {
+        actions.push({
+          kind: 'canvas_mutation',
+          mutation: {
+            type: 'connect_nodes',
+            source: { kind: 'alias', alias: textAlias },
+            target: { kind: 'alias', alias: feature.alias },
+            targetHandle: 'text',
+          },
+        });
+      }
+    });
+
+    if (actions.length > 0) {
+      actions.push({
+        kind: 'canvas_mutation',
+        mutation: { type: 'format_layout' },
+      });
+    }
+
+    return actions;
+  }, [avatars, products, videos]);
+
+  const handleSend = useCallback(async (messageOverride?: string, payload?: PromptSubmitPayload) => {
     const text = (messageOverride ?? draft).trim();
     if (!sessionId || !text) return;
     ensureHistoryTracked(sessionId);
     setDraft('');
     setStatusNote('');
     dismissCanvasNotice();
+    const promptActions = buildPromptCanvasActions(payload);
+    if (promptActions.length > 0) {
+      window.requestAnimationFrame(() => {
+        window.setTimeout(() => {
+          applyCanvasActions(promptActions);
+        }, 900);
+      });
+      return;
+    }
     await sendMessage({ text });
-  }, [dismissCanvasNotice, draft, ensureHistoryTracked, sendMessage, sessionId]);
+  }, [applyCanvasActions, buildPromptCanvasActions, dismissCanvasNotice, draft, ensureHistoryTracked, sendMessage, sessionId]);
 
   const handleCanvasDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -2037,6 +2180,81 @@ export default function ProjectAgentPage() {
     ];
   }, [avatars, products, videos]);
 
+  const promptTemplateChips = useMemo(() => {
+    const findAssetCommand = (assetType: 'avatar' | 'product' | 'video', label: string) => (
+      promptCommands.find((command) => (
+        command.kind === 'asset' &&
+        command.assetType === assetType &&
+        command.label === label
+      )) || null
+    );
+    const findCommand = (label: string) => promptCommands.find((command) => command.label === label) || null;
+    const makeTemplate = (
+      id: string,
+      label: string,
+      parts: Array<PromptTemplatePart | null>
+    ) => ({
+      id,
+      label,
+      parts: parts.filter((part): part is PromptTemplatePart => Boolean(part)),
+    });
+    const commandPart = (command: PromptCommand | null): PromptTemplatePart | null => (
+      command ? { type: 'command', command } : null
+    );
+    const textPart = (text: string): PromptTemplatePart => ({ type: 'text', text });
+
+    const linYuqing = findAssetCommand('avatar', 'Lin Yuqing');
+    const collagenJar = findAssetCommand('product', 'Collagen Peptides Jar');
+    const wellnessPouch = findAssetCommand('product', 'Herbal Wellness Pouch');
+    const ceraveVideo = findAssetCommand('video', 'CeraVe Hydrating Cleanser');
+    const goliVideo = findAssetCommand('video', 'Goli Gummies Men Showcase');
+    const lavalierVideo = findAssetCommand('video', 'Lavalier Mic Showcase');
+    const videoClone = findCommand('Video Clone');
+    const avatarAds = findCommand('Avatar Ads');
+    const textNode = findCommand('Text');
+
+    return [
+      makeTemplate('lin-collagen-ad', 'Lin Yuqing + collagen ad', [
+        textPart('Create a direct response wellness ad with '),
+        commandPart(linYuqing),
+        textPart(' for '),
+        commandPart(collagenJar),
+        textPart(' with a before-and-after hook '),
+        commandPart(avatarAds),
+      ]),
+      makeTemplate('cerave-collagen-clone', 'CeraVe style collagen clone', [
+        textPart('Use the pacing from '),
+        commandPart(ceraveVideo),
+        textPart(' and feature '),
+        commandPart(collagenJar),
+        textPart(' in a '),
+        commandPart(videoClone),
+      ]),
+      makeTemplate('goli-pouch-showcase', 'Goli style pouch showcase', [
+        textPart('Make an energetic product showcase inspired by '),
+        commandPart(goliVideo),
+        textPart(' for '),
+        commandPart(wellnessPouch),
+        textPart(' using '),
+        commandPart(videoClone),
+      ]),
+      makeTemplate('lavalier-collagen-demo', 'Lavalier demo + collagen', [
+        textPart('Use the '),
+        commandPart(lavalierVideo),
+        textPart(' structure for '),
+        commandPart(collagenJar),
+        textPart(' with '),
+        commandPart(videoClone),
+      ]),
+      makeTemplate('pouch-callout-text', 'Pouch callout text', [
+        textPart('Add a concise callout next to '),
+        commandPart(wellnessPouch),
+        textPart(' that says Daily ritual, easy to carry '),
+        commandPart(textNode),
+      ]),
+    ].filter((template) => template.parts.some((part) => part.type === 'command'));
+  }, [promptCommands]);
+
   if (!isLoaded || isPageLoading) {
     return <FlowtraLoading />;
   }
@@ -2123,11 +2341,29 @@ export default function ProjectAgentPage() {
               </div>
               <div data-canvas-ui="true" className="pointer-events-none absolute bottom-5 left-1/2 z-30 flex w-full -translate-x-1/2 justify-center px-6">
                 <div className="pointer-events-auto relative w-full max-w-[720px]">
+                  <div className="absolute bottom-[calc(100%+12px)] left-1/2 z-10 flex w-[min(720px,calc(100vw-3rem))] -translate-x-1/2 flex-wrap justify-center gap-2 px-1 pb-1">
+                    {promptTemplateChips.map((template) => (
+                      <button
+                        key={template.id}
+                        type="button"
+                        aria-label={`Use prompt template: ${template.label}`}
+                        onClick={() => {
+                          setInjectedPromptTemplate({
+                            nonce: `${template.id}:${Date.now()}`,
+                            parts: template.parts,
+                          });
+                        }}
+                        className="inline-flex h-9 shrink-0 items-center rounded-full border border-[#ddd7ca] bg-white px-3 text-xs font-semibold text-[#2d2b26] shadow-[0_8px_20px_rgba(30,24,14,0.10)] transition-colors hover:bg-[#f7f7f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+                      >
+                        {template.label}
+                      </button>
+                    ))}
+                  </div>
                   <PromptInputBox
                     value={draft}
                     onValueChange={setDraft}
-                    onSend={(message) => {
-                      void handleSend(message);
+                    onSend={(message, payload) => {
+                      void handleSend(message, payload);
                     }}
                     isLoading={isStreaming}
                     placeholder="Describe what to add or change on the canvas..."
@@ -2135,19 +2371,9 @@ export default function ProjectAgentPage() {
                     commands={promptCommands}
                     onAssetCreateRequest={handlePromptAssetCreateRequest}
                     injectedCommandToken={injectedPromptCommandToken}
-                    className="max-w-none opacity-90"
+                    injectedPromptTemplate={injectedPromptTemplate}
+                    className="z-30 max-w-none"
                   />
-                  <div className="absolute inset-0 z-50 flex items-center justify-center rounded-[16px] border border-white/35 bg-white/18 px-5 text-center shadow-[0_8px_20px_rgba(30,24,14,0.05)] backdrop-blur-[3px] backdrop-saturate-125">
-                    <div className="flex items-center gap-3 text-left">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-black text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)]">
-                        <Construction className="h-5 w-5" />
-                      </span>
-                      <div>
-                        <p className="text-sm font-semibold text-[#151515]">Agent mode is under development.</p>
-                        <p className="mt-1 text-xs font-medium text-[#66615a]">Please use the draggable nodes on the left.</p>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
             </section>
