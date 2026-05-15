@@ -1091,10 +1091,10 @@ export default function CanvasBoard({
         Zoom {Math.round(canvas.viewport.zoom * 100)}%
       </div>
 
-      <div data-canvas-ui="true" className="project-agent-canvas-actions pointer-events-auto absolute bottom-5 left-5 z-30 flex items-end gap-2 max-[1320px]:bottom-4 max-[1320px]:left-4 max-[1320px]:gap-1.5">
+      <div data-canvas-ui="true" className="project-agent-canvas-actions pointer-events-auto absolute right-5 top-5 z-30 flex items-start gap-2 max-[1320px]:right-4 max-[1320px]:top-4 max-[1320px]:gap-1.5">
         <div className="relative" data-canvas-ui="true" ref={shortcutsRef}>
           {shortcutsOpen ? (
-            <div className="project-agent-card absolute bottom-[calc(100%+10px)] left-0 w-[300px] rounded-[20px] border p-3 shadow-[0_14px_32px_rgba(0,0,0,0.10)] backdrop-blur">
+            <div className="project-agent-card absolute right-0 top-[calc(100%+10px)] w-[300px] rounded-[20px] border p-3 shadow-[0_14px_32px_rgba(0,0,0,0.10)] backdrop-blur">
               <div className="space-y-2.5 text-[11px] leading-relaxed text-[#6a6963]">
                 <div className="flex items-center gap-2 text-xs font-semibold text-[#4f4e47]">
                   <Keyboard className="h-3.5 w-3.5" />

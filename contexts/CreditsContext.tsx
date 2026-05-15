@@ -33,7 +33,7 @@ interface CreditsProviderProps {
 }
 
 export function CreditsProvider({ children }: CreditsProviderProps) {
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const [credits, setCredits] = useState<number | undefined>(undefined);
   const [creditsData, setCreditsData] = useState<CreditsData | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true); // Start with true to prevent 0 flash
@@ -134,10 +134,21 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
   }, [user?.id]);
 
   useEffect(() => {
-    if (user?.id && credits === undefined) {
+    if (!isLoaded) {
+      return;
+    }
+
+    if (!user?.id) {
+      setCredits(undefined);
+      setCreditsData(undefined);
+      setIsLoading(false);
+      return;
+    }
+
+    if (credits === undefined) {
       fetchCredits();
     }
-  }, [user?.id, credits, fetchCredits]);
+  }, [user?.id, isLoaded, credits, fetchCredits]);
 
   // Set up Realtime subscription for credit updates
   useEffect(() => {

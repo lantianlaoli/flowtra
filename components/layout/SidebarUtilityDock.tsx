@@ -28,7 +28,7 @@ import {
   Zap,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type MouseEvent, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useCredits } from '@/contexts/CreditsContext';
 import { SITE_LOCALE_OPTIONS } from '@/lib/i18n/site';
@@ -230,14 +230,18 @@ export default function SidebarUtilityDock({
   const [tiktokConnection, setTiktokConnection] = useState<TikTokConnection | null>(null);
   const [tiktokLoading, setTiktokLoading] = useState(false);
   const [unbindingTiktok, setUnbindingTiktok] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
+  const suppressNextClickRef = useRef(false);
   const selectedLocale = useMemo(
     () => SITE_LOCALE_OPTIONS.find((option) => option.value === locale) ?? SITE_LOCALE_OPTIONS[0],
     [locale],
   );
   const displayName = getDisplayName(user);
   const email = user?.primaryEmailAddress?.emailAddress || 'No email connected';
+  const accountIdentifier =
+    user?.username ||
+    user?.primaryEmailAddress?.emailAddress?.split('@')[0] ||
+    user?.id ||
+    'account';
   const filteredTransactions = useMemo(
     () => filterTransactionsByTime(transactions, timeFilter),
     [transactions, timeFilter],
@@ -318,27 +322,15 @@ export default function SidebarUtilityDock({
   useEffect(() => {
     if (!isSettingsOpen) return;
 
-    const handlePointerDown = (event: globalThis.MouseEvent) => {
-      const target = event.target as Node;
-      if (!rootRef.current?.contains(target) && !panelRef.current?.contains(target)) {
-        setIsSettingsOpen(false);
-      }
-    };
-
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsSettingsOpen(false);
       }
     };
 
-    const timeoutId = window.setTimeout(() => {
-      document.addEventListener('mousedown', handlePointerDown);
-      document.addEventListener('keydown', handleKeyDown);
-    }, 0);
+    document.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      window.clearTimeout(timeoutId);
-      document.removeEventListener('mousedown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isSettingsOpen]);
@@ -408,6 +400,34 @@ export default function SidebarUtilityDock({
     setIsSettingsOpen((current) => !current);
   };
 
+  const handlePointerActivate = (
+    event: PointerEvent<HTMLButtonElement>,
+    action: () => void,
+  ) => {
+    if (event.button !== 0) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    suppressNextClickRef.current = true;
+    action();
+
+    window.setTimeout(() => {
+      suppressNextClickRef.current = false;
+    }, 0);
+  };
+
+  const handleClickActivate = (
+    event: MouseEvent<HTMLButtonElement>,
+    action: (event: MouseEvent<HTMLButtonElement>) => void,
+  ) => {
+    if (suppressNextClickRef.current) {
+      event.preventDefault();
+      return;
+    }
+
+    action(event);
+  };
+
   const handleManageBilling = async () => {
     setOpeningPortal(true);
     try {
@@ -451,39 +471,49 @@ export default function SidebarUtilityDock({
   };
 
   return (
-    <div ref={rootRef} className="relative bg-transparent">
+    <div className="relative bg-transparent">
       <div className="flex min-w-0 items-center gap-1.5 bg-transparent p-0">
         <button
           type="button"
-          className={iconButtonClassName}
-          onClick={handleThemeClick}
-          aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          title={isDarkMode ? 'Light mode' : 'Dark mode'}
-        >
-          {isDarkMode ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
-        </button>
-
-        <button
-          type="button"
           className={cn(
-            iconButtonClassName,
+            'sidebar-utility-button inline-flex h-14 min-w-0 items-center gap-3 rounded-[20px] border border-[#ECECE8] bg-[linear-gradient(180deg,#FFFFFF_0%,#FCFCFB_100%)] px-2.5 pr-3 text-left text-[#444444] shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_3px_0_rgba(232,232,228,0.98),0_10px_18px_rgba(15,23,42,0.035)] transition-all duration-150 hover:translate-y-[2px] hover:border-[#E7E7E2] hover:bg-[linear-gradient(180deg,#FDFDFC_0%,#F8F8F6_100%)] hover:text-[#111111] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_1px_0_rgba(232,232,228,0.98),0_7px_12px_rgba(15,23,42,0.028)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/35 active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_0px_0_rgba(232,232,228,0.98),0_4px_8px_rgba(15,23,42,0.022)]',
             isSettingsOpen && (isDarkMode
               ? 'translate-y-[2px] border-[#111111] bg-[#111111] text-white'
               : 'translate-y-[2px] border-[#111111] bg-[#111111] text-white'),
           )}
-          onClick={handleOpenSettings}
+          onPointerUp={(event) => handlePointerActivate(event, handleOpenSettings)}
+          onClick={(event) => handleClickActivate(event, handleOpenSettings)}
           aria-label="Open account settings"
           aria-expanded={isSettingsOpen}
           aria-haspopup="dialog"
           title="Account settings"
         >
-          <User className="h-4.5 w-4.5" />
+          {user?.imageUrl ? (
+            <img
+              src={user.imageUrl}
+              alt=""
+              className="h-9 w-9 shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#EFEFED] text-sm font-semibold text-[#555555]">
+              {displayName.charAt(0).toUpperCase()}
+            </span>
+          )}
+          <span className="min-w-0">
+            <span className="block max-w-[8rem] truncate text-sm font-semibold leading-none">
+              {displayName}
+            </span>
+            <span className="sidebar-utility-user-id mt-1 block max-w-[8rem] truncate text-xs text-[#777777]">
+              @{accountIdentifier}
+            </span>
+          </span>
         </button>
 
         <button
           type="button"
           className={iconButtonClassName}
-          onClick={() => onNavigateTo('/', onNavigate)}
+          onPointerUp={(event) => handlePointerActivate(event, () => onNavigateTo('/', onNavigate))}
+          onClick={(event) => handleClickActivate(event, () => onNavigateTo('/', onNavigate))}
           aria-label="Back to landing"
           title="Back to landing"
         >
@@ -493,10 +523,11 @@ export default function SidebarUtilityDock({
 
       {isSettingsOpen && typeof document !== 'undefined' ? createPortal((
         <div
-          ref={panelRef}
           role="dialog"
           aria-modal="false"
           aria-label="Account settings"
+          onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
           className={cn(
             'fixed left-1/2 top-1/2 z-[120] h-[min(720px,calc(100vh-2rem))] w-[min(720px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[24px] border',
             settingsTheme.panel,

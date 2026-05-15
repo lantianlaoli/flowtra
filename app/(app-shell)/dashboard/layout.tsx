@@ -41,9 +41,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [])
 
   useEffect(() => {
-    if (!isLoaded || !user || isCreditsLoading || credits === undefined) return
+    if (!isLoaded) return
 
-    if (credits <= 0) {
+    if (!user) {
+      router.replace('/sign-in')
+      return
+    }
+
+    if (isCreditsLoading) return
+
+    if (credits !== undefined && credits <= 0) {
       router.replace('/select-plan')
       return
     }
@@ -51,7 +58,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setIsCheckingPurchase(false)
   }, [credits, isCreditsLoading, user, isLoaded, router])
 
-  if (!isLoaded || isCheckingPurchase || isCreditsLoading || credits === undefined) {
+  if (!isLoaded || isCheckingPurchase || isCreditsLoading) {
     return <FlowtraLoading />
   }
 

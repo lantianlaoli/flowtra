@@ -914,7 +914,7 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
       utilityDock: {
         account: '账户',
         language: '语言',
-        academy: 'Academy',
+        academy: '学院',
         lightMode: '浅色模式',
         darkMode: '深色模式',
         backToLanding: '返回首页',

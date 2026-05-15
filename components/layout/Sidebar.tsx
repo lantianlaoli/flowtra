@@ -1,18 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, LayoutGroup } from 'framer-motion';
 import {
   Home,
-  Sparkles,
-  Video,
   Play,
   Boxes,
-  User,
   Menu,
-  Shuffle,
   MessageCircle,
 } from 'lucide-react';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
@@ -42,6 +38,16 @@ interface SidebarProps {
   onTriggerOnboarding?: () => void;
 }
 
+interface SidebarPanelsProps {
+  displayCredits?: number;
+  hasSubscription: boolean;
+  isDarkMode: boolean;
+  onNavigateTo: (href: string, onNavigate?: () => void) => void;
+  onToggleDarkMode: (trigger?: HTMLElement) => void;
+  onNavigate?: () => void;
+  renderPrimaryNavigation: (onNavigate?: () => void) => ReactNode;
+}
+
 const sidebarNavButtonBase =
   'sidebar-nav-button relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-[20px] border px-2.5 py-3 text-sm font-medium transition-all duration-150';
 
@@ -50,6 +56,47 @@ const sidebarNavButtonInactive =
 
 const sidebarNavButtonActive =
   'sidebar-nav-button--active border-[#111111] bg-[#111111] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_0_rgba(22,22,22,0.98),0_14px_24px_rgba(0,0,0,0.12)] hover:translate-y-[2px] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_2px_0_rgba(22,22,22,0.98),0_10px_18px_rgba(0,0,0,0.1)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_0_rgba(22,22,22,0.98),0_7px_14px_rgba(0,0,0,0.09)]';
+
+function SidebarPanels({
+  displayCredits,
+  hasSubscription,
+  isDarkMode,
+  onNavigateTo,
+  onToggleDarkMode,
+  onNavigate,
+  renderPrimaryNavigation,
+}: SidebarPanelsProps) {
+  return (
+    <div className="sidebar-shell inline-flex h-full min-h-0 w-fit max-w-full flex-col items-start bg-transparent text-[#111111]">
+      <div className="shrink-0 px-3 py-4">
+        {displayCredits !== undefined ? (
+          <CreditsDisplay
+            credits={displayCredits}
+            hasSubscription={hasSubscription}
+            onAddCredits={() => { window.location.href = '/#pricing'; }}
+          />
+        ) : null}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+        <div className="sidebar-nav-panel inline-flex w-fit max-w-full flex-col rounded-[26px] border border-[#E7E7E4] bg-white/90 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-xl">
+          {renderPrimaryNavigation(onNavigate)}
+        </div>
+      </div>
+
+      <div className="shrink-0 px-3 py-4">
+        <div className="sidebar-utility-panel flex rounded-[26px] border border-[#E7E7E4] bg-white/90 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-xl">
+          <SidebarUtilityDock
+            isDarkMode={isDarkMode}
+            onToggleDarkMode={onToggleDarkMode}
+            onNavigateTo={onNavigateTo}
+            onNavigate={onNavigate}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Sidebar({ credits, creditsData }: SidebarProps) {
   const sidebarMessages = useI18n().messages.dashboard.sidebar;
@@ -67,9 +114,6 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
   const primaryNavigation = [
     { name: sidebarMessages.home, href: '/dashboard', icon: Home },
     { name: sidebarMessages.agent, href: '/dashboard/agent', icon: MessageCircle },
-    { name: sidebarMessages.viralClone, href: '/dashboard/video-clone', icon: Sparkles },
-    { name: sidebarMessages.avatarAds, href: '/dashboard/avatar-ads', icon: Video },
-    { name: sidebarMessages.motionClone, href: '/dashboard/motion-clone', icon: Shuffle },
     { name: sidebarMessages.myAds, href: '/dashboard/my-ads', icon: Play },
     { name: sidebarMessages.assets, href: '/dashboard/assets', icon: Boxes },
   ];
@@ -219,44 +263,20 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
     </LayoutGroup>
   );
 
-  const SidebarPanels = ({ onNavigate }: { onNavigate?: () => void }) => (
-    <div className="sidebar-shell inline-flex h-full min-h-0 w-fit max-w-full flex-col items-start bg-transparent text-[#111111]">
-      <div className="shrink-0 px-3 py-4">
-        {displayCredits !== undefined ? (
-          <CreditsDisplay
-            credits={displayCredits}
-            hasSubscription={hasSubscription}
-            onAddCredits={() => { window.location.href = '/#pricing'; }}
-          />
-        ) : null}
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
-        <div className="sidebar-nav-panel inline-flex w-fit max-w-full flex-col rounded-[26px] border border-[#E7E7E4] bg-white/90 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-xl">
-          {renderPrimaryNavigation(onNavigate)}
-        </div>
-      </div>
-
-      <div className="shrink-0 px-3 py-4">
-        <div className="sidebar-utility-panel flex rounded-[26px] border border-[#E7E7E4] bg-white/90 p-2 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-xl">
-          <SidebarUtilityDock
-            isDarkMode={isDarkMode}
-            onToggleDarkMode={toggleDarkMode}
-            onNavigateTo={navigateTo}
-            onNavigate={onNavigate}
-          />
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <>
       <div
         ref={desktopSidebarRef}
         className="fixed left-0 top-0 z-50 hidden h-screen w-fit max-w-[calc(100vw-2rem)] md:block"
       >
-        <SidebarPanels />
+        <SidebarPanels
+          displayCredits={displayCredits}
+          hasSubscription={hasSubscription}
+          isDarkMode={isDarkMode}
+          onToggleDarkMode={toggleDarkMode}
+          onNavigateTo={navigateTo}
+          renderPrimaryNavigation={renderPrimaryNavigation}
+        />
       </div>
 
       <button
@@ -274,7 +294,15 @@ export default function Sidebar({ credits, creditsData }: SidebarProps) {
           side="left"
           className="w-60 border-r-0 bg-[#F5F5F3] p-0 text-[#111111]"
         >
-          <SidebarPanels onNavigate={() => setMobileOpen(false)} />
+          <SidebarPanels
+            displayCredits={displayCredits}
+            hasSubscription={hasSubscription}
+            isDarkMode={isDarkMode}
+            onToggleDarkMode={toggleDarkMode}
+            onNavigateTo={navigateTo}
+            onNavigate={() => setMobileOpen(false)}
+            renderPrimaryNavigation={renderPrimaryNavigation}
+          />
         </SheetContent>
       </Sheet>
     </>

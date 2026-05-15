@@ -98,12 +98,41 @@ export default function FloatingPreferences() {
     return null;
   }
 
+  const panelClassName = isDarkMode
+    ? 'border-[#2C3442] bg-[#111827]/95 shadow-[0_18px_48px_rgba(0,0,0,0.32)]'
+    : 'border-[#E5E5E5] bg-white/92';
+  const controlClassName = isDarkMode
+    ? 'text-[#F8FAFC] hover:bg-white/10'
+    : 'text-black hover:bg-[#F7F7F7]';
+  const iconClassName = isDarkMode ? 'text-[#CBD5E1]' : 'text-[#666666]';
+  const menuClassName = isDarkMode
+    ? 'border-[#2C3442] bg-[#111827] shadow-[0_24px_60px_rgba(0,0,0,0.36)]'
+    : 'border-[#E5E5E5] bg-white';
+
+  const getLanguageOptionClassName = (active: boolean) => {
+    if (active) {
+      return isDarkMode ? 'bg-white text-black' : 'bg-black text-white';
+    }
+
+    return isDarkMode ? 'text-[#F8FAFC] hover:bg-white/10' : 'text-black hover:bg-[#F7F7F7]';
+  };
+
+  const getLanguageNativeNameClassName = (active: boolean) => {
+    if (active) {
+      return isDarkMode ? 'text-black/62' : 'text-white/72';
+    }
+
+    return isDarkMode ? 'text-[#CBD5E1]' : 'text-[#666666]';
+  };
+
   return (
     <div
       ref={containerRef}
       className="fixed bottom-4 right-4 z-[80] md:bottom-6 md:right-6"
     >
-      <div className="rounded-[22px] border border-[#E5E5E5] bg-white/92 p-1.5 shadow-[0_16px_44px_rgba(0,0,0,0.08)] backdrop-blur-xl">
+      <div
+        className={`rounded-[22px] border p-1.5 shadow-[0_16px_44px_rgba(0,0,0,0.08)] backdrop-blur-xl transition-colors ${panelClassName}`}
+      >
         <div className="flex items-center gap-1.5">
           <div className="relative">
             <button
@@ -111,15 +140,17 @@ export default function FloatingPreferences() {
               onClick={() => setIsLanguageOpen((current) => !current)}
               aria-label={messages.landing.header.languageSwitcherLabel}
               aria-expanded={isLanguageOpen}
-              className="inline-flex h-11 items-center gap-2 rounded-[16px] px-3 text-[14px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
+              className={`inline-flex h-11 items-center gap-2 rounded-[16px] px-3 text-[14px] font-medium transition-colors ${controlClassName}`}
             >
-              <Globe className="h-4 w-4 shrink-0 text-[#666666]" />
+              <Globe className={`h-4 w-4 shrink-0 ${iconClassName}`} />
               <span>{selectedOption.nativeName}</span>
-              <ChevronDownIcon className={`h-4 w-4 text-[#666666] transition-transform ${isLanguageOpen ? 'rotate-180' : ''}`} />
+              <ChevronDownIcon className={`h-4 w-4 transition-transform ${iconClassName} ${isLanguageOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {isLanguageOpen ? (
-              <div className="absolute right-0 bottom-auto top-[calc(100%+0.5rem)] min-w-[188px] rounded-[18px] border border-[#E5E5E5] bg-white p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.12)]">
+              <div
+                className={`absolute right-0 bottom-[calc(100%+0.5rem)] min-w-[188px] rounded-[18px] border p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.12)] ${menuClassName}`}
+              >
                 <div className="flex flex-col gap-1">
                   {SITE_LOCALE_OPTIONS.map((option) => {
                     const active = option.value === locale;
@@ -133,12 +164,16 @@ export default function FloatingPreferences() {
                           setIsLanguageOpen(false);
                         }}
                         className={`flex items-center justify-between rounded-[14px] px-3 py-2 text-left text-[14px] transition-colors ${
-                          active ? 'bg-black text-white' : 'text-black hover:bg-[#F7F7F7]'
+                          getLanguageOptionClassName(active)
                         }`}
                       >
                         <div className="flex items-baseline gap-2">
                           <span className="font-medium">{option.label}</span>
-                          <span className={`text-[12px] ${active ? 'text-white/72' : 'text-[#666666]'}`}>
+                          <span
+                            className={`text-[12px] ${
+                              getLanguageNativeNameClassName(active)
+                            }`}
+                          >
                             {option.nativeName}
                           </span>
                         </div>
@@ -155,12 +190,12 @@ export default function FloatingPreferences() {
             type="button"
             onClick={(event) => toggleDarkMode(event.currentTarget)}
             aria-label={messages.landing.header.themeToggleLabel}
-            className="inline-flex h-11 items-center gap-2 rounded-[16px] px-3 text-[14px] font-medium text-black transition-colors hover:bg-[#F7F7F7]"
+            className={`inline-flex h-11 items-center gap-2 rounded-[16px] px-3 text-[14px] font-medium transition-colors ${controlClassName}`}
           >
             {isDarkMode ? (
-              <Sun className="h-4 w-4 shrink-0 text-[#666666]" />
+              <Sun className={`h-4 w-4 shrink-0 ${iconClassName}`} />
             ) : (
-              <Moon className="h-4 w-4 shrink-0 text-[#666666]" />
+              <Moon className={`h-4 w-4 shrink-0 ${iconClassName}`} />
             )}
             <span>{isDarkMode ? messages.common.lightMode : messages.common.darkMode}</span>
           </button>

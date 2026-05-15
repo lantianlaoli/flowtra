@@ -524,7 +524,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       pricing: '价格',
       blog: '博客',
       faq: '常见问题',
-      academy: 'Academy',
+      academy: '学院',
       dashboard: '控制台',
       signUpDesktop: '注册 · 获得 100 免费积分',
       signUpMobile: '领取 100 积分',
