@@ -16,6 +16,7 @@ import {
   type VideoDuration,
   type VideoModel
 } from '@/lib/constants';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface VideoModelSelectorProps {
   credits: number;
@@ -59,6 +60,7 @@ export default function VideoModelSelector({
   adsCount = 1,
   videoDurationSeconds
 }: VideoModelSelectorProps) {
+  const { locale } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
@@ -98,7 +100,58 @@ export default function VideoModelSelector({
       return true;
     };
 
-      return [
+      return locale === 'zh'
+      ? [
+      {
+        value: 'seedance_2_fast' as const,
+        label: getVideoModelDisplayName('seedance_2_fast'),
+        description: '更快的字节跳动原生音频生成',
+        icon: ByteDance,
+        cost: calculateDurationCost('seedance_2_fast'),
+        creditsPerSecond: GENERATION_COSTS['seedance_2_fast'],
+        processingTime: getProcessingTime('seedance_2_fast'),
+        features: '原生 720p，1-2 分钟',
+        supported: isModelSupported('seedance_2_fast'),
+        badge: '热门'
+      },
+      {
+        value: 'seedance_2' as const,
+        label: getVideoModelDisplayName('seedance_2'),
+        description: '更高保真的字节跳动生成',
+        icon: ByteDance,
+        cost: calculateDurationCost('seedance_2'),
+        creditsPerSecond: getCreditsPerSecond('seedance_2'),
+        processingTime: getProcessingTime('seedance_2'),
+        features: '720p 或 1080p，动作更丰富',
+        supported: isModelSupported('seedance_2'),
+        badge: '专业'
+      },
+      {
+        value: 'kling_3' as const,
+        label: getVideoModelDisplayName('kling_3'),
+        description: '按分辨率计费的音频生成',
+        icon: Kling,
+        cost: calculateDurationCost('kling_3'),
+        creditsPerSecond: GENERATION_COSTS['kling_3'],
+        processingTime: getProcessingTime('kling_3'),
+        features: '720p 标准或 1080p 专业',
+        supported: isModelSupported('kling_3'),
+        badge: '新'
+      },
+      {
+        value: 'wan_27' as const,
+        label: getVideoModelDisplayName('wan_27'),
+        description: '高保真 1080p 动态生成',
+        icon: Qwen,
+        cost: calculateDurationCost('wan_27'),
+        creditsPerSecond: GENERATION_COSTS['wan_27'],
+        processingTime: getProcessingTime('wan_27'),
+        features: '原生 1080p，2-15 秒',
+        supported: isModelSupported('wan_27'),
+        badge: '新'
+      }
+    ]
+      : [
       {
         value: 'seedance_2_fast' as const,
         label: getVideoModelDisplayName('seedance_2_fast'),
@@ -148,7 +201,7 @@ export default function VideoModelSelector({
         badge: 'New'
       }
     ];
-  }, [videoDurationSeconds, videoQuality, videoDuration, disabledModels]);
+  }, [videoDurationSeconds, videoQuality, videoDuration, disabledModels, locale]);
 
   const visibleOptions = useMemo(
     () =>
@@ -201,6 +254,7 @@ export default function VideoModelSelector({
   }, [isOpen]);
 
   const selectedOption = visibleOptions.find(opt => opt.value === selectedModel) || visibleOptions[0];
+  const creditsPerSecondLabel = locale === 'zh' ? '积分/秒' : 'credits/s';
 
   const handleOptionSelect = (value: VideoModel) => {
     onModelChange(value);
@@ -229,7 +283,7 @@ export default function VideoModelSelector({
             <selectedOption.icon className="h-5 w-5 text-gray-700" />
             <span className="font-medium truncate">{selectedOption?.label}</span>
             {selectedOption && (
-              <span className="text-xs text-gray-500">{selectedOption.creditsPerSecond} credits/s</span>
+              <span className="text-xs text-gray-500">{selectedOption.creditsPerSecond} {creditsPerSecondLabel}</span>
             )}
             {selectedOption && disabledModels.includes(selectedOption.value) && disabledModelReasons[selectedOption.value] && (
               <ModelConstraintBadge label={disabledModelReasons[selectedOption.value] as string} />
@@ -274,7 +328,7 @@ export default function VideoModelSelector({
                 <div className="flex flex-1 items-center gap-2">
                   <option.icon className="h-5 w-5 text-gray-700" />
                   <span className="font-medium">{option.label}</span>
-                  <span className="text-xs text-gray-500">{option.creditsPerSecond} credits/s</span>
+                  <span className="text-xs text-gray-500">{option.creditsPerSecond} {creditsPerSecondLabel}</span>
                   {disabledByConstraint && disabledReason && (
                     <ModelConstraintBadge label={disabledReason} />
                   )}

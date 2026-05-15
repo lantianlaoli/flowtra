@@ -8,9 +8,10 @@ export const SITE_LOCALE_OPTIONS: Array<{
   value: SiteLocale;
   label: string;
   nativeName: string;
+  flag: string;
 }> = [
-  { value: 'en', label: 'English', nativeName: 'English' },
-  { value: 'zh', label: 'Chinese', nativeName: '中文' },
+  { value: 'en', label: 'English', nativeName: 'English', flag: '🇺🇸' },
+  { value: 'zh', label: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
 ];
 
 export function normalizeSiteLocale(value: unknown): SiteLocale {

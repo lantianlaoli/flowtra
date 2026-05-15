@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Check, Clock, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { VideoDuration } from '@/lib/constants';
+import { useI18n } from '@/providers/I18nProvider';
 
 export interface VideoDurationOption {
   value: VideoDuration;
@@ -36,6 +37,7 @@ export default function VideoDurationSelector({
   options,
   recommendedDuration // NEW
 }: VideoDurationSelectorProps) {
+  const { locale } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -168,6 +170,7 @@ export default function VideoDurationSelector({
   }, [isOpen]);
 
   const selectedOption = durationOptions.find(opt => opt.value === selectedDuration);
+  const recommendedLabel = locale === 'zh' ? '推荐' : 'Recommended';
 
   const handleOptionSelect = (value: VideoDuration) => {
     if (disabledDurations.includes(value)) return;
@@ -201,7 +204,7 @@ export default function VideoDurationSelector({
             {selectedOption?.recommended || (recommendedDuration && selectedOption?.value === recommendedDuration) ? (
               <span className="config-select-recommend inline-flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
                 <Sparkles className="w-3 h-3" />
-                Recommended
+                {recommendedLabel}
               </span>
             ) : null}
           </div>
@@ -260,7 +263,7 @@ export default function VideoDurationSelector({
                         {(isRecommended || option.recommended) && (
                           <span className="config-select-recommend flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
                             <Sparkles className="w-3 h-3" />
-                            Recommended
+                            {recommendedLabel}
                           </span>
                         )}
                       </div>

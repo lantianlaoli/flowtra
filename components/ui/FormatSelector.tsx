@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Check, Maximize2, Square, Smartphone, Monitor } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
+import { useI18n } from '@/providers/I18nProvider';
 
 type OutputMode = 'video' | 'image';
 
@@ -60,6 +61,7 @@ export default function FormatSelector({
   className,
   disabled = false
 }: FormatSelectorProps) {
+  const { locale } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -72,7 +74,27 @@ export default function FormatSelector({
     setMounted(true);
   }, []);
 
-  const formatOptions = outputMode === 'image' ? IMAGE_FORMATS : VIDEO_FORMATS;
+  const formatOptions = useMemo(() => {
+    const localizedLabels = locale === 'zh'
+      ? {
+          Square: '方形',
+          Portrait: '竖屏',
+          Landscape: '横屏',
+          'Ultra Wide': '超宽屏',
+          ratio: '比例',
+        }
+      : null;
+
+    return (outputMode === 'image' ? IMAGE_FORMATS : VIDEO_FORMATS).map((option) => (
+      localizedLabels
+        ? {
+            ...option,
+            label: localizedLabels[option.label as keyof typeof localizedLabels] ?? option.label,
+            description: option.description.replace('ratio', localizedLabels.ratio),
+          }
+        : option
+    ));
+  }, [locale, outputMode]);
 
   // Validate and auto-correct format when output mode changes
   useEffect(() => {

@@ -11,6 +11,7 @@ import {
   type CloneVideoQuality,
   type VideoModel
 } from '@/lib/constants';
+import { useI18n } from '@/providers/I18nProvider';
 
 interface VideoQualitySelectorProps {
   selectedModel: VideoModel;
@@ -19,6 +20,7 @@ interface VideoQualitySelectorProps {
   className?: string;
   disabled?: boolean;
   qualityOptionsOverride?: QualityOption[];
+  label?: string;
 }
 
 type QualityOption = {
@@ -29,35 +31,29 @@ type QualityOption = {
   disabledReason?: string;
 };
 
-function formatCreditsPerSecondLabel(totalCredits: number, seconds = 8): string {
-  const perSecond = totalCredits / seconds;
-  const formatted = Number.isInteger(perSecond) ? String(perSecond) : perSecond.toFixed(2);
-  return `${formatted} credits / s`;
-}
-
-function getQualityOptions(model: VideoModel): QualityOption[] {
+function getQualityOptions(model: VideoModel, creditsPerSecondLabel: string): QualityOption[] {
   if (model === 'kling_3') {
     return [
-      { value: '720p', label: '720p', creditsPerSecondLabel: '20 credits / s' },
-      { value: '1080p', label: '1080p', creditsPerSecondLabel: '27 credits / s' }
+      { value: '720p', label: '720p', creditsPerSecondLabel: `20 ${creditsPerSecondLabel}` },
+      { value: '1080p', label: '1080p', creditsPerSecondLabel: `27 ${creditsPerSecondLabel}` }
     ];
   }
 
   if (model === 'seedance_2_fast') {
     return [
-      { value: '720p', label: '720p', creditsPerSecondLabel: '33 credits / s' }
+      { value: '720p', label: '720p', creditsPerSecondLabel: `33 ${creditsPerSecondLabel}` }
     ];
   }
 
   if (model === 'seedance_2') {
     return [
-      { value: '720p', label: '720p', creditsPerSecondLabel: `${SEEDANCE_2_QUALITY_COSTS['720p']} credits / s` },
-      { value: '1080p', label: '1080p', creditsPerSecondLabel: `${SEEDANCE_2_QUALITY_COSTS['1080p']} credits / s` }
+      { value: '720p', label: '720p', creditsPerSecondLabel: `${SEEDANCE_2_QUALITY_COSTS['720p']} ${creditsPerSecondLabel}` },
+      { value: '1080p', label: '1080p', creditsPerSecondLabel: `${SEEDANCE_2_QUALITY_COSTS['1080p']} ${creditsPerSecondLabel}` }
     ];
   }
 
   return [
-    { value: '720p', label: '720p', creditsPerSecondLabel: `${GENERATION_COSTS[model]} credits / s` }
+    { value: '720p', label: '720p', creditsPerSecondLabel: `${GENERATION_COSTS[model]} ${creditsPerSecondLabel}` }
   ];
 }
 
@@ -67,15 +63,20 @@ export default function VideoQualitySelector({
   onQualityChange,
   className,
   disabled = false,
-  qualityOptionsOverride
+  qualityOptionsOverride,
+  label,
 }: VideoQualitySelectorProps) {
+  const { locale } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
   const normalizedSelectedQuality = normalizeCloneVideoQualityForModel(selectedModel, selectedQuality);
+  const copy = locale === 'zh'
+    ? { quality: '画质', creditsPerSecond: '积分 / 秒' }
+    : { quality: 'Quality', creditsPerSecond: 'credits / s' };
   const qualityOptions = useMemo(
-    () => qualityOptionsOverride || getQualityOptions(selectedModel),
-    [qualityOptionsOverride, selectedModel]
+    () => qualityOptionsOverride || getQualityOptions(selectedModel, copy.creditsPerSecond),
+    [copy.creditsPerSecond, qualityOptionsOverride, selectedModel]
   );
   const selectedOption = qualityOptions.find((option) => option.value === normalizedSelectedQuality) || qualityOptions[0];
 
@@ -114,7 +115,7 @@ export default function VideoQualitySelector({
     <div className={cn('space-y-3', className)} ref={dropdownRef}>
       <label className="config-field-label flex items-center gap-2 text-base font-medium text-gray-900">
         <MonitorPlay className="h-4 w-4" />
-        Quality
+        {label ?? copy.quality}
       </label>
 
       <div className="relative">

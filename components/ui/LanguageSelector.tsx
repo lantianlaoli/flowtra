@@ -129,6 +129,7 @@ export default function LanguageSelector({
   const selectedLabel = localizedLanguageNames[selectedLanguage];
   const selectedFlag = LANGUAGE_OPTIONS.find((option) => option.value === selectedLanguage)?.flag || selectedOption?.flag;
   const selectedIsRecommended = normalizedRecommendedLanguage === selectedLanguage;
+  const recommendedLabel = locale === 'zh' ? '推荐' : 'Recommended';
 
   const handleOptionSelect = (value: LanguageCode) => {
     onLanguageChange(value);
@@ -160,7 +161,7 @@ export default function LanguageSelector({
             {selectedIsRecommended ? (
               <span className="config-select-recommend inline-flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
                 <Sparkles className="w-3 h-3" />
-                Recommended
+                {recommendedLabel}
               </span>
             ) : null}
           </div>
@@ -204,7 +205,7 @@ export default function LanguageSelector({
                     {normalizedRecommendedLanguage === option.value ? (
                       <span className="config-select-recommend inline-flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
                         <Sparkles className="w-3 h-3" />
-                        Recommended
+                        {recommendedLabel}
                       </span>
                     ) : null}
                   </div>

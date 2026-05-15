@@ -196,10 +196,13 @@ export default function ConfigPopover({
         resolution: '分辨率',
         outputFormat: '输出格式',
         videoModel: '视频模型',
+        quality: '画质',
         duration: '时长',
+        language: '语言',
         openConfiguration: '打开配置',
         advancedConfiguration: '高级配置',
         closeConfigurationDrawer: '关闭配置抽屉',
+        close: '关闭',
       }
     : {
         headerTitle: 'Config',
@@ -207,10 +210,13 @@ export default function ConfigPopover({
         resolution: 'Resolution',
         outputFormat: 'Output Format',
         videoModel: 'Video Model',
+        quality: 'Quality',
         duration: 'Duration',
+        language: 'Language',
         openConfiguration: 'Open configuration',
         advancedConfiguration: 'Advanced configuration',
         closeConfigurationDrawer: 'Close configuration drawer',
+        close: 'Close',
       };
 
   const renderPhotoOptions = () => (
@@ -341,6 +347,7 @@ export default function ConfigPopover({
             onQualityChange={onVideoQualityChange}
             disabled={disabled}
             qualityOptionsOverride={videoQualityOptions}
+            label={copy.quality}
           />
         )}
 
@@ -424,7 +431,7 @@ export default function ConfigPopover({
               <button
                 onClick={() => setIsOpen(false)}
                 className="config-popover-close p-1 hover:bg-gray-200 rounded-md transition-colors"
-                aria-label="Close"
+                aria-label={copy.close}
               >
                 <X className="w-4 h-4 text-gray-600" />
               </button>
@@ -443,7 +450,7 @@ export default function ConfigPopover({
                 <LanguageSelector
                   selectedLanguage={selectedLanguage}
                   onLanguageChange={onLanguageChange}
-                  label="Language"
+                  label={copy.language}
                   showIcon
                   recommendedLanguage={recommendedLanguage}
                 />

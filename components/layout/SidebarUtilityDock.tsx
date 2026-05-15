@@ -22,7 +22,6 @@ import {
   RotateCcw,
   Sparkles,
   Sun,
-  Languages,
   TrendingUp,
   User,
   Zap,
@@ -31,9 +30,10 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type MouseEvent, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useCredits } from '@/contexts/CreditsContext';
-import { SITE_LOCALE_OPTIONS } from '@/lib/i18n/site';
+import { SITE_LOCALE_OPTIONS, type SiteLocale } from '@/lib/i18n/site';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/providers/I18nProvider';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 
 interface SidebarUtilityDockProps {
   isDarkMode: boolean;
@@ -678,52 +678,97 @@ export default function SidebarUtilityDock({
                         <Palette className="h-4 w-4" />
                         <span>Appearance</span>
                       </div>
-                      <div className={cn('mt-4 rounded-[14px] border p-4', settingsTheme.card)}>
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px]', settingsTheme.avatarFallback)}>
-                              {isDarkMode ? <Moon className={cn('h-4 w-4', settingsTheme.avatarIcon)} /> : <Sun className={cn('h-4 w-4', settingsTheme.avatarIcon)} />}
-                            </span>
-                            <div className="min-w-0">
-                            <p className={cn('text-sm font-medium', settingsTheme.primaryText)}>Theme</p>
-                            <p className={cn('mt-1 text-sm', settingsTheme.secondaryText)}>Switch dashboard surfaces between light and dark.</p>
-                            </div>
-                          </div>
-                          <button type="button" onClick={handleThemeClick} className={panelButtonClassName}>
-                            {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                            {isDarkMode ? 'Light' : 'Dark'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className={cn('flex items-center gap-2 text-sm font-semibold', settingsTheme.sectionTitle)}>
-                        <Languages className="h-4 w-4" />
-                        <span>Language</span>
-                      </div>
-                      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                        {SITE_LOCALE_OPTIONS.map((option) => {
-                          const active = option.value === selectedLocale.value;
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => setLocale(option.value)}
+                      <div className={cn('mt-4 grid gap-3 rounded-[14px] border p-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]', settingsTheme.card)}>
+                        <div className="space-y-2">
+                          <p className={cn('text-sm font-medium', settingsTheme.primaryText)}>Theme</p>
+                          <button
+                            type="button"
+                            onClick={handleThemeClick}
+                            aria-label="Toggle theme"
+                            aria-pressed={isDarkMode}
+                            className={cn(
+                              'relative flex h-10 w-full items-center rounded-[12px] border p-1 transition-colors focus-visible:outline-none focus-visible:ring-2',
+                              settingsTheme.tabBase,
+                              isDarkMode
+                                ? 'border-[#2a2a2d] bg-[#0b0b0d]'
+                                : 'border-[#DCDCD8] bg-white',
+                            )}
+                          >
+                            <span
                               className={cn(
-                                'flex min-h-11 items-center justify-between rounded-[12px] border px-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2',
-                                settingsTheme.tabBase,
-                                active ? settingsTheme.languageActive : settingsTheme.languageInactive,
+                                'absolute left-1 top-1 h-8 w-[calc(50%-0.25rem)] rounded-[9px] transition-transform duration-200',
+                                isDarkMode
+                                  ? 'translate-x-full bg-white'
+                                  : 'translate-x-0 bg-[#111111]',
+                              )}
+                            />
+                            <span
+                              className={cn(
+                                'relative z-10 inline-flex w-1/2 items-center justify-center gap-1.5 text-sm font-medium transition-colors',
+                                isDarkMode ? 'text-[#8e8e93]' : 'text-white',
                               )}
                             >
-                              <span>
-                                <span className="block text-sm font-medium">{option.label}</span>
-                                <span className={cn('block text-xs', active ? settingsTheme.languageSubActive : settingsTheme.languageSubInactive)}>{option.nativeName}</span>
+                              <Sun className="h-4 w-4" />
+                              Light
+                            </span>
+                            <span
+                              className={cn(
+                                'relative z-10 inline-flex w-1/2 items-center justify-center gap-1.5 text-sm font-medium transition-colors',
+                                isDarkMode ? 'text-black' : 'text-[#666666]',
+                              )}
+                            >
+                              <Moon className="h-4 w-4" />
+                              Dark
+                            </span>
+                          </button>
+                        </div>
+
+                        <div className="space-y-2">
+                          <p className={cn('text-sm font-medium', settingsTheme.primaryText)}>Language</p>
+                          <Select value={selectedLocale.value} onValueChange={(value) => setLocale(value as SiteLocale)}>
+                            <SelectTrigger
+                              aria-label="Language"
+                              className={cn(
+                                'min-h-10 rounded-[12px] px-3 py-2 text-sm',
+                                isDarkMode && 'border-[#2a2a2d] bg-[#0b0b0d] text-white',
+                              )}
+                            >
+                              <span className="inline-flex items-center gap-2">
+                                <span
+                                  className="text-base leading-none"
+                                  style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji' }}
+                                >
+                                  {selectedLocale.flag}
+                                </span>
+                                <span>{selectedLocale.nativeName}</span>
                               </span>
-                              {active ? <Check className="h-4 w-4" /> : null}
-                            </button>
-                          );
-                        })}
+                            </SelectTrigger>
+                            <SelectContent
+                              className={cn(
+                                'z-[130]',
+                                isDarkMode && 'border-[#2a2a2d] bg-[#151517]',
+                              )}
+                            >
+                              {SITE_LOCALE_OPTIONS.map((option) => (
+                                <SelectItem
+                                  key={option.value}
+                                  value={option.value}
+                                  className={isDarkMode ? 'text-white data-[highlighted]:bg-[#252527]' : undefined}
+                                >
+                                  <span className="inline-flex items-center gap-2">
+                                    <span
+                                      className="text-base leading-none"
+                                      style={{ fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji' }}
+                                    >
+                                      {option.flag}
+                                    </span>
+                                    <span>{option.nativeName}</span>
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     </div>
                   </div>
