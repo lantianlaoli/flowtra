@@ -4968,6 +4968,29 @@ function buildSeedanceEditVideoRequestBody(input: {
   };
 }
 
+function buildWanEditVideoRequestBody(input: {
+  projectId: string;
+  prompt: string;
+  videoUrl: string;
+  aspectRatio: '16:9' | '9:16';
+  resolution: '720p' | '1080p';
+  duration: number;
+}) {
+  return {
+    model: 'wan/2-7-videoedit',
+    input: {
+      prompt: input.prompt,
+      video_url: input.videoUrl,
+      resolution: input.resolution,
+      aspect_ratio: input.aspectRatio,
+      duration: input.duration,
+      prompt_extend: true,
+      watermark: false,
+    },
+    callBackUrl: buildSegmentVideoWebhookUrl(input.projectId, 0),
+  };
+}
+
 async function startEditVideoTaskSeedance(input: {
   projectId: string;
   userId: string;
@@ -5010,6 +5033,47 @@ async function startEditVideoTaskSeedance(input: {
   return result.data.taskId as string;
 }
 
+async function startEditVideoTaskWan(input: {
+  projectId: string;
+  userId: string;
+  prompt: string;
+  videoUrl: string;
+  aspectRatio: '16:9' | '9:16';
+  resolution: '720p' | '1080p';
+  duration: number;
+}) {
+  const apiKey = process.env.KIE_API_KEY;
+  if (!apiKey) {
+    throw new Error('KIE_API_KEY environment variable is not configured');
+  }
+
+  await moderatePromptBeforeGeneration(input.prompt, {
+    externalId: `user_${input.userId}:video_clone_${input.projectId}:edit_video`,
+  });
+
+  const requestBody = buildWanEditVideoRequestBody(input);
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(requestBody),
+  }, 5, 30000);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Wan 2.7 API error: ${response.status} - ${errorText}`);
+  }
+
+  const result = await response.json();
+  if (result.code !== 200 || !result.data?.taskId) {
+    throw new Error(`Wan 2.7 API failed: ${result.msg || 'Unknown error'}`);
+  }
+
+  return result.data.taskId as string;
+}
+
 async function startEditVideoWorkflow(request: StartWorkflowRequest): Promise<WorkflowResult> {
   const supabase = getSupabaseAdmin();
   const prompt = request.editVideoPrompt?.trim();
@@ -5025,19 +5089,20 @@ async function startEditVideoWorkflow(request: StartWorkflowRequest): Promise<Wo
     };
   }
 
-  if (model !== 'seedance_2' && model !== 'seedance_2_fast') {
+  if (model !== 'seedance_2' && model !== 'seedance_2_fast' && model !== 'wan_27') {
     return {
       success: false,
       error: 'Invalid edit-video model',
-      details: 'Edit-video mode supports Seedance 2 models only.',
+      details: 'Edit-video mode supports Seedance 2 models and Wan 2.7 only.',
     };
   }
 
-  if (!Number.isFinite(duration) || duration < 2 || duration > 15) {
+  const maxEditVideoDuration = model === 'wan_27' ? 10 : 15;
+  if (!Number.isFinite(duration) || duration < 2 || duration > maxEditVideoDuration) {
     return {
       success: false,
       error: 'Invalid edit-video duration',
-      details: 'Edit-video mode requires a source video duration between 2 and 15 seconds.',
+      details: `Edit-video mode requires a source video duration between 2 and ${maxEditVideoDuration} seconds.`,
     };
   }
 
@@ -5148,16 +5213,26 @@ async function startEditVideoWorkflow(request: StartWorkflowRequest): Promise<Wo
   }
 
   try {
-    const taskId = await startEditVideoTaskSeedance({
-      projectId: project.id,
-      userId: request.userId,
-      model,
-      prompt,
-      referenceVideoUrl: sourceUrl,
-      aspectRatio: request.videoAspectRatio === '16:9' ? '16:9' : '9:16',
-      resolution: mapCloneQualityToSeedanceResolution(quality),
-      duration,
-    });
+    const taskId = model === 'wan_27'
+      ? await startEditVideoTaskWan({
+          projectId: project.id,
+          userId: request.userId,
+          prompt,
+          videoUrl: sourceUrl,
+          aspectRatio: request.videoAspectRatio === '16:9' ? '16:9' : '9:16',
+          resolution: quality === '1080p' ? '1080p' : '720p',
+          duration,
+        })
+      : await startEditVideoTaskSeedance({
+          projectId: project.id,
+          userId: request.userId,
+          model,
+          prompt,
+          referenceVideoUrl: sourceUrl,
+          aspectRatio: request.videoAspectRatio === '16:9' ? '16:9' : '9:16',
+          resolution: mapCloneQualityToSeedanceResolution(quality),
+          duration,
+        });
 
     await supabase
       .from('video_clone_segments')
@@ -5365,6 +5440,7 @@ export const __test__ = {
   buildKlingVideoRequestBody,
   buildSeedanceVideoRequestBody,
   buildSeedanceEditVideoRequestBody,
+  buildWanEditVideoRequestBody,
   buildKlingElementName,
   getPromptSegmentDurationSeconds,
   getTimeRangeDurationSeconds,

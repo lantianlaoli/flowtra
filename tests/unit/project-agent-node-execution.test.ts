@@ -102,6 +102,17 @@ test('buildAvatarAdsStartPayload keeps strict avatar and product requirements', 
   assert.equal(payload.videoModel, 'seedance_2_fast');
 });
 
+test('buildAvatarAdsStartPayload carries the selected Wan quality', () => {
+  const payload = buildAvatarAdsStartPayload({
+    avatar: { id: 'avatar-1', name: 'Avatar', imageUrl: 'https://example.com/avatar.png' },
+    text: { id: 'text-1', name: 'Text', content: 'Say hello.' },
+    config: { videoDuration: '16', aspectRatio: '9:16', language: 'en', videoModel: 'wan_27', videoQuality: '1080p' },
+  });
+
+  assert.equal(payload.videoModel, 'wan_27');
+  assert.equal(payload.videoQuality, '1080p');
+});
+
 test('buildAvatarAdsStartPayload resolves spoken language from custom dialogue', () => {
   const payload = buildAvatarAdsStartPayload({
     avatar: { id: 'avatar-1', name: 'Avatar', imageUrl: 'https://example.com/avatar.png' },
@@ -282,6 +293,25 @@ test('normalizeAvatarExecutionStatus auto-confirms review state', () => {
   assert.equal(status.previewUrl, 'https://example.com/cover.png');
   assert.equal(status.currentMilestoneKey, 'generating_cover');
   assert.equal(status.milestones[1]?.state, 'active');
+});
+
+test('normalizeAvatarExecutionStatus starts direct video generation for Agent reference workflow', () => {
+  const status = normalizeAvatarExecutionStatus({
+    project: {
+      id: 'project-agent-avatar-1',
+      status: 'awaiting_review',
+      progress_percentage: 52,
+      person_image_urls: ['https://example.com/person.png'],
+      generated_prompts: {
+        workflow_source: 'project_agent_reference_to_video',
+      },
+    },
+  });
+
+  assert.equal(status.nextAction, 'start_avatar_video');
+  assert.equal(status.previewUrl, null);
+  assert.equal(status.currentMilestoneKey, 'generating_video');
+  assert.equal(status.statusLabel, 'Ready to generate video');
 });
 
 test('normalizeCloneExecutionStatus returns simplified milestones', () => {

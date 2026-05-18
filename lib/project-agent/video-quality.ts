@@ -19,6 +19,10 @@ export function getProjectAgentAllowedVideoQualities(
     return ['720p', '1080p'];
   }
 
+  if (model === 'wan_27') {
+    return ['720p', '1080p'];
+  }
+
   if (intent === 'motion_clone') {
     return ['720p', '1080p'];
   }

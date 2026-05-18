@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import {
   getAvatarPlannedTotalDurationSeconds,
+  isAgentReferenceAvatarWorkflow,
   processAvatarAdsProject,
   resolveAvatarAdsVideoModel
 } from '@/lib/avatar-ads-workflow';
@@ -36,7 +37,8 @@ export async function PATCH(
       return NextResponse.json({ error: `Project is not in 'awaiting_review' state. Current status: ${project.status}` }, { status: 400 });
     }
 
-    if (!project.generated_image_url) {
+    const isReferenceWorkflow = isAgentReferenceAvatarWorkflow(project);
+    if (!project.generated_image_url && !isReferenceWorkflow) {
       return NextResponse.json(
         { error: 'Cover image is not ready yet. Please generate the cover before starting video generation.' },
         { status: 409 }

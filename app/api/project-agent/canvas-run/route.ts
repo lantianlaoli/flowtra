@@ -6,11 +6,13 @@ import { recommendAvatarAdsSpokenLanguage } from '@/lib/avatar-ads-language-reco
 import { resolveAvatarSpokenLanguage } from '@/lib/avatar-spoken-language';
 import {
   getAvatarPlannedSceneDurations,
+  getAvatarAdsReferenceImageUrls,
   generateVideoWithKIE,
   getAvatarPlannedTotalDurationSeconds,
   getAvatarPromptScenes,
   getAvatarSceneDurationSeconds,
   processAvatarAdsProject,
+  isAgentReferenceAvatarWorkflow,
   resolveAvatarAdsVideoModel,
 } from '@/lib/avatar-ads-workflow';
 import { getSupabaseAdmin } from '@/lib/supabase';
@@ -469,6 +471,7 @@ const startAvatarAds = async (
     language: payload.language,
     resolved_spoken_language: payload.resolvedSpokenLanguage,
     video_model: payload.videoModel,
+    video_quality: payload.videoQuality,
   });
 
   if (payload.selectedProductId) {
@@ -516,7 +519,7 @@ const startAvatarAds = async (
         },
         body: JSON.stringify({ step: 'generate_image' }),
       });
-    } else if (status.nextAction === 'confirm_avatar') {
+    } else if (status.nextAction === 'confirm_avatar' || status.nextAction === 'start_avatar_video') {
       await fetchJson(`${origin}/api/avatar-ads/${projectId}/confirm`, {
         method: 'PATCH',
         headers: {
@@ -699,6 +702,21 @@ const advanceAvatarAds = async (origin: string, userId: string, projectId: strin
     return fetchAvatarStatus(origin, projectId, internalHeaders);
   }
 
+  if (status.nextAction === 'start_avatar_video') {
+    await fetchJson(`${origin}/api/avatar-ads/${projectId}/confirm`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...internalHeaders,
+      },
+      body: JSON.stringify({
+        updatedPrompts: project?.generated_prompts || null,
+        totalDurationSeconds: project?.video_duration_seconds || 16,
+      }),
+    });
+    return fetchAvatarStatus(origin, projectId, internalHeaders);
+  }
+
   return status;
 };
 
@@ -716,7 +734,9 @@ const retryAvatarAds = async (origin: string, userId: string, projectId: string)
     throw new Error('Project not found.');
   }
 
-  if (project.image_prompt && !project.generated_image_url) {
+  const isReferenceWorkflow = isAgentReferenceAvatarWorkflow(project);
+
+  if (!isReferenceWorkflow && project.image_prompt && !project.generated_image_url) {
     await processAvatarAdsProject(project, 'generate_image');
     return fetchAvatarStatus(origin, projectId, internalHeaders);
   }
@@ -749,7 +769,13 @@ const retryAvatarAds = async (origin: string, userId: string, projectId: string)
     return fetchAvatarStatus(origin, projectId, internalHeaders);
   }
 
-  if (failedScenes.length > 0 && project.generated_image_url) {
+  const referenceImageUrls = isReferenceWorkflow
+    ? getAvatarAdsReferenceImageUrls(project)
+    : project.generated_image_url
+      ? [project.generated_image_url, project.generated_image_url]
+      : [];
+
+  if (failedScenes.length > 0 && referenceImageUrls.length > 0) {
     const resolvedVideoModel = resolveAvatarAdsVideoModel(project);
     const promptScenes = getAvatarPromptScenes(project.generated_prompts);
     const plannedSceneDurations = getAvatarPlannedSceneDurations(project.generated_prompts);
@@ -798,7 +824,7 @@ const retryAvatarAds = async (origin: string, userId: string, projectId: string)
 
         const { taskId } = await generateVideoWithKIE(
           prompt,
-          [project.generated_image_url, project.generated_image_url],
+          referenceImageUrls,
           project.video_aspect_ratio as '16:9' | '9:16' | undefined,
           project.language,
           {
@@ -809,6 +835,8 @@ const retryAvatarAds = async (origin: string, userId: string, projectId: string)
               totalScenes: promptScenes.length,
               language: project.language
             }),
+            referenceWorkflow: isReferenceWorkflow,
+            videoQuality: project.video_quality,
             moderationExternalId: `user_${userId}:avatar_ads_${project.id}:scene_${scene.scene_number || 1}:canvas_retry`,
           }
         );
@@ -858,7 +886,7 @@ const retryAvatarAds = async (origin: string, userId: string, projectId: string)
     return fetchAvatarStatus(origin, projectId, internalHeaders);
   }
 
-  if (project.generated_image_url && project.generated_prompts) {
+  if (referenceImageUrls.length > 0 && project.generated_prompts) {
     const resolvedVideoModel = resolveAvatarAdsVideoModel(project);
     const totalDurationSeconds = getAvatarPlannedTotalDurationSeconds(
       project.generated_prompts,

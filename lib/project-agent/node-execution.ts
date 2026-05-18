@@ -25,6 +25,7 @@ export type ProjectAgentCanvasExecutionAction =
   | 'none'
   | 'generate_avatar_cover'
   | 'confirm_avatar'
+  | 'start_avatar_video'
   | 'start_clone_video'
   | 'merge_clone_video';
 
@@ -310,10 +311,11 @@ const buildMilestones = (
   });
 };
 
-const getCurrentMilestoneForAvatar = (status: string) => {
+const getCurrentMilestoneForAvatar = (status: string, isReferenceWorkflow = false) => {
   if (status === 'completed') return 'completed';
   if (status === 'failed') return 'generating_video';
   if (status === 'generating_videos') return 'generating_video';
+  if (isReferenceWorkflow && status === 'awaiting_review') return 'generating_video';
   if (status === 'generating_image' || status === 'regenerating_image' || status === 'awaiting_review') {
     return 'generating_cover';
   }
@@ -416,6 +418,7 @@ export const buildAvatarAdsStartPayload = (input: {
     language: resolvedSpokenLanguage,
     resolvedSpokenLanguage,
     videoModel: getEffectiveProjectAgentVideoModel('avatar_ads', input.config?.videoModel),
+    videoQuality: input.config?.videoQuality || '720p',
   };
 };
 
@@ -479,6 +482,14 @@ export const normalizeAvatarExecutionStatus = (
   const projectId = typeof project.id === 'string' ? project.id : '';
   const mergedVideoUrl = typeof project.merged_video_url === 'string' ? project.merged_video_url : null;
   const generatedImageUrl = typeof project.generated_image_url === 'string' ? project.generated_image_url : null;
+  const workflowSource = (
+    project.generated_prompts &&
+    typeof project.generated_prompts === 'object' &&
+    typeof (project.generated_prompts as Record<string, unknown>).workflow_source === 'string'
+  )
+    ? (project.generated_prompts as Record<string, unknown>).workflow_source
+    : null;
+  const isReferenceWorkflow = workflowSource === 'project_agent_reference_to_video';
   const progress = toProgress(project.progress_percentage, status === 'completed' ? 100 : 15);
   const failed = status === 'failed';
   const completed = status === 'completed';
@@ -487,7 +498,7 @@ export const normalizeAvatarExecutionStatus = (
   const awaitingCoverGeneration = awaitingReview && !generatedImageUrl && hasImagePrompt;
   const awaitingCoverConfirmation = awaitingReview && Boolean(generatedImageUrl);
   const executionState = completed ? 'completed' : failed ? 'failed' : 'running';
-  const currentMilestoneKey = getCurrentMilestoneForAvatar(status);
+  const currentMilestoneKey = getCurrentMilestoneForAvatar(status, isReferenceWorkflow);
   const error = typeof project.error_message === 'string' ? project.error_message : null;
   const { retryable, userFacingError } = getProjectAgentCanvasErrorInfo(error);
 
@@ -496,7 +507,7 @@ export const normalizeAvatarExecutionStatus = (
     phase: status,
     progress,
     outputUrl: mergedVideoUrl,
-    previewUrl: generatedImageUrl,
+    previewUrl: isReferenceWorkflow ? null : generatedImageUrl,
     error,
     userFacingError,
     retryable,
@@ -504,6 +515,8 @@ export const normalizeAvatarExecutionStatus = (
       ? 'Completed'
       : failed
         ? 'Failed'
+        : isReferenceWorkflow && awaitingReview
+          ? 'Ready to generate video'
         : awaitingCoverGeneration
           ? 'Generating cover'
         : awaitingCoverConfirmation
@@ -511,7 +524,9 @@ export const normalizeAvatarExecutionStatus = (
           : 'Running avatar workflow',
     projectId,
     table: 'avatar_ads_projects',
-    nextAction: awaitingCoverGeneration
+    nextAction: isReferenceWorkflow && awaitingReview
+      ? 'start_avatar_video'
+      : awaitingCoverGeneration
       ? 'generate_avatar_cover'
       : awaitingCoverConfirmation
         ? 'confirm_avatar'

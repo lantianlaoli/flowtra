@@ -8,6 +8,8 @@ import {
   getModelSupportedDurations,
   KLING_MAX_PROJECT_DURATION_SECONDS,
   KLING_MIN_TASK_DURATION_SECONDS,
+  normalizeCloneVideoQualityForModel,
+  type PersistedVideoQuality,
   type VideoModel
 } from '@/lib/constants';
 import { validateKieCredits } from '@/lib/kie-credits-check';
@@ -59,6 +61,7 @@ export async function POST(request: NextRequest) {
     const videoDurationSeconds = parseInt(formData.get('video_duration_seconds') as string);
     const imageSize = (formData.get('image_size') as string | null)?.trim() || null;
     const videoModel = formData.get('video_model') as string;
+    const videoQuality = (formData.get('video_quality') as PersistedVideoQuality | null) || null;
     const customDialogue = (formData.get('custom_dialogue') as string) || '';
     const videoAspectRatio = '9:16';
     const selectedPersonPhotoUrl = formData.get('selected_person_photo_url') as string;
@@ -296,14 +299,19 @@ export async function POST(request: NextRequest) {
           resolvedSpokenLanguage
         ) || videoDurationSeconds
       );
-    const totalCredits = getGenerationCost(resolvedVideoModel, String(normalizedVideoDurationSeconds));
+    const normalizedVideoQuality = normalizeCloneVideoQualityForModel(resolvedVideoModel, videoQuality);
+    const totalCredits = getGenerationCost(
+      resolvedVideoModel,
+      String(normalizedVideoDurationSeconds),
+      normalizedVideoQuality
+    );
 
     const generationCreditsUsed = 0;
 
     // Create project in database
     const supabase = getSupabaseAdmin();
-    // Schema verified via Supabase MCP (2026-03-17):
-    // avatar_ads_projects.image_model stores the provider model used for cover generation.
+    // Schema verified via Supabase MCP (2026-05-18):
+    // avatar_ads_projects stores image_model plus video_quality for generation settings.
     const projectInsert: Record<string, unknown> = {
       user_id: userId,
       person_image_urls: personImageUrls,
@@ -318,6 +326,7 @@ export async function POST(request: NextRequest) {
       video_duration_seconds: normalizedVideoDurationSeconds,
       image_model: AVATAR_ADS_PERSISTED_IMAGE_MODEL,
       video_model: resolvedVideoModel,
+      video_quality: normalizedVideoQuality,
       video_aspect_ratio: normalizedAspectRatio,
       image_size: enforcedImageSize,
       custom_dialogue: trimmedDialogue,
@@ -391,7 +400,9 @@ export async function POST(request: NextRequest) {
     try {
       const { processAvatarAdsProject } = await import('@/lib/avatar-ads-workflow');
 
-      await processAvatarAdsProject(project, 'generate_prompts');
+      await processAvatarAdsProject(project, 'generate_prompts', {
+        agentReferenceWorkflow: isInternalAgentRequest,
+      });
       console.log(`✅ Workflow initialization completed for project ${project.id} (ready for edit)`);
     } catch (error) {
       console.error(`❌ Workflow failed for project ${project.id}:`, error);

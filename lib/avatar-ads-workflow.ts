@@ -8,7 +8,9 @@ import {
   getGenerationCost,
   getLanguagePromptName,
   getSegmentVideoGenerationCost,
-  type LanguageCode
+  normalizeCloneVideoQualityForModel,
+  type LanguageCode,
+  type PersistedVideoQuality,
 } from '@/lib/constants';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { buildKieGptImageTaskPayload, createKieGptImageTask } from '@/lib/kie-image-generation';
@@ -81,6 +83,7 @@ interface AvatarAdsProject {
   image_size?: string;
   image_prompt?: string; // Prompt used for cover image generation
   video_model: string;
+  video_quality?: PersistedVideoQuality | null;
   video_aspect_ratio?: string;
   custom_dialogue?: string;
   language?: string;
@@ -106,6 +109,28 @@ interface AvatarAdsProject {
   avatar_name?: string;
   avatar_gender?: 'male' | 'female' | null;
 }
+
+export const AVATAR_AGENT_REFERENCE_WORKFLOW_SOURCE = 'project_agent_reference_to_video';
+
+export const markAvatarPromptsForAgentReferenceWorkflow = (
+  prompts: Record<string, unknown>
+) => ({
+  ...prompts,
+  workflow_source: AVATAR_AGENT_REFERENCE_WORKFLOW_SOURCE,
+});
+
+export const isAgentReferenceAvatarWorkflow = (
+  project: Pick<AvatarAdsProject, 'generated_prompts'>
+) => (
+  project.generated_prompts?.workflow_source === AVATAR_AGENT_REFERENCE_WORKFLOW_SOURCE
+);
+
+export const getAvatarAdsReferenceImageUrls = (
+  project: Pick<AvatarAdsProject, 'person_image_urls' | 'product_image_urls'>
+) => (
+  [...(project.person_image_urls || []), ...(project.product_image_urls || [])]
+    .filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+);
 
 interface ProcessResult {
   project: AvatarAdsProject;
@@ -236,6 +261,24 @@ export const buildSeedanceAvatarAdsVideoInput = (input: {
   resolution: '720p' as const,
   generate_audio: true,
   web_search: true,
+});
+
+export const buildWanAvatarAdsVideoInput = (input: {
+  prompt: string;
+  referenceImageUrls: string[];
+  durationSeconds: number;
+  resolution: PersistedVideoQuality;
+  aspectRatio: '16:9' | '9:16';
+}) => ({
+  prompt: input.prompt,
+  reference_image: input.referenceImageUrls.filter(
+    (url) => typeof url === 'string' && url.trim().length > 0
+  ),
+  resolution: input.resolution,
+  aspect_ratio: input.aspectRatio,
+  duration: input.durationSeconds,
+  prompt_extend: true,
+  watermark: false,
 });
 
 const getAvatarAdsModelSceneDurationRule = (
@@ -454,7 +497,13 @@ export const buildAvatarAdsVideoExecutionPrompt = (
       dialog: compileAvatarExecutionDialog(promptObj.dialog, durationSeconds),
     };
 
-  return JSON.stringify(executionPayload, null, 2);
+  return JSON.stringify({
+    ...executionPayload,
+    environment_directive: options?.hasProductContext
+      ? 'Infer the background and scene details from the product identity and ad concept.'
+      : 'Infer an appropriate background and scene details from the speaker persona and script.',
+    continuity_directive: 'Keep the same overall visual world and environment across every scene in the full video while preserving the same person identity anchor and product identity anchor when present.',
+  }, null, 2);
 };
 
 const cleanAvatarExecutionField = (value: unknown) => {
@@ -1272,6 +1321,8 @@ export async function generateVideoWithKIE(
     sceneNumber?: number;
     totalScenes?: number;
     moderationExternalId?: string;
+    referenceWorkflow?: boolean;
+    videoQuality?: PersistedVideoQuality | null;
   }
 ): Promise<{ taskId: string }> {
   // ✅ Validate prompt parameter
@@ -1407,10 +1458,12 @@ export async function generateVideoWithKIE(
         : SEEDANCE_MAX_TASK_DURATION_SECONDS;
     return Math.max(minDuration, Math.min(maxDuration, Math.round(inputDuration)));
   })();
-  const selectedReferenceImages = getAvatarVideoReferenceImages(referenceImageUrls, durationSeconds);
   const validReferenceUrls = referenceImageUrls.filter(
     (url) => typeof url === 'string' && url.trim().length > 0
   );
+  const selectedReferenceImages = options?.referenceWorkflow
+    ? validReferenceUrls.slice(0, 5)
+    : getAvatarVideoReferenceImages(referenceImageUrls, durationSeconds);
   const firstFrameUrl = validReferenceUrls[0];
   const candidateLastFrameUrl = validReferenceUrls.find((url, index) => index > 0 && url !== firstFrameUrl);
   const isFinalScene = (options?.totalScenes || 1) <= 1
@@ -1433,6 +1486,19 @@ export async function generateVideoWithKIE(
         }
       };
     }
+    if (resolvedModel === 'wan_27' && options?.referenceWorkflow) {
+      return {
+        model: 'wan/2-7-r2v',
+        ...(callBackUrl ? { callBackUrl } : {}),
+        input: buildWanAvatarAdsVideoInput({
+          prompt: finalPrompt,
+          referenceImageUrls: selectedReferenceImages,
+          resolution: normalizeCloneVideoQualityForModel('wan_27', options.videoQuality),
+          durationSeconds: Math.min(durationSeconds, 10),
+          aspectRatio: videoAspectRatio || '9:16',
+        }),
+      };
+    }
     if (resolvedModel === 'wan_27') {
       return {
         model: 'wan/2-7-image-to-video',
@@ -1441,7 +1507,7 @@ export async function generateVideoWithKIE(
           prompt: finalPrompt,
           ...(firstFrameUrl ? { first_frame_url: firstFrameUrl } : {}),
           ...(lastFrameUrl ? { last_frame_url: lastFrameUrl } : {}),
-          resolution: '1080p',
+          resolution: normalizeCloneVideoQualityForModel('wan_27', options?.videoQuality),
           duration: durationSeconds,
           prompt_extend: true,
           watermark: false,
@@ -1700,7 +1766,7 @@ export async function checkKIEVideoTaskStatus(
 export async function processAvatarAdsProject(
   project: AvatarAdsProject,
   step: string,
-  options?: { customDialogue?: string }
+  options?: { customDialogue?: string; agentReferenceWorkflow?: boolean }
 ): Promise<ProcessResult> {
   const supabase = getSupabaseAdmin();
 
@@ -1758,7 +1824,7 @@ export async function processAvatarAdsProject(
         }
 
         // ✅ Fix Bug 2: Direct Gemini analysis - no separate person analysis or gender detection
-        const prompts = await generatePrompts(
+        const rawPrompts = await generatePrompts(
           productContext as { product_name?: string; talking_head_script?: string } | null,
           personImageUrl,
           productImageUrl,
@@ -1771,6 +1837,9 @@ export async function processAvatarAdsProject(
             avatarName: project.avatar_name
           }
         );
+        const prompts = options?.agentReferenceWorkflow
+          ? markAvatarPromptsForAgentReferenceWorkflow(rawPrompts as Record<string, unknown>)
+          : rawPrompts;
         const resolvedVideoModel = resolveAvatarAdsVideoModel(project);
         const resolvedSpokenLanguage = typeof (prompts as { resolved_spoken_language?: unknown }).resolved_spoken_language === 'string'
           ? (prompts as { resolved_spoken_language?: string }).resolved_spoken_language
@@ -1783,7 +1852,8 @@ export async function processAvatarAdsProject(
         );
         const plannedCreditsCost = getGenerationCost(
           resolvedVideoModel,
-          String(plannedDurationSeconds)
+          String(plannedDurationSeconds),
+          project.video_quality || undefined
         );
 
         // Create scene records (video scenes only, starting from 1)
@@ -1813,7 +1883,9 @@ export async function processAvatarAdsProject(
           .from('avatar_ads_projects')
           .update({
             generated_prompts: prompts,
-            image_prompt: (prompts as { image_prompt?: string }).image_prompt, // Store project-level image prompt
+            image_prompt: options?.agentReferenceWorkflow
+              ? null
+              : (prompts as { image_prompt?: string }).image_prompt, // Store project-level image prompt
             language: typeof resolvedSpokenLanguage === 'string' ? resolvedSpokenLanguage : project.language,
             video_duration_seconds: plannedDurationSeconds,
             credits_cost: plannedCreditsCost,
@@ -1946,7 +2018,11 @@ export async function processAvatarAdsProject(
           project.video_duration_seconds,
           project.language
         );
-        const generationCost = getGenerationCost(resolvedVideoModel, String(plannedDurationSeconds));
+        const generationCost = getGenerationCost(
+          resolvedVideoModel,
+          String(plannedDurationSeconds),
+          project.video_quality || undefined
+        );
 
         if (videoScenes === 0) {
           throw new Error('No video scenes found in generated prompts.');
@@ -2003,9 +2079,16 @@ export async function processAvatarAdsProject(
         // Store generation cost in a variable for potential refund
         const paidGenerationCost = generationCost;
 
+        const isReferenceWorkflow = isAgentReferenceAvatarWorkflow(project);
+        const referenceImageUrls = isReferenceWorkflow
+          ? getAvatarAdsReferenceImageUrls(project)
+          : project.generated_image_url
+            ? [project.generated_image_url, project.generated_image_url]
+            : [];
+
         // Step 4: Generate video scenes using KIE
-        if (!project.generated_image_url) {
-          throw new Error('Generated image not found - required for video generation');
+        if (referenceImageUrls.length === 0) {
+          throw new Error('Reference images not found - required for video generation');
         }
 
         // videoScenes already defined above for billing calculation
@@ -2065,7 +2148,7 @@ export async function processAvatarAdsProject(
 
           const { taskId } = await generateVideoWithKIE(
             videoPrompt as Record<string, unknown>,
-            [project.generated_image_url, project.generated_image_url], // Use generated image as start AND end frame for consistency
+            referenceImageUrls,
             project.video_aspect_ratio as '16:9' | '9:16' | undefined,
             project.language, // Pass language for video prompt
             {
@@ -2079,6 +2162,8 @@ export async function processAvatarAdsProject(
                 language: project.language
               }),
               avatarGender: project.avatar_gender,
+              referenceWorkflow: isReferenceWorkflow,
+              videoQuality: project.video_quality,
               moderationExternalId: `user_${project.user_id}:avatar_ads_${project.id}:scene_${i}:video`
             }
           );
@@ -2173,7 +2258,9 @@ export async function processAvatarAdsProject(
                 // Regenerate video task using updated generation logic (handles both structured and legacy)
                 const { taskId: newTaskId } = await generateVideoWithKIE(
                   videoPrompt as Record<string, unknown>,
-                  [project.generated_image_url!, project.generated_image_url!],
+                  isAgentReferenceAvatarWorkflow(project)
+                    ? getAvatarAdsReferenceImageUrls(project)
+                    : [project.generated_image_url!, project.generated_image_url!],
                   project.video_aspect_ratio as '16:9' | '9:16' | undefined,
                   project.language,
                   {
@@ -2185,6 +2272,8 @@ export async function processAvatarAdsProject(
                       totalScenes: promptScenes.length,
                       language: project.language
                     }),
+                    referenceWorkflow: isAgentReferenceAvatarWorkflow(project),
+                    videoQuality: project.video_quality,
                     moderationExternalId: `user_${project.user_id}:avatar_ads_${project.id}:scene_${i + 1}:video_retry`
                   }
                 );
@@ -2417,7 +2506,8 @@ export async function processAvatarAdsProject(
                   project.video_duration_seconds,
                   project.language
                 )
-              )
+              ),
+              project.video_quality || undefined
             );
 
             if (generationCost > 0) {

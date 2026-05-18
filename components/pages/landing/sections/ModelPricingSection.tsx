@@ -3,6 +3,7 @@
 import { OpenAI, ByteDance, Kling, Qwen } from '@lobehub/icons';
 import { BadgeDollarSign, Boxes, Coins, ScanLine } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
+import { WAN_27_QUALITY_COSTS } from '@/lib/constants';
 
 export default function ModelPricingSection() {
   const { messages } = useI18n();
@@ -76,13 +77,14 @@ export default function ModelPricingSection() {
     },
     {
       name: 'Wan 2.7',
-      description: 'High-fidelity 1080p image-to-video generation with rich motion',
+      description: 'High-fidelity image-to-video generation with rich motion',
       icon: Qwen,
       durationRange: '2-15s',
       billingType: 'generation' as const,
-      pricingOptions: [
-        { resolution: '1080p', credits: 1440 },
-      ] as PricingOption[],
+      pricingOptions: Object.entries(WAN_27_QUALITY_COSTS).map(([resolution, credits]) => ({
+        resolution,
+        credits: credits * 60,
+      })) as PricingOption[],
     },
   ];
 

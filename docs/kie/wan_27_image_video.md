@@ -309,6 +309,23 @@ components:
         注意事项：
         - 请妥善保管您的 API Key，切勿泄露给他人
         - 若怀疑 API Key 泄露，请立即在管理页面重置
+    BearerAuth1:
+      type: bearer
+      scheme: bearer
+      bearerFormat: API Key
+      description: |-
+        所有 API 都需要通过 Bearer Token 进行身份验证。
+
+        获取 API Key：
+        1. 访问 [API Key 管理页面](https://kie.ai/api-key) 获取您的 API Key
+
+        使用方法：
+        在请求头中添加：
+        Authorization: Bearer YOUR_API_KEY
+
+        注意事项：
+        - 请妥善保管您的 API Key，切勿泄露给他人
+        - 若怀疑 API Key 泄露，请立即在管理页面重置
 servers:
   - url: https://api.kie.ai
     description: 正式环境

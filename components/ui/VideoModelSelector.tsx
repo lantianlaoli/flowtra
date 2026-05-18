@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import {
   GENERATION_COSTS,
   SEEDANCE_2_QUALITY_COSTS,
+  WAN_27_QUALITY_COSTS,
   getProcessingTime,
   getModelCostByConfig,
   getVideoModelDisplayName,
@@ -73,6 +74,12 @@ export default function VideoModelSelector({
         return quality === '1080p'
           ? SEEDANCE_2_QUALITY_COSTS['1080p']
           : SEEDANCE_2_QUALITY_COSTS['720p'];
+      }
+      if (model === 'wan_27') {
+        const quality = normalizeCloneVideoQualityForModel(model, videoQuality);
+        return quality === '720p'
+          ? WAN_27_QUALITY_COSTS['720p']
+          : WAN_27_QUALITY_COSTS['1080p'];
       }
       return GENERATION_COSTS[model] || 0;
     };
@@ -141,12 +148,12 @@ export default function VideoModelSelector({
       {
         value: 'wan_27' as const,
         label: getVideoModelDisplayName('wan_27'),
-        description: '高保真 1080p 动态生成',
+        description: '高保真动态生成',
         icon: Qwen,
         cost: calculateDurationCost('wan_27'),
-        creditsPerSecond: GENERATION_COSTS['wan_27'],
+        creditsPerSecond: getCreditsPerSecond('wan_27'),
         processingTime: getProcessingTime('wan_27'),
-        features: '原生 1080p，2-15 秒',
+        features: '720p 或 1080p，2-15 秒',
         supported: isModelSupported('wan_27'),
         badge: '新'
       }
@@ -191,12 +198,12 @@ export default function VideoModelSelector({
       {
         value: 'wan_27' as const,
         label: getVideoModelDisplayName('wan_27'),
-        description: 'High-fidelity 1080p generation with rich motion',
+        description: 'High-fidelity generation with rich motion',
         icon: Qwen,
         cost: calculateDurationCost('wan_27'),
-        creditsPerSecond: GENERATION_COSTS['wan_27'],
+        creditsPerSecond: getCreditsPerSecond('wan_27'),
         processingTime: getProcessingTime('wan_27'),
-        features: 'Native 1080p, 2-15s',
+        features: '720p or 1080p, 2-15s',
         supported: isModelSupported('wan_27'),
         badge: 'New'
       }

@@ -37,6 +37,13 @@ export const KLING_QUALITY_COSTS = {
   '1080p': 27
 } as const;
 
+// Wan 2.7 documented pricing is consistent across image-to-video,
+// reference-to-video, and video-edit modes (docs verified 2026-05-18).
+export const WAN_27_QUALITY_COSTS = {
+  '720p': 16,
+  '1080p': 24,
+} as const;
+
 export const MOTION_CLONE_QUALITY_COSTS = {
   '720p': 20,
   '1080p': 27
@@ -198,6 +205,13 @@ export function getGenerationCost(
 
   if (!Number.isFinite(duration) || duration <= 0) {
     return 0;
+  }
+
+  if (model === 'wan_27') {
+    const perSecondCost = normalizedCloneQuality === '720p'
+      ? WAN_27_QUALITY_COSTS['720p']
+      : WAN_27_QUALITY_COSTS['1080p'];
+    return Math.ceil(duration) * perSecondCost;
   }
 
   return Math.ceil(duration) * GENERATION_COSTS[model];
@@ -422,7 +436,7 @@ export function normalizeCloneVideoQualityForModel(
       : quality;
 
   if (model === 'wan_27') {
-    return normalized === '1080p' ? '1080p' : '1080p';
+    return normalized === '720p' || normalized === '1080p' ? normalized : '1080p';
   }
 
   if (model === 'kling_3') {
@@ -503,7 +517,10 @@ export function getCloneSegmentVideoGenerationCost(
     const effectiveDuration = Number.isFinite(duration) && duration > 0
       ? Math.ceil(duration)
       : 0;
-    return effectiveDuration * GENERATION_COSTS[model];
+    const perSecondCost = normalizedQuality === '720p'
+      ? WAN_27_QUALITY_COSTS['720p']
+      : WAN_27_QUALITY_COSTS['1080p'];
+    return effectiveDuration * perSecondCost;
   }
 
   return 0;

@@ -1,214 +1,188 @@
 'use client';
 
-import Link from "next/link";
-import { UserPlus, Copy, ArrowRight, Check, RefreshCw, Bot } from "lucide-react";
-import { LazyVideoPlayer } from "@/components/pages/landing/LazyVideoPlayer";
-import { useI18n } from "@/providers/I18nProvider";
+import Link from 'next/link';
+import { ArrowRight, Bot, Check, Copy, RefreshCw, UserPlus } from 'lucide-react';
+import type { ComponentType, ReactNode } from 'react';
+import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
+import { useI18n } from '@/providers/I18nProvider';
 
-type FeatureSectionProps = {
+type FeatureCardProps = {
   title: string;
   description: string;
   href: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   bullets: string[];
-  media: React.ReactNode;
-  mediaFirst?: boolean;
+  media: ReactNode;
   isNew?: boolean;
+  className?: string;
 };
 
-function FeatureSection({
+function FeatureCard({
   title,
   description,
   href,
   icon: Icon,
   bullets,
   media,
-  mediaFirst = false,
   isNew = false,
-}: FeatureSectionProps) {
+  className = '',
+}: FeatureCardProps) {
   const { messages } = useI18n();
   const featureMessages = messages.landing.features;
 
   return (
-    <article className="grid items-center gap-10 border-t border-[#E8E8E8] py-10 first:border-t-0 first:pt-0 md:gap-16 md:py-14 lg:grid-cols-2 lg:py-16">
-      <div
-        className={`flex-1 space-y-8 ${
-          mediaFirst ? "lg:order-2" : "lg:order-1"
-        }`}
-      >
-        <div className="flex items-start gap-4">
+    <article
+      className={`landing-info-card grid overflow-hidden rounded-[28px] border border-[#E7E7E7] bg-white p-5 shadow-[0_16px_38px_rgba(0,0,0,0.04)] md:p-6 ${className}`}
+    >
+      <div className="flex min-h-0 flex-col">
+        <div className="mb-4 flex items-start gap-3">
           <div
-            className="landing-feature-icon flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F7F7F7]"
+            className="landing-feature-icon flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F7F7F7]"
             aria-hidden="true"
           >
-            <Icon className="w-6 h-6 text-black" />
+            <Icon className="h-5 w-5 text-black" />
           </div>
 
-          <div>
-            <div className="mb-3 flex items-center gap-2">
-              <h3 className="text-[24px] font-bold text-black">{title}</h3>
+          <div className="min-w-0">
+            <div className="mb-1.5 flex flex-wrap items-center gap-2">
+              <h3 className="text-[21px] font-bold tracking-tight text-black">{title}</h3>
               {isNew ? (
                 <span className="inline-flex items-center rounded-full bg-black px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white">
                   {featureMessages.newBadge}
                 </span>
               ) : null}
             </div>
-
-            <p className="text-lg text-[#666666] leading-relaxed">
-              {description}
-            </p>
+            <p className="text-[14px] leading-6 text-[#666666] md:text-[15px]">{description}</p>
           </div>
         </div>
 
-        <div className="space-y-4 pl-0 md:pl-12">
-          <ul className="space-y-4">
-            {bullets.map((item) => (
-              <li key={item} className="flex items-center gap-3 text-[#666666]">
-                <Check className="w-4 h-4 text-black flex-shrink-0" />
-                <span className="font-medium">{item}</span>
-              </li>
-            ))}
-          </ul>
+        <ul className="mb-4 grid gap-x-4 gap-y-2 sm:grid-cols-2">
+          {bullets.map((item) => (
+            <li key={item} className="flex items-start gap-2 text-[13px] leading-5 text-[#666666]">
+              <Check className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-black" />
+              <span className="font-medium">{item}</span>
+            </li>
+          ))}
+        </ul>
 
-          <Link
-            href={href}
-            className="landing-press-button landing-press-button--secondary landing-press-button--compact mt-2 text-[14px] font-semibold"
-          >
-            {featureMessages.learnMore}
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
-      </div>
+        <div className="mt-auto">{media}</div>
 
-      <div
-        className={`flex-1 w-full ${
-          mediaFirst ? "lg:order-1" : "lg:order-2"
-        }`}
-      >
-        {media}
+        <Link
+          href={href}
+          className="landing-press-button landing-press-button--secondary landing-press-button--compact mt-4 w-fit text-[13px] font-semibold"
+        >
+          {featureMessages.learnMore}
+          <ArrowRight className="h-4 w-4" />
+        </Link>
       </div>
     </article>
+  );
+}
+
+function ComparisonMedia({
+  firstLabel,
+  secondLabel,
+  firstSrc,
+  secondSrc,
+}: {
+  firstLabel: string;
+  secondLabel: string;
+  firstSrc: string;
+  secondSrc: string;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {[
+        { label: firstLabel, src: firstSrc, emphasized: false },
+        { label: secondLabel, src: secondSrc, emphasized: true },
+      ].map((item) => (
+        <div key={item.label} className="space-y-2">
+          <div
+            className={`inline-flex items-center rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${
+              item.emphasized
+                ? 'bg-black text-white'
+                : 'border border-[#E5E5E5] bg-[#F7F7F7] text-black'
+            }`}
+          >
+            {item.label}
+          </div>
+          <div className="landing-feature-media relative aspect-[9/12] overflow-hidden rounded-[20px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_16px_28px_rgba(0,0,0,0.08)]">
+            <LazyVideoPlayer
+              src={item.src}
+              wrapperClassName="h-full w-full"
+              className="h-full w-full object-cover"
+              eager
+              playsInline
+              loop
+            />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
 export default function FeaturesSection() {
   const { messages } = useI18n();
   const featureMessages = messages.landing.features;
+  const [agent, videoClone, avatarAds, motionClone] = featureMessages.items;
 
   return (
-    <section className="py-12 md:py-16 lg:py-24">
-      <div className="text-center max-w-3xl mx-auto mb-10 md:mb-16 px-4">
-        <h2 className="text-[32px] md:text-[40px] font-bold text-black mb-4 tracking-tight">
+    <section className="py-10 md:py-12 lg:py-14">
+      <div className="mx-auto mb-7 max-w-3xl px-4 text-center md:mb-8">
+        <h2 className="mb-3 text-[32px] font-bold tracking-tight text-black md:text-[40px]">
           {featureMessages.title}
         </h2>
-
-        <p className="text-base md:text-lg text-[#666666]">
-          {featureMessages.description}
-        </p>
+        <p className="text-base text-[#666666] md:text-lg">{featureMessages.description}</p>
       </div>
 
-      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-14 md:gap-24">
-          <FeatureSection
-            title={featureMessages.items[0].title}
-            description={featureMessages.items[0].description}
-            href={featureMessages.items[0].href}
+      <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <FeatureCard
+            title={agent.title}
+            description={agent.description}
+            href={agent.href}
             icon={Bot}
-            bullets={featureMessages.items[0].bullets}
-            isNew={featureMessages.items[0].isNew}
+            bullets={agent.bullets}
+            isNew={agent.isNew}
             media={
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 max-w-lg mx-auto">
-                <div className="space-y-4">
-                  <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#F7F7F7] border border-[#E5E5E5] rounded-full text-[12px] font-bold uppercase tracking-wider text-black">
-                    {featureMessages.items[0].mediaLabels[0]}
-                  </div>
-
-                  <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
-                    <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/agent_refer_1.mp4"
-                      wrapperClassName="h-full w-full"
-                      className="h-full w-full object-cover"
-                      eager
-                      playsInline
-                      loop
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-black text-white rounded-full text-[12px] font-bold uppercase tracking-wider">
-                    {featureMessages.items[0].mediaLabels[1]}
-                  </div>
-
-                  <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
-                    <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/agent_result_1.mp4"
-                      wrapperClassName="h-full w-full"
-                      className="h-full w-full object-cover"
-                      eager
-                      playsInline
-                      loop
-                    />
-                  </div>
-                </div>
+              <div className="landing-feature-media relative aspect-video overflow-hidden rounded-[22px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_18px_30px_rgba(0,0,0,0.08)]">
+                <LazyVideoPlayer
+                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/agent_manual_select.mp4"
+                  wrapperClassName="h-full w-full"
+                  className="h-full w-full object-cover"
+                  eager
+                  playsInline
+                  loop
+                />
               </div>
             }
           />
 
-          <FeatureSection
-            title={featureMessages.items[1].title}
-            description={featureMessages.items[1].description}
-            href={featureMessages.items[1].href}
+          <FeatureCard
+            title={videoClone.title}
+            description={videoClone.description}
+            href={videoClone.href}
             icon={Copy}
-            mediaFirst
-            bullets={featureMessages.items[1].bullets}
+            bullets={videoClone.bullets}
             media={
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 max-w-lg mx-auto">
-                <div className="space-y-4">
-                  <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#F7F7F7] border border-[#E5E5E5] rounded-full text-[12px] font-bold uppercase tracking-wider text-black">
-                    {featureMessages.items[1].mediaLabels[0]}
-                  </div>
-
-                  <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
-                    <LazyVideoPlayer
-                      src="/showcase/video-clone/reference-source.mp4"
-                      wrapperClassName="h-full w-full"
-                      className="h-full w-full object-cover"
-                      eager
-                      playsInline
-                      loop
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-black text-white rounded-full text-[12px] font-bold uppercase tracking-wider">
-                    {featureMessages.items[1].mediaLabels[1]}
-                  </div>
-
-                  <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
-                    <LazyVideoPlayer
-                      src="/showcase/video-clone/reference-result.mp4"
-                      wrapperClassName="h-full w-full"
-                      className="h-full w-full object-cover"
-                      eager
-                      playsInline
-                      loop
-                    />
-                  </div>
-                </div>
-              </div>
+              <ComparisonMedia
+                firstLabel={videoClone.mediaLabels[0]}
+                secondLabel={videoClone.mediaLabels[1]}
+                firstSrc="/showcase/video-clone/reference-source.mp4"
+                secondSrc="/showcase/video-clone/reference-result.mp4"
+              />
             }
           />
 
-          <FeatureSection
-            title={featureMessages.items[2].title}
-            description={featureMessages.items[2].description}
-            href={featureMessages.items[2].href}
+          <FeatureCard
+            title={avatarAds.title}
+            description={avatarAds.description}
+            href={avatarAds.href}
             icon={UserPlus}
-            bullets={featureMessages.items[2].bullets}
+            bullets={avatarAds.bullets}
             media={
-              <div className="landing-feature-media relative mx-auto aspect-[9/16] max-w-[320px] overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
+              <div className="landing-feature-media relative mx-auto aspect-[9/12] w-full max-w-[220px] overflow-hidden rounded-[22px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_18px_30px_rgba(0,0,0,0.08)]">
                 <LazyVideoPlayer
                   src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/character_ads_case.mp4"
                   wrapperClassName="h-full w-full"
@@ -221,49 +195,19 @@ export default function FeaturesSection() {
             }
           />
 
-          <FeatureSection
-            title={featureMessages.items[3].title}
-            description={featureMessages.items[3].description}
-            href={featureMessages.items[3].href}
+          <FeatureCard
+            title={motionClone.title}
+            description={motionClone.description}
+            href={motionClone.href}
             icon={RefreshCw}
-            mediaFirst
-            bullets={featureMessages.items[3].bullets}
+            bullets={motionClone.bullets}
             media={
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 max-w-lg mx-auto">
-                <div className="space-y-4">
-                  <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#F7F7F7] border border-[#E5E5E5] rounded-full text-[12px] font-bold uppercase tracking-wider text-black">
-                    {featureMessages.items[3].mediaLabels[0]}
-                  </div>
-
-                  <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
-                    <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_refer.mp4"
-                      wrapperClassName="h-full w-full"
-                      className="h-full w-full object-cover"
-                      eager
-                      playsInline
-                      loop
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-black text-white rounded-full text-[12px] font-bold uppercase tracking-wider">
-                    {featureMessages.items[3].mediaLabels[1]}
-                  </div>
-
-                  <div className="landing-feature-media relative aspect-[9/16] w-full overflow-hidden rounded-[24px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
-                    <LazyVideoPlayer
-                      src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_result.mp4"
-                      wrapperClassName="h-full w-full"
-                      className="h-full w-full object-cover"
-                      eager
-                      playsInline
-                      loop
-                    />
-                  </div>
-                </div>
-              </div>
+              <ComparisonMedia
+                firstLabel={motionClone.mediaLabels[0]}
+                secondLabel={motionClone.mediaLabels[1]}
+                firstSrc="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_refer.mp4"
+                secondSrc="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_result.mp4"
+              />
             }
           />
         </div>

@@ -28,12 +28,13 @@ import {
   Video as VideoIcon,
   WandSparkles,
 } from 'lucide-react';
-import { ByteDance, Kling } from '@lobehub/icons';
+import { ByteDance, Kling, Qwen } from '@lobehub/icons';
 import {
   GENERATION_COSTS,
   SEEDANCE_2_QUALITY_COSTS,
   getGenerationCost,
   getMotionCloneGenerationCost,
+  snapDurationToModel,
   type PersistedVideoQuality,
   type VideoModel,
 } from '@/lib/constants';
@@ -248,6 +249,12 @@ const PROJECT_AGENT_VIDEO_CLONE_MODELS = [
     label: 'Kling 3',
     Icon: Kling,
     creditsPerSecond: GENERATION_COSTS.kling_3,
+  },
+  {
+    value: 'wan_27' as const,
+    label: 'Wan 2.7',
+    Icon: Qwen,
+    creditsPerSecond: GENERATION_COSTS.wan_27,
   },
 ] satisfies Array<{
   value: NonNullable<ProjectAgentFeatureNodeConfig['videoModel']>;
@@ -1193,6 +1200,10 @@ export default function CanvasBoard({
                                         onUpdateFeatureNodeConfig(node.id, {
                                           videoModel: option.value,
                                           videoQuality: normalizedQuality,
+                                          videoDuration: snapDurationToModel(
+                                            option.value,
+                                            Number(node.config?.videoDuration || (node.type === 'avatar_ads' ? '16' : '8')),
+                                          ),
                                         });
                                         setModelMenuNodeId(null);
                                       }}

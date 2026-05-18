@@ -16,7 +16,7 @@ import { captureServerEvent } from '@/lib/analytics/server';
  * Validates that the video model is one of the supported models
  */
 function validateVideoModel(model: string): model is VideoModel {
-  return model === 'seedance_2_fast' || model === 'seedance_2' || model === 'kling_3';
+  return model === 'seedance_2_fast' || model === 'seedance_2' || model === 'kling_3' || model === 'wan_27';
 }
 
 export async function POST(request: NextRequest) {
@@ -83,16 +83,21 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Edit-video source video URL is required' }, { status: 400 });
       }
 
-      if (!Number.isFinite(durationSeconds) || durationSeconds < 2 || durationSeconds > 15) {
+      const maxEditVideoDuration = requestData.videoModel === 'wan_27' ? 10 : 15;
+      if (!Number.isFinite(durationSeconds) || durationSeconds < 2 || durationSeconds > maxEditVideoDuration) {
         return NextResponse.json(
-          { error: 'Edit-video source duration must be between 2 and 15 seconds' },
+          { error: `Edit-video source duration must be between 2 and ${maxEditVideoDuration} seconds` },
           { status: 400 }
         );
       }
 
-      if (requestData.videoModel !== 'seedance_2' && requestData.videoModel !== 'seedance_2_fast') {
+      if (
+        requestData.videoModel !== 'seedance_2' &&
+        requestData.videoModel !== 'seedance_2_fast' &&
+        requestData.videoModel !== 'wan_27'
+      ) {
         return NextResponse.json(
-          { error: 'Edit-video mode supports Seedance 2 models only' },
+          { error: 'Edit-video mode supports Seedance 2 models and Wan 2.7 only' },
           { status: 400 }
         );
       }
@@ -163,8 +168,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'Invalid video model',
+          supportedModels: ['seedance_2_fast', 'seedance_2', 'kling_3', 'wan_27'],
+          message: 'Please select Seedance 2 Fast, Seedance 2, Kling 3.0, or Wan 2.7'
+        },
+        { status: 400 }
+      );
+    }
+
+    if (requestData.executionMode !== 'edit_video' && requestData.videoModel === 'wan_27') {
+      return NextResponse.json(
+        {
+          error: 'Wan 2.7 is currently available for edit-video mode only',
           supportedModels: ['seedance_2_fast', 'seedance_2', 'kling_3'],
-          message: 'Please select Seedance 2 Fast, Seedance 2, or Kling 3.0'
         },
         { status: 400 }
       );

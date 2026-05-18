@@ -108,6 +108,14 @@ export type LandingMessages = {
     free: string;
     newBadge: string;
   };
+  whyFlowtra: {
+    title: string;
+    description: string;
+    modelsEyebrow: string;
+    agentEyebrow: string;
+    agentTitle: string;
+    agentDescription: string;
+  };
   pricing: {
     title: string;
     description: string;
@@ -156,6 +164,12 @@ export type LandingMessages = {
     noImage: string;
     readMore: string;
     fetchFailed: string;
+  };
+  trialCta: {
+    eyebrow: string;
+    title: string;
+    description: string;
+    buttonLabel: string;
   };
   faq: {
     title: string;
@@ -278,7 +292,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       views: 'Views',
     },
     features: {
-      title: 'Explore Our Features',
+      title: 'How it works',
       description: 'Powerful AI tools to transform your product images into professional marketing content',
       learnMore: 'Learn More',
       newBadge: 'New',
@@ -371,6 +385,14 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       free: 'Free',
       newBadge: 'New',
     },
+    whyFlowtra: {
+      title: 'Why choose Flowtra?',
+      description: 'Latest video and image AI models in one place. Video pricing is per second; image pricing is per image.',
+      modelsEyebrow: 'Latest models',
+      agentEyebrow: 'Agent mode',
+      agentTitle: 'Agent mode handles bulk execution for video clone workflows',
+      agentDescription: 'Batch repeated creative work from one canvas instead of rebuilding the same workflow one project at a time.',
+    },
     pricing: {
       title: 'Choose Your Plan',
       description: 'Monthly subscription with automatic credit reset',
@@ -459,6 +481,12 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       noImage: 'No Image',
       readMore: 'Read More',
       fetchFailed: 'Failed to fetch article previews',
+    },
+    trialCta: {
+      eyebrow: 'Lite plan',
+      title: 'Subscribe to Lite and get a 1-day free trial',
+      description: 'Start testing Flowtra with the lightest plan, then scale when you are ready.',
+      buttonLabel: 'Start free trial',
     },
     faq: {
       title: 'Frequently Asked Questions',
@@ -601,7 +629,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       views: '播放量',
     },
     features: {
-      title: '探索我们的功能',
+      title: 'How it works',
       description: '用强大的 AI 工具，把产品图片快速变成专业营销素材',
       learnMore: '了解更多',
       newBadge: '新',
@@ -694,6 +722,14 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       free: '免费',
       newBadge: '新',
     },
+    whyFlowtra: {
+      title: 'Why choose Flowtra?',
+      description: 'Latest video and image AI models in one place. Video pricing is per second; image pricing is per image.',
+      modelsEyebrow: 'Latest models',
+      agentEyebrow: 'Agent mode',
+      agentTitle: 'Agent mode handles bulk execution for video clone workflows',
+      agentDescription: 'Batch repeated creative work from one canvas instead of rebuilding the same workflow one project at a time.',
+    },
     pricing: {
       title: '选择你的方案',
       description: '按月订阅，积分自动重置',
@@ -782,6 +818,12 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       noImage: '暂无图片',
       readMore: '继续阅读',
       fetchFailed: '获取文章预览失败',
+    },
+    trialCta: {
+      eyebrow: 'Lite plan',
+      title: 'Subscribe to Lite and get a 1-day free trial',
+      description: 'Start testing Flowtra with the lightest plan, then scale when you are ready.',
+      buttonLabel: 'Start free trial',
     },
     faq: {
       title: '常见问题',

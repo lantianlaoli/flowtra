@@ -162,7 +162,7 @@ export default function Header({
 
   const mobileMoreItems: HeaderNavItem[] = [
     {
-      href: "/#pricing",
+      href: "/select-plan",
       title: headerMessages.pricing,
       icon: Calculator,
     },
@@ -172,7 +172,7 @@ export default function Header({
       icon: BookOpen,
     },
     {
-      href: "/#blog",
+      href: "/blog",
       title: headerMessages.blog,
       icon: Sparkles,
     },
@@ -313,13 +313,13 @@ export default function Header({
                   </div>
                 </div>
               </div>
-              <Link href="/#pricing" className={navButtonClass}>
+              <Link href="/select-plan" className={navButtonClass}>
                 {headerMessages.pricing}
               </Link>
               <Link href="/academy" className={navButtonClass}>
                 {headerMessages.academy}
               </Link>
-              <Link href="/#blog" className={navButtonClass}>
+              <Link href="/blog" className={navButtonClass}>
                 {headerMessages.blog}
               </Link>
               <Link href="/#faq" className={navButtonClass}>

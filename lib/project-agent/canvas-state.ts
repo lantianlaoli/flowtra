@@ -3,6 +3,7 @@ import {
   getInstructionSemanticRole,
   getProposedInstructionSemanticRole,
 } from '@/lib/project-agent/instruction-semantics';
+import type { VideoDuration } from '@/lib/constants';
 
 export type ProjectAgentFeatureNodeType =
   | 'video_clone'
@@ -61,8 +62,8 @@ export type ProjectAgentCanvasAssetRef = {
 export type ProjectAgentFeatureNodeConfig = {
   aspectRatio?: '16:9' | '9:16';
   language?: string;
-  videoDuration?: '8' | '16' | '24' | '32';
-  videoModel?: 'seedance_2_fast' | 'seedance_2' | 'kling_3';
+  videoDuration?: VideoDuration;
+  videoModel?: 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27';
   videoQuality?: '480p' | '720p' | '1080p';
   runCount?: 1 | 2 | 3;
 };
