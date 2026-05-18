@@ -522,7 +522,7 @@ export const planProjectAgentCanvasCommand = (
 
   const assetType = getAssetIntent(text);
   if (assetType === 'text' && includesAny(text, [' add ', ' create ', ' insert ', ' place '])) {
-    return buildSafeEditPlan('I added a text node to the canvas.', [
+    return buildSafeEditPlan('I added an instruction node to the canvas.', [
       {
         type: 'add_text_node',
         select: true,

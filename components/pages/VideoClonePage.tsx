@@ -26,6 +26,7 @@ import SegmentInspector, {
 import {
   getDefaultCloneVideoQuality,
   getGenerationCost,
+  getModelSupportedDurations,
   getSegmentCountFromDuration,
   normalizeCloneVideoQualityForModel,
   snapDurationToModel,
@@ -393,7 +394,7 @@ export default function VideoClonePage() {
   const effectiveVideoDuration = useMemo<VideoDuration>(() => {
     const targetDurationSeconds = selectedReferenceVideo?.duration_seconds || 0;
     if (!targetDurationSeconds) {
-      return "8";
+      return getModelSupportedDurations(selectedModel)[0];
     }
     return snapDurationToModel(selectedModel, Math.min(targetDurationSeconds, 64));
   }, [selectedReferenceVideo?.duration_seconds, selectedModel]);

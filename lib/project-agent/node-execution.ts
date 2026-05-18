@@ -7,6 +7,12 @@ import type {
 } from '@/lib/project-agent/canvas-state';
 import type { LanguageCode } from '@/lib/constants';
 import { resolveAvatarSpokenLanguage } from '@/lib/avatar-spoken-language';
+import {
+  getProjectAgentVideoCloneDurationSeconds,
+  getProjectAgentVideoCloneMode,
+  normalizeProjectAgentVideoCloneModel,
+} from '@/lib/project-agent/video-clone-mode';
+import { getEffectiveProjectAgentVideoModel } from '@/lib/project-agent/video-model';
 
 export type ProjectAgentConnectedFeatureInputs = {
   avatar?: ProjectAgentCanvasAssetRef | null;
@@ -39,6 +45,23 @@ export type ProjectAgentCanvasExecutionStatus = {
   currentMilestoneKey: string;
   raw?: Record<string, unknown> | null;
 };
+
+export const getReusableFeatureRuntimeAfterCompletion = (
+  execution: ProjectAgentCanvasExecutionStatus,
+) => ({
+  executionState: 'ready' as const,
+  projectId: execution.projectId,
+  phase: 'ready',
+  progress: 0,
+  outputUrl: null,
+  previewUrl: null,
+  error: null,
+  userFacingError: null,
+  retryable: false,
+  statusLabel: 'Ready',
+  milestones: null,
+  currentMilestoneKey: null,
+});
 
 const toProgress = (value: unknown, fallback: number) => (
   typeof value === 'number' && Number.isFinite(value) ? value : fallback
@@ -189,11 +212,12 @@ export const getProjectAgentCanvasErrorInfo = (
   if (
     normalized.includes('policy') ||
     normalized.includes('safety') ||
-    normalized.includes('content policy')
+    normalized.includes('content policy') ||
+    normalized.includes('sensitive information')
   ) {
     return {
       retryable: false,
-      userFacingError: 'This request could not be completed because it did not pass the provider review.',
+      userFacingError: error,
       maintenanceMode: false,
     };
   }
@@ -342,12 +366,13 @@ const getCurrentMilestoneForMotionClone = (status: string) => {
 
 export const createQueuedExecutionStatus = (
   nodeType: ProjectAgentFeatureNodeType,
+  options?: { skipCloneFrames?: boolean },
 ): Pick<ProjectAgentCanvasExecutionStatus, 'phase' | 'progress' | 'statusLabel' | 'milestones' | 'currentMilestoneKey'> => ({
   phase: 'queued',
   progress: 5,
   statusLabel: 'Preparing prompt',
   currentMilestoneKey: 'preparing_prompt',
-  milestones: buildMilestones(nodeType, 'preparing_prompt', 'running'),
+  milestones: buildMilestones(nodeType, 'preparing_prompt', 'running', options),
 });
 
 export const getExecutionTableForNodeType = (
@@ -390,7 +415,7 @@ export const buildAvatarAdsStartPayload = (input: {
     videoAspectRatio: input.config?.aspectRatio || '9:16',
     language: resolvedSpokenLanguage,
     resolvedSpokenLanguage,
-    videoModel: 'kling_3' as const,
+    videoModel: getEffectiveProjectAgentVideoModel('avatar_ads', input.config?.videoModel),
   };
 };
 
@@ -400,25 +425,36 @@ export const buildVideoCloneStartPayload = (input: {
   video: ProjectAgentCanvasAssetRef;
   text?: ProjectAgentCanvasAssetRef | null;
   config?: ProjectAgentFeatureNodeConfig | null;
-}) => ({
-  creatorSourceVideoId: input.video.sourceType === 'reference_video' ? undefined : input.video.id,
-  referenceVideoId: input.video.sourceType === 'reference_video' ? input.video.id : undefined,
-  selectedAvatarIds: input.avatar?.id ? [input.avatar.id] : [],
-  selectedProductIds: input.product?.id ? [input.product.id] : [],
-  supplementalText: input.text?.content?.trim() || undefined,
-  videoModel: input.config?.videoModel === 'seedance_2_fast'
-    ? 'seedance_2_fast' as const
-    : input.config?.videoModel === 'seedance_2'
-      ? 'seedance_2' as const
-      : 'kling_3' as const,
-  videoAspectRatio: input.config?.aspectRatio || '9:16',
-  videoDuration: input.config?.videoDuration || '8',
-  videoQuality: input.config?.videoQuality || (input.config?.videoModel === 'seedance_2' ? '1080p' : '720p'),
-  language: input.config?.language || input.video.analysisLanguage || 'en',
-  shouldGenerateVideo: true,
-  photoOnly: false,
-  requestSource: 'project_agent_clone' as const,
-});
+}) => {
+  const mode = getProjectAgentVideoCloneMode(input);
+  const videoModel = normalizeProjectAgentVideoCloneModel(input.config?.videoModel, mode);
+  const sourceDurationSeconds = getProjectAgentVideoCloneDurationSeconds(input);
+  const executableEditVideoDurationSeconds = sourceDurationSeconds === null
+    ? null
+    : Math.ceil(sourceDurationSeconds);
+  const playableVideoUrl = input.video.videoCdnUrl?.trim() || input.video.videoUrl?.trim() || undefined;
+
+  return {
+    executionMode: mode,
+    creatorSourceVideoId: input.video.sourceType === 'reference_video' ? undefined : input.video.id,
+    referenceVideoId: input.video.sourceType === 'reference_video' ? input.video.id : undefined,
+    selectedAvatarIds: mode === 'clone' && input.avatar?.id ? [input.avatar.id] : [],
+    selectedProductIds: mode === 'clone' && input.product?.id ? [input.product.id] : [],
+    supplementalText: mode === 'clone' ? input.text?.content?.trim() || undefined : undefined,
+    editVideoPrompt: mode === 'edit_video' ? input.text?.content?.trim() || undefined : undefined,
+    editVideoSourceUrl: mode === 'edit_video' ? playableVideoUrl : undefined,
+    videoModel,
+    videoAspectRatio: input.config?.aspectRatio || '9:16',
+    videoDuration: mode === 'edit_video'
+      ? String(executableEditVideoDurationSeconds || '')
+      : input.config?.videoDuration || '8',
+    videoQuality: input.config?.videoQuality || (videoModel === 'seedance_2' ? '1080p' : '720p'),
+    language: input.config?.language || input.video.analysisLanguage || 'en',
+    shouldGenerateVideo: true,
+    photoOnly: false,
+    requestSource: 'project_agent_clone' as const,
+  };
+};
 
 export const buildMotionCloneStartPayload = (input: {
   avatar?: ProjectAgentCanvasAssetRef | null;
@@ -508,8 +544,9 @@ export const normalizeCloneExecutionStatus = (
   const awaitingMerge = Boolean(data.awaitingMerge) || status === 'awaiting_merge';
   const videoGenerationRequested = data.videoGenerationRequested === true;
   const step = typeof payload.current_step === 'string' ? payload.current_step : '';
-  const isSeedanceReferenceImageMode = data.videoModel === 'seedance_2_fast' &&
-    data.workflowSource === 'project_agent_clone';
+  const skipsFrameGeneration = data.workflowSource === 'project_agent_edit_video' || (
+    data.videoModel === 'seedance_2_fast' && data.workflowSource === 'project_agent_clone'
+  );
   const segments = Array.isArray(data.segments)
     ? data.segments as Array<Record<string, unknown>>
     : [];
@@ -547,11 +584,11 @@ export const normalizeCloneExecutionStatus = (
   const executionState = completed ? 'completed' : failed ? 'failed' : 'running';
   const currentMilestoneKey = getCurrentMilestoneForClone(
     status,
-    isSeedanceReferenceImageMode && needsVideoStart ? 'generating_video' : step,
+    skipsFrameGeneration && needsVideoStart ? 'generating_video' : step,
     awaitingMerge,
     needsVideoStart,
-    hasActiveVideoGeneration || (isSeedanceReferenceImageMode && needsVideoStart),
-    isSeedanceReferenceImageMode,
+    hasActiveVideoGeneration || (skipsFrameGeneration && needsVideoStart),
+    skipsFrameGeneration,
   );
   const error = typeof data.errorMessage === 'string' ? data.errorMessage : null;
   const { retryable, userFacingError } = getProjectAgentCanvasErrorInfo(error);
@@ -584,7 +621,7 @@ export const normalizeCloneExecutionStatus = (
         ? 'start_clone_video'
         : 'none',
     milestones: buildMilestones('video_clone', currentMilestoneKey, executionState, {
-      skipCloneFrames: isSeedanceReferenceImageMode,
+      skipCloneFrames: skipsFrameGeneration,
     }),
     currentMilestoneKey,
     raw: payload,

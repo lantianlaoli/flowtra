@@ -1,3 +1,9 @@
+import {
+  formatInstructionSemanticRoleLabel,
+  getInstructionSemanticRole,
+  getProposedInstructionSemanticRole,
+} from '@/lib/project-agent/instruction-semantics';
+
 export type ProjectAgentFeatureNodeType =
   | 'video_clone'
   | 'avatar_ads'
@@ -57,7 +63,7 @@ export type ProjectAgentFeatureNodeConfig = {
   language?: string;
   videoDuration?: '8' | '16' | '24' | '32';
   videoModel?: 'seedance_2_fast' | 'seedance_2' | 'kling_3';
-  videoQuality?: '720p' | '1080p';
+  videoQuality?: '480p' | '720p' | '1080p';
   runCount?: 1 | 2 | 3;
 };
 
@@ -144,6 +150,18 @@ export const getCanvasConnectionError = (
     return 'This connection is not supported.';
   }
 
+  if (sourceNode.type === 'text' && edge.targetHandle === 'text') {
+    const currentRole = getInstructionSemanticRole(state, sourceNode.id);
+    const nextRole = getProposedInstructionSemanticRole(state, edge);
+    if (
+      currentRole !== 'instruction' &&
+      nextRole !== 'instruction' &&
+      currentRole !== nextRole
+    ) {
+      return `This instruction is already used as a ${formatInstructionSemanticRoleLabel(currentRole)}. Create a new instruction for ${formatInstructionSemanticRoleLabel(nextRole)}.`;
+    }
+  }
+
   if (
     !PROJECT_AGENT_FEATURE_INPUTS[targetNode.type].includes(edge.targetHandle) &&
     !(PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS[targetNode.type] || []).includes(edge.targetHandle) &&
@@ -191,7 +209,7 @@ export const getProjectAgentCanvasNodeSize = (node: Pick<ProjectAgentCanvasNode,
   if (node.type === 'video') return { width: 168, height: 308 };
   if (isProjectAgentAssetNode(node.type)) return { width: 188, height: 210 };
   if (isProjectAgentOutputNode(node.type)) return { width: 168, height: 308 };
-  return { width: 336, height: 272 };
+  return { width: 380, height: 300 };
 };
 
 export const getProjectAgentCanvasSourceHandlePosition = (node: Pick<ProjectAgentCanvasNode, 'type' | 'x' | 'y'>) => {
@@ -263,7 +281,7 @@ export const getProjectAgentAssetDisplayName = (
     case 'video':
       return 'Video';
     case 'text':
-      return 'Text';
+      return 'Instruction';
     default:
       return type;
   }
@@ -328,11 +346,11 @@ export const createProjectAgentFeatureNode = (input: {
     language: 'en',
     videoDuration: input.type === 'avatar_ads' ? '16' : '8',
     videoModel: input.type === 'avatar_ads'
-      ? 'kling_3'
+      ? 'seedance_2_fast'
       : input.type === 'video_clone'
         ? 'seedance_2'
         : 'kling_3',
-    videoQuality: input.type === 'video_clone' ? '1080p' : '720p',
+    videoQuality: '720p',
     ...input.config,
   },
   runtime: {
@@ -364,13 +382,33 @@ export const getConnectedAssetNodeMap = (
 export const getMissingFeatureInputs = (
   state: ProjectAgentCanvasState,
   featureNodeId: string
-) => {
+): ProjectAgentAssetNodeType[] => {
   const featureNode = getProjectAgentCanvasNodeById(state, featureNodeId);
   if (!featureNode || !isProjectAgentFeatureNode(featureNode.type)) {
     return [] as ProjectAgentAssetNodeType[];
   }
 
   const connected = getConnectedAssetNodeMap(state, featureNodeId);
+
+  if (featureNode.type === 'video_clone') {
+    const hasVideo = connected.has('video');
+    const hasCloneTarget = connected.has('avatar') || connected.has('product');
+    const hasEditPrompt = connected.has('text');
+
+    if (hasVideo && (hasCloneTarget || hasEditPrompt)) {
+      return [];
+    }
+
+    if (!hasVideo && !hasCloneTarget && !hasEditPrompt) {
+      return ['video', 'avatar', 'product', 'text'];
+    }
+
+    if (!hasVideo) {
+      return ['video'];
+    }
+
+    return ['avatar', 'product', 'text'];
+  }
 
   // Strict required inputs — ALL must be connected
   const strictMissing = PROJECT_AGENT_FEATURE_INPUTS[featureNode.type].filter(
@@ -389,6 +427,30 @@ export const formatMissingFeatureInputsLabel = (
   featureType: ProjectAgentFeatureNodeType,
   missingInputs: ProjectAgentAssetNodeType[]
 ) => {
+  if (featureType === 'video_clone') {
+    const needsVideo = missingInputs.includes('video');
+    const needsCloneOrEdit =
+      missingInputs.includes('avatar') &&
+      missingInputs.includes('product') &&
+      missingInputs.includes('text');
+
+    if (needsVideo && needsCloneOrEdit) {
+      return 'video and avatar or product or edit instruction';
+    }
+
+    if (needsVideo) {
+      return 'video';
+    }
+
+    if (needsCloneOrEdit) {
+      return 'avatar or product or edit instruction';
+    }
+  }
+
+  if (featureType === 'avatar_ads' && missingInputs.includes('text')) {
+    return missingInputs.includes('avatar') ? 'avatar and script' : 'script';
+  }
+
   if (featureType === 'video_clone' || featureType === 'motion_clone') {
     const needsVideo = missingInputs.includes('video');
     const needsSwapTarget =
@@ -432,6 +494,24 @@ export const getFeatureStartBlockedReason = (
 
       if (durationSeconds < 3 || durationSeconds > 30) {
         return `Reference video must be 3-30s. Current: ${Math.round(durationSeconds)}s.`;
+      }
+    }
+  }
+
+  if (featureNode.type === 'video_clone') {
+    const hasVideo = connected.has('video');
+    const hasText = connected.has('text');
+    const hasCloneTarget = connected.has('avatar') || connected.has('product');
+    const videoNode = connected.get('video');
+    const durationSeconds = videoNode?.asset?.durationSeconds;
+
+    if (hasVideo && hasText && !hasCloneTarget) {
+      if (typeof durationSeconds !== 'number' || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+        return 'Source video duration is unavailable.';
+      }
+
+      if (durationSeconds < 2 || durationSeconds > 15) {
+        return `Source video must be 2-15s. Current: ${Math.round(durationSeconds)}s.`;
       }
     }
   }

@@ -5,11 +5,20 @@ import {
   buildAvatarAdsStartPayload,
   buildMotionCloneStartPayload,
   buildVideoCloneStartPayload,
+  createQueuedExecutionStatus,
   getProjectAgentCanvasErrorInfo,
   normalizeAvatarExecutionStatus,
   normalizeCloneExecutionStatus,
   normalizeMotionCloneExecutionStatus,
 } from '@/lib/project-agent/node-execution';
+
+test('queued edit-video nodes skip frame-generation milestone immediately', () => {
+  const status = createQueuedExecutionStatus('video_clone', { skipCloneFrames: true });
+  assert.deepEqual(
+    status.milestones.map((milestone) => milestone.key),
+    ['preparing_prompt', 'generating_video', 'merging', 'completed'],
+  );
+});
 
 test('buildVideoCloneStartPayload maps connected assets into clone request fields', () => {
   const payload = buildVideoCloneStartPayload({
@@ -23,7 +32,7 @@ test('buildVideoCloneStartPayload maps connected assets into clone request field
   assert.deepEqual(payload.selectedAvatarIds, ['avatar-1']);
   assert.deepEqual(payload.selectedProductIds, []);
   assert.equal(payload.videoDuration, '16');
-  assert.equal(payload.videoModel, 'kling_3');
+  assert.equal(payload.videoModel, 'seedance_2');
 });
 
 test('canvas error info treats insufficient credits as a user-facing setup issue', () => {
@@ -34,6 +43,14 @@ test('canvas error info treats insufficient credits as a user-facing setup issue
   assert.equal(info.retryable, false);
   assert.equal(info.maintenanceMode, false);
   assert.equal(info.userFacingError, 'Insufficient credits. Need 120 credits, you have 40.');
+});
+
+test('canvas error info exposes provider safety message directly', () => {
+  const message = 'The request failed because the output audio may contain sensitive information.';
+  const info = getProjectAgentCanvasErrorInfo(message);
+
+  assert.equal(info.retryable, false);
+  assert.equal(info.userFacingError, message);
 });
 
 test('buildVideoCloneStartPayload passes Seedance 2 Fast for project agent clone nodes', () => {
@@ -82,7 +99,7 @@ test('buildAvatarAdsStartPayload keeps strict avatar and product requirements', 
   assert.equal(payload.selectedPersonPhotoUrl, 'https://example.com/avatar.png');
   assert.equal(payload.selectedProductId, 'product-1');
   assert.equal(payload.videoDurationSeconds, 16);
-  assert.equal(payload.videoModel, 'kling_3');
+  assert.equal(payload.videoModel, 'seedance_2_fast');
 });
 
 test('buildAvatarAdsStartPayload resolves spoken language from custom dialogue', () => {
@@ -209,6 +226,25 @@ test('normalizeCloneExecutionStatus skips frame milestone for Seedance direct cl
       videoModel: 'seedance_2_fast',
       workflowSource: 'project_agent_clone',
       videoGenerationRequested: true,
+    },
+  });
+
+  assert.equal(status.currentMilestoneKey, 'generating_video');
+  assert.equal(status.milestones.some((milestone) => milestone.key === 'generating_frames'), false);
+  assert.deepEqual(
+    status.milestones.map((milestone) => milestone.label),
+    ['Preparing prompt', 'Generating video', 'Merging video', 'Completed']
+  );
+});
+
+test('normalizeCloneExecutionStatus skips frame milestone for edit-video mode', () => {
+  const status = normalizeCloneExecutionStatus({
+    status: 'processing',
+    current_step: 'generating_video',
+    data: {
+      videoModel: 'seedance_2_fast',
+      workflowSource: 'project_agent_edit_video',
+      segments: [{ status: 'generating_video', videoTaskId: 'task-1' }],
     },
   });
 

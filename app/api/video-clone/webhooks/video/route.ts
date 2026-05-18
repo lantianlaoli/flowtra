@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, type VideoCloneSegment, type SingleVideoProject } from '@/lib/supabase';
 import {
   buildSegmentStatusPayload,
+  getFailedSegmentErrorMessage,
+  getTerminalFailedCloneRefundAmount,
   isProjectAgentSeedanceReferenceImageProject,
+  shouldRetryCloneVideoFailure,
   startSegmentVideoTask,
   type SegmentPrompt
 } from '@/lib/video-clone-workflow';
+import { refundCredits } from '@/lib/credits';
 import { isKlingPromptValidationError } from '@/lib/kling-prompt-budget';
 import { mergeVideosWithFal } from '@/lib/video-merge';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
@@ -31,12 +35,45 @@ async function refreshProjectSegmentStatus(
     null
   );
 
+  const failedSegmentError = getFailedSegmentErrorMessage(allSegments as VideoCloneSegment[]);
+
+  let refundAmount = 0;
+  if (failedSegmentError) {
+    const { data: project } = await supabase
+      .from('video_clone_projects')
+      .select('id, user_id, status, generation_credits_used')
+      .eq('id', projectId)
+      .single();
+
+    refundAmount = getTerminalFailedCloneRefundAmount(project || {});
+    if (project && refundAmount > 0) {
+      const refund = await refundCredits(
+        project.user_id,
+        refundAmount,
+        'Video Clone - Auto-refund for terminal generation failure',
+        project.id,
+      );
+      if (!refund.success) {
+        console.error('[UGC Video Webhook] Failed to refund terminal failed project:', refund.error);
+        refundAmount = 0;
+      }
+    }
+  }
+
   // Schema verified via Supabase MCP (2025-03-08):
-  // video_clone_projects has segment_status, last_processed_at.
+  // video_clone_projects has segment_status, last_processed_at, status, current_step, error_message.
   await supabase
     .from('video_clone_projects')
     .update({
       segment_status: segmentStatus,
+      ...(failedSegmentError
+        ? {
+            status: 'failed',
+            current_step: 'failed',
+            error_message: failedSegmentError,
+            ...(refundAmount > 0 ? { generation_credits_used: 0 } : {}),
+          }
+        : {}),
       last_processed_at: new Date().toISOString()
     })
     .eq('id', projectId);
@@ -424,7 +461,13 @@ export async function POST(request: NextRequest) {
       // Determine if error is retryable (server errors only)
       const MAX_RETRIES = 3;
       const currentRetryCount = segment.retry_count || 0;
-      const isRetryable = code >= 500 && currentRetryCount < MAX_RETRIES;
+      const isRetryable = shouldRetryCloneVideoFailure({
+        code,
+        failCode,
+        failMsg: failureMessage,
+        retryCount: currentRetryCount,
+        maxRetries: MAX_RETRIES,
+      });
 
       // Schema verified via Supabase MCP (2025-03-08):
       // video_clone_segments has retry_count, status, error_message, video_task_id, video_webhook_received_at.
@@ -494,7 +537,9 @@ export async function POST(request: NextRequest) {
             .eq('id', segment.id);
         }
       } else {
-        const errorMessage = currentRetryCount >= MAX_RETRIES
+        const errorMessage = failMsg
+          ? failMsg
+          : currentRetryCount >= MAX_RETRIES
           ? `Video generation failed after ${MAX_RETRIES} retries [provider_code=${failureCode}]: ${failureMessage}`
           : `Video generation failed (non-retryable) [provider_code=${failureCode}]: ${failureMessage}`;
 

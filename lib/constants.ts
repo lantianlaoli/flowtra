@@ -11,8 +11,25 @@ export const GENERATION_COSTS = {
 } as const;
 
 export const SEEDANCE_2_QUALITY_COSTS = {
+  '480p': 19,
   '720p': 41,
   '1080p': 102
+} as const;
+
+export const SEEDANCE_2_WITH_VIDEO_INPUT_QUALITY_COSTS = {
+  '480p': 11.5,
+  '720p': 25,
+  '1080p': 62,
+} as const;
+
+export const SEEDANCE_2_FAST_QUALITY_COSTS = {
+  '480p': 15.5,
+  '720p': 33,
+} as const;
+
+export const SEEDANCE_2_FAST_WITH_VIDEO_INPUT_QUALITY_COSTS = {
+  '480p': 9,
+  '720p': 20,
 } as const;
 
 export const KLING_QUALITY_COSTS = {
@@ -139,14 +156,15 @@ export function getCreditCost(model: keyof typeof CREDIT_COSTS): number {
 export function getGenerationCost(
   model: VideoModel,
   videoDuration?: string,
-  videoQuality?: PersistedVideoQuality
+  videoQuality?: PersistedVideoQuality,
+  options?: { hasVideoInput?: boolean }
 ): number {
   const normalizedCloneQuality = normalizeCloneVideoQualityForModel(model, videoQuality);
 
   const duration = Number(videoDuration);
   if (model === 'kling_3') {
     if (!Number.isFinite(duration) || duration <= 0) {
-      return KLING_QUALITY_COSTS[normalizedCloneQuality === '1080p' ? '1080p' : '720p'] * DEFAULT_SEGMENT_DURATION_SECONDS;
+      return 0;
     }
     const perSecondCost = normalizedCloneQuality === '1080p'
       ? KLING_QUALITY_COSTS['1080p']
@@ -155,24 +173,31 @@ export function getGenerationCost(
   }
 
   if (model === 'seedance_2') {
-    const perSecondCost = normalizedCloneQuality === '1080p'
-      ? SEEDANCE_2_QUALITY_COSTS['1080p']
-      : SEEDANCE_2_QUALITY_COSTS['720p'];
+    const priceTable = options?.hasVideoInput
+      ? SEEDANCE_2_WITH_VIDEO_INPUT_QUALITY_COSTS
+      : SEEDANCE_2_QUALITY_COSTS;
+    const perSecondCost = priceTable[normalizedCloneQuality as keyof typeof priceTable]
+      ?? priceTable['720p'];
     if (!Number.isFinite(duration) || duration <= 0) {
-      return perSecondCost * DEFAULT_SEGMENT_DURATION_SECONDS;
+      return 0;
     }
-    return Math.ceil(duration) * perSecondCost;
+    return Math.ceil(Math.ceil(duration) * perSecondCost);
   }
 
   if (model === 'seedance_2_fast') {
     if (!Number.isFinite(duration) || duration <= 0) {
-      return GENERATION_COSTS[model] * DEFAULT_SEGMENT_DURATION_SECONDS;
+      return 0;
     }
-    return Math.ceil(duration) * GENERATION_COSTS[model];
+    const priceTable = options?.hasVideoInput
+      ? SEEDANCE_2_FAST_WITH_VIDEO_INPUT_QUALITY_COSTS
+      : SEEDANCE_2_FAST_QUALITY_COSTS;
+    const perSecondCost = priceTable[normalizedCloneQuality as keyof typeof priceTable]
+      ?? priceTable['720p'];
+    return Math.ceil(Math.ceil(duration) * perSecondCost);
   }
 
   if (!Number.isFinite(duration) || duration <= 0) {
-    return GENERATION_COSTS[model] * DEFAULT_SEGMENT_DURATION_SECONDS;
+    return 0;
   }
 
   return Math.ceil(duration) * GENERATION_COSTS[model];
@@ -188,7 +213,7 @@ export function getSegmentVideoGenerationCost(
   if (model === 'kling_3') {
     const duration = Number(segmentDurationSeconds);
     if (!Number.isFinite(duration) || duration <= 0) {
-      return KLING_QUALITY_COSTS[normalizedCloneQuality === '1080p' ? '1080p' : '720p'] * DEFAULT_SEGMENT_DURATION_SECONDS;
+      return 0;
     }
     const perSecondCost = normalizedCloneQuality === '1080p'
       ? KLING_QUALITY_COSTS['1080p']
@@ -200,7 +225,7 @@ export function getSegmentVideoGenerationCost(
     return getCloneSegmentVideoGenerationCost(model, segmentDurationSeconds, normalizedCloneQuality);
   }
 
-  return GENERATION_COSTS[model] * DEFAULT_SEGMENT_DURATION_SECONDS;
+  return 0;
 }
 
 // Get download cost (ALL downloads are FREE in Version 2.0)
@@ -378,7 +403,7 @@ export function getDefaultCloneVideoQuality(model: VideoModel): CloneVideoQualit
     return '1080p';
   }
   if (model === 'seedance_2') {
-    return '1080p';
+    return '720p';
   }
   if (model === 'kling_3' || model === 'seedance_2_fast') {
     return '720p';
@@ -405,11 +430,15 @@ export function normalizeCloneVideoQualityForModel(
   }
 
   if (model === 'seedance_2') {
-    return normalized === '720p' ? '720p' : '1080p';
+    return normalized === '480p' || normalized === '720p' || normalized === '1080p'
+      ? normalized
+      : '720p';
   }
 
   if (model === 'seedance_2_fast') {
-    return '720p';
+    return normalized === '480p' || normalized === '720p'
+      ? normalized
+      : '720p';
   }
 
   return getDefaultCloneVideoQuality(model);
@@ -422,13 +451,13 @@ export function mapCloneQualityToKlingMode(quality?: PersistedVideoQuality | nul
 
 export function mapCloneQualityToSeedanceResolution(
   quality?: PersistedVideoQuality | null
-): '720p' | '1080p' {
+): '480p' | '720p' | '1080p' {
   const normalized = quality === 'standard'
     ? '720p'
     : quality === 'high'
       ? '1080p'
       : quality;
-  return normalized === '1080p' ? '1080p' : '720p';
+  return normalized === '480p' || normalized === '1080p' ? normalized : '720p';
 }
 
 export function getCloneSegmentVideoGenerationCost(
@@ -442,7 +471,7 @@ export function getCloneSegmentVideoGenerationCost(
     const duration = Number(segmentDurationSeconds);
     const effectiveDuration = Number.isFinite(duration) && duration > 0
       ? Math.ceil(duration)
-      : DEFAULT_SEGMENT_DURATION_SECONDS;
+      : 0;
     const perSecondCost = normalizedQuality === '1080p'
       ? KLING_QUALITY_COSTS['1080p']
       : KLING_QUALITY_COSTS['720p'];
@@ -453,22 +482,31 @@ export function getCloneSegmentVideoGenerationCost(
     const duration = Number(segmentDurationSeconds);
     const effectiveDuration = Number.isFinite(duration) && duration > 0
       ? Math.ceil(duration)
-      : DEFAULT_SEGMENT_DURATION_SECONDS;
-    const perSecondCost = normalizedQuality === '1080p'
-      ? SEEDANCE_2_QUALITY_COSTS['1080p']
-      : SEEDANCE_2_QUALITY_COSTS['720p'];
-    return effectiveDuration * perSecondCost;
+      : 0;
+    const perSecondCost = SEEDANCE_2_QUALITY_COSTS[normalizedQuality as keyof typeof SEEDANCE_2_QUALITY_COSTS]
+      ?? SEEDANCE_2_QUALITY_COSTS['720p'];
+    return Math.ceil(effectiveDuration * perSecondCost);
   }
 
-  if (model === 'seedance_2_fast' || model === 'wan_27') {
+  if (model === 'seedance_2_fast') {
     const duration = Number(segmentDurationSeconds);
     const effectiveDuration = Number.isFinite(duration) && duration > 0
       ? Math.ceil(duration)
-      : DEFAULT_SEGMENT_DURATION_SECONDS;
+      : 0;
+    const perSecondCost = SEEDANCE_2_FAST_QUALITY_COSTS[normalizedQuality as keyof typeof SEEDANCE_2_FAST_QUALITY_COSTS]
+      ?? SEEDANCE_2_FAST_QUALITY_COSTS['720p'];
+    return Math.ceil(effectiveDuration * perSecondCost);
+  }
+
+  if (model === 'wan_27') {
+    const duration = Number(segmentDurationSeconds);
+    const effectiveDuration = Number.isFinite(duration) && duration > 0
+      ? Math.ceil(duration)
+      : 0;
     return effectiveDuration * GENERATION_COSTS[model];
   }
 
-  return GENERATION_COSTS[model] * DEFAULT_SEGMENT_DURATION_SECONDS;
+  return 0;
 }
 
 export type MotionCloneQuality = keyof typeof MOTION_CLONE_QUALITY_COSTS;
@@ -555,8 +593,7 @@ export function getModelSupportedDurations(model: VideoModel, quality?: VideoQua
   const capability = MODEL_CAPABILITIES.find(cap => cap.model === model);
 
   if (!capability) {
-    // Fallback to default if model not found
-    return ['8'] as VideoDuration[];
+    return [];
   }
 
   // If quality is provided, check if the model supports that quality
@@ -597,7 +634,6 @@ export function getAvailableQualities(duration: VideoDuration): VideoQuality[] {
   return Array.from(qualities);
 }
 
-export const DEFAULT_SEGMENT_DURATION_SECONDS = 8;
 export const KLING_MAX_TASK_DURATION_SECONDS = 15;
 export const KLING_MIN_TASK_DURATION_SECONDS = 3;
 export const KLING_MAX_PROJECT_DURATION_SECONDS = 60;
@@ -612,13 +648,16 @@ export function getSegmentDurationForModel(model?: VideoModel | null): number {
   if (model === 'wan_27') {
     return 15; // Wan 2.7 max task duration is 15s
   }
-  return DEFAULT_SEGMENT_DURATION_SECONDS;
+  return 0;
 }
 
 export function getSegmentCountFromDuration(videoDuration?: string | null, model?: VideoModel): number {
   if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2') {
     const klingDuration = Number(videoDuration);
-    if (!Number.isFinite(klingDuration) || klingDuration <= KLING_MAX_TASK_DURATION_SECONDS) {
+    if (!Number.isFinite(klingDuration) || klingDuration <= 0) {
+      return 0;
+    }
+    if (klingDuration <= KLING_MAX_TASK_DURATION_SECONDS) {
       return 1;
     }
     return Math.max(1, Math.ceil(klingDuration / KLING_MAX_TASK_DURATION_SECONDS));
@@ -627,22 +666,16 @@ export function getSegmentCountFromDuration(videoDuration?: string | null, model
   if (model === 'wan_27') {
     const wanDuration = Number(videoDuration);
     const wanMaxDuration = 15;
-    if (!Number.isFinite(wanDuration) || wanDuration <= wanMaxDuration) {
+    if (!Number.isFinite(wanDuration) || wanDuration <= 0) {
+      return 0;
+    }
+    if (wanDuration <= wanMaxDuration) {
       return 1;
     }
     return Math.max(1, Math.ceil(wanDuration / wanMaxDuration));
   }
 
-  const duration = Number(videoDuration);
-  const segmentLength = getSegmentDurationForModel(model ?? null);
-  const maxSegments = 8; // Maximum 8 segments (64 seconds)
-
-  if (!Number.isFinite(duration) || duration <= segmentLength) {
-    return 1;
-  }
-
-  const segments = Math.min(maxSegments, Math.ceil(duration / segmentLength));
-  return Math.max(1, segments);
+  return 0;
 }
 
 export function snapDurationToModel(model: VideoModel, targetSeconds: number): VideoDuration {
@@ -659,26 +692,17 @@ export function snapDurationToModel(model: VideoModel, targetSeconds: number): V
     return String(bounded) as VideoDuration;
   }
 
-  const supportedDurations = [8, 16, 24, 32, 40, 48, 56, 64]; // Segment-priced models support 8s steps
-
-  if (targetSeconds <= 8) return '8';
-  if (targetSeconds >= 64) return '64';
-
-  // Find closest supported duration
-  const closest = supportedDurations.reduce((prev, curr) =>
-    Math.abs(curr - targetSeconds) < Math.abs(prev - targetSeconds) ? curr : prev
-  );
-
-  return String(closest) as VideoDuration;
+  return String(Math.max(1, Math.round(targetSeconds))) as VideoDuration;
 }
 
 // Calculate cost for a model based on quality and duration
 export function getModelCostByConfig(
   model: VideoModel,
   quality: PersistedVideoQuality,
-  duration: VideoDuration
+  duration: VideoDuration,
+  options?: { hasVideoInput?: boolean }
 ): number {
-  return getGenerationCost(model, duration, quality);
+  return getGenerationCost(model, duration, quality, options);
 }
 
 // Get best model recommendation based on credits, quality, and duration

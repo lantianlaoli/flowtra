@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  ArrowLeft,
   X,
   Loader2,
   ArrowRight,
@@ -45,6 +46,7 @@ interface VideoAssetDetailsModalProps {
   onClose: () => void;
   video: VideoAsset | null;
   size?: "default" | "compact";
+  embedded?: boolean;
   onContinueInAgentFeatures?: (video: VideoAsset) => void;
   onDeleteVideo?: (video: VideoAsset) => Promise<void> | void;
   onVideoDeleted?: (videoId: string) => void;
@@ -56,6 +58,7 @@ export default function VideoAssetDetailsModal({
   onClose,
   video,
   size = "default",
+  embedded = false,
   onContinueInAgentFeatures,
   onDeleteVideo,
   onVideoDeleted,
@@ -289,37 +292,31 @@ export default function VideoAssetDetailsModal({
     }
   };
 
-  return (
-    <AnimatePresence>
-      {isOpen && currentVideo && (
-        <motion.div
-          className="assets-modal assets-video-details fixed inset-0 z-50 flex items-center justify-center p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <motion.div
-            className="assets-modal-backdrop absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={onClose}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          />
-
-          <motion.div
-            className={`assets-modal-panel assets-video-details-panel relative mx-auto flex w-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${
-              isCompact
-                ? "max-h-[76vh] max-w-[980px]"
-                : "max-h-[86vh] max-w-5xl"
-            }`}
+  const content = isOpen && currentVideo ? (
+    <motion.div
+            className={embedded
+              ? "assets-video-details-panel relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-white"
+              : `assets-modal-panel assets-video-details-panel relative mx-auto flex w-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${
+                  isCompact ? "max-h-[76vh] max-w-[980px]" : "max-h-[86vh] max-w-5xl"
+                }`}
             initial={{ opacity: 0, scale: 0.96, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 20 }}
             transition={{ duration: 0.2 }}
           >
-            <div className="assets-modal-header flex items-center justify-between px-6 py-4 border-b border-gray-200">
-              <div className="space-y-1">
+            <div className={`assets-modal-header flex items-center justify-between border-b border-gray-200 ${embedded ? "px-5 py-3.5" : "px-6 py-4"}`}>
+              <div className="flex items-center gap-3">
+                {embedded ? (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-full border border-gray-200 px-3 text-xs font-semibold text-black hover:bg-gray-50"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    Back
+                  </button>
+                ) : null}
+                <div className="space-y-1">
                 {isSystemVideo && (
                   <div className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">
                     <span aria-hidden>🔒</span>
@@ -329,16 +326,17 @@ export default function VideoAssetDetailsModal({
                 <h3 className="assets-modal-title text-lg font-semibold text-gray-900">
                   Video Details
                 </h3>
+                </div>
               </div>
-              <button
+              {!embedded ? <button
                 onClick={onClose}
                 className="assets-modal-close w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
               >
                 <X className="w-4 h-4 text-gray-500" />
-              </button>
+              </button> : null}
             </div>
 
-            <div className={`assets-modal-body grid min-h-0 grid-cols-1 items-start gap-6 overflow-y-auto p-6 ${isCompact ? "lg:grid-cols-[max-content_minmax(0,1fr)]" : "lg:grid-cols-[max-content_minmax(0,1fr)]"} lg:items-end`}>
+            <div className={`assets-modal-body grid min-h-0 grid-cols-1 items-start gap-6 overflow-y-auto ${embedded ? "p-5" : "p-6"} ${isCompact ? "lg:grid-cols-[max-content_minmax(0,1fr)]" : "lg:grid-cols-[max-content_minmax(0,1fr)]"} lg:items-end`}>
               <div className={`min-h-0 min-w-0 overflow-hidden ${shouldShowFirstFramePanel ? "flex items-end gap-4" : "flex items-end justify-center"}`}>
                 {shouldShowFirstFramePanel ? (
                   <label
@@ -569,8 +567,32 @@ export default function VideoAssetDetailsModal({
               </div>
             </div>
           </motion.div>
+  ) : null;
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <AnimatePresence>
+      {content ? (
+        <motion.div
+          className="assets-modal assets-video-details fixed inset-0 z-50 flex items-center justify-center p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <motion.div
+            className="assets-modal-backdrop absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={onClose}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+          {content}
         </motion.div>
-      )}
+      ) : null}
     </AnimatePresence>
   );
 }

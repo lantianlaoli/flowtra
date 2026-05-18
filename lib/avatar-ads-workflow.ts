@@ -222,6 +222,22 @@ export const compileAvatarAdsMentionText = (value: string) => {
   });
 };
 
+export const buildSeedanceAvatarAdsVideoInput = (input: {
+  prompt: string;
+  referenceImageUrls: string[];
+  durationSeconds: number;
+}) => ({
+  prompt: input.prompt,
+  reference_image_urls: input.referenceImageUrls.filter(
+    (url) => typeof url === 'string' && url.trim().length > 0
+  ),
+  aspect_ratio: '9:16' as const,
+  duration: input.durationSeconds,
+  resolution: '720p' as const,
+  generate_audio: true,
+  web_search: true,
+});
+
 const getAvatarAdsModelSceneDurationRule = (
   model: 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27'
 ) => {
@@ -389,7 +405,10 @@ export const buildAvatarAdsVideoExecutionPrompt = (
   const resolvedLanguage = validLanguageCodes.includes(resolvedLanguageRaw as LanguageCode)
     ? resolvedLanguageRaw as LanguageCode
     : 'en';
-  const durationSeconds = Math.max(2, Math.round(options?.durationSeconds || 8));
+  if (!options?.durationSeconds || !Number.isFinite(options.durationSeconds)) {
+    throw new Error('Avatar Ads execution prompt requires an explicit duration.');
+  }
+  const durationSeconds = Math.max(2, Math.round(options.durationSeconds));
   const hasStructuredDialog = isAvatarStructuredDialog(promptObj.dialog);
   const hasStructuredAction = isAvatarStructuredAction(promptObj.action);
   const hasStructuredFields = Boolean(
@@ -1432,16 +1451,11 @@ export async function generateVideoWithKIE(
     return {
       model: resolvedModel === 'seedance_2_fast' ? 'bytedance/seedance-2-fast' : 'bytedance/seedance-2',
       ...(callBackUrl ? { callBackUrl } : {}),
-      input: {
+      input: buildSeedanceAvatarAdsVideoInput({
         prompt: finalPrompt,
-        ...(firstFrameUrl ? { first_frame_url: firstFrameUrl } : {}),
-        ...(lastFrameUrl ? { last_frame_url: lastFrameUrl } : {}),
-        aspect_ratio: '9:16',
-        duration: durationSeconds,
-        resolution: '720p',
-        generate_audio: true,
-        web_search: true,
-      }
+        referenceImageUrls: selectedReferenceImages,
+        durationSeconds,
+      })
     };
   })();
 
@@ -2226,7 +2240,7 @@ export async function processAvatarAdsProject(
           // Check if we need to merge videos (single-scene vs multi-scene)
           const videoScenes = promptScenes.length;
           if (videoScenes === 1) {
-            // For 8-second videos, use the single generated video directly
+            // For single-scene videos, use the generated video directly.
             const { data: updatedProject, error } = await supabase
               .from('avatar_ads_projects')
               .update({

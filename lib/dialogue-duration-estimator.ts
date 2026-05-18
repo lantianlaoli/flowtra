@@ -127,7 +127,7 @@ export function getMaxDialogueLength(durationSeconds: number, languageCode: stri
 /**
  * Validates if a dialogue fits within the target duration
  * @param dialogue - The dialogue text
- * @param targetDurationSeconds - Target duration (e.g., 8 seconds)
+ * @param targetDurationSeconds - Target duration in seconds
  * @param languageCode - ISO language code
  * @param tolerance - Acceptable variance (default: 0.5 seconds)
  * @returns Validation result with estimated duration and fit status
@@ -171,13 +171,13 @@ export function validateDialogueDuration(
 /**
  * Generates AI prompt guidance for optimal dialogue length
  * @param segmentCount - Number of video segments
- * @param segmentDuration - Duration per segment (default: 8 seconds)
+ * @param segmentDuration - Duration per segment
  * @param languageCode - ISO language code
  * @returns Prompt text with specific word/character count guidance
  */
 export function generateDialogueLengthGuidance(
   segmentCount: number,
-  segmentDuration: number = 8,
+  segmentDuration: number,
   languageCode: string = 'en'
 ): string {
   const maxLength = getMaxDialogueLength(segmentDuration, languageCode);
@@ -227,13 +227,13 @@ If user provides a script longer than ${maxChars * segmentCount} characters tota
 /**
  * Validates an entire scene array for dialogue duration
  * @param scenes - Array of scene objects with dialogue
- * @param segmentDuration - Duration per segment (default: 8 seconds)
+ * @param segmentDuration - Duration per segment
  * @param languageCode - ISO language code
  * @returns Validation report for all scenes
  */
 export function validateSceneDurations(
   scenes: Array<{ scene: number; prompt: { dialog?: string } }>,
-  segmentDuration: number = 8,
+  segmentDuration: number,
   languageCode: string = 'en'
 ): {
   allValid: boolean;

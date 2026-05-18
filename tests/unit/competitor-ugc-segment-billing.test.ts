@@ -55,9 +55,9 @@ test('getEffectiveSegmentDurationSeconds falls back to summed time ranges', () =
   assert.equal(duration, 5);
 });
 
-test('getEffectiveSegmentDurationSeconds uses fallback when shots are missing', () => {
+test('getEffectiveSegmentDurationSeconds only uses explicit fallbacks when shots are missing', () => {
   assert.equal(getEffectiveSegmentDurationSeconds([], 12), 12);
-  assert.equal(getEffectiveSegmentDurationSeconds(undefined, 0), 8);
+  assert.equal(getEffectiveSegmentDurationSeconds(undefined, 0), 0);
 });
 
 test('getSegmentPromptVideoGenerationCost uses parsed segment duration', () => {

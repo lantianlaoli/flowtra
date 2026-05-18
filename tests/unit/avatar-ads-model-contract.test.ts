@@ -26,6 +26,12 @@ test('seedance2 pricing is per-second with configured costs', () => {
   assert.equal(getGenerationCost('seedance_2', '15'), 15 * 41);
 });
 
+test('modern model pricing does not invent legacy 8 second defaults when duration is missing', () => {
+  assert.equal(getGenerationCost('seedance_2_fast'), 0);
+  assert.equal(getGenerationCost('seedance_2'), 0);
+  assert.equal(getGenerationCost('kling_3'), 0);
+});
+
 test('seedance and kling segment duration is 15 seconds', () => {
   assert.equal(getSegmentDurationForModel('seedance_2_fast'), 15);
   assert.equal(getSegmentDurationForModel('seedance_2'), 15);

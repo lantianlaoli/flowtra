@@ -3525,9 +3525,9 @@ body {
 @container project-agent-canvas (max-width: 1040px) {
   .project-agent-canvas-actions {
     top: 1rem !important;
-    right: 1rem !important;
+    right: auto !important;
     bottom: auto !important;
-    left: auto !important;
+    left: 1rem !important;
     gap: 0.375rem !important;
   }
 
@@ -3557,6 +3557,13 @@ body {
     justify-content: center !important;
     gap: 0 !important;
     padding-inline: 0 !important;
+  }
+}
+
+@container project-agent-canvas (max-width: 760px) {
+  .project-agent-canvas-actions {
+    flex-direction: column !important;
+    align-items: flex-start !important;
   }
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Loader2, Package, ExternalLink, Plus, UserCircle, Video } from 'lucide-react';
 import { UserProduct, UserAvatar } from '@/lib/supabase';
@@ -18,6 +18,7 @@ import SystemProductDetailsModal from './SystemProductDetailsModal';
 import VideoImportModal from './VideoImportModal';
 import VideoAssetCard from './VideoAssetCard';
 import VideoAssetDetailsModal from './VideoAssetDetailsModal';
+import { getAssetsDetailSurfaceMode } from '@/lib/assets-detail-surface';
 
 interface CreatorSourceVideo {
   id: string;
@@ -87,7 +88,7 @@ const dedupeVideoAssets = (videos: VideoAsset[]): VideoAsset[] => {
   return Array.from(uniqueVideos.values());
 };
 
-export default function AssetsManager() {
+export default function AssetsManager({ embedded = false, active = true }: { embedded?: boolean; active?: boolean } = {}) {
   const { messages } = useI18n();
   const assetsMessages = messages.dashboard.assets;
   const { showSuccess, showError } = useToast();
@@ -119,11 +120,22 @@ export default function AssetsManager() {
   const [showVideoImportModal, setShowVideoImportModal] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<VideoAsset | null>(null);
   const [showVideoDetails, setShowVideoDetails] = useState(false);
+  const detailSurfaceMode = getAssetsDetailSurfaceMode(embedded);
+  const hasLoadedRef = useRef(false);
+  const wasActiveRef = useRef(active);
 
   useEffect(() => {
     loadAssets();
     loadAvatars();
   }, []);
+
+  useEffect(() => {
+    const becameActive = active && !wasActiveRef.current;
+    wasActiveRef.current = active;
+    if (!becameActive || !hasLoadedRef.current) return;
+    void loadAssets();
+    void loadAvatars();
+  }, [active]);
 
   useEffect(() => {
     if (!editingProduct) return;
@@ -155,6 +167,7 @@ export default function AssetsManager() {
       console.error('Error loading assets:', error);
     } finally {
       setIsLoading(false);
+      hasLoadedRef.current = true;
     }
   };
 
@@ -528,6 +541,74 @@ export default function AssetsManager() {
         </div>
       </div>
     );
+  }
+
+  if (detailSurfaceMode === 'embedded') {
+    if (editingProduct) {
+      return (
+        <EditProductModal
+          isOpen
+          embedded
+          product={editingProduct}
+          onClose={() => setEditingProduct(null)}
+          onProductUpdated={handleProductUpdated}
+          onDelete={handleDeleteProduct}
+          onPhotoUpload={handlePhotoUpload}
+          onDeletePhoto={handleDeletePhoto}
+          isDeleting={deletingProductId === editingProduct.id}
+        />
+      );
+    }
+
+    if (editingAvatar) {
+      return (
+        <EditAvatarModal
+          isOpen
+          embedded
+          avatar={editingAvatar}
+          onClose={() => setEditingAvatar(null)}
+          onAvatarUpdated={handleAvatarUpdated}
+          onDelete={handleDeleteAvatar}
+          isDeleting={deletingAvatarId === editingAvatar.id}
+        />
+      );
+    }
+
+    if (systemAvatarDetails) {
+      return (
+        <SystemAvatarDetailsModal
+          isOpen
+          embedded
+          avatar={systemAvatarDetails}
+          onClose={() => setSystemAvatarDetails(null)}
+        />
+      );
+    }
+
+    if (systemProductDetails) {
+      return (
+        <SystemProductDetailsModal
+          isOpen
+          embedded
+          product={systemProductDetails}
+          onClose={() => setSystemProductDetails(null)}
+        />
+      );
+    }
+
+    if (showVideoDetails && selectedVideo) {
+      return (
+        <VideoAssetDetailsModal
+          isOpen
+          embedded
+          onClose={() => setShowVideoDetails(false)}
+          video={selectedVideo}
+          onDeleteVideo={handleDeleteVideo}
+          onVideoUpdated={handleVideoUpdated}
+          onContinueInAgentFeatures={handleContinueVideoInAgentFeatures}
+        />
+      );
+    }
   }
 
   return (

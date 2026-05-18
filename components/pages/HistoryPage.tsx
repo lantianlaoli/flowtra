@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import { useUser } from '@clerk/nextjs';
 import { useCredits } from '@/contexts/CreditsContext';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import Sidebar from '@/components/layout/Sidebar';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
-import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, HelpCircle, Download, Check, Droplets, AlertCircle, Volume2, Send, ArrowRight, Shuffle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Coins, FileVideo, RotateCcw, Loader2, Play, Image as ImageIcon, Video as VideoIcon, Download, Check, CheckCircle2, Droplets, AlertCircle, Volume2, Send, ArrowRight, Shuffle } from 'lucide-react';
 import { getCreditCost, type HighResResolution, type VideoModel } from '@/lib/constants';
 import { isMyAdExpired, MY_ADS_RETENTION_DAYS } from '@/lib/my-ads-retention';
 import { cn } from '@/lib/utils';
@@ -15,11 +15,13 @@ import VideoPlayer from '@/components/ui/VideoPlayer';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import VideoDetailsModal from '@/components/VideoDetailsModal';
+import { getMyAdsDetailSurfaceMode } from '@/lib/my-ads-detail-surface';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import { useToast } from '@/contexts/ToastContext';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { trackEvent } from '@/lib/analytics/client';
+import { getMyAdsStatusPresentation, shouldShowMyAdsTypeFilters } from '@/lib/my-ads-list-presentation';
 
 interface VideoCloneItem {
   id: string;
@@ -158,7 +160,7 @@ const getBaseDownloadCost = (model: VideoModel) => {
 };
 
 
-export default function HistoryPage() {
+export default function HistoryPage({ embedded = false, active = true }: { embedded?: boolean; active?: boolean } = {}) {
   const { user, isLoaded } = useUser();
   const supabase = useSupabaseBrowserClient();
   const router = useRouter();
@@ -181,6 +183,14 @@ export default function HistoryPage() {
   const [selectedItem, setSelectedItem] = useState<HistoryItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModalDownloading, setIsModalDownloading] = useState(false);
+  const detailSurfaceMode = getMyAdsDetailSurfaceMode(embedded);
+  const hasLoadedRef = useRef(false);
+  const wasActiveRef = useRef(active);
+  const currentPageRef = useRef(currentPage);
+
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
 
   // Helper function to get aspect ratio class
   const getAspectRatioClass = (aspectRatio?: string) => {
@@ -271,11 +281,12 @@ export default function HistoryPage() {
     }
   }, [isLoaded, user]);
 
-  useEffect(() => {
-    const fetchHistory = async () => {
+  const fetchHistory = useCallback(async ({ showLoading = false }: { showLoading?: boolean } = {}) => {
       if (!user?.id) return;
 
-      setIsLoading(true);
+      if (showLoading) {
+        setIsLoading(true);
+      }
       try {
         const videoResponse = await fetch('/api/history');
         const videoResult = await videoResponse.json();
@@ -291,15 +302,22 @@ export default function HistoryPage() {
 
         setHistory(combinedHistory);
 
-        // Reset visible items when data changes
-        setVisibleItems(new Set());
+        // Only replay the entrance animation on the first visible load.
+        if (showLoading) {
+          setVisibleItems(new Set());
+        }
 
-        // Progressively show items with staggered animation
         if (combinedHistory.length > 0) {
-          combinedHistory.slice(0, Math.min(currentPage * ITEMS_PER_PAGE, combinedHistory.length)).forEach((item, index) => {
-            setTimeout(() => {
-              setVisibleItems(prev => new Set([...prev, item.id]));
-            }, index * 100); // 100ms delay between each item
+          const visibleCount = currentPageRef.current * ITEMS_PER_PAGE;
+          combinedHistory.slice(0, Math.min(visibleCount, combinedHistory.length)).forEach((item, index) => {
+            if (showLoading) {
+              setTimeout(() => {
+                setVisibleItems(prev => new Set([...prev, item.id]));
+              }, index * 100); // 100ms delay between each item
+              return;
+            }
+
+            setVisibleItems(prev => new Set([...prev, item.id]));
           });
         }
       } catch (error) {
@@ -307,12 +325,20 @@ export default function HistoryPage() {
         setHistory([]);
       } finally {
         setIsLoading(false);
+        hasLoadedRef.current = true;
       }
-    };
-
-    fetchHistory();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  useEffect(() => {
+    void fetchHistory({ showLoading: true });
+  }, [fetchHistory]);
+
+  useEffect(() => {
+    const becameActive = active && !wasActiveRef.current;
+    wasActiveRef.current = active;
+    if (!becameActive || !hasLoadedRef.current) return;
+    void fetchHistory();
+  }, [active, fetchHistory]);
 
   // Poll for processing updates while there are in-progress items
   const hasProcessing = history.some(h => h.status === 'processing');
@@ -466,30 +492,65 @@ export default function HistoryPage() {
 
 
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'Completed';
-      case 'processing':
-        return 'Processing';
-      case 'failed':
-        return 'Failed';
-      default:
-        return status;
-    }
-  };
+  const renderStatusIcon = (item: HistoryItem) => {
+    const presentation = getMyAdsStatusPresentation(item.status);
 
-  const getStatusBadgeClasses = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-primary text-primary-foreground border border-primary';
-      case 'processing':
-        return 'bg-muted text-foreground border border-border';
-      case 'failed':
-        return 'bg-red-950/40 text-red-200 border border-red-900/40';
-      default:
-        return 'bg-muted text-muted-foreground border border-border';
+    if (presentation.icon === 'completed') {
+      return (
+        <span
+          aria-label={presentation.label}
+          title={presentation.label}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-white/92 text-black shadow-sm backdrop-blur"
+        >
+          <CheckCircle2 className="h-4 w-4" />
+        </span>
+      );
     }
+
+    if (presentation.icon === 'processing') {
+      return (
+        <span
+          aria-label={presentation.label}
+          title={presentation.label}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-white/92 text-black shadow-sm backdrop-blur"
+        >
+          <Loader2 className="h-4 w-4 animate-spin" />
+        </span>
+      );
+    }
+
+    return (
+      <div className="group relative pointer-events-auto">
+        <button
+          type="button"
+          aria-label={presentation.label}
+          title={presentation.label}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-red-200 bg-white/95 text-red-600 shadow-sm backdrop-blur"
+        >
+          <AlertCircle className="h-4 w-4" />
+        </button>
+        <div className="absolute left-0 top-full mt-2 w-64 rounded-lg bg-foreground p-3 text-xs leading-relaxed text-background opacity-0 shadow-lg transition-opacity duration-150 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 z-50">
+          <div className="mb-2 font-semibold">Generation Failed</div>
+          <p className="mb-3">
+            {('coverImageUrl' in item && item.coverImageUrl)
+              ? 'Video generation failed, but your cover image is ready to download.'
+              : 'Generation failed due to technical issues. Please try again with a different product photo.'}
+          </p>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push('/dashboard/support');
+            }}
+            className={cn(
+              'w-full rounded bg-background/20 px-2 py-1.5 text-xs transition-colors hover:bg-background/30',
+              interactiveCardActionClasses
+            )}
+          >
+            Contact Support →
+          </button>
+        </div>
+      </div>
+    );
   };
 
   // const getStepLabel = (step?: string) => {
@@ -631,8 +692,8 @@ export default function HistoryPage() {
           userId: user.id,
         };
 
-        if (isCharacterAds(item)) {
-          fields.videoDurationSeconds = String(item.videoDurationSeconds || 8);
+        if (isCharacterAds(item) && item.videoDurationSeconds) {
+          fields.videoDurationSeconds = String(item.videoDurationSeconds);
         }
 
         startDownloadForm(apiEndpoint, fields);
@@ -919,7 +980,9 @@ export default function HistoryPage() {
       project_id: item.id,
     });
     setSelectedItem(item);
-    setIsModalOpen(true);
+    if (detailSurfaceMode === 'modal') {
+      setIsModalOpen(true);
+    }
   };
 
   // Handler for downloading video from modal
@@ -932,22 +995,27 @@ export default function HistoryPage() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-background">
-      <Sidebar
-        credits={userCredits}
-        creditsData={creditsData}
-        userEmail={user?.primaryEmailAddress?.emailAddress}
-        userImageUrl={user?.imageUrl}
-      />
-
-      <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen ">
-        <div className="px-6 md:px-8 pb-6 md:pb-8 max-w-[1280px] mx-auto pt-14 md:pt-8">
+  const content = detailSurfaceMode === 'embedded' && selectedItem ? (
+    <VideoDetailsModal
+      isOpen
+      embedded
+      onClose={() => setSelectedItem(null)}
+      item={selectedItem}
+      onDownload={handleModalDownload}
+      isDownloading={isModalDownloading}
+      isExpired={isMyAdExpired(selectedItem.createdAt)}
+    />
+  ) : (
+    <>
+      <div className={embedded
+        ? 'px-5 py-4 md:px-6'
+        : 'px-6 md:px-8 pb-6 md:pb-8 max-w-[1280px] mx-auto pt-14 md:pt-8'}
+      >
           {/* Header Section */}
-          <div className="mb-12">
+          <div className={embedded ? 'mb-5' : 'mb-12'}>
             <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
               {/* Title */}
-              <div>
+              <div className={embedded ? 'hidden' : undefined}>
                 <h1 className="text-4xl md:text-5xl font-bold text-foreground tracking-tight mb-3">
                   My Ads
                 </h1>
@@ -957,7 +1025,7 @@ export default function HistoryPage() {
               </div>
 
               {/* Warning Notice */}
-              <div className="md:max-w-xl">
+              <div className={embedded ? 'hidden' : 'md:max-w-xl'}>
                 <div className="rounded-2xl border border-red-200/80 bg-white px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.04)]">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600 ring-1 ring-red-100">
@@ -972,32 +1040,33 @@ export default function HistoryPage() {
             </div>
           </div>
 
-          {/* Filter Controls */}
-          <div className="mb-8">
-            <div className="inline-flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background p-2">
-              {AD_TYPE_OPTIONS.map((option) => {
-                const isActive = adTypeFilter === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    title={option.description}
-                    onClick={() => setAdTypeFilter(option.value)}
-                    aria-pressed={isActive}
-                    className={cn(
-                      'my-ads-button inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20',
-                      isActive
-                        ? 'my-ads-button--primary bg-primary text-primary-foreground border-primary'
-                        : 'my-ads-button--secondary bg-background text-foreground border-border hover:border-foreground'
-                    )}
-                  >
-                    <option.icon className="h-4 w-4" />
-                    <span>{option.label}</span>
-                  </button>
-                );
-              })}
+          {shouldShowMyAdsTypeFilters(embedded) ? (
+            <div className="mb-8">
+              <div className="inline-flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background p-2">
+                {AD_TYPE_OPTIONS.map((option) => {
+                  const isActive = adTypeFilter === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      title={option.description}
+                      onClick={() => setAdTypeFilter(option.value)}
+                      aria-pressed={isActive}
+                      className={cn(
+                        'my-ads-button inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20',
+                        isActive
+                          ? 'my-ads-button--primary bg-primary text-primary-foreground border-primary'
+                          : 'my-ads-button--secondary bg-background text-foreground border-border hover:border-foreground'
+                      )}
+                    >
+                      <option.icon className="h-4 w-4" />
+                      <span>{option.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          ) : null}
 
           {/* Projects Grid */}
           {isLoading ? (
@@ -1049,44 +1118,9 @@ export default function HistoryPage() {
                     className="relative bg-muted border border-border rounded-lg overflow-hidden hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] transition-shadow duration-200 flex flex-col"
                     style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
                   >
-                    {/* Status Badges */}
-                    <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-none z-20">
-                      <span
-                        className={cn(
-                          'px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1 pointer-events-auto',
-                          getStatusBadgeClasses(item.status)
-                        )}
-                      >
-                        {getStatusText(item.status)}
-                        {item.status === 'failed' && (
-                          <div className="group">
-                            <HelpCircle className="w-3.5 h-3.5" aria-label="Failed generation details" />
-                            <div className="absolute left-0 top-full mt-2 w-64 rounded-lg bg-foreground text-background text-xs leading-relaxed p-3 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-auto z-50">
-                              <div className="font-semibold mb-2">Generation Failed</div>
-                              <p className="mb-3">
-                                {('coverImageUrl' in item && item.coverImageUrl)
-                                  ? 'Video generation failed, but your cover image is ready to download.'
-                                  : 'Generation failed due to technical issues. Please try again with a different product photo.'}
-                              </p>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  router.push('/dashboard/support');
-                                }}
-                                className={cn(
-                                  'w-full text-xs bg-background/20 hover:bg-background/30 px-2 py-1.5 rounded transition-colors',
-                                  interactiveCardActionClasses
-                                )}
-                              >
-                                Contact Support →
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </span>
-                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-background text-foreground border border-border">
-                        {isCharacterAds(item) ? 'Character' : isMotionClone(item) ? 'Motion Clone' : 'UGC Clone'}
-                      </span>
+                    {/* Status */}
+                    <div className="pointer-events-none absolute left-3 top-3 z-20">
+                      {renderStatusIcon(item)}
                     </div>
 
                     {/* Video Preview */}
@@ -1299,11 +1333,10 @@ export default function HistoryPage() {
               )}
             </>
           )}
-        </div>
-      </DashboardContentTransition>
-
+      </div>
       {/* Video Details Modal */}
-      <VideoDetailsModal
+      {detailSurfaceMode === 'modal' ? (
+        <VideoDetailsModal
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
@@ -1313,7 +1346,27 @@ export default function HistoryPage() {
         onDownload={handleModalDownload}
         isDownloading={isModalDownloading}
         isExpired={selectedItem ? isMyAdExpired(selectedItem.createdAt) : false}
+        />
+      ) : null}
+    </>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Sidebar
+        credits={userCredits}
+        creditsData={creditsData}
+        userEmail={user?.primaryEmailAddress?.emailAddress}
+        userImageUrl={user?.imageUrl}
       />
+
+      <DashboardContentTransition className="dashboard-content-offset ml-0 bg-background min-h-screen ">
+        {content}
+      </DashboardContentTransition>
     </div>
   );
 }

@@ -70,6 +70,38 @@ export async function POST(request: NextRequest) {
     requestData.selectedAvatarId = requestData.selectedAvatarId || requestData.selectedAvatarIds[0];
     requestData.selectedProductId = requestData.selectedProductId || requestData.selectedProductIds[0];
 
+    if (requestData.executionMode === 'edit_video') {
+      const prompt = requestData.editVideoPrompt?.trim();
+      const sourceUrl = requestData.editVideoSourceUrl?.trim();
+      const durationSeconds = Number(requestData.videoDuration);
+
+      if (!prompt) {
+        return NextResponse.json({ error: 'Edit-video prompt is required' }, { status: 400 });
+      }
+
+      if (!sourceUrl) {
+        return NextResponse.json({ error: 'Edit-video source video URL is required' }, { status: 400 });
+      }
+
+      if (!Number.isFinite(durationSeconds) || durationSeconds < 2 || durationSeconds > 15) {
+        return NextResponse.json(
+          { error: 'Edit-video source duration must be between 2 and 15 seconds' },
+          { status: 400 }
+        );
+      }
+
+      if (requestData.videoModel !== 'seedance_2' && requestData.videoModel !== 'seedance_2_fast') {
+        return NextResponse.json(
+          { error: 'Edit-video mode supports Seedance 2 models only' },
+          { status: 400 }
+        );
+      }
+
+      requestData.editVideoPrompt = prompt;
+      requestData.editVideoSourceUrl = sourceUrl;
+      requestData.requestSource = 'project_agent_edit_video';
+    }
+
     // Validate custom script mode
     if (requestData.useCustomScript) {
       const trimmedScript = requestData.customScript?.trim();
@@ -138,14 +170,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!requestData.referenceVideoId && !requestData.creatorSourceVideoId) {
+    if (
+      requestData.executionMode !== 'edit_video' &&
+      !requestData.referenceVideoId &&
+      !requestData.creatorSourceVideoId
+    ) {
       return NextResponse.json(
         { error: 'Reference video is required' },
         { status: 400 }
       );
     }
 
-    if (requestData.creatorSourceVideoId) {
+    if (requestData.executionMode !== 'edit_video' && requestData.creatorSourceVideoId) {
       const supabase = getSupabaseAdmin();
       // Schema verified via Supabase MCP (2026-01-28): creator_source_videos includes id, source_id, analysis_result
       let referenceVideo: { id: string; analysis_result: unknown; analysis_status: unknown } | null = null;
@@ -207,8 +243,16 @@ export async function POST(request: NextRequest) {
           video_model: requestData.videoModel,
           duration_seconds: Number(requestData.videoDuration || 0) || undefined,
           aspect_ratio: requestData.videoAspectRatio,
-          workflow: requestData.photoOnly ? 'replica_photo' : 'clone_video',
-          source_type: requestData.creatorSourceVideoId ? 'creator' : 'reference_video',
+          workflow: requestData.executionMode === 'edit_video'
+            ? 'edit_video'
+            : requestData.photoOnly
+              ? 'replica_photo'
+              : 'clone_video',
+          source_type: requestData.executionMode === 'edit_video'
+            ? 'source_video'
+            : requestData.creatorSourceVideoId
+              ? 'creator'
+              : 'reference_video',
         }
       });
       return NextResponse.json(result);

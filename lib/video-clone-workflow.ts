@@ -11,10 +11,10 @@ import {
   getSegmentCountFromDuration,
   getSegmentDurationForModel,
   getReplicaPhotoCredits,
-  DEFAULT_SEGMENT_DURATION_SECONDS,
   KLING_MAX_TASK_DURATION_SECONDS,
   KLING_MAX_PROJECT_DURATION_SECONDS,
   KLING_MIN_TASK_DURATION_SECONDS,
+  SEEDANCE_MIN_TASK_DURATION_SECONDS,
   mapCloneQualityToKlingMode,
   mapCloneQualityToSeedanceResolution,
   normalizeCloneVideoQualityForModel,
@@ -122,7 +122,10 @@ export interface StartWorkflowRequest {
   customScript?: string; // User-provided video script for direct video generation
   useCustomScript?: boolean; // Flag to enable custom script mode
   resolvedVideoModel?: VideoModel;
-  requestSource?: 'project_agent_clone' | 'default';
+  requestSource?: 'project_agent_clone' | 'project_agent_edit_video' | 'default';
+  executionMode?: 'clone' | 'edit_video';
+  editVideoPrompt?: string;
+  editVideoSourceUrl?: string;
   supplementalText?: string;
   segmentPrompts?: Array<{
     first_frame_description?: string;
@@ -725,7 +728,7 @@ const convertReferenceVideoShotToSegmentShot = (
   shot: ReferenceVideoShot,
   fallbackDuration: number
 ): SegmentShot => {
-  // Each segment is independent with 0-8s timing (segment-relative, not source-video absolute timing)
+  // Each segment is independent with segment-relative timing, not source-video absolute timing.
   const startSeconds = 0;
   const durationSeconds = fallbackDuration; // Use segment duration directly (model-relative duration)
   const endSeconds = startSeconds + durationSeconds;
@@ -759,7 +762,10 @@ const normalizeSegmentShots = (
 ): SegmentShot[] => {
   const duration = Number.isFinite(segmentDurationSeconds) && segmentDurationSeconds > 0
     ? segmentDurationSeconds
-    : DEFAULT_SEGMENT_DURATION_SECONDS;
+    : 0;
+  if (duration <= 0) {
+    throw new Error('Segment duration is required for shot normalization.');
+  }
 
   // CRITICAL FIX: When a reference shot is provided, use ONLY that shot
   // Do NOT process rawShots which may contain all shots from the full timeline
@@ -1162,7 +1168,10 @@ export function buildManualCloneSeedPrompts(options: {
   }
 
   if (videoModel === 'kling_3') {
-    const klingTargetDuration = Number(videoDuration || referenceTotalDurationSeconds || 8);
+    const klingTargetDuration = Number(videoDuration || referenceTotalDurationSeconds || 0);
+    if (!Number.isFinite(klingTargetDuration) || klingTargetDuration <= 0) {
+      throw new Error('Kling segment planning requires a video duration.');
+    }
     const plannedKlingSegments = planKlingSegmentsFromShots(referenceVideoShots, klingTargetDuration);
     return buildSegmentPlanFromKlingSegments(
       plannedKlingSegments,
@@ -1192,15 +1201,18 @@ function alignKlingPromptsToPlan(
     prompts,
     plannedSegments.length,
     undefined,
-    DEFAULT_SEGMENT_DURATION_SECONDS
+    plannedSegments[0]?.durationSeconds
   );
 
   return plannedBase.map((plannedSegment, segmentIndex) => {
     const aiSegment = aiBase[segmentIndex] || aiBase[aiBase.length - 1];
     const plannedShots = Array.isArray(plannedSegment.shots) && plannedSegment.shots.length > 0
       ? plannedSegment.shots
-      : [buildFallbackShot(1, defaultLanguage, plannedSegment, plannedSegments[segmentIndex]?.durationSeconds || DEFAULT_SEGMENT_DURATION_SECONDS)];
-    const targetDuration = plannedSegments[segmentIndex]?.durationSeconds || plannedShots[0]?.duration_seconds || DEFAULT_SEGMENT_DURATION_SECONDS;
+      : [buildFallbackShot(1, defaultLanguage, plannedSegment, plannedSegments[segmentIndex]?.durationSeconds || 0)];
+    const targetDuration = plannedSegments[segmentIndex]?.durationSeconds || plannedShots[0]?.duration_seconds || 0;
+    if (targetDuration <= 0) {
+      throw new Error('Kling segment plan is missing duration.');
+    }
     const targetShotCount = Math.max(1, plannedShots.length);
     const aiShots = Array.isArray(aiSegment?.shots) ? aiSegment.shots : [];
     const perShotDuration = targetDuration / targetShotCount;
@@ -1261,6 +1273,10 @@ function alignKlingPromptsToPlan(
 export async function startWorkflowProcess(request: StartWorkflowRequest): Promise<WorkflowResult> {
   try {
     const supabase = getSupabaseAdmin();
+
+    if (request.executionMode === 'edit_video') {
+      return startEditVideoWorkflow(request);
+    }
 
     let imageUrl = request.imageUrl;
     const productContext = { product_name: '' };
@@ -1456,7 +1472,10 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     console.log(`   - User segment count (from duration): ${userSegmentCount}`);
 
     if (actualVideoModel === 'kling_3') {
-      const klingTargetDuration = Number(request.videoDuration || referenceVideoShotTimeline?.totalDurationSeconds || 8);
+      const klingTargetDuration = Number(request.videoDuration || referenceVideoShotTimeline?.totalDurationSeconds || 0);
+      if (!Number.isFinite(klingTargetDuration) || klingTargetDuration <= 0) {
+        throw new Error('Kling clone requires a video duration.');
+      }
       plannedKlingSegments = planKlingSegmentsFromShots(
         referenceVideoShotTimeline?.shots || [],
         klingTargetDuration
@@ -1603,7 +1622,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         duration,
         units: actualVideoModel === 'kling_3'
           ? `${Math.ceil(Number(duration || '0') || 0)}s`
-          : `${Math.ceil(Number(duration || '0') / 8)} segments`,
+          : `${Math.ceil(Number(duration || '0') / getSegmentDurationForModel(actualVideoModel))} segments`,
         unitCost: GENERATION_COSTS[actualVideoModel],
         totalCost: generationCost
       });
@@ -1683,7 +1702,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         : generationCost,
       language: request.language || 'en', // Language for AI-generated content
       // Generic video fields
-      video_duration: duration || '8',
+      video_duration: duration,
       video_quality: quality,
       // DEPRECATED: download_credits_used (downloads are now free)
       download_credits_used: 0,
@@ -2074,7 +2093,10 @@ async function startAIWorkflow(
       );
       referenceVideoTimelineShots = parsedTimeline.shots;
       if (request.resolvedVideoModel === 'kling_3') {
-        const klingTargetDuration = Number(request.videoDuration || parsedTimeline.videoDurationSeconds || 8);
+        const klingTargetDuration = Number(request.videoDuration || parsedTimeline.videoDurationSeconds || 0);
+        if (!Number.isFinite(klingTargetDuration) || klingTargetDuration <= 0) {
+          throw new Error('Kling clone requires a video duration.');
+        }
         plannedKlingSegments = planKlingSegmentsFromShots(parsedTimeline.shots, klingTargetDuration);
       }
 
@@ -2093,7 +2115,11 @@ async function startAIWorkflow(
     }
 
     if (request.resolvedVideoModel === 'kling_3' && !plannedKlingSegments) {
-      plannedKlingSegments = planKlingSegmentsFromShots([], Number(request.videoDuration || 8));
+      const klingTargetDuration = Number(request.videoDuration || 0);
+      if (!Number.isFinite(klingTargetDuration) || klingTargetDuration <= 0) {
+        throw new Error('Kling clone requires a video duration.');
+      }
+      plannedKlingSegments = planKlingSegmentsFromShots([], klingTargetDuration);
     }
 
     const overrideSegmentCount = hasSegmentPromptOverrides ? request.segmentPrompts!.length : 0;
@@ -2110,9 +2136,12 @@ async function startAIWorkflow(
       request.videoDuration = String(overrideTotalDurationSeconds) as VideoDuration;
     }
     const totalDurationSeconds = parseInt(
-      request.videoDuration || String(overrideTotalDurationSeconds || Math.max(1, overrideSegmentCount) * 8),
+      request.videoDuration || String(overrideTotalDurationSeconds || 0),
       10
     );
+    if (!Number.isFinite(totalDurationSeconds) || totalDurationSeconds <= 0) {
+      throw new Error('Video duration is required before starting generation.');
+    }
     const segmentedFlow = request.resolvedVideoModel === 'kling_3'
       ? true
       : isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
@@ -2707,8 +2736,11 @@ async function generateImageBasedPrompts(
   console.log(`[generateImageBasedPrompts] Step 2: Generating prompts for our product${referenceVideoDescription ? ' (reference-video mode)' : ' (traditional mode)'}${!imageUrl ? ' (no product image provided)' : ''}`);
 
 
-  const duration = Number.isFinite(videoDurationSeconds) && videoDurationSeconds ? videoDurationSeconds : 10;
-  const minDurationForModel = videoModel === 'kling_3' ? KLING_MIN_TASK_DURATION_SECONDS : DEFAULT_SEGMENT_DURATION_SECONDS;
+  const duration = Number.isFinite(videoDurationSeconds) && videoDurationSeconds ? videoDurationSeconds : 0;
+  if (duration <= 0) {
+    throw new Error('Video duration is required to generate image-based prompts.');
+  }
+  const minDurationForModel = videoModel === 'kling_3' ? KLING_MIN_TASK_DURATION_SECONDS : SEEDANCE_MIN_TASK_DURATION_SECONDS;
   const maxDurationForModel = videoModel === 'kling_3' ? KLING_MAX_TASK_DURATION_SECONDS : 64;
   const perSegmentDuration = Math.max(
     minDurationForModel,
@@ -3273,7 +3305,10 @@ export function normalizeSegmentPrompts(
 
   const durationPerSegment = Number.isFinite(segmentDurationSeconds) && segmentDurationSeconds
     ? Number(segmentDurationSeconds)
-    : DEFAULT_SEGMENT_DURATION_SECONDS;
+    : 0;
+  if (durationPerSegment <= 0) {
+    throw new Error('Segment duration is required to normalize prompts.');
+  }
 
   const normalized: SegmentPrompt[] = [];
 
@@ -3526,14 +3561,52 @@ export function buildSegmentPlanFromReferenceVideoShots(segmentCount: number, re
     ? referenceVideoShots
     : compressReferenceVideoShotsToSegments(referenceVideoShots, segmentCount);
 
-  const totalDuration = effectiveShots.reduce((sum, shot) => sum + (shot.durationSeconds || DEFAULT_SEGMENT_DURATION_SECONDS), 0);
-  const perSegmentDuration = segmentCount > 0 ? Math.max(1, Math.round(totalDuration / segmentCount)) : DEFAULT_SEGMENT_DURATION_SECONDS;
+  const totalDuration = effectiveShots.reduce((sum, shot) => sum + (shot.durationSeconds || 0), 0);
+  if (totalDuration <= 0) {
+    throw new Error('Reference video shots are missing durations.');
+  }
+  const perSegmentDuration = Math.max(1, Math.round(totalDuration / segmentCount));
 
   const placeholderPrompts = {
     segments: Array.from({ length: segmentCount }, (_, index) => ({ index: index + 1 }))
   } as { segments: Array<Partial<SegmentPrompt>> };
 
   return normalizeSegmentPrompts(placeholderPrompts, segmentCount, effectiveShots, perSegmentDuration);
+}
+
+export function getFailedSegmentErrorMessage(segments: VideoCloneSegment[]): string | null {
+  const failedSegment = segments.find((segment) => segment.status === 'failed');
+  return failedSegment
+    ? ((failedSegment as { error_message?: string | null }).error_message || 'Video generation failed.')
+    : null;
+}
+
+export function shouldRetryCloneVideoFailure(input: {
+  code: number;
+  failCode?: string | null;
+  failMsg?: string | null;
+  retryCount: number;
+  maxRetries: number;
+}) {
+  const normalizedMessage = input.failMsg?.toLowerCase() || '';
+  const isProviderSafetyFailure = (
+    input.failCode === '501' ||
+    normalizedMessage.includes('sensitive information') ||
+    normalizedMessage.includes('safety') ||
+    normalizedMessage.includes('content policy')
+  );
+
+  return input.code >= 500 &&
+    input.retryCount < input.maxRetries &&
+    !isProviderSafetyFailure;
+}
+
+export function getTerminalFailedCloneRefundAmount(project: {
+  status?: string | null;
+  generation_credits_used?: number | null;
+}) {
+  const chargedCredits = Number(project.generation_credits_used || 0);
+  return chargedCredits > 0 ? chargedCredits : 0;
 }
 
 export function buildSegmentStatusPayload(
@@ -3611,7 +3684,7 @@ type FrameGenerationOverrides = {
   aspectRatioOverride?: string;
   imageSizeOverride?: string;
   characterPhotoUrls?: string[] | null;
-  workflowSourceOverride?: 'project_agent_clone' | 'default';
+  workflowSourceOverride?: 'project_agent_clone' | 'project_agent_edit_video' | 'default';
   usePromptAsIs?: boolean;
   moderationExternalId?: string;
 };
@@ -4079,7 +4152,7 @@ function getPromptSegmentDurationSeconds(
     | NonNullable<StartWorkflowRequest['segmentPrompts']>[number]
     | SegmentPrompt
     | undefined,
-  fallback = DEFAULT_SEGMENT_DURATION_SECONDS
+  fallback = 0
 ): number {
   const shots = Array.isArray(segment?.shots) ? segment.shots : [];
   const endTimes = shots
@@ -4871,6 +4944,254 @@ function buildSeedanceVideoRequestBody(input: {
   };
 }
 
+function buildSeedanceEditVideoRequestBody(input: {
+  projectId: string;
+  model: 'seedance_2_fast' | 'seedance_2';
+  prompt: string;
+  referenceVideoUrl: string;
+  aspectRatio: '16:9' | '9:16';
+  resolution: '480p' | '720p' | '1080p';
+  duration: number;
+}) {
+  return {
+    model: input.model === 'seedance_2_fast' ? 'bytedance/seedance-2-fast' : 'bytedance/seedance-2',
+    input: {
+      prompt: input.prompt,
+      aspect_ratio: input.aspectRatio,
+      resolution: input.resolution,
+      duration: input.duration,
+      generate_audio: true,
+      fixed_lens: false,
+      reference_video_urls: [input.referenceVideoUrl],
+    },
+    callBackUrl: buildSegmentVideoWebhookUrl(input.projectId, 0),
+  };
+}
+
+async function startEditVideoTaskSeedance(input: {
+  projectId: string;
+  userId: string;
+  model: 'seedance_2_fast' | 'seedance_2';
+  prompt: string;
+  referenceVideoUrl: string;
+  aspectRatio: '16:9' | '9:16';
+  resolution: '480p' | '720p' | '1080p';
+  duration: number;
+}) {
+  const apiKey = process.env.KIE_API_KEY;
+  if (!apiKey) {
+    throw new Error('KIE_API_KEY environment variable is not configured');
+  }
+
+  await moderatePromptBeforeGeneration(input.prompt, {
+    externalId: `user_${input.userId}:video_clone_${input.projectId}:edit_video`,
+  });
+
+  const requestBody = buildSeedanceEditVideoRequestBody(input);
+  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(requestBody),
+  }, 5, 30000);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Seedance 2 API error: ${response.status} - ${errorText}`);
+  }
+
+  const result = await response.json();
+  if (result.code !== 200 || !result.data?.taskId) {
+    throw new Error(`Seedance 2 API failed: ${result.msg || 'Unknown error'}`);
+  }
+
+  return result.data.taskId as string;
+}
+
+async function startEditVideoWorkflow(request: StartWorkflowRequest): Promise<WorkflowResult> {
+  const supabase = getSupabaseAdmin();
+  const prompt = request.editVideoPrompt?.trim();
+  const sourceUrl = request.editVideoSourceUrl?.trim();
+  const duration = Number(request.videoDuration);
+  const model = request.videoModel;
+
+  if (!prompt || !sourceUrl) {
+    return {
+      success: false,
+      error: 'Invalid edit-video inputs',
+      details: 'Edit-video mode requires prompt text and a source video URL.',
+    };
+  }
+
+  if (model !== 'seedance_2' && model !== 'seedance_2_fast') {
+    return {
+      success: false,
+      error: 'Invalid edit-video model',
+      details: 'Edit-video mode supports Seedance 2 models only.',
+    };
+  }
+
+  if (!Number.isFinite(duration) || duration < 2 || duration > 15) {
+    return {
+      success: false,
+      error: 'Invalid edit-video duration',
+      details: 'Edit-video mode requires a source video duration between 2 and 15 seconds.',
+    };
+  }
+
+  const requestedQuality = request.videoQuality || getDefaultCloneVideoQuality(model);
+  const quality = normalizeCloneVideoQualityForModel(model, requestedQuality);
+  const generationCost = getGenerationCost(model, String(duration), quality, {
+    hasVideoInput: true,
+  });
+  const creditCheck = await checkCredits(request.userId, generationCost);
+  if (!creditCheck.success) {
+    return { success: false, error: 'Failed to check credits', details: creditCheck.error || 'Credit check failed' };
+  }
+  if (!creditCheck.hasEnoughCredits) {
+    return {
+      success: false,
+      error: 'Insufficient credits',
+      details: `Need ${generationCost} credits for ${model.toUpperCase()} model, have ${creditCheck.currentCredits || 0}`,
+    };
+  }
+
+  const deduction = await deductCredits(request.userId, generationCost);
+  if (!deduction.success) {
+    return { success: false, error: 'Failed to deduct credits', details: deduction.error || 'Credit deduction failed' };
+  }
+
+  await recordCreditTransaction(
+    request.userId,
+    'usage',
+    generationCost,
+    `Video Clone - Edit video generation (${model.toUpperCase()})`,
+    undefined,
+    true
+  );
+
+  // Schema verified via Supabase MCP (2026-05-17):
+  // video_clone_projects includes selected_inputs, video_duration, segment_count,
+  // segment_duration_seconds, segment_status, generation_credits_used.
+  const selectedInputs: VideoCloneSelectedInputs = {
+    workflowSource: 'project_agent_edit_video',
+    mergePolicy: 'auto',
+    executionMode: 'edit_video',
+    editVideoPrompt: prompt,
+    editVideoSourceUrl: sourceUrl,
+    isCloneMode: false,
+  };
+  const { data: project, error: projectError } = await supabase
+    .from('video_clone_projects')
+    .insert({
+      user_id: request.userId,
+      reference_video_id: null,
+      video_model: model,
+      video_aspect_ratio: request.videoAspectRatio || '9:16',
+      status: 'processing',
+      current_step: 'generating_video',
+      progress_percentage: 60,
+      credits_cost: generationCost,
+      generation_credits_used: generationCost,
+      language: request.language || 'en',
+      video_duration: String(duration),
+      video_quality: quality,
+      download_credits_used: 0,
+      is_segmented: true,
+      segment_count: 1,
+      segment_duration_seconds: duration,
+      segment_status: { total: 1, framesReady: 1, videosReady: 0, segments: [] },
+      selected_inputs: selectedInputs,
+      video_prompts: { mode: 'edit_video', prompt },
+      segment_plan: { segments: [{ prompt, duration }] },
+    })
+    .select()
+    .single();
+
+  if (projectError || !project) {
+    await deductCredits(request.userId, -generationCost);
+    return {
+      success: false,
+      error: 'Failed to create project record',
+      details: projectError?.message || 'Unknown insert error',
+    };
+  }
+
+  // Schema verified via Supabase MCP (2026-05-17):
+  // video_clone_segments includes project_id, segment_index, status, prompt,
+  // first_frame_url, video_task_id, video_url, error_message.
+  const { data: segment, error: segmentError } = await supabase
+    .from('video_clone_segments')
+    .insert({
+      project_id: project.id,
+      segment_index: 0,
+      status: 'generating_video',
+      prompt: { mode: 'edit_video', prompt },
+      first_frame_url: null,
+      video_task_id: null,
+      video_url: null,
+      error_message: null,
+    })
+    .select()
+    .single();
+
+  if (segmentError || !segment) {
+    await deductCredits(request.userId, -generationCost);
+    await supabase.from('video_clone_projects').update({ status: 'failed', error_message: 'Failed to create edit-video segment' }).eq('id', project.id);
+    return {
+      success: false,
+      error: 'Failed to create edit-video segment',
+      details: segmentError?.message || 'Unknown insert error',
+    };
+  }
+
+  try {
+    const taskId = await startEditVideoTaskSeedance({
+      projectId: project.id,
+      userId: request.userId,
+      model,
+      prompt,
+      referenceVideoUrl: sourceUrl,
+      aspectRatio: request.videoAspectRatio === '16:9' ? '16:9' : '9:16',
+      resolution: mapCloneQualityToSeedanceResolution(quality),
+      duration,
+    });
+
+    await supabase
+      .from('video_clone_segments')
+      .update({ video_task_id: taskId, status: 'generating_video' })
+      .eq('id', segment.id);
+
+    return {
+      success: true,
+      projectId: project.id,
+      remainingCredits: deduction.remainingCredits,
+      creditsUsed: generationCost,
+    };
+  } catch (error) {
+    await deductCredits(request.userId, -generationCost);
+    await recordCreditTransaction(
+      request.userId,
+      'refund',
+      generationCost,
+      `Video Clone - Refund for failed ${model.toUpperCase()} edit video generation`,
+      project.id,
+      true
+    );
+    await supabase
+      .from('video_clone_projects')
+      .update({
+        status: 'failed',
+        error_message: error instanceof Error ? error.message : 'Edit-video workflow failed',
+        last_processed_at: new Date().toISOString(),
+      })
+      .eq('id', project.id);
+    throw error;
+  }
+}
+
 /**
  * Start video generation task using Seedance 2 / Seedance 2 Fast API.
  * Uses generic jobs/createTask endpoint (same as frame generation).
@@ -5043,6 +5364,7 @@ export const __test__ = {
   buildStructuredVideoPromptPayload,
   buildKlingVideoRequestBody,
   buildSeedanceVideoRequestBody,
+  buildSeedanceEditVideoRequestBody,
   buildKlingElementName,
   getPromptSegmentDurationSeconds,
   getTimeRangeDurationSeconds,

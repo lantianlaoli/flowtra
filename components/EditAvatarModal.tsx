@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
-import { AlertCircle, Check, CircleHelp, Loader2, Sparkles, Trash2, Upload, UserCircle, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, CircleHelp, Loader2, Sparkles, Trash2, Upload, UserCircle, X } from 'lucide-react';
 import {
   type AvatarPhotoSet,
   normalizeAvatarPhotoSet,
@@ -22,6 +22,7 @@ interface EditAvatarModalProps {
   onAvatarUpdated: (avatar: UserAvatar) => void;
   onDelete?: (avatarId: string) => Promise<void> | void;
   isDeleting?: boolean;
+  embedded?: boolean;
 }
 
 type AvatarAction = 'rename' | 'replace_primary' | 'add_reference' | 'delete_reference' | 'promote_reference_to_primary';
@@ -32,7 +33,8 @@ export default function EditAvatarModal({
   avatar,
   onAvatarUpdated,
   onDelete,
-  isDeleting = false
+  isDeleting = false,
+  embedded = false
 }: EditAvatarModalProps) {
   const supabase = useSupabaseBrowserClient();
   const fieldBadgeClassName = 'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]';
@@ -427,53 +429,48 @@ export default function EditAvatarModal({
 
   const canSave = Boolean(avatarName.trim() && !isSaving && !isUploadingPhotos && !isGeneratingReferences);
 
-  return (
-    <>
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            className="assets-modal assets-edit-avatar fixed inset-0 z-50 flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <motion.div
-              className="assets-modal-backdrop absolute inset-0 bg-black/50 backdrop-blur-sm"
-              onClick={handleBackdropClick}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-
-            <motion.div
-              className="assets-modal-panel assets-edit-avatar-panel relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-2xl"
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.2 }}
-            >
-              <div className="assets-modal-header flex items-center justify-between border-b border-gray-200 px-6 py-5">
+  const content = isOpen ? (
+    <motion.div
+      className={embedded
+        ? 'assets-edit-avatar-panel relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-white'
+        : 'assets-modal-panel assets-edit-avatar-panel relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-2xl'}
+      initial={{ opacity: 0, scale: embedded ? 1 : 0.95, y: embedded ? 0 : 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: embedded ? 1 : 0.95, y: embedded ? 0 : 20 }}
+      transition={{ duration: 0.2 }}
+    >
+              <div className={`assets-modal-header flex items-center justify-between border-b border-gray-200 ${embedded ? 'px-5 py-3.5' : 'px-6 py-5'}`}>
                 <div className="flex items-center gap-3">
-                  <div className="assets-modal-icon flex h-11 w-11 items-center justify-center rounded-xl bg-black text-white">
-                    <UserCircle className="h-5 w-5" />
-                  </div>
+                  {embedded ? (
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-full border border-gray-200 px-3 text-xs font-semibold text-black hover:bg-gray-50"
+                    >
+                      <ArrowLeft className="h-3.5 w-3.5" />
+                      Back
+                    </button>
+                  ) : (
+                    <div className="assets-modal-icon flex h-11 w-11 items-center justify-center rounded-xl bg-black text-white">
+                      <UserCircle className="h-5 w-5" />
+                    </div>
+                  )}
                   <div>
-                    <p className="assets-modal-title text-xl font-semibold text-gray-900">Edit Avatar</p>
-                    <p className="assets-modal-subtitle text-sm text-gray-600">Manage name and avatar photos in one place.</p>
+                    <p className={`assets-modal-title font-semibold text-gray-900 ${embedded ? 'text-base' : 'text-xl'}`}>Edit Avatar</p>
+                    {!embedded ? <p className="assets-modal-subtitle text-sm text-gray-600">Manage name and avatar photos in one place.</p> : null}
                   </div>
                 </div>
-                <button
+                {!embedded ? <button
                   type="button"
                   onClick={onClose}
                   className="assets-modal-close flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100"
                   disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
                 >
                   <X className="h-5 w-5 text-gray-500" />
-                </button>
+                </button> : null}
               </div>
 
-              <form onSubmit={handleSaveChanges} className="assets-modal-body space-y-5 px-6 py-6">
+              <form onSubmit={handleSaveChanges} className={`assets-modal-body space-y-5 overflow-y-auto ${embedded ? 'px-5 py-5' : 'px-6 py-6'}`}>
                 {error && (
                   <div className="assets-modal-error flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                     <AlertCircle className="h-4 w-4" />
@@ -668,10 +665,33 @@ export default function EditAvatarModal({
                   </button>
                 </div>
               </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+    </motion.div>
+  ) : null;
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <AnimatePresence>
+      {content ? (
+        <motion.div
+          className="assets-modal assets-edit-avatar fixed inset-0 z-50 flex items-center justify-center p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <motion.div
+            className="assets-modal-backdrop absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={handleBackdropClick}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+          {content}
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 }

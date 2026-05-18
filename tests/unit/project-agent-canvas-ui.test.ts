@@ -3,21 +3,24 @@ import assert from 'node:assert/strict';
 
 import {
   createProjectAgentCanvasNotice,
+  getFeatureStartActionTitle,
+  getPendingConnectionPathTarget,
   getProjectAgentFeaturePlaceholderCopy,
+  shouldShowFeatureEstimatedCredits,
 } from '@/lib/project-agent/canvas-ui';
 import {
   applySupplementalTextToSegments,
   buildSupplementalTextPromptInstruction,
 } from '@/lib/video-clone-workflow';
 
-test('video clone ready copy mentions optional text guidance', () => {
+test('video clone ready copy mentions optional product guidance', () => {
   const copy = getProjectAgentFeaturePlaceholderCopy({
     featureType: 'video_clone',
     blockedReason: null,
     missingInputs: [],
   });
 
-  assert.equal(copy, 'Ready to start. Optionally connect a Text node to add product behavior details.');
+  assert.equal(copy, 'Ready to start. Optionally connect Product Guidance for product behavior details.');
 });
 
 test('canvas notice helper normalizes warning payloads', () => {
@@ -82,4 +85,61 @@ test('supplemental text is force-applied to generated segment prompts', () => {
   assert.match(segment.first_frame_description, /left and right sides of the machine, not from the center/i);
   assert.match(segment.shots?.[0]?.action || '', /Must visibly follow this exact product behavior:/);
   assert.match(segment.shots?.[0]?.action || '', /left and right sides of the machine, not from the center/i);
+});
+
+test('avatar ads missing copy asks for script instead of generic text', () => {
+  const copy = getProjectAgentFeaturePlaceholderCopy({
+    featureType: 'avatar_ads',
+    blockedReason: null,
+    missingInputs: ['text'],
+  });
+
+  assert.equal(copy, 'Connect script to start');
+});
+
+test('pending connection path follows the cursor even when a snap target is nearby', () => {
+  assert.deepEqual(
+    getPendingConnectionPathTarget(
+      { x: 320, y: 420 },
+      { x: 300, y: 360 },
+    ),
+    { x: 320, y: 420 },
+  );
+});
+
+test('blocked feature actions explain the blocking reason before credits', () => {
+  assert.equal(
+    getFeatureStartActionTitle({
+      blockedReason: 'Source video duration is unavailable.',
+      estimatedCredits: 264,
+    }),
+    'Source video duration is unavailable.',
+  );
+});
+
+test('video-dependent feature credits stay hidden until a video is connected', () => {
+  assert.equal(
+    shouldShowFeatureEstimatedCredits({
+      featureType: 'video_clone',
+      estimatedCredits: 264,
+      hasConnectedVideo: false,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldShowFeatureEstimatedCredits({
+      featureType: 'video_clone',
+      estimatedCredits: 264,
+      hasConnectedVideo: true,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldShowFeatureEstimatedCredits({
+      featureType: 'avatar_ads',
+      estimatedCredits: 528,
+      hasConnectedVideo: false,
+    }),
+    true,
+  );
 });

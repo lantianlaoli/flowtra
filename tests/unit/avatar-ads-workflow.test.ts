@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   buildAvatarAdsVideoExecutionPrompt,
+  buildSeedanceAvatarAdsVideoInput,
   compileAvatarAdsMentionText,
 } from '@/lib/avatar-ads-workflow';
 
@@ -18,7 +19,7 @@ test('buildAvatarAdsVideoExecutionPrompt synthesizes fixed talking-head visuals 
     {
       dialog: 'This is the easiest way to get clean energy every morning.'
     },
-    { hasProductContext: true }
+    { hasProductContext: true, durationSeconds: 8 }
   );
 
   assert.match(result, /Subject: spokesperson from the provided character image\./);
@@ -32,7 +33,7 @@ test('buildAvatarAdsVideoExecutionPrompt preserves explicit structured visual fi
     subject: 'Female creator in cream sweater',
     action: 'speaks directly to camera and smiles',
     dialog: 'I have been using this every day and the difference is obvious.',
-  });
+  }, { durationSeconds: 8 });
 
   assert.match(result, /Subject: Female creator in cream sweater/);
   assert.match(result, /Action: speaks directly to camera and smiles/);
@@ -47,9 +48,28 @@ test('buildAvatarAdsVideoExecutionPrompt keeps Chinese dialogue aligned with Chi
   }, {
     hasProductContext: true,
     language: 'en',
+    durationSeconds: 8,
   });
 
   assert.match(result, /Dialogue: "这款草本清风包/);
   assert.match(result, /Voice Type: Warm male voice speaking natural Chinese/);
   assert.doesNotMatch(result, /English accent/i);
+});
+
+test('buildSeedanceAvatarAdsVideoInput uses multimodal reference images instead of frame endpoints', () => {
+  const input = buildSeedanceAvatarAdsVideoInput({
+    prompt: 'Speak to camera about the product.',
+    referenceImageUrls: [
+      'https://example.com/avatar.png',
+      'https://example.com/product.png',
+    ],
+    durationSeconds: 15,
+  });
+
+  assert.deepEqual(input.reference_image_urls, [
+    'https://example.com/avatar.png',
+    'https://example.com/product.png',
+  ]);
+  assert.equal('first_frame_url' in input, false);
+  assert.equal('last_frame_url' in input, false);
 });

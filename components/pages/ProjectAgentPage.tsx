@@ -5,12 +5,13 @@ import { DefaultChatTransport } from 'ai';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import { useUser } from '@clerk/nextjs';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { AlertTriangle, Clapperboard, Sparkles, Type, User, X } from 'lucide-react';
-import Sidebar from '@/components/layout/Sidebar';
+import { AlertTriangle, CopyPlus, Sparkles, Type, User, X } from 'lucide-react';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import CreateAvatarModal from '@/components/CreateAvatarModal';
 import CreateProductModal from '@/components/CreateProductModal';
 import VideoImportModal from '@/components/VideoImportModal';
+import AssetsManager from '@/components/AssetsManager';
+import HistoryPage from '@/components/pages/HistoryPage';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 import { PromptInputBox, type PromptCommand, type PromptSubmitPayload, type PromptTemplatePart } from '@/components/ui/ai-prompt-box';
 import {
@@ -20,6 +21,8 @@ import {
 import CanvasBoard from '@/components/project-agent/canvas/CanvasBoard';
 import InsertToolbar from '@/components/project-agent/canvas/InsertToolbar';
 import NodeDetailsDialog from '@/components/project-agent/canvas/NodeDetailsDialog';
+import FloatingWorkspacePanel from '@/components/project-agent/canvas/FloatingWorkspacePanel';
+import ProjectAgentToolbar from '@/components/project-agent/canvas/ProjectAgentToolbar';
 import { useCredits } from '@/contexts/CreditsContext';
 import { useI18n } from '@/providers/I18nProvider';
 import { toProjectAgentVideoAssets } from '@/lib/project-agent/canvas-assets';
@@ -44,6 +47,7 @@ import {
   createProjectAgentFeatureNode,
   getProjectAgentCanvasNodeSize,
   getProjectAgentCanvasTargetHandlePosition,
+  getMissingFeatureInputs,
   getConnectedAssetNodeMap,
   getCanvasConnectionError,
   getFeatureStartBlockedReason,
@@ -66,12 +70,14 @@ import {
   type ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
 import {
+  getReusableFeatureRuntimeAfterCompletion,
   getProjectAgentCanvasErrorInfo,
   normalizeExecutionStatus,
   createQueuedExecutionStatus,
   getExecutionTableForNodeType,
   type ProjectAgentCanvasExecutionStatus,
 } from '@/lib/project-agent/node-execution';
+import { getProjectAgentVideoCloneMode } from '@/lib/project-agent/video-clone-mode';
 import {
   buildPendingSelectionActions,
   executeProjectAgentCanvasActions,
@@ -81,6 +87,16 @@ import {
   type ProjectAgentPendingUiRequest,
 } from '@/lib/project-agent/canvas-actions';
 import type { UserAvatar, UserProduct } from '@/lib/supabase';
+import { applyDashboardTheme, DASHBOARD_THEME_STORAGE_KEY, getPreferredDashboardTheme } from '@/lib/theme';
+import {
+  buildProjectAgentSessionItems,
+  type ProjectAgentSessionSummary,
+} from '@/lib/project-agent/workspace-ui';
+import {
+  getNextWorkspacePanel,
+  getWorkspacePanelVisibility,
+  type ProjectAgentWorkspacePanel,
+} from '@/lib/project-agent/workspace-panels';
 
 type PersistedSessionPayload = {
   session?: {
@@ -251,7 +267,7 @@ const getProjectAgentPageMessages = (locale: string) => {
       defaults: {
         avatar: '头像',
         product: '产品',
-        text: '文本',
+        text: 'Instruction',
       },
       history: {
         open: '打开历史记录',
@@ -267,7 +283,7 @@ const getProjectAgentPageMessages = (locale: string) => {
     defaults: {
       avatar: 'Avatar',
       product: 'Product',
-      text: 'Text',
+      text: 'Instruction',
     },
     history: {
       open: 'Open history',
@@ -318,6 +334,14 @@ export default function ProjectAgentPage() {
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
   const [pendingConnectionSourceId, setPendingConnectionSourceId] = useState<string | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
+  const [sessionSummaries, setSessionSummaries] = useState<ProjectAgentSessionSummary[]>([]);
+  const [sessionsOpen, setSessionsOpen] = useState(false);
+  const [activeWorkspacePanel, setActiveWorkspacePanel] = useState<ProjectAgentWorkspacePanel | null>(null);
+  const [settingsOpenRequest, setSettingsOpenRequest] = useState<{ tab: 'billing'; nonce: number } | null>(null);
+  const [mobileToolbarOpen, setMobileToolbarOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => (
+    typeof window === 'undefined' ? false : getPreferredDashboardTheme()
+  ));
   const [isWelcomeTourOpen, setIsWelcomeTourOpen] = useState(false);
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<ProjectAgentCanvasState>(DEFAULT_PROJECT_AGENT_CANVAS_STATE);
@@ -337,6 +361,32 @@ export default function ProjectAgentPage() {
     const current = readHistoryIds();
     const next = [id, ...current.filter((item) => item !== id)];
     writeHistoryIds(next);
+  }, []);
+
+  const refreshSessionSummaries = useCallback(async (ids: string[]) => {
+    const uniqueIds = ids.filter((id, index) => Boolean(id) && ids.indexOf(id) === index).slice(0, 20);
+    const summaries = await Promise.all(uniqueIds.map(async (targetSessionId) => {
+      try {
+        const response = await fetch(`/api/project-agent/session?sessionId=${targetSessionId}`, { cache: 'no-store' });
+        if (!response.ok) {
+          return { sessionId: targetSessionId };
+        }
+        const payload = await response.json() as PersistedSessionPayload;
+        const firstVisibleUserMessage = payload.session?.messages?.find((message) => (
+          message.role === 'user' && getProjectAgentVisibleMessageText(message).trim().length > 0
+        ));
+        return {
+          sessionId: targetSessionId,
+          title: firstVisibleUserMessage
+            ? getProjectAgentVisibleMessageText(firstVisibleUserMessage).trim().slice(0, 42)
+            : null,
+          updatedAt: payload.session?.updated_at || null,
+        };
+      } catch {
+        return { sessionId: targetSessionId };
+      }
+    }));
+    setSessionSummaries(summaries);
   }, []);
 
   useEffect(() => {
@@ -552,6 +602,11 @@ export default function ProjectAgentPage() {
   }, [ensureHistoryTracked, isLoaded, user]);
 
   useEffect(() => {
+    if (!sessionId) return;
+    void refreshSessionSummaries(readHistoryIds());
+  }, [refreshSessionSummaries, sessionId]);
+
+  useEffect(() => {
     if (!isLoaded || !user || isPageLoading || hasCheckedWelcomeTourRef.current) return;
     hasCheckedWelcomeTourRef.current = true;
     if (!isProjectAgentWelcomeTourDismissed()) {
@@ -609,30 +664,23 @@ export default function ProjectAgentPage() {
   }, [locale, persistSessionState, sessionId, sessionReady]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    applyDashboardTheme(isDarkMode);
+  }, [isDarkMode]);
+
+  useEffect(() => {
     setCanvas((current) => {
       let changed = false;
       const nextNodes = current.nodes.map((node) => {
         if (!isProjectAgentFeatureNode(node.type)) return node;
         const featureType = node.type;
-        const strictMissing = PROJECT_AGENT_FEATURE_INPUTS[featureType].filter((inputType) => {
-          const connected = current.edges.some(
-            (edge) => edge.targetNodeId === node.id && edge.targetHandle === inputType,
-          );
-          return !connected;
-        });
-        const anyOfGroup = PROJECT_AGENT_FEATURE_ANY_OF_INPUTS[featureType];
-        const anyOfMissing: ProjectAgentAssetNodeType[] =
-          anyOfGroup && !anyOfGroup.some((t) =>
-            current.edges.some((e) => e.targetNodeId === node.id && e.targetHandle === t)
-          ) ? anyOfGroup : [];
-        const missingInputs = [...strictMissing, ...anyOfMissing];
+        const missingInputs = getMissingFeatureInputs(current, node.id);
         const blockedReason = getFeatureStartBlockedReason(current, node.id);
         const maintenanceBlocked = Boolean(node.runtime?.maintenanceBlocked);
         const canStart = missingInputs.length === 0 && !blockedReason && !maintenanceBlocked;
         const executionState = node.runtime?.executionState;
         const preservedState = (
           isProjectAgentRuntimeActive(node.runtime) ||
-          executionState === 'completed' ||
           executionState === 'failed'
         );
         const preservedExecutionState = executionState ?? 'running';
@@ -685,35 +733,29 @@ export default function ProjectAgentPage() {
       const node = getProjectAgentCanvasNodeById(current, nodeId);
       if (!node || !isProjectAgentFeatureNode(node.type)) return current;
       const featureType = node.type;
-      const strictMissing2 = PROJECT_AGENT_FEATURE_INPUTS[featureType].filter((inputType) => {
-        const connected = current.edges.some(
-          (edge) => edge.targetNodeId === node.id && edge.targetHandle === inputType,
-        );
-        return !connected;
-      });
-      const anyOfGroup2 = PROJECT_AGENT_FEATURE_ANY_OF_INPUTS[featureType];
-      const anyOfMissing2: ProjectAgentAssetNodeType[] =
-        anyOfGroup2 && !anyOfGroup2.some((t) =>
-          current.edges.some((e) => e.targetNodeId === node.id && e.targetHandle === t)
-        ) ? anyOfGroup2 : [];
-      const missingInputs = [...strictMissing2, ...anyOfMissing2];
+      const missingInputs = getMissingFeatureInputs(current, node.id);
       const blockedReason = getFeatureStartBlockedReason(current, node.id);
       const canStart = missingInputs.length === 0 && !blockedReason;
+      const reusableRuntime = execution.executionState === 'completed'
+        ? getReusableFeatureRuntimeAfterCompletion(execution)
+        : null;
       let next = upsertCanvasNode(current, {
         ...node,
         runtime: {
-          executionState: execution.executionState,
-          projectId: execution.projectId,
-          phase: execution.phase,
-          progress: execution.progress,
-          outputUrl: execution.outputUrl || null,
-          previewUrl: execution.previewUrl || null,
-          error: execution.error || null,
-          userFacingError: execution.userFacingError || null,
-          retryable: execution.retryable,
-          statusLabel: execution.statusLabel,
-          milestones: execution.milestones,
-          currentMilestoneKey: execution.currentMilestoneKey,
+          ...(reusableRuntime || {
+            executionState: execution.executionState,
+            projectId: execution.projectId,
+            phase: execution.phase,
+            progress: execution.progress,
+            outputUrl: execution.outputUrl || null,
+            previewUrl: execution.previewUrl || null,
+            error: execution.error || null,
+            userFacingError: execution.userFacingError || null,
+            retryable: execution.retryable,
+            statusLabel: execution.statusLabel,
+            milestones: execution.milestones,
+            currentMilestoneKey: execution.currentMilestoneKey,
+          }),
           missingInputs,
           canStart,
           blockedReason,
@@ -1123,6 +1165,12 @@ export default function ProjectAgentPage() {
       ].filter((url): url is string => typeof url === 'string'),
     };
 
+    setAvatars((current) => {
+      const exists = current.some((asset) => asset.id === createdAsset.id);
+      return exists
+        ? current.map((asset) => asset.id === createdAsset.id ? { ...asset, ...createdAsset } : asset)
+        : [createdAsset, ...current];
+    });
     void loadAssets();
     setShowCreateAvatarModal(false);
 
@@ -1152,6 +1200,12 @@ export default function ProjectAgentPage() {
       photos: photoUrls,
     };
 
+    setProducts((current) => {
+      const exists = current.some((asset) => asset.id === createdAsset.id);
+      return exists
+        ? current.map((asset) => asset.id === createdAsset.id ? { ...asset, ...createdAsset } : asset)
+        : [createdAsset, ...current];
+    });
     void loadAssets();
     setShowCreateProductModal(false);
 
@@ -1203,6 +1257,24 @@ export default function ProjectAgentPage() {
       setToolbarOpenKey(null);
     }
   }, [handleToolbarAssetSelect, loadAssets, pendingPromptAssetType, pendingUiRequest]);
+
+  const handleVideoUpdated = useCallback<NonNullable<ComponentProps<typeof VideoImportModal>['onVideoUpdated']>>((updatedVideo) => {
+    const [updatedAsset] = toProjectAgentVideoAssets([updatedVideo]);
+    if (!updatedAsset) return;
+
+    setVideos((current) => {
+      const hasExisting = current.some((asset) => asset.id === updatedAsset.id);
+      if (!hasExisting) {
+        return [updatedAsset, ...current];
+      }
+
+      return current.map((asset) => (
+        asset.id === updatedAsset.id
+          ? { ...asset, ...updatedAsset }
+          : asset
+      ));
+    });
+  }, []);
 
   const handleContinueInAgentFeatures = useCallback(() => {
     setShowVideoImportModal(false);
@@ -1317,7 +1389,7 @@ export default function ProjectAgentPage() {
           type: 'add_text_node',
           alias: textAlias,
           content: detailText,
-          label: 'Text',
+          label: 'Instruction',
         },
       });
     }
@@ -1742,6 +1814,23 @@ export default function ProjectAgentPage() {
     });
   }, [pageMessages.defaults.text, updateCanvas]);
 
+  const handleUpdateAssetNodeMetadata = useCallback((
+    nodeId: string,
+    patch: Partial<NonNullable<ProjectAgentCanvasNode['asset']>>
+  ) => {
+    updateCanvas((current) => {
+      const node = getProjectAgentCanvasNodeById(current, nodeId);
+      if (!node?.asset || !isProjectAgentAssetNode(node.type)) return current;
+      return upsertCanvasNode(current, {
+        ...node,
+        asset: {
+          ...node.asset,
+          ...patch,
+        },
+      });
+    });
+  }, [updateCanvas]);
+
   const handleUpdateFeatureNodeConfig = useCallback((
     nodeId: string,
     config: Partial<ProjectAgentFeatureNodeConfig>
@@ -1915,6 +2004,8 @@ export default function ProjectAgentPage() {
     updateCanvas((current) => {
       const nextNode = getProjectAgentCanvasNodeById(current, nodeId);
       if (!nextNode || !isProjectAgentFeatureNode(nextNode.type)) return current;
+      const skipCloneFrames = nextNode.type === 'video_clone' &&
+        getProjectAgentVideoCloneMode(connectedAssets) === 'edit_video';
       return upsertCanvasNode(current, {
         ...nextNode,
         runtime: {
@@ -1922,7 +2013,7 @@ export default function ProjectAgentPage() {
           projectId: null,
           outputUrl: null,
           previewUrl: null,
-          ...createQueuedExecutionStatus(nextNode.type),
+          ...createQueuedExecutionStatus(nextNode.type, { skipCloneFrames }),
           error: null,
           userFacingError: null,
           retryable: false,
@@ -1991,12 +2082,14 @@ export default function ProjectAgentPage() {
     updateCanvas((current) => {
       const nextNode = getProjectAgentCanvasNodeById(current, nodeId);
       if (!nextNode || !isProjectAgentFeatureNode(nextNode.type)) return current;
+      const skipCloneFrames = nextNode.type === 'video_clone' &&
+        getProjectAgentVideoCloneMode(connectedAssets) === 'edit_video';
       return upsertCanvasNode(current, {
         ...nextNode,
         runtime: {
           ...(nextNode.runtime || {}),
           executionState: 'running',
-          ...createQueuedExecutionStatus(nextNode.type),
+          ...createQueuedExecutionStatus(nextNode.type, { skipCloneFrames }),
           statusLabel: 'Retrying',
           userFacingError: null,
           error: null,
@@ -2093,12 +2186,47 @@ export default function ProjectAgentPage() {
     };
   }, [selectionStartPoint]);
 
-  const sidebarProps = useMemo(() => ({
-    credits,
-    creditsData,
-    userEmail: user?.primaryEmailAddress?.emailAddress,
-    userImageUrl: user?.imageUrl,
-  }), [credits, creditsData, user?.imageUrl, user?.primaryEmailAddress?.emailAddress]);
+  const sessionItems = useMemo(() => buildProjectAgentSessionItems({
+    activeSessionId: sessionId,
+    historyIds: readHistoryIds(),
+    sessions: sessionSummaries,
+  }), [sessionId, sessionSummaries]);
+  const workspacePanelVisibility = getWorkspacePanelVisibility(activeWorkspacePanel);
+
+  const handleSelectSession = useCallback((targetSessionId: string) => {
+    if (!targetSessionId || targetSessionId === sessionId) {
+      setSessionsOpen(false);
+      return;
+    }
+    writeCurrentSessionId(targetSessionId);
+    ensureHistoryTracked(targetSessionId);
+    setSessionReady(false);
+    setSessionId(targetSessionId);
+    setSessionsOpen(false);
+  }, [ensureHistoryTracked, sessionId]);
+
+  const handleCreateSession = useCallback(() => {
+    const nextSessionId = createSessionId();
+    writeCurrentSessionId(nextSessionId);
+    ensureHistoryTracked(nextSessionId);
+    setCanvas(DEFAULT_PROJECT_AGENT_CANVAS_STATE);
+    setMessages([]);
+    setPendingUiRequest(null);
+    setAppliedCanvasActionCallIds([]);
+    setSessionReady(false);
+    setSessionId(nextSessionId);
+    setSessionsOpen(false);
+    void refreshSessionSummaries(readHistoryIds());
+  }, [ensureHistoryTracked, refreshSessionSummaries, setMessages]);
+
+  const handleToggleDarkMode = useCallback((trigger: HTMLElement) => {
+    const nextValue = !isDarkMode;
+    setIsDarkMode(nextValue);
+    window.localStorage.setItem(DASHBOARD_THEME_STORAGE_KEY, String(nextValue));
+    applyDashboardTheme(nextValue);
+    window.dispatchEvent(new CustomEvent('flowtra-dashboard-theme-change', { detail: nextValue }));
+    void trigger;
+  }, [isDarkMode]);
 
   const promptCommands = useMemo<PromptCommand[]>(() => {
     const avatarCommands = avatars.map((avatar) => ({
@@ -2144,7 +2272,7 @@ export default function ProjectAgentPage() {
         prompt: 'Add a Video Clone node to the canvas.',
         kind: 'feature',
         groupLabel: 'Functions',
-        icon: Clapperboard,
+        icon: CopyPlus,
       },
       {
         id: 'feature:avatar-ads',
@@ -2164,8 +2292,8 @@ export default function ProjectAgentPage() {
       },
       {
         id: 'text',
-        label: 'Text',
-        prompt: 'Add a Text node to the canvas.',
+        label: 'Instruction',
+        prompt: 'Add an Instruction node to the canvas.',
         kind: 'text',
         groupLabel: 'Functions',
         icon: Type,
@@ -2211,7 +2339,7 @@ export default function ProjectAgentPage() {
     const lavalierVideo = findAssetCommand('video', 'Lavalier Mic Showcase');
     const videoClone = findCommand('Video Clone');
     const avatarAds = findCommand('Avatar Ads');
-    const textNode = findCommand('Text');
+    const textNode = findCommand('Instruction');
 
     return [
       makeTemplate('lin-collagen-ad', 'Lin Yuqing + collagen ad', [
@@ -2261,10 +2389,8 @@ export default function ProjectAgentPage() {
 
   return (
     <div className="project-agent-page h-[100dvh] overflow-hidden text-black">
-      <Sidebar {...sidebarProps} />
-
-      <DashboardContentTransition className="dashboard-content-offset bg-background h-[100dvh] overflow-hidden min-h-0">
-        <div className="h-full box-border min-h-0 p-3 md:py-3 md:pr-3 md:pl-0">
+      <DashboardContentTransition className="bg-background h-[100dvh] overflow-hidden min-h-0">
+        <div className="h-full box-border min-h-0 p-3">
           <div className="h-full min-h-0">
             <section className="project-agent-panel-shell project-agent-surface relative h-full min-h-0 overflow-visible rounded-[20px]">
               <div className="h-full w-full p-0" ref={canvasContainerRef}>
@@ -2300,6 +2426,7 @@ export default function ProjectAgentPage() {
                     }
                     return setSingleSelectedNode(current, nodeId);
                   })}
+                  onUpdateAssetNodeMetadata={handleUpdateAssetNodeMetadata}
                   onUpdateFeatureNodeConfig={handleUpdateFeatureNodeConfig}
                   onUpdateNodeContent={handleUpdateNodeContent}
                   pendingConnectionSourceId={pendingConnectionSourceId}
@@ -2322,7 +2449,54 @@ export default function ProjectAgentPage() {
                   </div>
                 </div>
               ) : null}
-              <div data-canvas-ui="true" className="pointer-events-none absolute left-5 top-1/2 z-30 flex -translate-y-1/2 justify-center">
+              <ProjectAgentToolbar
+                sessionsOpen={sessionsOpen}
+                sessionItems={sessionItems}
+                credits={creditsData?.credits_remaining ?? credits}
+                activePanel={activeWorkspacePanel}
+                isDarkMode={isDarkMode}
+                settingsOpenRequest={settingsOpenRequest}
+                onToggleSessions={() => setSessionsOpen((open) => !open)}
+                onSelectSession={handleSelectSession}
+                onCreateSession={handleCreateSession}
+                onTogglePanel={(panel) => {
+                  setSessionsOpen(false);
+                  setActiveWorkspacePanel((current) => getNextWorkspacePanel(current, panel));
+                }}
+                onOpenBilling={() => setSettingsOpenRequest({ tab: 'billing', nonce: Date.now() })}
+                onToggleDarkMode={handleToggleDarkMode}
+              />
+              {workspacePanelVisibility.assetsMounted ? (
+                <FloatingWorkspacePanel
+                  title="Assets"
+                  description="Products, avatars, and videos"
+                  onClose={() => setActiveWorkspacePanel(null)}
+                  visible={workspacePanelVisibility.assetsVisible}
+                >
+                  <div className="px-5 py-5 md:px-6">
+                    <AssetsManager embedded active={workspacePanelVisibility.assetsVisible} />
+                  </div>
+                </FloatingWorkspacePanel>
+              ) : null}
+              {workspacePanelVisibility.myAdsMounted ? (
+                <FloatingWorkspacePanel
+                  title="My Ads"
+                  description="Ads expire after 14 days."
+                  onClose={() => setActiveWorkspacePanel(null)}
+                  visible={workspacePanelVisibility.myAdsVisible}
+                >
+                  <HistoryPage embedded active={workspacePanelVisibility.myAdsVisible} />
+                </FloatingWorkspacePanel>
+              ) : null}
+              <button
+                type="button"
+                data-canvas-ui="true"
+                className="project-agent-press-button pointer-events-auto absolute left-4 top-[126px] z-30 hidden h-10 rounded-full px-3.5 text-xs font-semibold max-[760px]:inline-flex"
+                onClick={() => setMobileToolbarOpen((open) => !open)}
+              >
+                Insert
+              </button>
+              <div data-canvas-ui="true" className={`pointer-events-none absolute left-5 top-1/2 z-30 flex -translate-y-1/2 justify-center max-[760px]:left-4 max-[760px]:top-[176px] max-[760px]:translate-y-0 ${mobileToolbarOpen ? 'max-[760px]:flex' : 'max-[760px]:hidden'}`}>
                 <InsertToolbar
                   avatars={avatars}
                   products={products}
@@ -2415,6 +2589,7 @@ export default function ProjectAgentPage() {
           }
         }}
         onImported={handleVideosImported}
+        onVideoUpdated={handleVideoUpdated}
         onError={(error) => setStatusNote(error)}
         onContinueInAgentFeatures={handleContinueInAgentFeatures}
       />

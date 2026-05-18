@@ -1,5 +1,4 @@
 import {
-  DEFAULT_SEGMENT_DURATION_SECONDS,
   type PersistedVideoQuality,
   getSegmentVideoGenerationCost,
   type VideoModel
@@ -59,9 +58,9 @@ export function getTimeRangeDurationSeconds(value?: string | null): number | nul
 
 export function getEffectiveSegmentDurationSeconds(
   shots?: Array<SegmentShotTimingLike> | null,
-  fallbackDurationSeconds: number = DEFAULT_SEGMENT_DURATION_SECONDS
+  fallbackDurationSeconds: number = 0
 ): number {
-  const normalizedFallback = normalizePositiveInteger(fallbackDurationSeconds) || DEFAULT_SEGMENT_DURATION_SECONDS;
+  const normalizedFallback = normalizePositiveInteger(fallbackDurationSeconds) || 0;
   const normalizedShots = Array.isArray(shots) ? shots : [];
 
   const explicitDurationTotal = normalizedShots.reduce((sum, shot) => {

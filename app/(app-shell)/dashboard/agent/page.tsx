@@ -1,5 +1,5 @@
-import ProjectAgentPage from '@/components/pages/ProjectAgentPage';
+import { redirect } from 'next/navigation';
 
 export default function AgentPage() {
-  return <ProjectAgentPage />;
+  redirect('/dashboard');
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type ComponentType, type KeyboardEvent } from 'react';
-import { ArrowUp, Clapperboard, Film, Package2, Plus, Rocket, Sparkles, Type, User, Video } from 'lucide-react';
+import { ArrowUp, CopyPlus, Film, Package2, Plus, Rocket, Sparkles, Type, User, Video } from 'lucide-react';
 
 export type PromptCommandKind = 'asset' | 'feature' | 'text';
 export type PromptCommandAssetType = 'avatar' | 'product' | 'video';
@@ -63,8 +63,8 @@ type UploadOption = {
 const TIKTOK_URL_REGEX = /https?:\/\/(?:www\.)?(?:tiktok\.com|vm\.tiktok\.com|vt\.tiktok\.com)\/[^\s<>"']+/gi;
 
 const DEFAULT_COMMANDS: PromptCommand[] = [
-  { id: 'text', label: 'Text', prompt: 'Add a Text node to the canvas.', kind: 'text', groupLabel: 'Functions', icon: Type },
-  { id: 'video-clone', label: 'Video Clone', prompt: 'Add a Video Clone node to the canvas.', kind: 'feature', groupLabel: 'Functions', icon: Clapperboard },
+  { id: 'text', label: 'Instruction', prompt: 'Add an Instruction node to the canvas.', kind: 'text', groupLabel: 'Functions', icon: Type },
+  { id: 'video-clone', label: 'Video Clone', prompt: 'Add a Video Clone node to the canvas.', kind: 'feature', groupLabel: 'Functions', icon: CopyPlus },
   { id: 'avatar-ads', label: 'Avatar Ads', prompt: 'Add an Avatar Ads node to the canvas.', kind: 'feature', groupLabel: 'Functions', icon: User },
   { id: 'motion-clone', label: 'Motion Clone', prompt: 'Add a Motion Clone node to the canvas.', kind: 'feature', groupLabel: 'Functions', icon: Sparkles },
 ];

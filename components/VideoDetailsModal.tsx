@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { HIGH_RES_DOWNLOAD_COSTS, type HighResResolution, type VideoModel } from '@/lib/constants';
 import { MY_ADS_RETENTION_DAYS } from '@/lib/my-ads-retention';
 import TikTokPublishDialog from '@/components/TikTokPublishDialog';
+import { getVideoModelDisplayName } from '@/lib/video-model-display-name';
 
 // Type definitions matching HistoryPage
 interface VideoCloneItem {
@@ -99,6 +100,7 @@ interface VideoDetailsModalProps {
   onDownload: (item: HistoryItem, resolution: HighResResolution) => Promise<'ready' | 'processing' | 'error'>;
   isDownloading: boolean;
   isExpired: boolean;
+  embedded?: boolean;
 }
 
 // Helper functions
@@ -114,21 +116,13 @@ const isMotionClone = (item: HistoryItem | null): item is MotionCloneItem => {
   return !!item && item.adType === 'motion-clone';
 };
 
-const getModelDisplayName = (model: string): string => {
-  const modelNames: Record<string, string> = {
-    'seedance_2_fast': 'Seedance 2 Fast',
-    'seedance_2': 'Seedance 2',
-    'kling_3': 'Kling 3.0'
-  };
-  return modelNames[model] || model;
-};
 
 const getProjectModelDisplayName = (item: HistoryItem): string => {
   if (isMotionClone(item) && item.videoModel === 'kling_3') {
-    return 'Kling 3.0 Motion Control';
+    return getVideoModelDisplayName(item.videoModel, { feature: 'motion_clone' });
   }
 
-  return getModelDisplayName(item.videoModel);
+  return getVideoModelDisplayName(item.videoModel);
 };
 
 const getStatusLabel = (status: HistoryItem['status']): string => {
@@ -163,13 +157,17 @@ const getQualityDisplayValue = (item: HistoryItem): string | null => {
 
 const formatDuration = (item: HistoryItem): string => {
   if (isCharacterAds(item)) {
-    return `${item.videoDurationSeconds || 8}s`;
+    return item.videoDurationSeconds ? `${item.videoDurationSeconds}s` : 'N/A';
   }
   if (isVideoClone(item)) {
-    return `${item.videoDuration || (item.isSegmented && item.segmentCount ? item.segmentCount * 15 : 8)}s`;
+    return item.videoDuration
+      ? `${item.videoDuration}s`
+      : item.isSegmented && item.segmentCount
+        ? `${item.segmentCount * 15}s`
+        : 'N/A';
   }
   if (isMotionClone(item)) {
-    return `${item.videoDurationSeconds || 8}s`;
+    return item.videoDurationSeconds ? `${item.videoDurationSeconds}s` : 'N/A';
   }
   return 'N/A';
 };
@@ -202,21 +200,21 @@ const parseDurationSeconds = (value?: string): number | null => {
 const getVideoDurationSeconds = (item: HistoryItem | null): number | null => {
   if (!item) return null;
   if (isCharacterAds(item)) {
-    return item.videoDurationSeconds ?? 8;
+    return item.videoDurationSeconds ?? null;
   }
   if (isVideoClone(item)) {
     const explicitDuration = parseDurationSeconds(item.videoDuration);
     if (explicitDuration) return explicitDuration;
     if (item.isSegmented && item.segmentCount) return item.segmentCount * 15;
-    return 8;
+    return null;
   }
   if (isMotionClone(item)) {
-    return item.videoDurationSeconds ?? 8;
+    return item.videoDurationSeconds ?? null;
   }
   return null;
 };
 
-export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, isDownloading, isExpired }: VideoDetailsModalProps) {
+export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, isDownloading, isExpired, embedded = false }: VideoDetailsModalProps) {
   const [expandedShots, setExpandedShots] = useState<Set<string>>(new Set());
   const [selectedResolution, setSelectedResolution] = useState<HighResResolution>('720p');
   const [resolutionMenuOpen, setResolutionMenuOpen] = useState(false);
@@ -570,7 +568,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
   const segmentCount = useMemo(() => {
     if (!item) return 1;
     if (isVideoClone(item)) return item.segmentCount || 1;
-    if (isCharacterAds(item)) return Math.max(1, Math.ceil((item.videoDurationSeconds || 8) / 8));
+    if (isCharacterAds(item)) return item.videoDurationSeconds ? 1 : 0;
     return 1;
   }, [item]);
 
@@ -638,39 +636,48 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
     return 'aspect-[9/16]';
   };
 
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onClick={handleBackdropClick}
-        >
-          <motion.div
+  const detailsContent = isOpen && item ? (
+    <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="my-ads-details-modal relative w-full max-w-[1400px] h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden"
+            className={embedded
+              ? 'my-ads-details-modal relative flex h-full w-full flex-col overflow-hidden bg-white'
+              : 'my-ads-details-modal relative w-full max-w-[1400px] h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden'}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="my-ads-details-header flex items-center justify-between px-8 py-5 border-b border-[#E5E5E5]">
-              <h2 className="my-ads-details-title text-xl font-semibold text-black tracking-tight">
-                {isCharacterAds(item) ? 'Character Ad' : 'UGC Clone'} Details
-              </h2>
-              <button
-                onClick={onClose}
-                disabled={isDownloading}
-                className="my-ads-details-close p-2 rounded-lg hover:bg-[#F7F7F7] transition-colors disabled:opacity-50"
-              >
-                <X className="w-5 h-5 text-black" />
-              </button>
+            <div className={`my-ads-details-header flex items-center justify-between border-b border-[#E5E5E5] ${embedded ? 'px-5 py-3.5' : 'px-8 py-5'}`}>
+              <div className="flex items-center gap-3">
+                {embedded ? (
+                  <button
+                    onClick={onClose}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#E5E5E5] px-3 text-xs font-semibold text-black hover:bg-[#F7F7F7]"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    Back
+                  </button>
+                ) : null}
+                <h2 className={`my-ads-details-title font-semibold text-black tracking-tight ${embedded ? 'text-base' : 'text-xl'}`}>
+                  {isCharacterAds(item) ? 'Character Ad' : 'UGC Clone'} Details
+                </h2>
+              </div>
+              {!embedded ? (
+                <button
+                  onClick={onClose}
+                  disabled={isDownloading}
+                  className="my-ads-details-close p-2 rounded-lg hover:bg-[#F7F7F7] transition-colors disabled:opacity-50"
+                >
+                  <X className="w-5 h-5 text-black" />
+                </button>
+              ) : null}
             </div>
 
             {/* Content - Split Layout */}
             <div className="flex-1 flex overflow-hidden">
               {/* LEFT: Video Preview Only - No Download Button */}
-              <div className="my-ads-details-preview w-[40%] bg-[#F7F7F7] flex items-center justify-center p-8 border-r border-[#E5E5E5]">
+              <div className={`my-ads-details-preview bg-[#F7F7F7] flex items-center justify-center border-r border-[#E5E5E5] ${embedded ? 'w-[36%] p-5' : 'w-[40%] p-8'}`}>
                 <div className={cn(
                   "my-ads-details-preview-frame relative rounded-xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.15)] bg-black ring-1 ring-black/5",
                   "w-full max-w-full max-h-full",
@@ -720,7 +727,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -16 }}
                       transition={{ duration: 0.2 }}
-                      className="flex-1 overflow-y-auto p-8 space-y-5"
+                      className={`flex-1 overflow-y-auto space-y-5 ${embedded ? 'p-5' : 'p-8'}`}
                     >
 
                     {/* Compact Parameters Card */}
@@ -976,8 +983,22 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
               </div>
             </div>
           </motion.div>
+  ) : null;
+
+  if (embedded) {
+    return detailsContent;
+  }
+
+  return (
+    <AnimatePresence>
+      {isOpen && detailsContent ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={handleBackdropClick}
+        >
+          {detailsContent}
         </div>
-      )}
+      ) : null}
     </AnimatePresence>
   );
 }

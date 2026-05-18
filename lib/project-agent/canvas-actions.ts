@@ -554,7 +554,7 @@ export const executeProjectAgentCanvasActions = ({
               ...reusedNode,
               label: mutation.label || reusedNode.label,
               asset: {
-                ...(reusedNode.asset || { id: reusedNode.id, name: mutation.label || 'Text' }),
+                ...(reusedNode.asset || { id: reusedNode.id, name: mutation.label || 'Instruction' }),
                 content: mutation.content ?? reusedNode.asset?.content ?? '',
               },
             }
@@ -563,10 +563,10 @@ export const executeProjectAgentCanvasActions = ({
               type: 'text',
               x: placement.x,
               y: placement.y,
-              label: mutation.label || 'Text',
+              label: mutation.label || 'Instruction',
               asset: {
                 id: createProjectAgentCanvasNodeId('text-asset'),
-                name: mutation.label || 'Text',
+                name: mutation.label || 'Instruction',
                 content: mutation.content ?? '',
               },
             };
@@ -640,7 +640,7 @@ export const executeProjectAgentCanvasActions = ({
         canvas = upsertCanvasNode(canvas, {
           ...targetNode,
           asset: {
-            ...(targetNode.asset || { id: targetNode.id, name: targetNode.label || 'Text' }),
+            ...(targetNode.asset || { id: targetNode.id, name: targetNode.label || 'Instruction' }),
             content: mutation.content,
           },
         });

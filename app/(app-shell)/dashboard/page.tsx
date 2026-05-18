@@ -1,5 +1,5 @@
-import HomePage from '@/components/pages/HomePage';
+import ProjectAgentPage from '@/components/pages/ProjectAgentPage';
 
 export default function DashboardPage() {
-  return <HomePage />;
+  return <ProjectAgentPage />;
 }

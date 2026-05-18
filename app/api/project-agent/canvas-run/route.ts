@@ -32,6 +32,10 @@ import type {
 } from '@/lib/project-agent/canvas-state';
 import { signInternalUserRequest } from '@/lib/security/internal-request';
 import { buildAvatarGeneratedPrompts } from '@/lib/project-agent/avatar-script-planning';
+import {
+  getProjectAgentVideoCloneDurationSeconds,
+  getProjectAgentVideoCloneMode,
+} from '@/lib/project-agent/video-clone-mode';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -268,8 +272,15 @@ const assertVideoCloneCredits = async (userId: string, body: CanvasRunRequestBod
   const product = body.connectedAssets?.product || null;
   const video = ensureAsset(body.connectedAssets?.video, 'Video');
 
-  if (!avatar && !product) {
-    throw new Error('Video Clone requires an avatar or product.');
+  const cloneMode = getProjectAgentVideoCloneMode({
+    avatar,
+    product,
+    video,
+    text: body.connectedAssets?.text || null,
+  });
+
+  if (cloneMode === 'clone' && !avatar && !product) {
+    throw new Error('Video Clone requires an avatar or product, or text for edit-video mode.');
   }
 
   const payload = buildVideoCloneStartPayload({
@@ -280,9 +291,15 @@ const assertVideoCloneCredits = async (userId: string, body: CanvasRunRequestBod
     config: body.config,
   });
 
+  const duration = cloneMode === 'edit_video'
+    ? String(getProjectAgentVideoCloneDurationSeconds({ video }) || '')
+    : payload.videoDuration;
+
   return ensureEnoughCredits(
     userId,
-    getGenerationCost(payload.videoModel, payload.videoDuration, 'standard') * runCount
+    getGenerationCost(payload.videoModel, duration, body.config?.videoQuality, {
+      hasVideoInput: cloneMode === 'edit_video',
+    }) * runCount
   );
 };
 
@@ -484,7 +501,7 @@ const startAvatarAds = async (
     const project = statusPayload.project as Record<string, unknown> | undefined;
     const totalDuration = getAvatarPlannedTotalDurationSeconds(
       project?.generated_prompts as Record<string, unknown> | null | undefined,
-      'kling_3',
+      payload.videoModel,
       typeof project?.video_duration_seconds === 'number'
         ? project.video_duration_seconds
         : Number(body.config?.videoDuration || '16')
@@ -523,8 +540,15 @@ const startVideoClone = async (origin: string, userId: string, body: CanvasRunRe
   const product = body.connectedAssets?.product || null;
   const video = ensureAsset(body.connectedAssets?.video, 'Video');
 
-  if (!avatar && !product) {
-    throw new Error('Video Clone requires an avatar or product.');
+  const cloneMode = getProjectAgentVideoCloneMode({
+    avatar,
+    product,
+    video,
+    text: body.connectedAssets?.text || null,
+  });
+
+  if (cloneMode === 'clone' && !avatar && !product) {
+    throw new Error('Video Clone requires an avatar or product, or text for edit-video mode.');
   }
 
   const payload = buildVideoCloneStartPayload({

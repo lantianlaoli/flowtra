@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ComponentType } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   AlertCircle,
   AlertTriangle,
@@ -9,7 +10,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Circle,
-  Clapperboard,
+  CopyPlus,
   Coins,
   Download,
   GripVertical,
@@ -54,7 +55,33 @@ import {
   type ProjectAgentFeatureNodeConfig,
   type ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
-import { getProjectAgentFeaturePlaceholderCopy } from '@/lib/project-agent/canvas-ui';
+import {
+  getFeatureStartActionTitle,
+  getPendingConnectionPathTarget,
+  getProjectAgentFeaturePlaceholderCopy,
+  shouldShowFeatureEstimatedCredits,
+} from '@/lib/project-agent/canvas-ui';
+import { getFeatureNodePresentation } from '@/lib/project-agent/feature-node-presentation';
+import { getVideoModelDisplayName } from '@/lib/video-model-display-name';
+import {
+  getInstructionSemanticPresentation,
+  getInstructionSemanticRole,
+} from '@/lib/project-agent/instruction-semantics';
+import {
+  getProjectAgentVideoCloneAllowedModels,
+  getProjectAgentVideoCloneDurationSeconds,
+  getProjectAgentVideoCloneMode,
+  normalizeProjectAgentVideoCloneModel,
+} from '@/lib/project-agent/video-clone-mode';
+import {
+  getEffectiveProjectAgentVideoModel,
+  getProjectAgentVideoModels,
+} from '@/lib/project-agent/video-model';
+import {
+  canChangeProjectAgentVideoQuality,
+  getEffectiveProjectAgentVideoQuality,
+  getProjectAgentAllowedVideoQualities,
+} from '@/lib/project-agent/video-quality';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 type CanvasBoardProps = {
@@ -86,6 +113,7 @@ type CanvasBoardProps = {
   onRetryFeatureNode: (nodeId: string) => void;
   onRegenerateFeatureNode: (nodeId: string) => void;
   onUpdateFeatureNodeConfig: (nodeId: string, config: Partial<ProjectAgentFeatureNodeConfig>) => void;
+  onUpdateAssetNodeMetadata: (nodeId: string, patch: Partial<NonNullable<ProjectAgentCanvasNode['asset']>>) => void;
   onUpdateNodeContent: (nodeId: string, content: string) => void;
   onFormatLayout: () => void;
   onBeginConnection: (event: React.PointerEvent<HTMLButtonElement>, nodeId: string) => void;
@@ -189,7 +217,7 @@ const getAssetFallbackIcon = (type: ProjectAgentAssetNodeType) => {
 };
 
 const getFeatureIcon = (type: ProjectAgentFeatureNodeType) => {
-  if (type === 'video_clone') return Clapperboard;
+  if (type === 'video_clone') return CopyPlus;
   if (type === 'avatar_ads') return Sparkles;
   return WandSparkles;
 };
@@ -204,6 +232,12 @@ const getPlayableVideoUrl = (asset: ProjectAgentCanvasNode['asset']) => {
 
 const PROJECT_AGENT_VIDEO_CLONE_MODELS = [
   {
+    value: 'seedance_2_fast' as const,
+    label: 'Seedance 2 Fast',
+    Icon: ByteDance,
+    creditsPerSecond: GENERATION_COSTS.seedance_2_fast,
+  },
+  {
     value: 'seedance_2' as const,
     label: 'Seedance 2',
     Icon: ByteDance,
@@ -215,12 +249,6 @@ const PROJECT_AGENT_VIDEO_CLONE_MODELS = [
     Icon: Kling,
     creditsPerSecond: GENERATION_COSTS.kling_3,
   },
-  {
-    value: 'seedance_2_fast' as const,
-    label: 'Seedance 2 Fast',
-    Icon: ByteDance,
-    creditsPerSecond: GENERATION_COSTS.seedance_2_fast,
-  },
 ] satisfies Array<{
   value: NonNullable<ProjectAgentFeatureNodeConfig['videoModel']>;
   label: string;
@@ -228,7 +256,7 @@ const PROJECT_AGENT_VIDEO_CLONE_MODELS = [
   creditsPerSecond: number;
 }>;
 
-const getVideoCloneModelOption = (model: ProjectAgentFeatureNodeConfig['videoModel'] | null | undefined) => (
+const getFeatureModelOption = (model: ProjectAgentFeatureNodeConfig['videoModel'] | null | undefined) => (
   PROJECT_AGENT_VIDEO_CLONE_MODELS.find((option) => option.value === model) ||
   PROJECT_AGENT_VIDEO_CLONE_MODELS[0]
 );
@@ -256,19 +284,34 @@ const getFeatureEstimatedCredits = (
   const duration = node.config?.videoDuration || (node.type === 'avatar_ads' ? '16' : '8');
 
   if (node.type === 'avatar_ads') {
-    return getGenerationCost('kling_3', duration, 'standard') * runCount;
+    const model = getEffectiveProjectAgentVideoModel('avatar_ads', node.config?.videoModel);
+    const quality = getEffectiveProjectAgentVideoQuality('avatar_ads', model, node.config?.videoQuality);
+    return getGenerationCost(model, duration, quality) * runCount;
   }
 
   if (node.type === 'video_clone') {
-    const model: VideoModel =
-      node.config?.videoModel === 'seedance_2_fast' ||
-      node.config?.videoModel === 'seedance_2'
-        ? node.config.videoModel
-        : 'kling_3';
-    const quality = model === 'seedance_2'
-      ? '1080p'
-      : node.config?.videoQuality || 'standard';
-    return getGenerationCost(model, duration, quality) * runCount;
+    const inputs = {
+      avatar: getConnectedAssetForFeature(canvas, node.id, 'avatar'),
+      product: getConnectedAssetForFeature(canvas, node.id, 'product'),
+      video: getConnectedAssetForFeature(canvas, node.id, 'video'),
+      text: getConnectedAssetForFeature(canvas, node.id, 'text'),
+    };
+    if (!inputs.video) {
+      return null;
+    }
+    const mode = getProjectAgentVideoCloneMode(inputs);
+    const model = normalizeProjectAgentVideoCloneModel(node.config?.videoModel, mode);
+    const editVideoDuration = getProjectAgentVideoCloneDurationSeconds(inputs);
+    if (mode === 'edit_video' && editVideoDuration === null) {
+      return null;
+    }
+    const effectiveDuration = mode === 'edit_video'
+      ? String(editVideoDuration)
+      : duration;
+    const quality = getEffectiveProjectAgentVideoQuality('video_clone', model, node.config?.videoQuality);
+    return getGenerationCost(model, effectiveDuration, quality, {
+      hasVideoInput: mode === 'edit_video',
+    }) * runCount;
   }
 
   const connectedVideo = getConnectedAssetForFeature(canvas, node.id, 'video');
@@ -307,6 +350,7 @@ export default function CanvasBoard({
   onRetryFeatureNode,
   onRegenerateFeatureNode,
   onUpdateFeatureNodeConfig,
+  onUpdateAssetNodeMetadata,
   onUpdateNodeContent,
   onFormatLayout,
   onBeginConnection,
@@ -314,6 +358,7 @@ export default function CanvasBoard({
   onRemoveEdge,
   onSelectEdge,
 }: CanvasBoardProps) {
+  const shouldReduceMotion = useReducedMotion();
   const pendingSourceNode = pendingConnectionSourceId
     ? canvas.nodes.find((node) => node.id === pendingConnectionSourceId) || null
     : null;
@@ -322,6 +367,7 @@ export default function CanvasBoard({
   const [edgeHoverPoint, setEdgeHoverPoint] = useState<{ edgeId: string; x: number; y: number } | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [modelMenuNodeId, setModelMenuNodeId] = useState<string | null>(null);
+  const [qualityMenuNodeId, setQualityMenuNodeId] = useState<string | null>(null);
 
   const getSvgPoint = (event: React.PointerEvent<SVGGElement>) => {
     const svg = event.currentTarget.ownerSVGElement;
@@ -344,14 +390,17 @@ export default function CanvasBoard({
   }, []);
 
   useEffect(() => {
-    if (!modelMenuNodeId) return;
+    if (!modelMenuNodeId && !qualityMenuNodeId) return;
 
-    const closeModelMenu = () => setModelMenuNodeId(null);
+    const closeModelMenu = () => {
+      setModelMenuNodeId(null);
+      setQualityMenuNodeId(null);
+    };
     window.addEventListener('click', closeModelMenu);
     return () => {
       window.removeEventListener('click', closeModelMenu);
     };
-  }, [modelMenuNodeId]);
+  }, [modelMenuNodeId, qualityMenuNodeId]);
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
@@ -490,7 +539,10 @@ export default function CanvasBoard({
             const sourceNode = canvas.nodes.find((node) => node.id === pendingConnectionSourceId);
             if (!sourceNode) return null;
             const source = getSourceHandlePosition(sourceNode);
-            const target = snappedConnectionTarget?.point || pendingConnectionPoint;
+            const target = getPendingConnectionPathTarget(
+              pendingConnectionPoint,
+              snappedConnectionTarget?.point,
+            );
             return (
               <path
                 d={renderEdgePath(source, target)}
@@ -546,23 +598,64 @@ export default function CanvasBoard({
           const failedState = executionState === 'failed';
           const canRetryFailure = failedState && !maintenanceBlocked;
           const userFacingError = node.runtime?.userFacingError || null;
+          const hasReusablePreviousRun = executionState === 'ready' && Boolean(node.runtime?.projectId);
           const insufficientCredits = Boolean(
             userFacingError?.toLowerCase().includes('insufficient credits') ||
             node.runtime?.error?.toLowerCase().includes('insufficient credits')
           );
           const estimatedCredits = isFeatureNode ? getFeatureEstimatedCredits(canvas, node) : null;
           const showRunningState = executionState === 'running' && isProjectAgentRuntimeActive(node.runtime);
-          const canChangeModel = isFeatureNode && node.type === 'video_clone' && !showRunningState;
-          const selectedVideoModel =
-            node.config?.videoModel === 'seedance_2_fast' ||
-            node.config?.videoModel === 'seedance_2'
-              ? node.config.videoModel
-              : 'kling_3';
-          const selectedVideoModelOption = getVideoCloneModelOption(selectedVideoModel);
+          const canChangeModel = isFeatureNode && node.type !== 'motion_clone' && !showRunningState;
+          const connectedVideoCloneInputs = isFeatureNode && node.type === 'video_clone'
+            ? {
+                avatar: getConnectedAssetForFeature(canvas, node.id, 'avatar'),
+                product: getConnectedAssetForFeature(canvas, node.id, 'product'),
+                video: getConnectedAssetForFeature(canvas, node.id, 'video'),
+                text: getConnectedAssetForFeature(canvas, node.id, 'text'),
+              }
+            : null;
+          const videoCloneMode = connectedVideoCloneInputs
+            ? getProjectAgentVideoCloneMode(connectedVideoCloneInputs)
+            : 'clone';
+          const selectedVideoModel = node.type === 'video_clone'
+            ? normalizeProjectAgentVideoCloneModel(node.config?.videoModel, videoCloneMode)
+            : getEffectiveProjectAgentVideoModel(node.type === 'avatar_ads' ? 'avatar_ads' : 'motion_clone', node.config?.videoModel);
+          const selectedVideoModelOption = getFeatureModelOption(selectedVideoModel);
+          const allowedFeatureModels = node.type === 'video_clone'
+            ? getProjectAgentVideoCloneAllowedModels(videoCloneMode)
+            : getProjectAgentVideoModels(node.type === 'avatar_ads' ? 'avatar_ads' : 'motion_clone');
           const SelectedVideoModelIcon = selectedVideoModelOption.Icon;
           const modelMenuOpen = modelMenuNodeId === node.id;
+          const qualityIntent = node.type === 'video_clone'
+            ? 'video_clone'
+            : node.type === 'avatar_ads'
+              ? 'avatar_ads'
+              : 'motion_clone';
+          const selectedVideoQuality = getEffectiveProjectAgentVideoQuality(
+            qualityIntent,
+            selectedVideoModel,
+            node.config?.videoQuality,
+          );
+          const allowedVideoQualities = getProjectAgentAllowedVideoQualities(
+            qualityIntent,
+            selectedVideoModel,
+          );
+          const canChangeQuality = isFeatureNode &&
+            !showRunningState &&
+            canChangeProjectAgentVideoQuality(qualityIntent, selectedVideoModel);
+          const qualityMenuOpen = qualityMenuNodeId === node.id;
           const hasAnyInput = isFeatureNode
             ? canvas.edges.some((e) => e.targetNodeId === node.id)
+            : false;
+          const hasConnectedVideo = isFeatureNode
+            ? Boolean(getConnectedAssetForFeature(canvas, node.id, 'video'))
+            : false;
+          const showEstimatedCredits = featureType
+            ? shouldShowFeatureEstimatedCredits({
+                featureType,
+                estimatedCredits,
+                hasConnectedVideo,
+              })
             : false;
           // Receiver dot state: green = ready, yellow = partial, white = empty
           const dotState = canStart ? 'ready' : hasAnyInput ? 'partial' : 'empty';
@@ -581,6 +674,10 @@ export default function CanvasBoard({
              featureAnyOfInputs.includes(pendingSourceNode.type))
           );
           const FeatureIcon = featureType ? getFeatureIcon(featureType) : null;
+          const featurePresentation = featureType ? getFeatureNodePresentation(featureType) : null;
+          const instructionPresentation = node.type === 'text'
+            ? getInstructionSemanticPresentation(getInstructionSemanticRole(canvas, node.id))
+            : null;
 
           return (
             <div
@@ -703,7 +800,7 @@ export default function CanvasBoard({
                   <div className="flex items-center gap-1.5 px-2.5 pt-2.5 pb-1.5">
                     <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-[#c4c1b8] active:cursor-grabbing" strokeWidth={2} />
                     <span className="truncate text-xs font-semibold text-[#3d3c38]">
-                      {node.asset?.name || getProjectAgentAssetDisplayName(node.type as ProjectAgentAssetNodeType)}
+                      {instructionPresentation?.label || node.asset?.name || getProjectAgentAssetDisplayName(node.type as ProjectAgentAssetNodeType)}
                     </span>
                   </div>
                   {/* Body */}
@@ -713,7 +810,7 @@ export default function CanvasBoard({
                       <div className="h-full w-full overflow-hidden rounded-[20px] bg-[#f3f1ea]">
                         <textarea
                           className="h-full w-full resize-none bg-transparent p-2.5 text-xs text-[#3d3c38] placeholder:text-[#b0ada5] focus:outline-none focus:ring-0"
-                          placeholder="Enter text..."
+                          placeholder={instructionPresentation?.placeholder || 'Write an instruction...'}
                           value={node.asset?.content || ''}
                           onChange={(e) => onUpdateNodeContent(node.id, e.target.value)}
                           onPointerDown={(e) => e.stopPropagation()}
@@ -737,6 +834,16 @@ export default function CanvasBoard({
                             poster={node.asset?.imageUrl || undefined}
                             preload="metadata"
                             src={playableVideoUrl}
+                            onLoadedMetadata={(event) => {
+                              const durationSeconds = event.currentTarget.duration;
+                              if (
+                                Number.isFinite(durationSeconds) &&
+                                durationSeconds > 0 &&
+                                node.asset?.durationSeconds !== durationSeconds
+                              ) {
+                                onUpdateAssetNodeMetadata(node.id, { durationSeconds });
+                              }
+                            }}
                           />
                         ) : node.asset?.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -843,6 +950,9 @@ export default function CanvasBoard({
                   {/* Header: grip + feature name + start/status button */}
                   <div className="flex items-center gap-1.5 px-2.5 pt-2.5 pb-1.5">
                     <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-[#c4c1b8] active:cursor-grabbing" strokeWidth={2} />
+                    {FeatureIcon ? (
+                      <FeatureIcon className="h-4 w-4 shrink-0 text-[#3d3c38]" />
+                    ) : null}
                     <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#3d3c38]">
                       {getProjectAgentFeatureDisplayName(node.type as ProjectAgentFeatureNodeType)}
                     </span>
@@ -861,70 +971,6 @@ export default function CanvasBoard({
                           {userFacingError}
                         </TooltipContent>
                       </Tooltip>
-                    ) : null}
-                    {isFeatureNode && node.type === 'video_clone' ? (
-                      <div
-                        className="relative shrink-0"
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <button
-                          aria-expanded={modelMenuOpen}
-                          aria-label="Video Clone model"
-                          className={`project-agent-press-button flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold ${
-                            canChangeModel
-                              ? 'project-agent-press-button--active cursor-pointer'
-                              : 'cursor-not-allowed bg-[#f3f1ea] text-[#aaa69c]'
-                          }`}
-                          disabled={!canChangeModel}
-                          onClick={() => setModelMenuNodeId((current) => current === node.id ? null : node.id)}
-                          title="Video Clone model"
-                          type="button"
-                        >
-                          <SelectedVideoModelIcon className="h-3 w-3 shrink-0" />
-                          <span className="max-w-[112px] truncate">{selectedVideoModelOption.label}</span>
-                          <ChevronDown className={`h-2.5 w-2.5 shrink-0 transition-transform ${modelMenuOpen ? 'rotate-180' : ''}`} />
-                        </button>
-                        {modelMenuOpen ? (
-                          <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-[174px] rounded-[12px] border border-[#cfcfcb] bg-[#f1f1ef] p-1.5 shadow-[0_14px_28px_rgba(0,0,0,0.16)]">
-                            {PROJECT_AGENT_VIDEO_CLONE_MODELS.map((option) => {
-                              const OptionIcon = option.Icon;
-                              const active = option.value === selectedVideoModel;
-                              return (
-                                <Tooltip key={option.value}>
-                                  <TooltipTrigger asChild>
-                                    <button
-                                      className={`flex w-full items-center gap-2 rounded-[9px] px-2 py-2 text-left text-[11px] font-semibold transition-colors ${
-                                        active
-                                          ? 'bg-black text-white'
-                                          : 'text-[#2a2a2a] hover:bg-white'
-                                      }`}
-                                      onClick={() => {
-                                        onUpdateFeatureNodeConfig(node.id, {
-                                          videoModel: option.value,
-                                          videoQuality: option.value === 'seedance_2' ? '1080p' : '720p',
-                                        });
-                                        setModelMenuNodeId(null);
-                                      }}
-                                      type="button"
-                                    >
-                                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
-                                        active ? 'border-white/20 bg-white text-black' : 'border-[#d8d5cc] bg-white text-[#2a2a2a]'
-                                      }`}>
-                                        <OptionIcon className="h-3.5 w-3.5" />
-                                      </span>
-                                      <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                                      {active ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="right" sideOffset={10}>
-                                    {option.creditsPerSecond} credits / sec
-                                  </TooltipContent>
-                                </Tooltip>
-                              );
-                            })}
-                          </div>
-                        ) : null}
-                      </div>
                     ) : null}
                     {showRunningState ? (
                       <div className="flex shrink-0 items-center gap-1 rounded-full bg-black px-2 py-1 text-[10px] font-semibold text-white">
@@ -961,7 +1007,10 @@ export default function CanvasBoard({
                           onRunFeatureNode(node.id);
                         }}
                         type="button"
-                        title={estimatedCredits !== null ? `${estimatedCredits} credits` : undefined}
+                        title={getFeatureStartActionTitle({
+                          blockedReason,
+                          estimatedCredits: showEstimatedCredits ? estimatedCredits : null,
+                        })}
                       >
                         <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-white/15">
                           {canRetryFailure || insufficientCredits ? (
@@ -978,19 +1027,14 @@ export default function CanvasBoard({
                             <Play className="h-2.5 w-2.5 fill-current" />
                           )}
                         </span>
-                        {canRetryFailure ? (
-                          <span>Retry</span>
-                        ) : insufficientCredits ? (
-                          <span>Retry</span>
-                        ) : maintenanceBlocked ? (
-                          <span>Maintenance</span>
-                        ) : blockedReason ? (
-                          <span>Warning</span>
-                        ) : failedState ? (
-                          <span>Failed</span>
-                        ) : null}
-                        {estimatedCredits !== null ? (
-                          <span className={`flex items-center gap-1 ${
+                        <span>{hasReusablePreviousRun ? 'Run again' : 'Start'}</span>
+                        <AnimatePresence initial={false}>
+                          {showEstimatedCredits && estimatedCredits !== null ? (
+                            <motion.span
+                              animate={shouldReduceMotion
+                                ? { opacity: 1 }
+                                : { opacity: 1, width: 'auto', x: 0 }}
+                              className={`flex overflow-hidden items-center gap-1 whitespace-nowrap ${
                             canRetryFailure || canStart
                               ? 'text-white'
                               : maintenanceBlocked || blockedReason
@@ -998,7 +1042,17 @@ export default function CanvasBoard({
                                 : failedState
                                   ? 'text-red-500'
                                   : 'text-[#b8b5ad]'
-                          }`}>
+                              }`}
+                              exit={shouldReduceMotion
+                                ? { opacity: 0 }
+                                : { opacity: 0, width: 0, x: -8 }}
+                              initial={shouldReduceMotion
+                                ? { opacity: 0 }
+                                : { opacity: 0, width: 0, x: -8 }}
+                              transition={shouldReduceMotion
+                                ? { duration: 0 }
+                                : { duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+                            >
                             <span className={`h-3 w-px ${
                               canRetryFailure || canStart
                                 ? 'bg-white/30'
@@ -1010,8 +1064,9 @@ export default function CanvasBoard({
                             }`} />
                             <Coins className="h-2.5 w-2.5" />
                             <span>{estimatedCredits}</span>
-                          </span>
-                        ) : null}
+                            </motion.span>
+                          ) : null}
+                        </AnimatePresence>
                       </button>
                     )}
                   </div>
@@ -1071,10 +1126,141 @@ export default function CanvasBoard({
                             featureType: node.type,
                             blockedReason,
                             missingInputs,
+                            videoCloneMode: node.type === 'video_clone' ? videoCloneMode : null,
                           })}
                         </p>
                       </div>
                     )}
+                  </div>
+
+                  <div className="mx-2.5 border-t border-[#eeebe3] pb-2.5 pt-2">
+                    <div className="grid grid-cols-[minmax(0,1fr)_104px] gap-2" onClick={(event) => event.stopPropagation()}>
+                      <div className="relative">
+                      <button
+                        aria-expanded={canChangeModel ? modelMenuOpen : undefined}
+                        aria-label={`${getProjectAgentFeatureDisplayName(node.type as ProjectAgentFeatureNodeType)} model`}
+                        className={`flex h-10 w-full items-center justify-between rounded-[14px] border border-black bg-black px-3 text-sm font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.12)_inset,0_10px_20px_rgba(0,0,0,0.16)] ${
+                          canChangeModel
+                            ? 'cursor-pointer hover:bg-[#151515]'
+                            : 'cursor-default'
+                        }`}
+                        disabled={!canChangeModel}
+                        onClick={() => {
+                          if (!canChangeModel) return;
+                          setQualityMenuNodeId(null);
+                          setModelMenuNodeId((current) => current === node.id ? null : node.id);
+                        }}
+                        type="button"
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          {node.type !== 'motion_clone' ? (
+                            <SelectedVideoModelIcon className="h-4 w-4 shrink-0" />
+                          ) : (
+                            <Kling className="h-4 w-4 shrink-0 text-white" />
+                          )}
+                          <span className="truncate">
+                            {node.type !== 'motion_clone'
+                              ? selectedVideoModelOption.label
+                              : getVideoModelDisplayName('kling_3', {
+                                  feature: node.type === 'motion_clone' ? 'motion_clone' : 'avatar_ads',
+                                })}
+                          </span>
+                        </span>
+                        {canChangeModel ? (
+                          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${modelMenuOpen ? 'rotate-180' : ''}`} />
+                        ) : null}
+                      </button>
+                      {canChangeModel && modelMenuOpen ? (
+                        <div className="absolute left-0 top-[calc(100%+8px)] z-50 w-full rounded-[14px] border border-[#cfcfcb] bg-[#f1f1ef] p-1.5 shadow-[0_14px_28px_rgba(0,0,0,0.16)]">
+                          {PROJECT_AGENT_VIDEO_CLONE_MODELS
+                            .filter((option) => allowedFeatureModels.includes(option.value))
+                            .map((option) => {
+                              const OptionIcon = option.Icon;
+                              const active = option.value === selectedVideoModel;
+                              return (
+                                <Tooltip key={option.value}>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      className={`flex w-full items-center gap-2 rounded-[9px] px-2 py-2 text-left text-[11px] font-semibold transition-colors ${
+                                        active ? 'bg-black text-white' : 'text-[#2a2a2a] hover:bg-white'
+                                      }`}
+                                      onClick={() => {
+                                        const normalizedQuality = getEffectiveProjectAgentVideoQuality(
+                                          qualityIntent,
+                                          option.value,
+                                          selectedVideoQuality,
+                                        );
+                                        onUpdateFeatureNodeConfig(node.id, {
+                                          videoModel: option.value,
+                                          videoQuality: normalizedQuality,
+                                        });
+                                        setModelMenuNodeId(null);
+                                      }}
+                                      type="button"
+                                    >
+                                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
+                                        active ? 'border-white/20 bg-white text-black' : 'border-[#d8d5cc] bg-white text-[#2a2a2a]'
+                                      }`}>
+                                        <OptionIcon className="h-3.5 w-3.5" />
+                                      </span>
+                                      <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                                      {active ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" sideOffset={10}>
+                                    {option.creditsPerSecond} credits / sec
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })}
+                        </div>
+                      ) : null}
+                      </div>
+                      <div className="relative">
+                        <button
+                          aria-expanded={canChangeQuality ? qualityMenuOpen : undefined}
+                          aria-label={`${getProjectAgentFeatureDisplayName(node.type as ProjectAgentFeatureNodeType)} quality`}
+                          className={`flex h-10 w-full items-center justify-between rounded-[14px] border border-black bg-black px-3 text-sm font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.12)_inset,0_10px_20px_rgba(0,0,0,0.16)] ${
+                            canChangeQuality ? 'cursor-pointer hover:bg-[#151515]' : 'cursor-default opacity-80'
+                          }`}
+                          disabled={!canChangeQuality}
+                          onClick={() => {
+                            if (!canChangeQuality) return;
+                            setModelMenuNodeId(null);
+                            setQualityMenuNodeId((current) => current === node.id ? null : node.id);
+                          }}
+                          type="button"
+                        >
+                          <span>{selectedVideoQuality}</span>
+                          {canChangeQuality ? (
+                            <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${qualityMenuOpen ? 'rotate-180' : ''}`} />
+                          ) : null}
+                        </button>
+                        {canChangeQuality && qualityMenuOpen ? (
+                          <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-full rounded-[14px] border border-[#cfcfcb] bg-[#f1f1ef] p-1.5 shadow-[0_14px_28px_rgba(0,0,0,0.16)]">
+                            {allowedVideoQualities.map((quality) => {
+                              const active = quality === selectedVideoQuality;
+                              return (
+                                <button
+                                  key={quality}
+                                  className={`flex w-full items-center justify-between rounded-[9px] px-2 py-2 text-left text-[11px] font-semibold transition-colors ${
+                                    active ? 'bg-black text-white' : 'text-[#2a2a2a] hover:bg-white'
+                                  }`}
+                                  onClick={() => {
+                                    onUpdateFeatureNodeConfig(node.id, { videoQuality: quality });
+                                    setQualityMenuNodeId(null);
+                                  }}
+                                  type="button"
+                                >
+                                  <span>{quality}</span>
+                                  {active ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
 
                   {supportsPendingConnection ? (
@@ -1087,14 +1273,13 @@ export default function CanvasBoard({
         })}
       </div>
 
-      <div data-canvas-ui="true" className="project-agent-canvas-zoom pointer-events-none absolute left-4 top-4 rounded-full border border-white/70 bg-white/90 px-3 py-1.5 text-xs font-medium text-[#55554f] shadow-sm">
-        Zoom {Math.round(canvas.viewport.zoom * 100)}%
-      </div>
-
-      <div data-canvas-ui="true" className="project-agent-canvas-actions pointer-events-auto absolute right-5 top-5 z-30 flex items-start gap-2 max-[1320px]:right-4 max-[1320px]:top-4 max-[1320px]:gap-1.5">
+      <div data-canvas-ui="true" className="project-agent-canvas-actions pointer-events-auto absolute left-5 top-5 z-30 flex items-start gap-2 max-[1320px]:left-4 max-[1320px]:top-4 max-[1320px]:gap-1.5 max-[760px]:flex-col">
+        <div className="project-agent-canvas-zoom pointer-events-none flex h-10 items-center rounded-full border border-white/70 bg-white/90 px-3.5 text-xs font-medium text-[#55554f] shadow-sm">
+          Zoom {Math.round(canvas.viewport.zoom * 100)}%
+        </div>
         <div className="relative" data-canvas-ui="true" ref={shortcutsRef}>
           {shortcutsOpen ? (
-            <div className="project-agent-card absolute right-0 top-[calc(100%+10px)] w-[300px] rounded-[20px] border p-3 shadow-[0_14px_32px_rgba(0,0,0,0.10)] backdrop-blur">
+            <div className="project-agent-card absolute left-0 top-[calc(100%+10px)] w-[300px] rounded-[20px] border p-3 shadow-[0_14px_32px_rgba(0,0,0,0.10)] backdrop-blur">
               <div className="space-y-2.5 text-[11px] leading-relaxed text-[#6a6963]">
                 <div className="flex items-center gap-2 text-xs font-semibold text-[#4f4e47]">
                   <Keyboard className="h-3.5 w-3.5" />

@@ -1,7 +1,7 @@
 'use client';
 
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { Box, ChevronDown, Clapperboard, Package2, Sparkles, Type, User, Video } from 'lucide-react';
+import { Box, ChevronDown, CopyPlus, Package2, Sparkles, Type, User, Video } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import {
   getProjectAgentFeatureDisplayName,
@@ -74,7 +74,7 @@ const getAssetFallbackIcon = (type: ProjectAgentSelectableAssetType) => {
 };
 
 const getFeatureIcon = (type: ProjectAgentFeatureNodeType) => {
-  if (type === 'video_clone') return Clapperboard;
+  if (type === 'video_clone') return CopyPlus;
   if (type === 'avatar_ads') return User;
   return Sparkles;
 };
@@ -88,7 +88,7 @@ const getToolbarMessages = (locale: string) => {
         video: '视频',
         feature: '功能',
       },
-      text: '文本',
+      text: 'Instruction',
       quickUpload: {
         avatar: '上传头像',
         product: '上传产品',
@@ -109,7 +109,7 @@ const getToolbarMessages = (locale: string) => {
       video: 'Video',
       feature: 'Feature',
     },
-    text: 'Text',
+    text: 'Instruction',
     quickUpload: {
       avatar: 'Upload avatar',
       product: 'Upload product',
@@ -367,7 +367,7 @@ export default function InsertToolbar({
         </div>
       ) : null}
       <div className={`project-agent-insert-trigger-row flex gap-1.5 max-[1320px]:gap-1 ${
-        isVertical ? 'flex-col items-center' : 'items-end'
+        isVertical ? 'flex-col items-stretch' : 'items-end'
       }`}>
         {([
           { key: 'avatar', label: messages.categories.avatar },
@@ -384,8 +384,8 @@ export default function InsertToolbar({
               ref={(element) => {
                 triggerRefs.current[entry.key] = element;
               }}
-              className={`project-agent-insert-trigger flex h-11 min-w-0 items-center rounded-[12px] border py-2 text-sm font-semibold transition-all duration-150 max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0 ${
-                isVertical ? 'w-11 justify-center gap-0 px-0' : 'gap-1.5 px-3'
+              className={`project-agent-insert-trigger flex h-11 min-w-0 items-center rounded-[12px] border py-2 text-sm font-semibold transition-all duration-150 ${
+                isVertical ? 'w-[118px] justify-start gap-2 px-3 max-[1320px]:w-[118px]' : 'gap-1.5 px-3 max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0'
               } ${
                 open
                   ? 'project-agent-insert-trigger--active border-[#111111] bg-[#111111] text-white shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_3px_0_rgba(20,20,20,0.95),0_12px_20px_rgba(0,0,0,0.16)] hover:-translate-y-[1px] hover:bg-[#1a1a1a] hover:shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_5px_0_rgba(20,20,20,0.95),0_16px_24px_rgba(0,0,0,0.18)] active:translate-y-[2px] active:shadow-[0_1px_0_rgba(255,255,255,0.06)_inset,0_1px_0_rgba(20,20,20,0.9),0_8px_12px_rgba(0,0,0,0.14)]'
@@ -397,17 +397,17 @@ export default function InsertToolbar({
               title={entry.label}
             >
               <EntryIcon className="h-4 w-4 shrink-0" />
-              <span className={`project-agent-insert-trigger-label truncate max-[1320px]:hidden ${isVertical ? 'hidden' : ''}`}>{entry.label}</span>
-              <ChevronDown className={`project-agent-insert-trigger-chevron h-3.5 w-3.5 shrink-0 transition-transform max-[1320px]:hidden ${isVertical ? 'hidden' : ''} ${open ? 'rotate-180' : ''}`} />
+              <span className={`project-agent-insert-trigger-label truncate ${isVertical ? '' : 'max-[1320px]:hidden'}`}>{entry.label}</span>
+              <ChevronDown className={`project-agent-insert-trigger-chevron ml-auto h-3.5 w-3.5 shrink-0 transition-transform ${isVertical ? '' : 'max-[1320px]:hidden'} ${open ? 'rotate-180' : ''}`} />
             </button>
           </div>
           );
         })}
 
-        {/* Text node — directly draggable, no dropdown */}
+        {/* Instruction node — directly draggable, no dropdown */}
         <div
-          className={`project-agent-insert-trigger project-agent-insert-text-trigger flex h-11 shrink cursor-grab items-center overflow-hidden rounded-[12px] border border-[#cfcfcb] bg-white py-2 text-sm font-semibold text-[#2a2a2a] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f6f6f4] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:cursor-grabbing active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)] max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0 ${
-            isVertical ? 'w-11 justify-center gap-0 px-0' : 'gap-1.5 px-3'
+          className={`project-agent-insert-trigger project-agent-insert-text-trigger flex h-11 shrink cursor-grab items-center overflow-hidden rounded-[12px] border border-[#cfcfcb] bg-white py-2 text-sm font-semibold text-[#2a2a2a] shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_3px_0_rgba(203,203,199,0.95),0_10px_18px_rgba(0,0,0,0.06)] transition-all duration-150 hover:-translate-y-[1px] hover:border-[#111111] hover:bg-[#f6f6f4] hover:shadow-[0_1px_0_rgba(255,255,255,0.95)_inset,0_5px_0_rgba(24,24,24,0.12),0_14px_22px_rgba(0,0,0,0.08)] active:translate-y-[2px] active:cursor-grabbing active:shadow-[0_1px_0_rgba(255,255,255,0.92)_inset,0_1px_0_rgba(203,203,199,0.88),0_6px_10px_rgba(0,0,0,0.05)] ${
+            isVertical ? 'w-[118px] justify-start gap-2 px-3 max-[1320px]:w-[118px]' : 'gap-1.5 px-3 max-[1320px]:w-11 max-[1320px]:justify-center max-[1320px]:px-0'
           }`}
           draggable
           onDragStart={(event) => {
@@ -418,7 +418,7 @@ export default function InsertToolbar({
           title={messages.text}
         >
           <Type className="h-4 w-4 shrink-0" />
-          <span className={`project-agent-insert-trigger-label max-[1320px]:hidden ${isVertical ? 'hidden' : ''}`}>{messages.text}</span>
+          <span className={`project-agent-insert-trigger-label truncate ${isVertical ? '' : 'max-[1320px]:hidden'}`}>{messages.text}</span>
         </div>
       </div>
     </div>

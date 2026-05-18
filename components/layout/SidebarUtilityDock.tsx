@@ -35,14 +35,18 @@ import { cn } from '@/lib/utils';
 import { useI18n } from '@/providers/I18nProvider';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 
+export type SettingsTab = 'profile' | 'appearance' | 'learning' | 'connected' | 'billing';
+
 interface SidebarUtilityDockProps {
   isDarkMode: boolean;
   onToggleDarkMode: (trigger: HTMLElement) => void;
   onNavigateTo: (href: string, onNavigate?: () => void) => void;
   onNavigate?: () => void;
+  showReturnButton?: boolean;
+  showIdentifier?: boolean;
+  openRequest?: { tab: SettingsTab; nonce: number } | null;
+  compact?: boolean;
 }
-
-type SettingsTab = 'profile' | 'appearance' | 'learning' | 'connected' | 'billing';
 
 type TimeFilter = 'all' | 'today' | '7days' | '30days' | '90days';
 
@@ -213,6 +217,10 @@ export default function SidebarUtilityDock({
   onToggleDarkMode,
   onNavigateTo,
   onNavigate,
+  showReturnButton = true,
+  showIdentifier = true,
+  openRequest = null,
+  compact = false,
 }: SidebarUtilityDockProps) {
   const { user } = useUser();
   const { credits } = useCredits();
@@ -334,6 +342,12 @@ export default function SidebarUtilityDock({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isSettingsOpen]);
+
+  useEffect(() => {
+    if (!openRequest) return;
+    setActiveTab(openRequest.tab);
+    setIsSettingsOpen(true);
+  }, [openRequest]);
 
   useEffect(() => {
     if (!isSettingsOpen || !user?.id) return;
@@ -476,7 +490,10 @@ export default function SidebarUtilityDock({
         <button
           type="button"
           className={cn(
-            'sidebar-utility-button inline-flex h-14 min-w-0 items-center gap-3 rounded-[20px] border border-[#ECECE8] bg-[linear-gradient(180deg,#FFFFFF_0%,#FCFCFB_100%)] px-2.5 pr-3 text-left text-[#444444] shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_3px_0_rgba(232,232,228,0.98),0_10px_18px_rgba(15,23,42,0.035)] transition-all duration-150 hover:translate-y-[2px] hover:border-[#E7E7E2] hover:bg-[linear-gradient(180deg,#FDFDFC_0%,#F8F8F6_100%)] hover:text-[#111111] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_1px_0_rgba(232,232,228,0.98),0_7px_12px_rgba(15,23,42,0.028)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/35 active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_0px_0_rgba(232,232,228,0.98),0_4px_8px_rgba(15,23,42,0.022)]',
+            'sidebar-utility-button inline-flex min-w-0 items-center border border-[#ECECE8] bg-[linear-gradient(180deg,#FFFFFF_0%,#FCFCFB_100%)] text-left text-[#444444] shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_3px_0_rgba(232,232,228,0.98),0_10px_18px_rgba(15,23,42,0.035)] transition-all duration-150 hover:translate-y-[2px] hover:border-[#E7E7E2] hover:bg-[linear-gradient(180deg,#FDFDFC_0%,#F8F8F6_100%)] hover:text-[#111111] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_1px_0_rgba(232,232,228,0.98),0_7px_12px_rgba(15,23,42,0.028)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/35 active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_0px_0_rgba(232,232,228,0.98),0_4px_8px_rgba(15,23,42,0.022)]',
+            compact
+              ? 'h-10 gap-2 rounded-full px-2.5 pr-3'
+              : 'h-14 gap-3 rounded-[20px] px-2.5 pr-3',
             isSettingsOpen && (isDarkMode
               ? 'translate-y-[2px] border-[#111111] bg-[#111111] text-white'
               : 'translate-y-[2px] border-[#111111] bg-[#111111] text-white'),
@@ -492,33 +509,40 @@ export default function SidebarUtilityDock({
             <img
               src={user.imageUrl}
               alt=""
-              className="h-9 w-9 shrink-0 rounded-full object-cover"
+              className={cn('shrink-0 rounded-full object-cover', compact ? 'h-6 w-6' : 'h-9 w-9')}
             />
           ) : (
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#EFEFED] text-sm font-semibold text-[#555555]">
+            <span className={cn(
+              'flex shrink-0 items-center justify-center rounded-full bg-[#EFEFED] font-semibold text-[#555555]',
+              compact ? 'h-6 w-6 text-xs' : 'h-9 w-9 text-sm',
+            )}>
               {displayName.charAt(0).toUpperCase()}
             </span>
           )}
           <span className="min-w-0">
-            <span className="block max-w-[8rem] truncate text-sm font-semibold leading-none">
+            <span className={cn('block max-w-[8rem] truncate font-semibold leading-none', compact ? 'text-xs' : 'text-sm')}>
               {displayName}
             </span>
-            <span className="sidebar-utility-user-id mt-1 block max-w-[8rem] truncate text-xs text-[#777777]">
-              @{accountIdentifier}
-            </span>
+            {showIdentifier ? (
+              <span className="sidebar-utility-user-id mt-1 block max-w-[8rem] truncate text-xs text-[#777777]">
+                @{accountIdentifier}
+              </span>
+            ) : null}
           </span>
         </button>
 
-        <button
-          type="button"
-          className={iconButtonClassName}
-          onPointerUp={(event) => handlePointerActivate(event, () => onNavigateTo('/', onNavigate))}
-          onClick={(event) => handleClickActivate(event, () => onNavigateTo('/', onNavigate))}
-          aria-label="Back to landing"
-          title="Back to landing"
-        >
-          <Home className="h-4.5 w-4.5" />
-        </button>
+        {showReturnButton ? (
+          <button
+            type="button"
+            className={iconButtonClassName}
+            onPointerUp={(event) => handlePointerActivate(event, () => onNavigateTo('/', onNavigate))}
+            onClick={(event) => handleClickActivate(event, () => onNavigateTo('/', onNavigate))}
+            aria-label="Back to landing"
+            title="Back to landing"
+          >
+            <Home className="h-4.5 w-4.5" />
+          </button>
+        ) : null}
       </div>
 
       {isSettingsOpen && typeof document !== 'undefined' ? createPortal((

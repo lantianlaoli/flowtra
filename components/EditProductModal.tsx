@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
-import { AlertCircle, Check, CircleHelp, Loader2, Package, Sparkles, Trash2, Upload, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, CircleHelp, Loader2, Package, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { UserProduct, UserProductPhoto } from '@/lib/supabase';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import { waitForAiReferenceAngleJobs } from '@/lib/ai-reference-angle-jobs-client';
@@ -22,6 +22,7 @@ interface EditProductModalProps {
   onPhotoUpload: (productId: string, file: File, photoRole?: 'frontal' | 'reference') => Promise<void>;
   onDeletePhoto: (productId: string, photoId: string) => Promise<void>;
   isDeleting?: boolean;
+  embedded?: boolean;
 }
 
 export default function EditProductModal({
@@ -32,7 +33,8 @@ export default function EditProductModal({
   onDelete,
   onPhotoUpload,
   onDeletePhoto,
-  isDeleting = false
+  isDeleting = false,
+  embedded = false
 }: EditProductModalProps) {
   const supabase = useSupabaseBrowserClient();
   const fieldBadgeClassName = 'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]';
@@ -402,53 +404,55 @@ export default function EditProductModal({
     src: photo.photo_url
   }));
 
-  return (
-    <>
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            className="assets-modal assets-edit-product fixed inset-0 z-50 flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <motion.div
-              className="assets-modal-backdrop absolute inset-0 bg-black/50 backdrop-blur-sm"
-              onClick={handleBackdropClick}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-
-            <motion.div
-              className="assets-modal-panel assets-edit-product-panel relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-2xl"
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.2 }}
+  const content = isOpen ? (
+    <motion.div
+      className={embedded
+        ? 'assets-edit-product-panel relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-white'
+        : 'assets-modal-panel assets-edit-product-panel relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-2xl'}
+      initial={{ opacity: 0, scale: embedded ? 1 : 0.95, y: embedded ? 0 : 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: embedded ? 1 : 0.95, y: embedded ? 0 : 20 }}
+      transition={{ duration: 0.2 }}
+    >
+      <div className={`assets-modal-header flex items-center justify-between border-b border-gray-200 ${embedded ? 'px-5 py-3.5' : 'px-6 py-5'}`}>
+        <div className="flex items-center gap-3">
+          {embedded ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-gray-200 px-3 text-xs font-semibold text-black hover:bg-gray-50"
             >
-              <div className="assets-modal-header flex items-center justify-between border-b border-gray-200 px-6 py-5">
-                <div className="flex items-center gap-3">
-                  <div className="assets-modal-icon flex h-11 w-11 items-center justify-center rounded-xl bg-black text-white">
-                    <Package className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="assets-modal-title text-xl font-semibold text-gray-900">Edit Product</p>
-                    <p className="assets-modal-subtitle text-sm text-gray-600">Manage name and product photos in one place.</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="assets-modal-close flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100"
-                  disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
-                >
-                  <X className="h-5 w-5 text-gray-500" />
-                </button>
-              </div>
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back
+            </button>
+          ) : (
+            <div className="assets-modal-icon flex h-11 w-11 items-center justify-center rounded-xl bg-black text-white">
+              <Package className="h-5 w-5" />
+            </div>
+          )}
+          <div>
+            <p className={`assets-modal-title font-semibold text-gray-900 ${embedded ? 'text-base' : 'text-xl'}`}>Edit Product</p>
+            {!embedded ? <p className="assets-modal-subtitle text-sm text-gray-600">Manage name and product photos in one place.</p> : null}
+          </div>
+        </div>
+        {!embedded ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="assets-modal-close flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100"
+            disabled={isSaving || isUploadingPhotos || isGeneratingReferences}
+          >
+            <X className="h-5 w-5 text-gray-500" />
+          </button>
+        ) : null}
+      </div>
 
-              <form onSubmit={handleSubmit} className="assets-modal-body space-y-5 px-6 py-6">
+      <form
+        onSubmit={handleSubmit}
+        className={embedded
+          ? 'assets-modal-body flex h-full min-h-0 flex-col gap-4 overflow-hidden px-5 py-4'
+          : 'assets-modal-body space-y-5 overflow-y-auto px-6 py-6'}
+      >
                 {error && (
                   <div className="assets-modal-error flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                     <AlertCircle className="h-4 w-4" />
@@ -472,8 +476,11 @@ export default function EditProductModal({
                   />
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-5">
-                  <div className="space-y-3">
+                <div className={embedded
+                  ? 'grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]'
+                  : 'grid grid-cols-1 gap-5 lg:grid-cols-[1.15fr_1fr]'}
+                >
+                  <div className={embedded ? 'flex min-h-0 flex-col gap-3' : 'space-y-3'}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-gray-900">Frontal Image</p>
@@ -494,7 +501,8 @@ export default function EditProductModal({
                         }
                       }}
                       className={cn(
-                        'assets-modal-upload relative w-full aspect-[4/5] max-h-[560px] overflow-hidden rounded-2xl border-2 border-dashed transition',
+                        'assets-modal-upload relative w-full overflow-hidden rounded-2xl border-2 border-dashed transition',
+                        embedded ? 'min-h-0 flex-1' : 'aspect-[4/5] max-h-[560px]',
                         frontalPhoto
                           ? 'border-gray-300 bg-[#F8F8F8]'
                           : 'border-gray-300 bg-[#FAFAFA] hover:border-gray-400'
@@ -508,7 +516,12 @@ export default function EditProductModal({
 
                       {frontalPhoto ? (
                         <>
-                          <Image src={frontalPhoto.photo_url} alt="Frontal preview" fill className="object-cover" />
+                          <Image
+                            src={frontalPhoto.photo_url}
+                            alt="Frontal preview"
+                            fill
+                            className={embedded ? 'object-contain p-3' : 'object-cover'}
+                          />
                           <button
                             type="button"
                             className="assets-modal-chip-close absolute right-3 top-3 rounded-full bg-black/70 p-1.5 text-white hover:bg-black"
@@ -546,7 +559,7 @@ export default function EditProductModal({
                     </div>
                   </div>
 
-                  <div className="space-y-3 h-full min-h-0 flex flex-col">
+                  <div className="flex h-full min-h-0 flex-col gap-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-1.5 leading-none">
                         <div className="flex items-center gap-2">
@@ -588,7 +601,7 @@ export default function EditProductModal({
                     </div>
 
                     <ReferenceImageGrid
-                      columns={2}
+                      columns={embedded ? 3 : 2}
                       items={referenceGridItems}
                       isGenerating={isGeneratingReferences}
                       onAdd={referencePhotos.length < 3 ? () => referenceInputRef.current?.click() : undefined}
@@ -629,11 +642,34 @@ export default function EditProductModal({
                     Save
                   </button>
                 </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+      </form>
+    </motion.div>
+  ) : null;
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <AnimatePresence>
+      {content ? (
+        <motion.div
+          className="assets-modal assets-edit-product fixed inset-0 z-50 flex items-center justify-center p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <motion.div
+            className="assets-modal-backdrop absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={handleBackdropClick}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+          {content}
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 }
