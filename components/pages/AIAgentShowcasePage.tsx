@@ -5,14 +5,12 @@ import Footer from '@/components/layout/Footer';
 import { FeatureSignupCTA } from '@/components/cta/FeatureSignupCTA';
 import FeatureBenefitRow from '@/components/features/FeatureBenefitRow';
 import FeatureHero from '@/components/features/FeatureHero';
-import FeatureStepsSection from '@/components/features/FeatureStepsSection';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
 import { useI18n } from '@/providers/I18nProvider';
 
 export default function AIAgentShowcasePage() {
   const { messages } = useI18n();
   const aiAgentMessages = messages.featurePages.aiAgent;
-  const steps = aiAgentMessages.steps;
   const primaryCta = { href: '/dashboard/agent', label: aiAgentMessages.primaryCta };
   const secondaryCta = { href: '/#pricing', label: aiAgentMessages.secondaryCta };
 
@@ -60,28 +58,6 @@ export default function AIAgentShowcasePage() {
                   autoPlay
                 />
               </div>
-            </div>
-          </div>
-        }
-      />
-
-      <FeatureStepsSection
-        eyebrow={aiAgentMessages.stepsEyebrow}
-        title={aiAgentMessages.stepsTitle}
-        steps={steps}
-        primaryCta={primaryCta}
-        secondaryCta={secondaryCta}
-        media={
-          <div className="w-full max-w-[760px] overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-black shadow-[0_18px_40px_rgba(0,0,0,0.06)] lg:ml-auto">
-            <div className="aspect-video w-full">
-              <iframe
-                className="h-full w-full"
-                src="https://www.youtube.com/embed/11CrLHYJ6sA?rel=0"
-                title="Flowtra AI Agent tutorial"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                referrerPolicy="strict-origin-when-cross-origin"
-                allowFullScreen
-              />
             </div>
           </div>
         }
@@ -148,10 +124,7 @@ export default function AIAgentShowcasePage() {
         }
       />
 
-      <FeatureSignupCTA
-        title={aiAgentMessages.signup.title}
-        description={aiAgentMessages.signup.description}
-      />
+      <FeatureSignupCTA />
 
       <Footer />
     </div>

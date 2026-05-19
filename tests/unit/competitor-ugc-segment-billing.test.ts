@@ -22,7 +22,7 @@ test('getSegmentVideoGenerationCost returns per-second Kling pricing', () => {
 test('getSegmentVideoGenerationCost keeps Seedance quality fixed to native 720p pricing', () => {
   assert.equal(getSegmentVideoGenerationCost('seedance_2_fast', 4, '720p'), 132);
   assert.equal(getSegmentVideoGenerationCost('seedance_2_fast', 8, '1080p'), 264);
-  assert.equal(getSegmentVideoGenerationCost('seedance_2', 12, '1080p'), 492);
+  assert.equal(getSegmentVideoGenerationCost('seedance_2', 12, '1080p'), 1224);
 });
 
 test('parseTimecodeToSeconds supports mm:ss and hh:mm:ss formats', () => {

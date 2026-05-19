@@ -1107,7 +1107,7 @@ export default function MotionClonePage() {
             Motion Clone is being upgraded
           </h2>
           <p className="mt-3 text-sm leading-6 text-[#666666]">
-            We're improving motion cloning quality and adding new model options. This workspace will be back soon.
+            We&apos;re improving motion cloning quality and adding new model options. This workspace will be back soon.
           </p>
         </div>
       </div>

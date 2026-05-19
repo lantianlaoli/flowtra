@@ -38,6 +38,8 @@ test('clone segment prompt normalization preserves Mandarin language', () => {
       ],
     },
     1,
+    undefined,
+    15,
   );
 
   assert.equal(normalized[0]?.language, 'zh');

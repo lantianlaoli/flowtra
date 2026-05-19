@@ -1139,9 +1139,7 @@ export default function HistoryPage({ embedded = false, active = true }: { embed
                           setHoveredVideo(null);
                         }}
                       >
-                        {item.status === 'completed' && 'videoUrl' in item && item.videoUrl &&
-                          (('photoOnly' in item && !item.photoOnly) || isCharacterAds(item)) &&
-                          hoveredVideo === item.id ? (
+                        {item.status === 'completed' && 'videoUrl' in item && item.videoUrl ? (
                           <VideoPlayer
                             src={item.videoUrl}
                             className="w-full h-full object-contain"

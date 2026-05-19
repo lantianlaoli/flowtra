@@ -16,7 +16,7 @@ import { buildAvatarGeneratedPrompts } from '@/lib/project-agent/avatar-script-p
 
 test('video model lineup only contains seedance2 and kling', () => {
   const models = Object.keys(VIDEO_MODEL_DISPLAY_NAMES).sort();
-  assert.deepEqual(models, ['kling_3', 'seedance_2', 'seedance_2_fast']);
+  assert.deepEqual(models, ['kling_3', 'seedance_2', 'seedance_2_fast', 'wan_27']);
 });
 
 test('seedance2 pricing is per-second with configured costs', () => {

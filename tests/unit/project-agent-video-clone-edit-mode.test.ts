@@ -39,7 +39,7 @@ function buildState(assetNodes: ReturnType<typeof createProjectAgentAssetNode>[]
 test('video clone resolves video + text only to edit-video mode', () => {
   assert.equal(getProjectAgentVideoCloneMode({ video, text }), 'edit_video');
   assert.equal(getProjectAgentVideoCloneDurationSeconds({ video, text }), 9);
-  assert.deepEqual(getProjectAgentVideoCloneAllowedModels('edit_video'), ['seedance_2', 'seedance_2_fast']);
+  assert.deepEqual(getProjectAgentVideoCloneAllowedModels('edit_video'), ['seedance_2', 'seedance_2_fast', 'wan_27']);
 });
 
 test('video clone keeps avatar-backed runs in clone mode', () => {

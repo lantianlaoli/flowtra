@@ -107,7 +107,7 @@ test('asset matching preserves non-latin names for multilingual canvas requests'
 
 test('planner reuses the single video and product on canvas when adding a motion clone workflow', () => {
   const plan = planProjectAgentCanvasCommand(
-    'Now use the same video to add a motion clone workflow for Default Female and keep the red lapel pin in the canvas.',
+    'Now use the same video to add a motion clone workflow for Sofia Garcia and keep the red lapel pin in the canvas.',
     {
       ...DEFAULT_PROJECT_AGENT_CANVAS_STATE,
       nodes: [

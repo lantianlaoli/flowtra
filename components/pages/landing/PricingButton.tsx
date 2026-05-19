@@ -11,9 +11,10 @@ type PackageName = 'lite' | 'basic' | 'pro';
 
 interface PricingButtonProps {
   packageName: PackageName;
+  label?: string;
 }
 
-export function PricingButton({ packageName }: PricingButtonProps) {
+export function PricingButton({ packageName, label }: PricingButtonProps) {
   const { messages } = useI18n();
   const buttonMessages = messages.landing.pricing.buttons;
   const { isLoaded, user } = useUser();
@@ -79,7 +80,7 @@ export function PricingButton({ packageName }: PricingButtonProps) {
             });
           }}
         >
-          {buttonMessages.getStarted}
+          {label ?? buttonMessages.getStarted}
         </button>
       </SignInButton>
     );
@@ -154,7 +155,7 @@ export function PricingButton({ packageName }: PricingButtonProps) {
       disabled={isProcessing}
       className={purchaseButtonClass}
     >
-      {isProcessing ? buttonMessages.processing : subscribedTier ? buttonMessages.changePlan : buttonMessages.getStarted}
+      {isProcessing ? buttonMessages.processing : label ?? (subscribedTier ? buttonMessages.changePlan : buttonMessages.getStarted)}
     </button>
   );
 }

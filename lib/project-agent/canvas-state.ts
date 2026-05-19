@@ -111,9 +111,10 @@ export const isProjectAgentRuntimeActive = (
 ) => {
   if (!runtime) return false;
   if (runtime.runs?.some((run) => run.executionState === 'running')) return true;
+  if (runtime.milestones?.some((milestone) => milestone.state === 'active')) return true;
   if (runtime.executionState !== 'running') return false;
   if (runtime.phase === 'queued') return true;
-  return Boolean(runtime.milestones?.some((milestone) => milestone.state === 'active'));
+  return false;
 };
 
 export type ProjectAgentCanvasNode = {
@@ -169,14 +170,6 @@ export const getCanvasConnectionError = (
     !(PROJECT_AGENT_FEATURE_ANY_OF_INPUTS[targetNode.type] || []).includes(edge.targetHandle)
   ) {
     return `This ${sourceNode.type} cannot connect to ${getProjectAgentFeatureDisplayName(targetNode.type)}.`;
-  }
-
-  if (
-    targetNode.type === 'motion_clone' &&
-    edge.targetHandle === 'video' &&
-    !sourceNode.asset?.imageUrl
-  ) {
-    return 'This video needs a cover image before it can connect to Motion Clone.';
   }
 
   return null;

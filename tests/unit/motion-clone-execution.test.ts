@@ -77,7 +77,7 @@ test('builds prompt drafts from avatar and optional product selections', () => {
   assert.match(avatarOnly.photoPrompt, /authoritative base frame/i);
   assert.match(avatarOnly.photoPrompt, /Preserve the original product or bottle\./);
   assert.match(avatarOnly.photoPrompt, /Preserve all non-target props, tools, handheld objects, hand-object interactions/i);
-  assert.match(avatarOnly.videoPrompt, /appearance guide only for the targeted person/i);
+  assert.match(avatarOnly.videoPrompt, /No distortion.*movements are consistent/i);
   assert.doesNotMatch(avatarOnly.photoPrompt, /Parsed \d+ shots/i);
 
   const withProduct = buildMotionClonePromptDrafts({
@@ -92,7 +92,7 @@ test('builds prompt drafts from avatar and optional product selections', () => {
   assert.match(withProduct.photoPrompt, /Preserve all non-target props, tools, handheld objects, hand-object interactions/i);
   assert.match(withProduct.photoPrompt, /Use image 2 and image 3 only as replacement identity references\./i);
   assert.match(withProduct.videoPrompt, /Every visible product or bottle should be @\(Bottle\)\./);
-  assert.match(withProduct.videoPrompt, /appearance guide only for the targeted person and product/i);
+  assert.match(withProduct.videoPrompt, /No distortion.*movements are consistent/i);
   assert.doesNotMatch(withProduct.photoPrompt, /Match the original creator-video structure/i);
   assert.doesNotMatch(withProduct.videoPrompt, /motion, pacing, rhythm, and camera movement/i);
 });

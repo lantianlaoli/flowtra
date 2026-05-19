@@ -95,7 +95,7 @@ test('video clone requires a reference video plus either avatar or product', () 
     nodes: [avatarNode, productNode, videoNode, featureNode],
   };
 
-  assert.deepEqual(getMissingFeatureInputs(state, featureNode.id), ['video', 'avatar', 'product']);
+  assert.deepEqual(getMissingFeatureInputs(state, featureNode.id), ['video', 'avatar', 'product', 'text']);
   assert.equal(canRunFeatureNode(state, featureNode.id), false);
 
   state = connectCanvasNodes(state, {
@@ -104,7 +104,7 @@ test('video clone requires a reference video plus either avatar or product', () 
     targetNodeId: featureNode.id,
     targetHandle: 'video',
   });
-  assert.deepEqual(getMissingFeatureInputs(state, featureNode.id), ['avatar', 'product']);
+  assert.deepEqual(getMissingFeatureInputs(state, featureNode.id), ['avatar', 'product', 'text']);
   assert.equal(canRunFeatureNode(state, featureNode.id), false);
 
   state = connectCanvasNodes(state, {
@@ -125,7 +125,7 @@ test('feature target handle position tracks the rendered feature node size', () 
   });
   const size = getProjectAgentCanvasNodeSize(featureNode);
 
-  assert.deepEqual(size, { width: 336, height: 272 });
+  assert.deepEqual(size, { width: 380, height: 300 });
   assert.deepEqual(getProjectAgentCanvasTargetHandlePosition(featureNode), {
     x: 360,
     y: 80 + size.height / 2,

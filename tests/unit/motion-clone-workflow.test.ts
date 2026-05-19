@@ -94,7 +94,5 @@ test('motion clone video prompt preserves non-target props and scene composition
     hasProduct: true,
   });
 
-  assert.match(prompt, /appearance guide only for the targeted person and product/i);
-  assert.match(prompt, /Preserve the original motion, background, lighting, framing, hand placement, props, tools, and all untouched scene elements/i);
-  assert.match(prompt, /Change only the explicitly targeted person and\/or product\./);
+  assert.equal(prompt, "No distortion, the character's movements are consistent with the video.");
 });

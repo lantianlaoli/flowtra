@@ -148,7 +148,7 @@ export default function FeaturesSection() {
             media={
               <div className="landing-feature-media relative aspect-video overflow-hidden rounded-[22px] border border-[#E5E5E5] bg-[#F1F1F1] shadow-[0_18px_30px_rgba(0,0,0,0.08)]">
                 <LazyVideoPlayer
-                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/agent_manual_select.mp4"
+                  src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/canvas_avatar_ads.mp4"
                   wrapperClassName="h-full w-full"
                   className="h-full w-full object-cover"
                   eager

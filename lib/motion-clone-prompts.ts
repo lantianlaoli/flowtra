@@ -35,18 +35,5 @@ export const buildMotionClonePreviewPrompt = (options?: MotionClonePromptOptions
   ].join(' ');
 };
 
-export const buildMotionCloneVideoPrompt = (options?: MotionClonePromptOptions) => {
-  const hasAvatar = options?.hasAvatar ?? true;
-  const hasProduct = options?.hasProduct ?? true;
-  const guidance = hasAvatar && hasProduct
-    ? 'Use the swapped preview image as the appearance guide only for the targeted person and product.'
-    : hasAvatar
-      ? 'Use the swapped preview image as the appearance guide only for the targeted person.'
-      : 'Use the swapped preview image as the appearance guide only for the targeted product.';
-  return [
-    'Motion Clone video:',
-    guidance,
-    'Preserve the original motion, background, lighting, framing, hand placement, props, tools, and all untouched scene elements from the reference video.',
-    'Do not reinterpret the scene based on the replacement references. Change only the explicitly targeted person and/or product.'
-  ].join(' ');
-};
+export const buildMotionCloneVideoPrompt = (_options?: MotionClonePromptOptions) =>
+  'No distortion, the character\'s movements are consistent with the video.';

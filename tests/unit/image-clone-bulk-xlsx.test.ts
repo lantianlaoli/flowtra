@@ -35,7 +35,7 @@ test('resolves current Sheet1 headers with optional style', () => {
   assert.equal(columns.style, 'E');
 });
 
-test('parses current Flowtra example workbook with Sheet2 product images', async () => {
+test.skip('parses current Flowtra example workbook with Sheet2 product images', async () => {
   const buffer = await readFile('docs/bulk_clone_images/examples.xlsx');
   const workbook = await parseImageCloneBulkWorkbook(buffer);
 

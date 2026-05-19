@@ -316,24 +316,24 @@ export default function VideoAssetDetailsModal({
                     Back
                   </button>
                 ) : null}
-                <div className="space-y-1">
+                <h3 className="assets-modal-title text-lg font-semibold text-gray-900">
+                  Video Details
+                </h3>
+              </div>
+              <div className="flex items-center gap-3">
                 {isSystemVideo && (
                   <div className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">
                     <span aria-hidden>🔒</span>
                     Read-only system video
                   </div>
                 )}
-                <h3 className="assets-modal-title text-lg font-semibold text-gray-900">
-                  Video Details
-                </h3>
-                </div>
+                {!embedded ? <button
+                  onClick={onClose}
+                  className="assets-modal-close w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <X className="w-4 h-4 text-gray-500" />
+                </button> : null}
               </div>
-              {!embedded ? <button
-                onClick={onClose}
-                className="assets-modal-close w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <X className="w-4 h-4 text-gray-500" />
-              </button> : null}
             </div>
 
             <div className={`assets-modal-body grid min-h-0 grid-cols-1 items-start gap-6 overflow-y-auto ${embedded ? "p-5" : "p-6"} ${isCompact ? "lg:grid-cols-[max-content_minmax(0,1fr)]" : "lg:grid-cols-[max-content_minmax(0,1fr)]"} lg:items-end`}>
@@ -413,8 +413,7 @@ export default function VideoAssetDetailsModal({
               </div>
 
               <div
-                className="assets-video-details-panel min-h-0 flex flex-col gap-4 self-end"
-                style={{ height: `${previewHeight}px` }}
+                className="assets-video-details-panel min-h-0 flex flex-col gap-4 self-stretch"
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3">

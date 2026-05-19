@@ -1713,6 +1713,10 @@ export default function ProjectAgentPage() {
     if (target?.closest('[data-canvas-node="true"], [data-canvas-ui="true"]')) return;
     if (event.button !== 0) return;
     event.preventDefault();
+    // Blur any focused input (e.g. instruct textarea) so spacebar triggers pan instead of typing
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setPendingConnectionSourceId(null);
     setPendingConnectionPoint(null);
     setSnappedConnectionTarget(null);

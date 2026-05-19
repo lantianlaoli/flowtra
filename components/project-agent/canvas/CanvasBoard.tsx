@@ -695,7 +695,7 @@ export default function CanvasBoard({
                 selected
                   ? 'project-agent-node-card--selected'
                   : 'border-[#dfddd5] hover:shadow-[0_22px_48px_rgba(0,0,0,0.10)]'
-              } ${isDragging ? 'z-20 select-none shadow-[0_28px_70px_rgba(0,0,0,0.16)]' : 'shadow-[0_18px_40px_rgba(0,0,0,0.08)]'}`}
+              } ${isDragging ? 'z-20 select-none shadow-[0_28px_70px_rgba(0,0,0,0.16)]' : modelMenuOpen || qualityMenuOpen ? 'z-[60] shadow-[0_18px_40px_rgba(0,0,0,0.08)]' : 'shadow-[0_18px_40px_rgba(0,0,0,0.08)]'}`}
               style={{
                 left: node.x,
                 top: node.y,

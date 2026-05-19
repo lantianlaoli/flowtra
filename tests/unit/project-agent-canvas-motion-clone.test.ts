@@ -291,11 +291,11 @@ test('toProjectAgentVideoAssets keeps only motion-clone-ready creator videos', (
 
   assert.deepEqual(
     videos.map((video) => video.id),
-    ['creator-ready', 'competitor-1']
+    ['creator-missing-cover', 'creator-ready', 'competitor-1']
   );
 });
 
-test('motion clone rejects videos without a cover image at connection time', () => {
+test('motion clone allows videos without a cover image at connection time', () => {
   const videoNode = createProjectAgentAssetNode({
     type: 'video',
     x: 0,
@@ -329,9 +329,6 @@ test('motion clone rejects videos without a cover image at connection time', () 
     targetHandle: 'video' as const,
   };
 
-  assert.equal(
-    getCanvasConnectionError(state, edge),
-    'This video needs a cover image before it can connect to Motion Clone.'
-  );
-  assert.deepEqual(connectCanvasNodes(state, edge).edges, []);
+  assert.equal(getCanvasConnectionError(state, edge), null);
+  assert.equal(connectCanvasNodes(state, edge).edges.length, 1);
 });

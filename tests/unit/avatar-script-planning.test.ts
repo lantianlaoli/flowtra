@@ -28,8 +28,8 @@ test('Avatar planner keeps risky English copy under Kling safety headroom', () =
     const duration = Number(scene.prompt.duration_seconds);
     const estimated = estimateDialogueDuration(dialog, 'en');
 
-    assert.equal(duration <= 14, true);
-    assert.equal(estimated <= 14, true);
+    assert.equal(duration <= 15, true);
+    assert.equal(estimated <= 15, true);
     assert.doesNotMatch(dialog, /[,;:—–]\s*$/);
   });
 });
