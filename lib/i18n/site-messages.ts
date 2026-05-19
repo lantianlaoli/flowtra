@@ -309,6 +309,10 @@ type SiteMessages = {
           title: string;
           bullets: string[];
         };
+        avatarAds: {
+          title: string;
+          bullets: string[];
+        };
       };
       signup: {
         title: string;
@@ -784,6 +788,14 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
               'Mention the exact person, product, or reference video in chat and the agent can place the matching cards on the canvas.',
               'Turn a named request into the right workflow structure for video clone, motion clone, or avatar ads without rebuilding the canvas by hand.',
               'Keep every selected asset and connection visible so follow-up edits refine the current graph instead of starting over.',
+            ],
+          },
+          avatarAds: {
+            title: 'Launch avatar ads straight from the canvas',
+            bullets: [
+              'Drop a character card and a product card onto the canvas, then pick the avatar ads function to start generating talking-head videos.',
+              'Let the agent pair dialogue prompts with the right character and product so each scene lands on-message without manual scripting.',
+              'Review, regenerate, or extend scenes directly in the canvas workspace without leaving the flow.',
             ],
           },
         },
@@ -1294,6 +1306,14 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
               '在聊天里提到具体人物、产品或参考视频，智能体就能把对应卡片放到画布上。',
               '把一句素材指令直接转成视频克隆、动作克隆或数字人口播结构，无需手动重搭。',
               '所有已选素材和连接关系都保留可见，后续修改只是在当前图上继续完善。',
+            ],
+          },
+          avatarAds: {
+            title: '在画布里直接启动生成数字人口播广告',
+            bullets: [
+              '把角色卡片和产品卡片拖到画布上，选择数字人口播功能，就可以开始生成口播视频。',
+              '智能体自动把台词提示词匹配到对应角色和产品，每条场景都精准传达卖点，无需手动写脚本。',
+              '在画布工作流里直接查看、重新生成或延伸场景，不用退出当前流程。',
             ],
           },
         },
