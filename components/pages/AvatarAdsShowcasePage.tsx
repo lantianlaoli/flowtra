@@ -1,7 +1,6 @@
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { FeatureSignupCTA } from '@/components/cta/FeatureSignupCTA';
-import FeatureBenefitRow from '@/components/features/FeatureBenefitRow';
 import FeatureHero from '@/components/features/FeatureHero';
 import FeatureStepsSection from '@/components/features/FeatureStepsSection';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
@@ -31,7 +30,6 @@ const steps = [
 
 const primaryCta = { href: '/dashboard/character-ads', label: 'Start Avatar Ads' };
 const secondaryCta = { href: '/#pricing', label: 'View Pricing' };
-const AVATAR_ADS_TUTORIAL_EMBED_URL = 'https://www.youtube.com/embed/B_UjnFsbitk?rel=0';
 
 export default function AvatarAdsShowcasePage() {
   return (
@@ -66,34 +64,8 @@ export default function AvatarAdsShowcasePage() {
         secondaryCta={secondaryCta}
         media={
           <div className="w-full max-w-[760px] overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-black shadow-[0_18px_40px_rgba(0,0,0,0.06)] lg:ml-auto">
-            <div className="aspect-video w-full">
-              <iframe
-                className="h-full w-full"
-                src={AVATAR_ADS_TUTORIAL_EMBED_URL}
-                title="Flowtra Avatar Ads tutorial"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                referrerPolicy="strict-origin-when-cross-origin"
-                allowFullScreen
-              />
-            </div>
-          </div>
-        }
-      />
-
-      <FeatureBenefitRow
-        title="Unlimited product and actor configuration"
-        bullets={[
-          'Upload products and actor photos without the setup becoming the bottleneck.',
-          'Keep testing new combinations of people, products, and messaging for fresh ad angles.',
-          'Build a reusable asset library that supports high-volume creative iteration.'
-        ]}
-        reverse
-        primaryCta={primaryCta}
-        secondaryCta={secondaryCta}
-        media={
-          <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-[#FAFAFA] shadow-[0_18px_40px_rgba(0,0,0,0.06)] transition-transform duration-200 hover:-translate-y-1">
             <LazyVideoPlayer
-              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/avatar_ads_asset.mp4"
+              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/canvas_avatar_ads.mp4"
               wrapperClassName="w-full"
               className="w-full h-auto"
               showControls={false}
@@ -105,34 +77,7 @@ export default function AvatarAdsShowcasePage() {
         }
       />
 
-      <FeatureBenefitRow
-        title="Advanced scene and action control"
-        bullets={[
-          'Edit image prompts until the first frame matches the shot you actually want.',
-          'Customize video prompts end to end, from motion and background to spoken delivery.',
-          'Keep the workflow controlled instead of hoping one generation gets every detail right.'
-        ]}
-        primaryCta={primaryCta}
-        secondaryCta={secondaryCta}
-        media={
-          <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-[#FAFAFA] shadow-[0_18px_40px_rgba(0,0,0,0.06)] transition-transform duration-200 hover:-translate-y-1">
-            <LazyVideoPlayer
-              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/avatar_ads_demo.mp4"
-              wrapperClassName="w-full"
-              className="w-full h-auto"
-              showControls={false}
-              playsInline
-              loop
-              autoPlay
-            />
-          </div>
-        }
-      />
-
-      <FeatureSignupCTA
-        title="Ready to make your first avatar ad?"
-        description="Create your account and start building avatar-led ads right away."
-      />
+      <FeatureSignupCTA />
 
       <Footer />
     </div>

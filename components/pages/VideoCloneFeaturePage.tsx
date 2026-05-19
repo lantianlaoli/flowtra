@@ -3,7 +3,6 @@ import { Clock3, Globe2, Scissors } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { FeatureSignupCTA } from '@/components/cta/FeatureSignupCTA';
-import FeatureBenefitRow from '@/components/features/FeatureBenefitRow';
 import FeatureHero from '@/components/features/FeatureHero';
 import FeatureStepsSection from '@/components/features/FeatureStepsSection';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
@@ -57,7 +56,6 @@ const analysisShots = [
 
 const primaryCta = { href: '/dashboard/video-clone', label: 'Start Video Clone' };
 const secondaryCta = { href: '/#pricing', label: 'View Pricing' };
-const CLONE_TUTORIAL_EMBED_URL = 'https://www.youtube.com/embed/BX5XLe3JbQ8?rel=0';
 
 export default function VideoCloneFeaturePage() {
   return (
@@ -115,16 +113,15 @@ export default function VideoCloneFeaturePage() {
         secondaryCta={secondaryCta}
         media={
           <div className="w-full max-w-[760px] overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-black shadow-[0_18px_40px_rgba(0,0,0,0.06)] lg:ml-auto">
-            <div className="aspect-video w-full">
-              <iframe
-                className="h-full w-full"
-                src={CLONE_TUTORIAL_EMBED_URL}
-                title="Flowtra Video Clone tutorial"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                referrerPolicy="strict-origin-when-cross-origin"
-                allowFullScreen
-              />
-            </div>
+            <LazyVideoPlayer
+              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/canvas_video_clone.mp4"
+              wrapperClassName="w-full"
+              className="w-full h-auto"
+              showControls={false}
+              playsInline
+              loop
+              autoPlay
+            />
           </div>
         }
       />
@@ -224,48 +221,7 @@ export default function VideoCloneFeaturePage() {
         </div>
       </section>
 
-      <FeatureBenefitRow
-        title="Prompt control for video clone"
-        bullets={[
-          'Rewrite image prompts and video prompts while preserving the structure you want to keep.',
-          'Adjust each segment independently so the final ad fits your product, pacing, and audience.',
-          'Use a cleaner review loop instead of committing to the first generated version.'
-        ]}
-        reverse
-        primaryCta={primaryCta}
-        secondaryCta={secondaryCta}
-        media={
-          <div className="grid gap-4">
-            <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-[#FAFAFA] shadow-[0_18px_40px_rgba(0,0,0,0.06)] transition-transform duration-200 hover:-translate-y-1">
-              <LazyVideoPlayer
-                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_prompt_image.mp4"
-                wrapperClassName="w-full"
-                className="w-full h-auto"
-                showControls={false}
-                playsInline
-                loop
-                autoPlay
-              />
-            </div>
-            <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-[#FAFAFA] shadow-[0_18px_40px_rgba(0,0,0,0.06)] transition-transform duration-200 hover:-translate-y-1">
-              <LazyVideoPlayer
-                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/clone_prompt_video.mp4"
-                wrapperClassName="w-full"
-                className="w-full h-auto"
-                showControls={false}
-                playsInline
-                loop
-                autoPlay
-              />
-            </div>
-          </div>
-        }
-      />
-
-      <FeatureSignupCTA
-        title="Ready to clone a winning ad?"
-        description="Create your account and start turning references into launch-ready clones."
-      />
+      <FeatureSignupCTA />
 
       <Footer />
     </div>

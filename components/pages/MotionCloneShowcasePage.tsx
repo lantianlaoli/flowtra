@@ -1,12 +1,9 @@
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { FeatureSignupCTA } from '@/components/cta/FeatureSignupCTA';
-import FeatureBenefitRow from '@/components/features/FeatureBenefitRow';
 import FeatureHero from '@/components/features/FeatureHero';
 import FeatureStepsSection from '@/components/features/FeatureStepsSection';
 import { LazyVideoPlayer } from '@/components/pages/landing/LazyVideoPlayer';
-
-const MOTION_CLONE_TUTORIAL_EMBED_URL = 'https://www.youtube.com/embed/d_pzzXUj-Lw?rel=0';
 
 const steps = [
   {
@@ -15,7 +12,7 @@ const steps = [
   },
   {
     title: 'Set the replacement assets',
-    description: 'Choose the product you want the workflow to substitute into the source motion.'
+    description: 'Choose the model you want the workflow to substitute into the source motion.'
   },
   {
     title: 'Preview and generate',
@@ -85,74 +82,21 @@ export default function MotionCloneShowcasePage() {
         media={
           <div className="w-fit max-w-full lg:ml-auto">
             <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-white shadow-[0_18px_40px_rgba(0,0,0,0.06)]">
-              <div className="aspect-video w-full max-w-[720px] min-w-[280px] bg-black">
-                <iframe
-                  className="h-full w-full"
-                  src={MOTION_CLONE_TUTORIAL_EMBED_URL}
-                  title="Motion Clone tutorial"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  allowFullScreen
-                />
-              </div>
+              <LazyVideoPlayer
+                src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/canvas_motion_clone.mp4"
+                wrapperClassName="w-full max-w-[720px] min-w-[280px]"
+                className="w-full h-auto"
+                showControls={false}
+                playsInline
+                loop
+                autoPlay
+              />
             </div>
           </div>
         }
       />
 
-      <FeatureBenefitRow
-        title="Import viral videos by creator name"
-        bullets={[
-          'Search by creator name and pull strong references into the workflow without manual hunting.',
-          'Start from a proven clip and move into a new product version in the same flow.',
-          'Keep the original motion DNA visible before you decide what to replace.'
-        ]}
-        primaryCta={primaryCta}
-        secondaryCta={secondaryCta}
-        media={
-          <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-[#FAFAFA] shadow-[0_18px_40px_rgba(0,0,0,0.06)] transition-transform duration-200 hover:-translate-y-1">
-            <LazyVideoPlayer
-              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/import_tiktok_name.mp4"
-              wrapperClassName="w-full"
-              className="w-full h-auto"
-              showControls={false}
-              playsInline
-              loop
-              autoPlay
-            />
-          </div>
-        }
-      />
-
-      <FeatureBenefitRow
-        title="Smart frame control"
-        bullets={[
-          'Preview the first frame before committing to the full generation.',
-          'Use visual control to tighten character placement, product position, and scene composition.',
-          'Reduce wasted generations by correcting the shot earlier in the process.'
-        ]}
-        reverse
-        primaryCta={primaryCta}
-        secondaryCta={secondaryCta}
-        media={
-          <div className="overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-[#FAFAFA] shadow-[0_18px_40px_rgba(0,0,0,0.06)] transition-transform duration-200 hover:-translate-y-1">
-            <LazyVideoPlayer
-              src="https://aywxqxpmmtgqzempixec.supabase.co/storage/v1/object/public/site-assets/showcase/shared/videos/motion_swap_demo.mp4"
-              wrapperClassName="w-full"
-              className="w-full h-auto"
-              showControls={false}
-              playsInline
-              loop
-              autoPlay
-            />
-          </div>
-        }
-      />
-
-      <FeatureSignupCTA
-        title="Ready to build your own ad motion?"
-        description="Create your account and start rebuilding strong ad motion around your product."
-      />
+      <FeatureSignupCTA />
 
       <Footer />
     </div>
