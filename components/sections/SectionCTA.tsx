@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
+import { useUser, SignInButton } from '@clerk/nextjs';
 
 interface SectionCTAProps {
   title?: string;
@@ -18,6 +18,8 @@ export default function SectionCTA({
   signedInText = 'Go to Dashboard',
   className = '',
 }: SectionCTAProps) {
+  const { isSignedIn } = useUser();
+
   return (
     <div className={`mt-8 md:mt-10`}>
       <div className={`max-w-5xl mx-auto bg-gray-50 border border-gray-200 rounded-lg p-4 sm:p-5 ${className}`}>
@@ -27,18 +29,17 @@ export default function SectionCTA({
             <p className="text-gray-600 text-sm mt-1">{subtitle}</p>
           </div>
           <div className="text-center sm:text-right">
-            <SignedOut>
+            {!isSignedIn ? (
               <SignInButton mode="modal" forceRedirectUrl="/dashboard">
                 <button className="landing-press-button landing-press-button--compact font-semibold">
                   {buttonText}
                 </button>
               </SignInButton>
-            </SignedOut>
-            <SignedIn>
+            ) : (
               <Link href="/dashboard" className="landing-press-button landing-press-button--compact font-semibold">
                 {signedInText}
               </Link>
-            </SignedIn>
+            )}
           </div>
         </div>
       </div>

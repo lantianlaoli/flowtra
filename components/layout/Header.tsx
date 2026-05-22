@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/nextjs";
+import { useUser, UserButton, SignInButton } from "@clerk/nextjs";
 import {
   Bars3Icon,
   XMarkIcon,
@@ -117,6 +117,7 @@ export default function Header({
   showAuthButtons = true,
 }: HeaderProps) {
   const { locale, messages } = useI18n();
+  const { isSignedIn } = useUser();
   const headerMessages = messages.landing.header;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [compact, setCompact] = useState(false);
@@ -328,7 +329,7 @@ export default function Header({
             </nav>
 
             <div className="flex items-center gap-2 sm:gap-2.5">
-              <SignedIn>
+              {isSignedIn && (
                 <Link
                   href="/dashboard"
                   className="landing-press-button landing-press-button--compact inline-flex items-center justify-center text-[14px] font-medium"
@@ -336,20 +337,19 @@ export default function Header({
                   <LayoutDashboard className="w-4 h-4" />
                   {headerMessages.dashboard}
                 </Link>
-              </SignedIn>
+              )}
               {showAuthButtons ? (
                 <>
-                  <SignedOut>
+                  {!isSignedIn ? (
                     <SignInButton mode="modal" forceRedirectUrl="/dashboard">
                       <button className="landing-press-button landing-press-button--compact inline-flex items-center justify-center px-3 text-[12px] font-medium sm:px-5 sm:text-[14px]">
                         <span className="hidden sm:inline">{headerMessages.signUpDesktop}</span>
                         <span className="sm:hidden">{headerMessages.signUpMobile}</span>
                       </button>
                     </SignInButton>
-                  </SignedOut>
-                  <SignedIn>
-                    <UserButton afterSignOutUrl="/" />
-                  </SignedIn>
+                  ) : (
+                    <UserButton />
+                  )}
                 </>
               ) : null}
 

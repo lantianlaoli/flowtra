@@ -1,7 +1,6 @@
 import { OpenRouter } from '@openrouter/sdk';
 import type { RetryConfig } from '@openrouter/sdk/lib/retries';
-import type { ChatGenerationParams } from '@openrouter/sdk/models/chatgenerationparams';
-import type { ChatResponse } from '@openrouter/sdk/models/chatresponse';
+import type * as models from '@openrouter/sdk/models';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
 type LegacyChatContentPart =
@@ -156,7 +155,7 @@ function isResponseValidationFailure(error: unknown): error is Error & { rawResp
 async function sendOpenRouterChatWithRawFetch(
   request: LegacyChatRequest,
   options: OpenRouterChatOptions
-): Promise<ChatResponse> {
+): Promise<models.ChatResult> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error('OPENROUTER_API_KEY is not configured.');
@@ -198,13 +197,13 @@ async function sendOpenRouterChatWithRawFetch(
     throw new Error(`OpenRouter request failed (${response.status}): ${message}`);
   }
 
-  return data as ChatResponse;
+  return data as models.ChatResult;
 }
 
 export async function sendOpenRouterChat(
   request: LegacyChatRequest,
   options: OpenRouterChatOptions = {}
-): Promise<ChatResponse> {
+): Promise<models.ChatResult> {
   const normalizedRequest = normalizeOpenRouterPayload(request) as Record<string, unknown>;
   const operationHttpReferer = typeof normalizedRequest.httpReferer === 'string' ? normalizedRequest.httpReferer : undefined;
   const operationXTitle = typeof normalizedRequest.xTitle === 'string' ? normalizedRequest.xTitle : undefined;
@@ -234,15 +233,15 @@ export async function sendOpenRouterChat(
     return await getOpenRouterClient().chat.send(
       {
         httpReferer: resolvedOptions.httpReferer,
-        xTitle: resolvedOptions.xTitle,
-        chatGenerationParams: normalizedRequest as ChatGenerationParams
+        appTitle: resolvedOptions.xTitle,
+        chatRequest: normalizedRequest as models.ChatRequest
       },
       {
         timeoutMs: options.timeoutMs,
         retries: getRetryConfig(options.maxRetries),
         headers: resolvedHeaders
       }
-    ) as ChatResponse;
+    ) as models.ChatResult;
   } catch (error) {
     if (!isResponseValidationFailure(error)) {
       throw error;

@@ -8,8 +8,8 @@ export default function Page() {
           <h2 className="text-3xl font-bold text-gray-900">Sign in to Flowtra</h2>
           <p className="mt-2 text-gray-600">Welcome back to your AI advertisement workspace</p>
         </div>
-        <SignIn 
-          afterSignInUrl="/dashboard"
+        <SignIn
+          forceRedirectUrl="/dashboard"
           signUpUrl="/sign-up"
           appearance={{
             elements: {
