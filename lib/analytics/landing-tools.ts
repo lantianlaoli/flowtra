@@ -14,7 +14,7 @@ const TOOL_FEATURE_BY_HREF: Record<string, string> = {
   '/tools/roas-calculator': 'roas_calculator',
   '/tools/ai-angle-generator': 'ai_angle_generator',
   '/tools/image-clone': 'image_clone',
-  '/tools/ad-short-film': 'ad_short_film',
+  '/tools/ecommerce-listing-studio': 'ecommerce_listing_studio',
 };
 
 export function trackLandingToolClick(

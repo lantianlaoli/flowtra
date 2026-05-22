@@ -22,6 +22,8 @@ import {
   RefreshCcw,
   Scissors,
   Sparkles,
+  ThumbsDown,
+  ThumbsUp,
   Trash2,
   Type,
   User,
@@ -48,11 +50,13 @@ import {
   isProjectAgentRuntimeActive,
   PROJECT_AGENT_FEATURE_ANY_OF_INPUTS,
   PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS,
+  buildProjectAgentOutputFeedbackPayload,
   getProjectAgentCanvasSourceHandlePosition,
   getProjectAgentCanvasTargetHandlePosition,
   type ProjectAgentAssetNodeType,
   type ProjectAgentCanvasNode,
   type ProjectAgentCanvasState,
+  type ProjectAgentFeedbackType,
   type ProjectAgentFeatureNodeConfig,
   type ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
@@ -174,6 +178,86 @@ const getBezierTangentAngle = (source: { x: number; y: number }, target: { x: nu
 
   return (Math.atan2(tangentY, tangentX) * 180) / Math.PI;
 };
+
+function AgentOutputFeedbackButtons({
+  asset,
+}: {
+  asset: ProjectAgentCanvasNode['asset'];
+}) {
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState<ProjectAgentFeedbackType | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  const submitFeedback = async (feedbackType: ProjectAgentFeedbackType) => {
+    const payload = buildProjectAgentOutputFeedbackPayload(asset, feedbackType);
+    if (!payload) return;
+
+    setSubmitting(feedbackType);
+    setFailed(false);
+    try {
+      const response = await fetch('/api/projects/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit feedback');
+      }
+
+      setSubmitted(true);
+    } catch (error) {
+      console.error('Agent output feedback error:', error);
+      setFailed(true);
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  if (!buildProjectAgentOutputFeedbackPayload(asset, 'positive')) return null;
+
+  if (submitted) {
+    return (
+      <span className="ml-auto rounded-full bg-[#f3f1ea] px-2 py-1 text-[10px] font-semibold text-[#6f6a62]">
+        Thanks!
+      </span>
+    );
+  }
+
+  const buttonClass = 'inline-flex h-6 items-center gap-1 rounded-full border border-[#ddd8cc] bg-white px-2 text-[10px] font-semibold text-[#4a4944] transition-colors hover:border-black hover:text-black disabled:cursor-not-allowed disabled:opacity-60';
+
+  return (
+    <div className="ml-auto flex items-center gap-1">
+      {failed ? <span className="mr-1 text-[10px] font-medium text-red-500">Retry</span> : null}
+      <button
+        type="button"
+        className={buttonClass}
+        disabled={submitting !== null}
+        onClick={(event) => {
+          event.stopPropagation();
+          void submitFeedback('positive');
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        {submitting === 'positive' ? <Loader2 className="h-3 w-3 animate-spin" /> : <ThumbsUp className="h-3 w-3" />}
+        Good
+      </button>
+      <button
+        type="button"
+        className={buttonClass}
+        disabled={submitting !== null}
+        onClick={(event) => {
+          event.stopPropagation();
+          void submitFeedback('negative');
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        {submitting === 'negative' ? <Loader2 className="h-3 w-3 animate-spin" /> : <ThumbsDown className="h-3 w-3" />}
+        Bad
+      </button>
+    </div>
+  );
+}
 
 // Returns the tangent angle at an arbitrary canvas point by finding the closest t on the bezier
 const getBezierTangentAngleAtPoint = (
@@ -769,6 +853,7 @@ export default function CanvasBoard({
                   <div className="flex items-center gap-1.5 px-2 pt-2 pb-1.5">
                     <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-[#c4c1b8] active:cursor-grabbing" strokeWidth={2} />
                     <span className="truncate text-xs font-semibold text-[#3d3c38]">Output</span>
+                    <AgentOutputFeedbackButtons asset={node.asset} />
                   </div>
                   <div className="px-2 pb-2">
                     <div

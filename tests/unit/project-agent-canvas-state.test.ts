@@ -3,13 +3,16 @@ import assert from 'node:assert/strict';
 
 import {
   DEFAULT_PROJECT_AGENT_CANVAS_STATE,
+  buildProjectAgentOutputFeedbackPayload,
   canRunFeatureNode,
   connectCanvasNodes,
   createProjectAgentAssetNode,
   createProjectAgentCanvasEdgeId,
   createProjectAgentFeatureNode,
+  createProjectAgentOutputVideoNode,
   getProjectAgentCanvasNodeSize,
   getProjectAgentCanvasTargetHandlePosition,
+  getProjectAgentFeedbackProjectType,
   getMissingFeatureInputs,
   isProjectAgentRuntimeActive,
   normalizeCanvasState,
@@ -209,4 +212,58 @@ test('runtime with active milestones stays active even if executionState drifted
       { key: 'generating_cover', label: 'Generating cover', state: 'pending' },
     ],
   }), false);
+});
+
+test('output video nodes keep project feedback metadata from their source feature node', () => {
+  const featureNode = createProjectAgentFeatureNode({
+    type: 'video_clone',
+    x: 120,
+    y: 80,
+  });
+
+  const outputNode = createProjectAgentOutputVideoNode({
+    sourceNode: featureNode,
+    projectId: 'project-123',
+    outputUrl: 'https://example.com/result.mp4',
+    previewUrl: null,
+    linkedOutputCount: 0,
+  });
+
+  assert.equal(outputNode.type, 'output_video');
+  assert.equal(outputNode.asset?.id, featureNode.id);
+  assert.equal(outputNode.asset?.projectId, 'project-123');
+  assert.equal(outputNode.asset?.projectType, 'video-clone');
+  assert.equal(outputNode.asset?.videoUrl, 'https://example.com/result.mp4');
+});
+
+test('project agent feedback project type matches feedback API values', () => {
+  assert.equal(getProjectAgentFeedbackProjectType('avatar_ads'), 'avatar-ads');
+  assert.equal(getProjectAgentFeedbackProjectType('video_clone'), 'video-clone');
+  assert.equal(getProjectAgentFeedbackProjectType('motion_clone'), 'motion-clone');
+});
+
+test('output feedback payload requires project metadata and feedback type', () => {
+  assert.deepEqual(
+    buildProjectAgentOutputFeedbackPayload({
+      id: 'feature-1',
+      name: 'Output',
+      projectId: 'project-123',
+      projectType: 'motion-clone',
+      videoUrl: 'https://example.com/result.mp4',
+    }, 'negative'),
+    {
+      projectId: 'project-123',
+      projectType: 'motion-clone',
+      feedbackType: 'negative',
+    }
+  );
+
+  assert.equal(
+    buildProjectAgentOutputFeedbackPayload({
+      id: 'feature-1',
+      name: 'Output',
+      videoUrl: 'https://example.com/result.mp4',
+    }, 'positive'),
+    null
+  );
 });

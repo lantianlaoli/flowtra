@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import imageCompression from "browser-image-compression";
 import Header from "@/components/layout/Header";
@@ -9,6 +9,7 @@ import { Check, Coins, Copy, Download, Loader2, Upload, Video, X, Play } from "l
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
 import { useI18n } from "@/providers/I18nProvider";
 import { useToolUsageAccess } from "@/lib/tools/use-tool-usage-access";
+import { useToolGenerationRealtime } from "@/lib/tools/use-tool-generation-realtime";
 import { AD_SHORT_FILM_TOTAL_CREDIT_COST } from "@/lib/tools/billing-constants";
 
 type GenerationStatus =
@@ -63,6 +64,37 @@ export default function AdShortFilmPage() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [storyboardImageUrl, setStoryboardImageUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
+
+  const { job } = useToolGenerationRealtime(jobId);
+
+  // React to job state changes from Realtime
+  useEffect(() => {
+    if (!job) return;
+    const metadata = job.metadata as Record<string, unknown> | undefined;
+
+    if (job.status === 'completed' && job.result_url) {
+      setVideoUrl(job.result_url);
+      setStatus('completed');
+    } else if (job.status === 'failed') {
+      setError(job.error_message || 'Generation failed');
+      setStatus('error');
+    } else if (job.status === 'generating_storyboard') {
+      setStatus('generating_storyboard');
+    } else if (job.status === 'generating_storyboard_image') {
+      setStatus('generating_storyboard_image');
+      if (metadata?.storyboard_image_url) {
+        setStoryboardImageUrl(metadata.storyboard_image_url as string);
+      }
+    } else if (job.status === 'generating_video') {
+      setStatus('generating_video');
+      if (metadata?.storyboard_image_url) {
+        setStoryboardImageUrl(metadata.storyboard_image_url as string);
+      }
+    } else if (job.status === 'uploading') {
+      setStatus('uploading');
+    }
+  }, [job]);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -154,53 +186,6 @@ export default function AdShortFilmPage() {
     }
   };
 
-  const pollJobStatus = async (jobId: string, maxAttempts = 450) => {
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      try {
-        const response = await fetch(`/api/tools/ad-short-film?jobId=${encodeURIComponent(jobId)}`);
-        const data = await response.json();
-
-        if (data.status === "completed" && data.videoUrl) {
-          setVideoUrl(data.videoUrl);
-          setStatus("completed");
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to check generation status.");
-        }
-
-        if (data.status === "failed") {
-          throw new Error(`JOB_FAILED:${data.errorMessage || "Generation failed"}`);
-        }
-
-        // Update status based on current processing step
-        if (data.status === "generating_storyboard") {
-          setStatus("generating_storyboard");
-        } else if (data.status === "generating_storyboard_image") {
-          setStatus("generating_storyboard_image");
-          if (data.storyboardImageUrl) {
-            setStoryboardImageUrl(data.storyboardImageUrl);
-          }
-        } else if (data.status === "generating_video") {
-          setStatus("generating_video");
-        }
-      } catch (err) {
-        if (err instanceof Error && err.message.startsWith("JOB_FAILED:")) {
-          throw new Error(err.message.replace("JOB_FAILED:", ""));
-        }
-
-        if (attempt === maxAttempts - 1) {
-          throw new Error("Generation timed out. Please try again.");
-        }
-      }
-    }
-
-    throw new Error("Generation timed out. Please try again.");
-  };
-
   const handleGenerate = async () => {
     if (!productPhotoUrl) {
       setError("Please upload a product photo first.");
@@ -237,7 +222,7 @@ export default function AdShortFilmPage() {
 
       setStatus("generating_storyboard");
 
-      await pollJobStatus(data.jobId);
+      setJobId(data.jobId);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to generate ad video.";
       setError(message);
@@ -253,6 +238,7 @@ export default function AdShortFilmPage() {
     setCopied(false);
     setStatus("idle");
     setError(null);
+    setJobId(null);
   };
 
   const handleCopyUrl = async (url: string) => {

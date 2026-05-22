@@ -81,7 +81,7 @@ export default function SystemProductDetailsModal({
             Frontal photo
           </div>
           <div className={embedded
-            ? 'relative min-h-0 flex-1 overflow-hidden rounded-3xl border border-gray-200 bg-gray-50'
+            ? 'relative h-[clamp(220px,36vh,420px)] min-h-[220px] overflow-hidden rounded-3xl border border-gray-200 bg-gray-50'
             : 'relative aspect-[4/5] overflow-hidden rounded-3xl border border-gray-200 bg-gray-50'}
           >
             {frontalPhoto ? (
@@ -101,11 +101,11 @@ export default function SystemProductDetailsModal({
             <Sparkles className="h-4 w-4 text-gray-500" />
             Reference angles
           </div>
-          <div className={embedded ? 'grid min-h-0 flex-1 grid-cols-3 gap-3' : 'grid grid-cols-2 gap-4'}>
+          <div className={embedded ? 'grid min-h-0 grid-cols-3 gap-3' : 'grid grid-cols-2 gap-4'}>
             {referencePhotos.map((photo, index) => (
               <div key={`${photo.file_name}-${index}`} className="space-y-2">
                 <div className={embedded
-                  ? 'relative min-h-0 overflow-hidden rounded-2xl border border-gray-200 bg-gray-50'
+                  ? 'relative h-[clamp(160px,26vh,300px)] min-h-[160px] overflow-hidden rounded-2xl border border-gray-200 bg-gray-50'
                   : 'relative aspect-square overflow-hidden rounded-2xl border border-gray-200 bg-gray-50'}
                 >
                   <Image

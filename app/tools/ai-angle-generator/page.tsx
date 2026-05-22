@@ -6,15 +6,13 @@ import Image from "next/image";
 import imageCompression from "browser-image-compression";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { Check, Coins, Copy, Download, Loader2, RefreshCw, Upload } from "lucide-react";
+import { Check, Coins, Copy, Download, Loader2, Upload } from "lucide-react";
 import { OpenAI } from "@lobehub/icons";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
 import { useI18n } from "@/providers/I18nProvider";
-import { waitForAiReferenceAngleJobs } from "@/lib/ai-reference-angle-jobs-client";
-import type { AiReferenceAngleCreateJobResponse } from "@/lib/ai-reference-angle-jobs";
 import { useToolUsageAccess } from "@/lib/tools/use-tool-usage-access";
+import { useToolGenerationRealtime } from "@/lib/tools/use-tool-generation-realtime";
 import {
-  IMAGE_GENERATION_CREDIT_COST,
   getImageGenerationCreditCost,
 } from "@/lib/tools/billing-constants";
 
@@ -105,7 +103,10 @@ export default function AiAngleGeneratorPage() {
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [copiedTaskId, setCopiedTaskId] = useState<string | null>(null);
-  const [regeneratingSlotKey, setRegeneratingSlotKey] = useState<string | null>(null);
+  const [manualCopyUrl, setManualCopyUrl] = useState<string | null>(null);
+
+  const [jobId, setJobId] = useState<string | null>(null);
+  const { job, tasks } = useToolGenerationRealtime(jobId);
 
   const isBusy = status === "uploading" || status === "generating";
 
@@ -195,107 +196,134 @@ export default function AiAngleGeneratorPage() {
     };
   };
 
-  const persistRecoveryState = (jobs: AiReferenceAngleCreateJobResponse[], fileName: string | null) => {
+  const persistRecoveryState = (
+    id: string,
+    fileName: string | null,
+    sourcePreview: string | null,
+    nextSourceAspect: SourceAspect
+  ) => {
     if (typeof window === "undefined") return;
     window.sessionStorage.setItem(
       RECOVERY_STORAGE_KEY,
-      JSON.stringify({
-        jobs,
-        fileName,
-      })
+      JSON.stringify({ jobId: id, fileName, sourcePreview, sourceAspect: nextSourceAspect })
     );
   };
+
+  const persistCompletedState = useCallback((
+    images: GeneratedImage[],
+    fileName: string | null,
+    sourcePreview: string | null,
+    nextSourceAspect: SourceAspect
+  ) => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem(
+      RECOVERY_STORAGE_KEY,
+      JSON.stringify({ completed: true, images, fileName, sourcePreview, sourceAspect: nextSourceAspect })
+    );
+  }, []);
 
   const clearRecoveryState = useCallback(() => {
     if (typeof window === "undefined") return;
     window.sessionStorage.removeItem(RECOVERY_STORAGE_KEY);
   }, []);
 
-  const buildGeneratedImages = useCallback((
-    jobs: AiReferenceAngleCreateJobResponse[],
-    resolvedJobs: Array<{ id: string; result_image_url: string | null; status: string }>
-  ) =>
-    jobs.reduce<GeneratedImage[]>((accumulator, job) => {
-      const resolvedJob = resolvedJobs.find((item) => item.id === job.id);
-      if (!resolvedJob?.result_image_url || resolvedJob.status !== "completed") {
-        return accumulator;
+  // Map Realtime tasks to GeneratedImage[]
+  useEffect(() => {
+    if (!tasks.length) return;
+    const images: GeneratedImage[] = [];
+    for (const task of tasks) {
+      if (task.status === 'completed' && task.result_url) {
+        const meta = task.metadata as Record<string, unknown> | undefined;
+        images.push({
+          jobId: task.kie_task_id,
+          label: (meta?.preset_label as string) || '',
+          key: (meta?.preset_key as string) || '',
+          imageUrl: task.result_url,
+        });
       }
-
-      accumulator.push({
-        jobId: job.id,
-        label: job.presetLabel,
-        key: job.presetKey,
-        imageUrl: resolvedJob.result_image_url,
-      });
-      return accumulator;
-    }, []), []);
-
-  const resolveGeneration = useCallback(async (jobs: AiReferenceAngleCreateJobResponse[], fileName: string | null) => {
-    setStatus("generating");
-    setError(null);
-    setSelectedFileName(fileName);
-
-    try {
-      const resolvedJobs = await waitForAiReferenceAngleJobs({
-        supabase: null,
-        jobIds: jobs.map((job) => job.id),
-        onJobsUpdated: (updatedJobs) => {
-          setGeneratedImages(buildGeneratedImages(jobs, updatedJobs));
-        },
-      });
-
-      const images = buildGeneratedImages(jobs, resolvedJobs);
-      if (images.length !== jobs.length) {
-        throw new Error("Generated image URL is missing.");
-      }
-
-      setGeneratedImages(images);
-      setStatus("success");
-      clearRecoveryState();
-    } catch (generationError) {
-      const message =
-        generationError instanceof Error
-          ? generationError.message
-          : "Failed to generate AI angle images.";
-      if (message.includes("still in progress")) {
-        setError(null);
-        setStatus("generating");
-        if (typeof window !== "undefined") {
-          window.setTimeout(() => {
-            void resolveGeneration(jobs, fileName);
-          }, 1800);
-        }
-        return;
-      }
-
-      clearRecoveryState();
-      setError(message);
-      setStatus("error");
     }
-  }, [buildGeneratedImages, clearRecoveryState]);
+    setGeneratedImages(images);
 
+    const failedTask = tasks.find((t) => t.status === 'failed');
+    if (failedTask) {
+      setError(failedTask.error_message || 'AI reference generation failed.');
+      setStatus('error');
+      clearRecoveryState();
+      return;
+    }
+
+    const expectedCount = (job?.metadata as Record<string, unknown> | undefined)?.count as number || 0;
+    if (expectedCount > 0 && images.length === expectedCount) {
+      setStatus('success');
+      persistCompletedState(images, selectedFileName, frontalPreview, sourceAspect);
+    }
+  }, [tasks, job, clearRecoveryState, persistCompletedState, selectedFileName, frontalPreview, sourceAspect]);
+
+  // Recovery on mount
   useEffect(() => {
     if (typeof window === "undefined") return;
-
     const raw = window.sessionStorage.getItem(RECOVERY_STORAGE_KEY);
     if (!raw) return;
-
     try {
-      const parsed = JSON.parse(raw) as { jobs?: AiReferenceAngleCreateJobResponse[]; fileName?: string | null };
-      if (!Array.isArray(parsed.jobs) || !parsed.jobs.length) return;
-      void resolveGeneration(parsed.jobs, parsed.fileName ?? null);
+      const parsed = JSON.parse(raw) as {
+        jobId?: string;
+        fileName?: string | null;
+        sourcePreview?: string | null;
+        sourceAspect?: SourceAspect;
+        completed?: boolean;
+        images?: GeneratedImage[];
+      };
+      if (parsed.completed && Array.isArray(parsed.images) && parsed.images.length > 0) {
+        setGeneratedImages(parsed.images);
+        setStatus('success');
+        setSelectedFileName(parsed.fileName ?? null);
+        if (parsed.sourcePreview) setFrontalPreview(parsed.sourcePreview);
+        if (parsed.sourceAspect) setSourceAspect(parsed.sourceAspect);
+        return;
+      }
+      if (!parsed.jobId) return;
+      setJobId(parsed.jobId);
+      setStatus('generating');
+      setSelectedFileName(parsed.fileName ?? null);
+      if (parsed.sourcePreview) setFrontalPreview(parsed.sourcePreview);
+      if (parsed.sourceAspect) setSourceAspect(parsed.sourceAspect);
     } catch {
       clearRecoveryState();
     }
-  }, [clearRecoveryState, resolveGeneration]);
+  }, [clearRecoveryState]);
 
   const handleCopyUrl = async (taskId: string, imageUrl: string) => {
     try {
-      await navigator.clipboard.writeText(imageUrl);
+      let didCopy = false;
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(imageUrl);
+          didCopy = true;
+        } catch {
+          didCopy = false;
+        }
+      }
+
+      if (!didCopy) {
+        const textarea = document.createElement("textarea");
+        textarea.value = imageUrl;
+        textarea.setAttribute("readonly", "true");
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        textarea.style.top = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(textarea);
+        if (!copied) throw new Error("Copy command failed");
+      }
+      setError(null);
+      setManualCopyUrl(null);
       setCopiedTaskId(taskId);
       setTimeout(() => setCopiedTaskId((current) => (current === taskId ? null : current)), 1200);
     } catch {
-      setError("Failed to copy URL. Please copy it manually.");
+      setError(null);
+      setManualCopyUrl(imageUrl);
     }
   };
 
@@ -308,6 +336,7 @@ export default function AiAngleGeneratorPage() {
 
     setStatus("uploading");
     setError(null);
+    setManualCopyUrl(null);
     setGeneratedImages([]);
     setCopiedTaskId(null);
     setSelectedFileName(file.name);
@@ -345,13 +374,12 @@ export default function AiAngleGeneratorPage() {
         throw new Error("Please sign in to use this tool.");
       }
 
-      if (!createResponse.ok || !Array.isArray(createPayload?.jobs) || createPayload.jobs.length !== 3) {
+      if (!createResponse.ok || !createPayload?.jobId || !Array.isArray(createPayload?.tasks) || createPayload.tasks.length === 0) {
         throw new Error(createPayload?.error || "Failed to start AI generation.");
       }
 
-      const jobs = createPayload.jobs as AiReferenceAngleCreateJobResponse[];
-      persistRecoveryState(jobs, file.name);
-      await resolveGeneration(jobs, file.name);
+      setJobId(createPayload.jobId);
+      persistRecoveryState(createPayload.jobId, file.name, imageDataUrl, sourceAspect);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to generate angle photos.";
       setError(message);
@@ -360,82 +388,6 @@ export default function AiAngleGeneratorPage() {
   };
 
   const needsSignIn = error === "Please sign in to use this tool.";
-
-  const handleRegenerateSlot = async (slot: AngleSlot, slotIndex: number) => {
-    if (!frontalPreview || regeneratingSlotKey || isBusy) return;
-
-    setRegeneratingSlotKey(slot.key);
-    setError(null);
-
-    try {
-      if (isToolAccessLoading) {
-        throw new Error("Checking subscription status. Please try again in a moment.");
-      }
-
-      if (!hasUnlimitedAccess) {
-        throw new Error("An active subscription is required to use this generation tool.");
-      }
-
-      const createResponse = await fetch("/api/assets/ai-reference-angles", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          assetType: "universal",
-          sourceAspect,
-          imageDataUrl: frontalPreview,
-          existingReferenceCount: slotIndex,
-          count: 1,
-        }),
-      });
-
-      const createPayload = await createResponse.json().catch(() => ({}));
-
-      if (createResponse.status === 401) {
-        throw new Error("Please sign in to use this tool.");
-      }
-
-      if (!createResponse.ok || !Array.isArray(createPayload?.jobs) || createPayload.jobs.length !== 1) {
-        throw new Error(createPayload?.error || "Failed to start AI regeneration.");
-      }
-
-      const jobs = createPayload.jobs as AiReferenceAngleCreateJobResponse[];
-      const targetJob = jobs[0];
-      const resolvedJobs = await waitForAiReferenceAngleJobs({
-        supabase: null,
-        jobIds: [targetJob.id],
-      });
-
-      const resolvedJob = resolvedJobs.find((item) => item.id === targetJob.id);
-      if (!resolvedJob || !resolvedJob.result_image_url || resolvedJob.status !== "completed") {
-        throw new Error("Failed to regenerate this angle image.");
-      }
-      const regeneratedImageUrl = resolvedJob.result_image_url;
-
-      setGeneratedImages((current) => {
-        const next = [...current];
-        const index = next.findIndex((item) => item.key === slot.key);
-          const updated: GeneratedImage = {
-            jobId: targetJob.id,
-            label: slot.label,
-            key: slot.key,
-            imageUrl: regeneratedImageUrl,
-          };
-
-        if (index >= 0) {
-          next[index] = updated;
-          return next;
-        }
-
-        next.push(updated);
-        return next;
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to regenerate this angle image.";
-      setError(message);
-    } finally {
-      setRegeneratingSlotKey(null);
-    }
-  };
 
   return (
     <>
@@ -462,6 +414,16 @@ export default function AiAngleGeneratorPage() {
               className="sr-only"
             />
 
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#888888]">
+                Upload source photo
+              </p>
+              <span className="inline-flex w-fit items-center gap-1 rounded-full bg-[#F7F7F7] px-2.5 py-1 text-[11px] font-medium text-[#666666]">
+                <Coins className="h-3 w-3" />
+                {INITIAL_GENERATION_CREDIT_COST} credits total for {INITIAL_GENERATION_COUNT} photos
+              </span>
+            </div>
+
             <div className="grid grid-cols-2 items-start gap-3 xl:grid-cols-4">
               <article className={slotCardClass}>
                 <label
@@ -469,14 +431,32 @@ export default function AiAngleGeneratorPage() {
                   className={`group block cursor-pointer overflow-hidden rounded-xl border border-dashed border-[#BEBEBE] bg-[#F8F8F8] transition-colors ${isBusy ? "pointer-events-none" : "hover:border-black"}`}
                 >
                   {frontalPreview ? (
-                    <Image
-                      src={frontalPreview}
-                      alt="Uploaded frontal preview"
-                      width={560}
-                      height={560}
-                      className="aspect-square h-auto w-full object-cover"
-                      unoptimized
-                    />
+                    <div className="relative">
+                      <Image
+                        src={frontalPreview}
+                        alt="Uploaded frontal preview"
+                        width={560}
+                        height={560}
+                        className="aspect-square h-auto w-full object-cover"
+                        unoptimized
+                      />
+                      {allResultsReady && !isBusy && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/35 opacity-0 transition-opacity group-hover:opacity-100">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-black shadow-sm">
+                            <Upload className="h-3.5 w-3.5" />
+                            {toolMessages.reupload}
+                          </span>
+                        </div>
+                      )}
+                      {!isBusy && !allResultsReady && generatedImages.length > 0 && (
+                        <div className="absolute inset-x-2 bottom-2 flex justify-center">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-black shadow-sm">
+                            <Upload className="h-3.5 w-3.5" />
+                            {toolMessages.reupload}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className="flex aspect-square w-full flex-col items-center justify-center gap-1.5">
                       {status === "uploading" ? (
@@ -485,26 +465,15 @@ export default function AiAngleGeneratorPage() {
                         <Upload className="h-5 w-5 text-black" />
                       )}
                       <span className="text-xs font-medium text-black">
-                        {isBusy ? messages.common.processing : toolMessages.chooseImage}
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full border border-[#E5E5E5] bg-white px-2 py-0.5 text-[10px] font-semibold text-[#666666]">
-                        <Coins className="h-3 w-3" />
-                        Generate 3 Photos · {INITIAL_GENERATION_CREDIT_COST}
+                        {isBusy
+                          ? messages.common.processing
+                          : generatedImages.length > 0
+                            ? toolMessages.reupload
+                            : toolMessages.chooseImage}
                       </span>
                     </div>
                   )}
                 </label>
-                <div className="mt-1.5">
-                  {allResultsReady && !isBusy && (
-                    <label
-                      htmlFor={imageInputId}
-                      className={`${secondaryButtonClass} mt-1.5 h-7 w-full cursor-pointer justify-center gap-1.5 px-2 text-[11px]`}
-                    >
-                      <Upload className="h-3.5 w-3.5" />
-                      {toolMessages.reupload}
-                    </label>
-                  )}
-                </div>
               </article>
 
               {angleSlots.map((slot, slotIndex) => {
@@ -542,11 +511,11 @@ export default function AiAngleGeneratorPage() {
                     </div>
                     <div className="mt-1.5 space-y-1.5">
                       <h4 className="truncate text-xs font-semibold text-black">{slot.label}</h4>
-                      <div className="flex w-full items-center gap-1">
+                      <div className="grid w-full grid-cols-2 gap-1">
                         <button
                           type="button"
                           onClick={() => handleCopyUrl(image.jobId, image.imageUrl)}
-                          className={`${primaryButtonClass} h-7 min-w-0 flex-1 justify-center px-2 text-xs`}
+                          className={`${primaryButtonClass} h-7 min-w-0 justify-center px-2 text-xs`}
                           aria-label={copiedTaskId === image.jobId ? toolMessages.copied : toolMessages.copyUrl}
                           title={copiedTaskId === image.jobId ? toolMessages.copied : toolMessages.copyUrl}
                         >
@@ -556,28 +525,12 @@ export default function AiAngleGeneratorPage() {
                             <Copy className="h-3.5 w-3.5" />
                           )}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRegenerateSlot(slot, slotIndex)}
-                          className={`${secondaryButtonClass} h-7 min-w-0 flex-1 justify-center px-2 text-xs`}
-                          aria-label={toolMessages.regenerate}
-                          title={`Regenerate · ${IMAGE_GENERATION_CREDIT_COST}`}
-                          disabled={isBusy || isToolAccessLoading || regeneratingSlotKey === slot.key}
-                        >
-                          <RefreshCw className={`h-3.5 w-3.5 ${regeneratingSlotKey === slot.key ? "animate-spin" : ""}`} />
-                          <span className="sr-only">Regenerate</span>
-                          <span className="inline-flex items-center gap-0.5">
-                            <Coins className="h-3.5 w-3.5" />
-                            {IMAGE_GENERATION_CREDIT_COST}
-                          </span>
-                        </button>
-
                         <a
                           href={image.imageUrl}
                           download={`${image.key}.png`}
                           target="_blank"
                           rel="noreferrer"
-                          className={`${secondaryButtonClass} h-7 min-w-0 flex-1 justify-center px-2 text-xs`}
+                          className={`${secondaryButtonClass} h-7 min-w-0 justify-center px-2 text-xs`}
                           aria-label={toolMessages.download}
                         >
                           <Download className="h-3.5 w-3.5" />
@@ -589,7 +542,7 @@ export default function AiAngleGeneratorPage() {
               })}
             </div>
 
-            {(helperText || error) && (
+            {(helperText || manualCopyUrl || error) && (
               <div className="mt-3 space-y-2">
                 {helperText && (
                   <div className="rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] px-3 py-2 text-xs text-black">
@@ -601,6 +554,20 @@ export default function AiAngleGeneratorPage() {
                       )}
                       <span className="truncate">{helperText}</span>
                     </div>
+                  </div>
+                )}
+
+                {manualCopyUrl && (
+                  <div className="rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] px-3 py-2 text-xs text-black">
+                    <label className="mb-1 block font-medium text-[#666666]">
+                      Browser blocked clipboard access. Select and copy this URL:
+                    </label>
+                    <input
+                      value={manualCopyUrl}
+                      readOnly
+                      onFocus={(event) => event.currentTarget.select()}
+                      className="w-full rounded-md border border-[#D8D8D8] bg-white px-2 py-1 font-mono text-[11px] text-black"
+                    />
                   </div>
                 )}
 

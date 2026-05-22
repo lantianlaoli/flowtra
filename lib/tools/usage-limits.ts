@@ -1,4 +1,4 @@
-export type ToolUsageKey = 'ai-angle-generator' | 'image-clone' | 'ad-short-film';
+export type ToolUsageKey = 'ai-angle-generator' | 'image-clone' | 'ad-short-film' | 'ecommerce-listing-studio';
 
 type ToolUsageRecord = {
   date: string;
@@ -13,12 +13,14 @@ const TOOL_LIMITS: Record<ToolUsageKey, number> = {
   'ai-angle-generator': IMAGE_DAILY_LIMIT,
   'image-clone': IMAGE_DAILY_LIMIT,
   'ad-short-film': VIDEO_DAILY_LIMIT,
+  'ecommerce-listing-studio': VIDEO_DAILY_LIMIT,
 };
 
 export const TOOL_LIMIT_MESSAGES: Record<ToolUsageKey, string> = {
   'ai-angle-generator': 'Daily image generation limit reached (3/day). Try again tomorrow.',
   'image-clone': 'Daily image generation limit reached (3/day). Try again tomorrow.',
   'ad-short-film': 'Daily video generation limit reached (1/day). Try again tomorrow.',
+  'ecommerce-listing-studio': 'Daily ecommerce listing generation limit reached (1/day). Try again tomorrow.',
 };
 
 function getTodayKey() {

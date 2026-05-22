@@ -45,6 +45,7 @@ import {
   createProjectAgentCanvasEdgeId,
   createProjectAgentCanvasNodeId,
   createProjectAgentFeatureNode,
+  createProjectAgentOutputVideoNode,
   getProjectAgentCanvasNodeSize,
   getProjectAgentCanvasTargetHandlePosition,
   getMissingFeatureInputs,
@@ -305,6 +306,8 @@ export default function ProjectAgentPage() {
   const [canvas, setCanvas] = useState<ProjectAgentCanvasState>(DEFAULT_PROJECT_AGENT_CANVAS_STATE);
   const [draft, setDraft] = useState('');
   const [statusNote, setStatusNote] = useState('');
+  const [promptRequestNonce, setPromptRequestNonce] = useState(0);
+  const [settledPromptRequestNonce, setSettledPromptRequestNonce] = useState(0);
   const [canvasNotice, setCanvasNotice] = useState<ProjectAgentCanvasNotice | null>(null);
   const [pendingUiRequest, setPendingUiRequest] = useState<ProjectAgentPendingUiRequest | null>(null);
   const [appliedCanvasActionCallIds, setAppliedCanvasActionCallIds] = useState<string[]>([]);
@@ -355,6 +358,7 @@ export default function ProjectAgentPage() {
   const pendingUiRequestRef = useRef<ProjectAgentPendingUiRequest | null>(null);
   const appliedCanvasActionCallIdsRef = useRef<string[]>([]);
   const processedCanvasToolCallIdsRef = useRef<Set<string>>(new Set());
+  const promptRequestNonceRef = useRef(0);
   const hasCheckedWelcomeTourRef = useRef(false);
 
   const ensureHistoryTracked = useCallback((id: string) => {
@@ -514,7 +518,7 @@ export default function ProjectAgentPage() {
     },
   });
 
-  const isStreaming = status === 'submitted' || status === 'streaming';
+  const isStreaming = (status === 'submitted' || status === 'streaming') && settledPromptRequestNonce < promptRequestNonce;
 
   const loadAssets = useCallback(async () => {
     const [avatarsResponse, assetsResponse] = await Promise.all([
@@ -771,20 +775,14 @@ export default function ProjectAgentPage() {
           isProjectAgentOutputNode(candidate.type) &&
           candidate.asset?.id === nodeId
         ));
-        const outputNode = {
-          id: outputNodeId,
-          type: 'output_video' as const,
-          // Preserve position if already placed, otherwise cascade new results under the previous output.
-          x: existing?.x ?? node.x + 328,
-          y: existing?.y ?? node.y - 75 + (linkedOutputs.length * 24),
-          label: 'Output',
-          asset: {
-            id: nodeId,
-            name: 'Output',
-            videoUrl: execution.outputUrl,
-            imageUrl: execution.previewUrl || null,
-          },
-        };
+        const outputNode = createProjectAgentOutputVideoNode({
+          sourceNode: node,
+          projectId: execution.projectId,
+          outputUrl: execution.outputUrl,
+          previewUrl: execution.previewUrl || null,
+          linkedOutputCount: linkedOutputs.length,
+          existing,
+        });
         next = upsertCanvasNode(next, outputNode);
       }
 
@@ -1058,6 +1056,7 @@ export default function ProjectAgentPage() {
   }, [updateCanvas]);
 
   const markCanvasToolCallApplied = useCallback((toolCallId: string) => {
+    setSettledPromptRequestNonce(promptRequestNonceRef.current);
     setAppliedCanvasActionCallIds((current) => {
       if (current.includes(toolCallId)) return current;
       const next = [...current, toolCallId].slice(-200);
@@ -1448,6 +1447,11 @@ export default function ProjectAgentPage() {
     ensureHistoryTracked(sessionId);
     setDraft('');
     setStatusNote('');
+    setPromptRequestNonce((current) => {
+      const next = current + 1;
+      promptRequestNonceRef.current = next;
+      return next;
+    });
     dismissCanvasNotice();
     const promptActions = buildPromptCanvasActions(payload);
     if (promptActions.length > 0) {
@@ -2470,6 +2474,14 @@ export default function ProjectAgentPage() {
                 onOpenBilling={() => setSettingsOpenRequest({ tab: 'billing', nonce: Date.now() })}
                 onToggleDarkMode={handleToggleDarkMode}
               />
+              {activeWorkspacePanel ? (
+                <button
+                  type="button"
+                  aria-label="Close workspace panel"
+                  className="absolute inset-0 z-[35] cursor-default bg-transparent"
+                  onClick={() => setActiveWorkspacePanel(null)}
+                />
+              ) : null}
               {workspacePanelVisibility.assetsMounted ? (
                 <FloatingWorkspacePanel
                   title="Assets"
@@ -2477,7 +2489,7 @@ export default function ProjectAgentPage() {
                   onClose={() => setActiveWorkspacePanel(null)}
                   visible={workspacePanelVisibility.assetsVisible}
                 >
-                  <div className="px-5 py-5 md:px-6">
+                  <div className="px-5 pb-5 pt-3 md:px-6 md:pt-3">
                     <AssetsManager embedded active={workspacePanelVisibility.assetsVisible} />
                   </div>
                 </FloatingWorkspacePanel>

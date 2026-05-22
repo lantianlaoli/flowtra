@@ -1,3 +1,5 @@
+import { matchesAssetReference } from '@/lib/project-agent/asset-name-match';
+
 export type CanvasIntentWorkflow = 'motion_clone' | 'video_clone' | 'avatar_ads' | 'unknown';
 
 export type CanvasIntentOperation =
@@ -152,43 +154,92 @@ const hasAssetRef = (intent: CanvasIntent, type: CanvasIntentAssetRef['type']) =
   intent.assetRefs.some((ref) => ref.type === type)
 );
 
+const isLikelyProductForGenericClone = (raw: string, value: string | undefined) => {
+  if (!value) return false;
+  if (/\b(?:avatar|person|people|model|actor|actress|character|spokesperson|influencer)\b/.test(raw)) {
+    return false;
+  }
+  return new RegExp(`\\bfor\\s+${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+')}`, 'i').test(raw)
+    || matchesAssetReference(raw, value);
+};
+
+const extractGenericCloneParts = (raw: string) => {
+  if (/\b(?:avatar|person|people|model|actor|actress|character|spokesperson|influencer)\b/.test(raw)) {
+    return { videoName: null, productName: null };
+  }
+
+  const match = raw.match(/\bclone(?:d|s|ing)?\s+(.+?)\s+for\s+(.+?)(?:[.!?]|$)/i);
+  const videoName = match?.[1]?.trim().replace(/^(?:a|an|the)\s+/i, '') || null;
+  const productName = match?.[2]?.trim().replace(/^(?:a|an|the)\s+/i, '') || null;
+  return {
+    videoName: videoName && videoName.length >= 3 ? videoName : null,
+    productName: productName && productName.length >= 3 ? productName : null,
+  };
+};
+
+const normalizeGenericCloneProductRefs = (intent: CanvasIntent, raw: string, mentionsGenericClone: boolean) => {
+  if (!mentionsGenericClone || /\bmotion clone\b/.test(raw) || /\bavatar ads?\b|\bcharacter ads?\b/.test(raw)) {
+    return intent.assetRefs;
+  }
+
+  const normalizedRefs = intent.assetRefs.map((ref) => {
+    if (
+      ref.type === 'avatar' &&
+      ref.mode === 'named' &&
+      isLikelyProductForGenericClone(raw, ref.value)
+    ) {
+      return { ...ref, type: 'product' as const };
+    }
+    return ref;
+  });
+
+  const { videoName: inferredVideoName, productName: inferredProductName } = extractGenericCloneParts(raw);
+  const hasVideo = normalizedRefs.some((ref) => ref.type === 'video');
+  const hasProduct = normalizedRefs.some((ref) => ref.type === 'product');
+  const inferredRefs = [...normalizedRefs];
+
+  if (!hasVideo && inferredVideoName) {
+    inferredRefs.push({ type: 'video' as const, value: inferredVideoName, mode: 'named' as const });
+  }
+
+  if (!hasProduct && inferredProductName) {
+    inferredRefs.push({ type: 'product' as const, value: inferredProductName, mode: 'named' as const });
+  }
+
+  return inferredRefs;
+};
+
 export const refineCanvasIntent = (intent: CanvasIntent): CanvasIntent => {
   const raw = intent.rawUserRequest.toLowerCase();
   const mentionsMotionClone = /\bmotion clone\b/.test(raw);
   const mentionsAvatarAds = /\bavatar ads?\b|\bcharacter ads?\b/.test(raw);
   const mentionsGenericClone = /\bclone(?:d|s|ing)?\b/.test(raw);
 
-  const hasVideoRef = hasAssetRef(intent, 'video');
-  const hasAvatarRef = hasAssetRef(intent, 'avatar') || intent.constraints.keepAvatar === true;
-  const hasProductRef = hasAssetRef(intent, 'product') || intent.constraints.keepProduct === true;
+  const assetRefs = normalizeGenericCloneProductRefs(intent, raw, mentionsGenericClone);
+  const normalizedIntent = assetRefs === intent.assetRefs ? intent : { ...intent, assetRefs };
+
+  const hasNormalizedAssetRef = (type: CanvasIntentAssetRef['type']) => (
+    assetRefs.some((ref) => ref.type === type)
+  );
+
+  const hasVideoRef = hasNormalizedAssetRef('video');
+  const hasAvatarRef = hasNormalizedAssetRef('avatar') || normalizedIntent.constraints.keepAvatar === true;
+  const hasProductRef = hasNormalizedAssetRef('product') || normalizedIntent.constraints.keepProduct === true;
 
   if (
-    intent.workflow === 'motion_clone' &&
-    !mentionsMotionClone &&
-    mentionsGenericClone &&
-    hasVideoRef &&
-    hasProductRef &&
-    !hasAvatarRef
-  ) {
-    return {
-      ...intent,
-      workflow: 'video_clone',
-    };
-  }
-
-  if (
-    intent.workflow === 'unknown' &&
+    (intent.workflow === 'motion_clone' || intent.workflow === 'unknown' || intent.workflow === 'avatar_ads') &&
     !mentionsMotionClone &&
     !mentionsAvatarAds &&
     mentionsGenericClone &&
     hasVideoRef &&
-    (hasProductRef || hasAvatarRef)
+    (hasProductRef || hasAvatarRef) &&
+    (hasProductRef || intent.workflow !== 'motion_clone' || !hasAvatarRef)
   ) {
     return {
-      ...intent,
+      ...normalizedIntent,
       workflow: 'video_clone',
     };
   }
 
-  return intent;
+  return normalizedIntent;
 };

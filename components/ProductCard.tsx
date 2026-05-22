@@ -219,7 +219,7 @@ export default function ProductCard({
           whileHover={isDeleting ? undefined : { y: -2 }}
         >
           {/* Product Photo */}
-          <div className="assets-product-card-media relative w-full aspect-square bg-gray-100">
+          <div className="assets-product-card-media relative h-36 min-h-36 w-full overflow-hidden bg-gray-100 sm:h-40 sm:min-h-40">
             {frontalPhoto ? (
               <Image
                 src={frontalPhoto.photo_url}
@@ -273,7 +273,7 @@ export default function ProductCard({
         >
           <div className="assets-product-card-row flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-4">
             {/* Product Photo (left side on desktop, top on mobile) */}
-            <div className="assets-product-card-media relative w-full sm:w-20 aspect-square sm:aspect-square flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
+            <div className="assets-product-card-media relative h-40 min-h-40 w-full flex-shrink-0 overflow-hidden rounded-lg bg-gray-100 sm:h-20 sm:min-h-20 sm:w-20">
               {photos.length > 0 ? (
                 <Image
                   src={photos[0].photo_url}
@@ -421,7 +421,7 @@ export default function ProductCard({
         <div className="assets-product-card-body p-4">
           <div className="assets-product-card-grid grid grid-cols-3 gap-2">
             {(frontalPhoto ? [frontalPhoto, ...photos.filter((photo) => photo.id !== frontalPhoto.id)] : photos).slice(0, 5).map((photo) => (
-              <div key={photo.id} className="assets-product-card-thumb relative group aspect-square">
+              <div key={photo.id} className="assets-product-card-thumb relative h-24 min-h-24 w-full overflow-hidden rounded-lg sm:h-28 sm:min-h-28">
                 <Image
                   src={photo.photo_url}
                   alt={photo.file_name}
@@ -442,7 +442,7 @@ export default function ProductCard({
 
             {/* Add Photo Button */}
             {!isSelectableMode && !isSystemProduct && onPhotoUpload && photos.length < 4 && (
-              <label className="assets-product-card-add aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors group cursor-pointer">
+              <label className="assets-product-card-add flex h-24 min-h-24 w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-gray-300 transition-colors hover:border-gray-400 hover:bg-gray-50 group sm:h-28 sm:min-h-28">
                 <input
                   type="file"
                   accept={getAcceptedImageFormats()}
@@ -456,7 +456,7 @@ export default function ProductCard({
 
             {/* Show more indicator */}
             {photos.length > 5 && (
-              <div className="assets-product-card-more aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
+              <div className="assets-product-card-more flex h-24 min-h-24 w-full items-center justify-center rounded-lg bg-gray-100 sm:h-28 sm:min-h-28">
                 <span className="text-sm font-medium text-gray-600">
                   +{photos.length - 5}
                 </span>
@@ -466,7 +466,7 @@ export default function ProductCard({
 
           {photos.length === 0 && !isSelectableMode && !isSystemProduct && onPhotoUpload && (
             <div className="assets-product-card-grid grid grid-cols-3 gap-2">
-              <label className="assets-product-card-add aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-colors group cursor-pointer">
+              <label className="assets-product-card-add flex h-24 min-h-24 w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-gray-300 transition-colors hover:border-gray-400 hover:bg-gray-50 group sm:h-28 sm:min-h-28">
                 <input
                   type="file"
                   accept={getAcceptedImageFormats()}

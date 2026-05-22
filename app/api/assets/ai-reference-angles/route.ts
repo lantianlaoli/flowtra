@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
-import type { AiReferenceAngleAssetType, AiReferenceAngleJobStatus } from '@/lib/ai-reference-angle-jobs';
+import type { AiReferenceAngleAssetType } from '@/lib/ai-reference-angle-jobs';
 import { createKieGptImageTask } from '@/lib/kie-image-generation';
-import { createJob, getJobsByIdsAndUser } from '@/lib/ai-reference-angle-store';
 import {
   IMAGE_GENERATION_CREDIT_COST,
   chargeToolGenerationCredits,
@@ -11,6 +10,15 @@ import {
   refundToolGenerationCredits,
   toolBillingErrorPayload,
 } from '@/lib/tools/billing';
+import {
+  createToolGenerationJob,
+  createToolGenerationTask,
+  getToolGenerationJob,
+  getToolGenerationJobsByUser,
+  getToolGenerationTasksByJobId,
+  getToolGenerationTasksByKieTaskIds,
+  type ToolGenerationTask,
+} from '@/lib/tools/job-store';
 import {
   getReferenceAngleAspectRatio,
   selectAnglePresets,
@@ -126,18 +134,22 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: uploadResult?.msg || 'Source image upload failed' }, { status: 500 });
       }
 
+      // Create parent job in Supabase
+      const job = await createToolGenerationJob({
+        userId,
+        toolKey: 'ai-reference-angle',
+        status: 'processing',
+        metadata: {
+          asset_type: assetType,
+          source_image_url: sourceImageUrl,
+          count,
+        },
+        billedCredits: charge.chargedCredits,
+      });
+
       const presets = selectAnglePresets(assetType, existingReferenceCount, count);
-      const callBackUrl = `${siteUrl}/api/assets/ai-reference-angles/webhooks`;
-      const jobsPayload: Array<{
-        user_id: string;
-        asset_type: AiReferenceAngleAssetType;
-        source_image_url: string;
-        preset_key: string;
-        preset_label: string;
-        kie_task_id: string;
-        status: AiReferenceAngleJobStatus;
-        aspect_ratio: string;
-      }> = [];
+      const callBackUrl = `${siteUrl}/api/tools/webhooks/kie`;
+      const tasksPayload: Array<{ id: string; presetKey: string; presetLabel: string; status: string }> = [];
 
       for (const preset of presets) {
         const aspectRatio = getReferenceAngleAspectRatio(assetType, sourceAspect);
@@ -149,39 +161,38 @@ export async function POST(request: NextRequest) {
           moderationExternalId: `user_${userId}:ai_reference_angles:${assetType}:${preset.key}`
         }, 3, 30000);
 
-        jobsPayload.push({
-          user_id: userId,
-          asset_type: assetType,
-          source_image_url: sourceImageUrl,
-          preset_key: preset.key,
-          preset_label: preset.label,
-          kie_task_id: taskId,
+        await createToolGenerationTask({
+          jobId: job.id,
+          kieTaskId: taskId,
+          toolKey: 'ai-reference-angle',
+          metadata: {
+            preset_key: preset.key,
+            preset_label: preset.label,
+            aspect_ratio: aspectRatio,
+            asset_type: assetType,
+          },
+        });
+
+        tasksPayload.push({
+          id: taskId,
+          presetKey: preset.key,
+          presetLabel: preset.label,
           status: 'processing',
-          aspect_ratio: aspectRatio
         });
       }
 
-      const createdJobs = jobsPayload.map((payload) =>
-        createJob({
-          userId: payload.user_id,
-          assetType: payload.asset_type,
-          sourceImageUrl: payload.source_image_url,
-          presetKey: payload.preset_key,
-          presetLabel: payload.preset_label,
-          kieTaskId: payload.kie_task_id,
-          aspectRatio: payload.aspect_ratio,
-          billedCredits: IMAGE_GENERATION_CREDIT_COST,
-        })
-      );
+      const legacyJobs = tasksPayload.map((task) => ({
+        id: task.id,
+        presetKey: task.presetKey,
+        presetLabel: task.presetLabel,
+        status: task.status,
+      }));
 
       return NextResponse.json({
         success: true,
-        jobs: createdJobs.map((job) => ({
-          id: job.id,
-          presetKey: job.preset_key,
-          presetLabel: job.preset_label,
-          status: job.status,
-        })),
+        jobId: job.id,
+        jobs: legacyJobs,
+        tasks: tasksPayload,
         sourceImageUrl,
       });
     } catch (error) {
@@ -214,12 +225,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'At least one jobId is required' }, { status: 400 });
     }
 
-    const jobsList = getJobsByIdsAndUser(jobIds, userId);
-    const orderedJobs = jobIds
-      .map((jobId) => jobsList.find((job) => job.id === jobId))
-      .filter(Boolean);
+    const taskMatches = await getToolGenerationTasksByKieTaskIds(jobIds);
+    if (taskMatches.length > 0) {
+      const legacyJobs = await Promise.all(
+        taskMatches.map(async (task) => {
+          const job = await getToolGenerationJob(task.job_id);
+          if (!job || job.user_id !== userId || job.tool_key !== 'ai-reference-angle') return null;
+          return mapAiReferenceTaskToLegacyJob(task, job);
+        })
+      );
 
-    return NextResponse.json({ success: true, jobs: orderedJobs });
+      const orderedJobs = jobIds
+        .map((jobId) => legacyJobs.find((job) => job?.id === jobId))
+        .filter(Boolean);
+
+      return NextResponse.json({ success: true, jobs: orderedJobs });
+    }
+
+    const jobs = await getToolGenerationJobsByUser(userId, 'ai-reference-angle');
+    const filteredJobs = jobs.filter((j) => jobIds.includes(j.id));
+
+    // Enrich with tasks
+    const enrichedJobs = await Promise.all(
+      filteredJobs.map(async (job) => {
+        const tasks = await getToolGenerationTasksByJobId(job.id);
+        return { ...job, tasks };
+      })
+    );
+
+    return NextResponse.json({ success: true, jobs: enrichedJobs });
   } catch (error) {
     console.error('[ai-reference-angles] GET error:', error);
     return NextResponse.json(
@@ -227,4 +261,31 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function mapAiReferenceTaskToLegacyJob(
+  task: ToolGenerationTask,
+  job: { user_id: string; metadata: Record<string, unknown>; billed_credits?: number; billing_refunded_at?: string | null }
+) {
+  const taskMetadata = task.metadata ?? {};
+  const jobMetadata = job.metadata ?? {};
+
+  return {
+    id: task.kie_task_id,
+    user_id: job.user_id,
+    asset_type: taskMetadata.asset_type || jobMetadata.asset_type || 'universal',
+    source_image_url: jobMetadata.source_image_url || '',
+    preset_key: taskMetadata.preset_key || '',
+    preset_label: taskMetadata.preset_label || '',
+    kie_task_id: task.kie_task_id,
+    status: task.status,
+    result_image_url: task.result_url,
+    error_message: task.error_message,
+    webhook_received_at: task.webhook_received_at,
+    created_at: task.created_at,
+    updated_at: task.updated_at,
+    aspect_ratio: taskMetadata.aspect_ratio || null,
+    billed_credits: job.billed_credits,
+    billing_refunded_at: job.billing_refunded_at,
+  };
 }

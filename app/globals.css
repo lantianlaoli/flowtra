@@ -3427,14 +3427,32 @@ body {
 }
 
 .project-agent-prompt-shell::after {
-  z-index: -1;
-  inset: -7px;
+  z-index: 0;
+  inset: -2px;
   opacity: 0;
-  transition: opacity 260ms ease;
+  padding: 2px;
+  transition: opacity 220ms ease;
   background:
-    linear-gradient(90deg, rgba(255, 78, 205, 0.28), rgba(39, 217, 255, 0.22), rgba(54, 245, 138, 0.20), rgba(255, 138, 52, 0.24));
-  filter: blur(14px);
-  transform: translate3d(-10%, 0, 0);
+    conic-gradient(
+      from var(--project-agent-flow-angle, 0deg),
+      rgba(255, 78, 205, 0.95),
+      rgba(124, 92, 255, 0.94),
+      rgba(39, 217, 255, 0.95),
+      rgba(54, 245, 138, 0.92),
+      rgba(255, 240, 90, 0.94),
+      rgba(255, 138, 52, 0.94),
+      rgba(255, 78, 205, 0.95)
+    );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  transform: scale(0.996);
+  filter: saturate(1.08);
 }
 
 .project-agent-prompt-shell-flowing {
@@ -3455,8 +3473,10 @@ body {
 }
 
 .project-agent-prompt-shell-flowing::after {
-  opacity: 0.85;
-  animation: project-agent-rainbow-water 2.2s ease-in-out infinite;
+  opacity: 0.95;
+  animation:
+    project-agent-rainbow-border 1.6s linear infinite,
+    project-agent-rainbow-orbit-breath 2.8s cubic-bezier(0.45, 0, 0.2, 1) infinite;
 }
 
 .project-agent-upload-menu {
@@ -3510,15 +3530,18 @@ body {
   }
 }
 
-@keyframes project-agent-rainbow-water {
+@keyframes project-agent-rainbow-orbit-breath {
   0% {
-    transform: translate3d(-12%, 0, 0) scale(1);
+    opacity: 0.72;
+    transform: scale(0.996);
   }
   50% {
-    transform: translate3d(12%, 0, 0) scale(1.015);
+    opacity: 1;
+    transform: scale(1.005);
   }
   100% {
-    transform: translate3d(-12%, 0, 0) scale(1);
+    opacity: 0.72;
+    transform: scale(0.996);
   }
 }
 

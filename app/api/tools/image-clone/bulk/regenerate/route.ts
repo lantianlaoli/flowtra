@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { createImageCloneBulkKieTask } from "@/lib/image-clone-bulk-kie";
 import {
   buildImageCloneBulkRegenerationPrompt,
   createImageCloneBulkReplacementJob,
@@ -9,43 +8,79 @@ import {
   type ImageCloneBulkRegenerationLocalImage,
 } from "@/lib/image-clone-bulk-regenerate";
 import { setImageCloneBulkJobStatus } from "@/lib/image-clone-bulk-store";
-import type {
-  ImageCloneBulkAspectRatio,
-  ImageCloneBulkJob,
-  ImageCloneBulkResolution,
-} from "@/lib/image-clone-bulk-types";
+import type { ImageCloneBulkAspectRatio, ImageCloneBulkJob, ImageCloneBulkResolution } from "@/lib/image-clone-bulk-types";
 import { uploadImageForClone } from "@/lib/image-clone";
+import { fetchWithRetry } from "@/lib/fetchWithRetry";
 import {
   IMAGE_GENERATION_CREDIT_COST,
   chargeToolGenerationCredits,
   refundToolGenerationCredits,
   toolBillingErrorPayload,
 } from "@/lib/tools/billing";
+import { createToolGenerationJob, createToolGenerationTask } from "@/lib/tools/job-store";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 const BULK_REGENERATION_MAX_RETRIES = 2;
+const KIE_CREATE_TASK_URL = "https://api.kie.ai/api/v1/jobs/createTask";
+const KIE_MODEL = "gpt-image-2-image-to-image";
+
+function getKieApiKey() {
+  const apiKey = process.env.KIE_API_KEY;
+  if (!apiKey) throw new Error("KIE_API_KEY is not configured.");
+  return apiKey;
+}
 
 function isHttpUrl(value: unknown): value is string {
   if (typeof value !== "string") return false;
   try {
     const url = new URL(value);
     return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
+  } catch { return false; }
+}
+
+async function createKieBulkRegenerateTask(params: {
+  prompt: string;
+  inputUrls: string[];
+  aspectRatio: ImageCloneBulkAspectRatio;
+  resolution: ImageCloneBulkResolution;
+  callBackUrl: string;
+}): Promise<string> {
+  const response = await fetchWithRetry(KIE_CREATE_TASK_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getKieApiKey()}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: KIE_MODEL,
+      input: {
+        prompt: params.prompt,
+        input_urls: params.inputUrls.slice(0, 16),
+        aspect_ratio: params.aspectRatio,
+        resolution: params.resolution,
+      },
+      callBackUrl: params.callBackUrl,
+    }),
+  }, 5, 30000);
+
+  if (!response.ok) throw new Error(`KIE task creation failed: ${response.status}`);
+  const payload = await response.json();
+  const taskId = payload?.data?.taskId;
+  if (payload?.code !== 200 || typeof taskId !== "string") {
+    throw new Error(payload?.msg || "KIE task creation did not return a taskId.");
   }
+  return taskId;
 }
 
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!process.env.KIE_API_KEY) return NextResponse.json({ error: "KIE API key not configured" }, { status: 500 });
 
-    if (!process.env.KIE_API_KEY) {
-      return NextResponse.json({ error: "KIE API key not configured" }, { status: 500 });
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+    if (!siteUrl) {
+      return NextResponse.json({ error: "NEXT_PUBLIC_SITE_URL not configured" }, { status: 500 });
     }
+    const callBackUrl = `${siteUrl}/api/tools/webhooks/kie`;
 
     const body = (await request.json()) as {
       job?: ImageCloneBulkJob;
@@ -69,8 +104,8 @@ export async function POST(request: Request) {
     if (body.fontReferenceUrl && !isHttpUrl(body.fontReferenceUrl)) {
       return NextResponse.json({ error: "A valid font reference URL is required." }, { status: 400 });
     }
-    const job = body.job;
 
+    const job = body.job;
     const refinement = (body.refinement ?? "").trim();
     if (!refinement) {
       return NextResponse.json({ error: "Regeneration instructions are required." }, { status: 400 });
@@ -79,15 +114,11 @@ export async function POST(request: Request) {
     const aspectRatio = body.aspectRatio ?? job.aspectRatio;
     const resolution = body.resolution ?? job.resolution;
     const outputSizeError = validateImageCloneBulkRegenerationOutputSize(aspectRatio, resolution);
-    if (outputSizeError) {
-      return NextResponse.json({ error: outputSizeError }, { status: 400 });
-    }
+    if (outputSizeError) return NextResponse.json({ error: outputSizeError }, { status: 400 });
 
     const localImages = body.localImages ?? [];
     const localImageError = validateImageCloneBulkRegenerationLocalImages(localImages);
-    if (localImageError) {
-      return NextResponse.json({ error: localImageError }, { status: 400 });
-    }
+    if (localImageError) return NextResponse.json({ error: localImageError }, { status: 400 });
 
     const charge = await chargeToolGenerationCredits({
       userId,
@@ -116,42 +147,41 @@ export async function POST(request: Request) {
         localImageCount: localImageUrls.length,
       });
 
-      const inputUrls = [body.resultUrl, ...(body.fontReferenceUrl ? [body.fontReferenceUrl] : []), ...localImageUrls];
-      const taskId = await createImageCloneBulkKieTask({
-        prompt,
-        inputUrls,
-        aspectRatio,
-        resolution,
+      const inputUrls = [body.resultUrl!, ...(body.fontReferenceUrl ? [body.fontReferenceUrl] : []), ...localImageUrls];
+      const taskId = await createKieBulkRegenerateTask({ prompt, inputUrls, aspectRatio, resolution, callBackUrl });
+
+      // Track in-memory for fallback
+      setImageCloneBulkJobStatus({
+        taskId, status: "waiting",
+        updatedAt: new Date().toISOString(),
+        prompt, inputUrls, aspectRatio, resolution,
+        retryCount: 0, maxRetries: BULK_REGENERATION_MAX_RETRIES,
+        userId, billedCredits: charge.chargedCredits, billingRefundedAt: null,
       });
 
-      setImageCloneBulkJobStatus({
-        taskId,
-        status: "waiting",
-        updatedAt: new Date().toISOString(),
-        prompt,
-        inputUrls,
-        aspectRatio,
-        resolution,
-        retryCount: 0,
-        maxRetries: BULK_REGENERATION_MAX_RETRIES,
+      // Create parent job + task in Supabase
+      const parentJob = await createToolGenerationJob({
         userId,
+        toolKey: 'image-clone-bulk',
+        status: 'processing',
+        metadata: { regenerated_from_task_id: job.taskId, row_number: job.rowNumber },
         billedCredits: charge.chargedCredits,
-        billingRefundedAt: null,
+      });
+
+      await createToolGenerationTask({
+        jobId: parentJob.id,
+        kieTaskId: taskId,
+        toolKey: 'image-clone-bulk',
+        metadata: { prompt, aspect_ratio: aspectRatio, resolution, row_number: job.rowNumber },
       });
 
       return NextResponse.json({
-        job: createImageCloneBulkReplacementJob({
-          job,
-          taskId,
-          prompt,
-          aspectRatio,
-          resolution,
-        }),
+        jobId: parentJob.id,
+        job: createImageCloneBulkReplacementJob({ job, taskId, prompt, aspectRatio, resolution }),
       });
     } catch (error) {
       await refundToolGenerationCredits({
-        userId,
-        amount: charge.chargedCredits,
+        userId, amount: charge.chargedCredits,
         reason: "Image Clone Bulk regeneration failed to start",
         historyId: job.taskId,
       });

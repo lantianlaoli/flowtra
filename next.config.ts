@@ -80,6 +80,11 @@ const nextConfig: NextConfig = {
         destination: '/features/video-clone',
         permanent: true,
       },
+      {
+        source: '/tools/ad-short-film',
+        destination: '/tools/ecommerce-listing-studio',
+        permanent: true,
+      },
     ];
   },
   async rewrites() {

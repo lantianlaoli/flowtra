@@ -13,6 +13,8 @@ export type ProjectAgentFeatureNodeType =
 export type ProjectAgentAssetNodeType = 'avatar' | 'product' | 'video' | 'text';
 
 export type ProjectAgentOutputNodeType = 'output_video';
+export type ProjectAgentFeedbackProjectType = 'avatar-ads' | 'video-clone' | 'motion-clone';
+export type ProjectAgentFeedbackType = 'positive' | 'negative';
 
 export type ProjectAgentCanvasNodeType =
   | ProjectAgentAssetNodeType
@@ -48,6 +50,8 @@ export type ProjectAgentCanvasMilestone = {
 export type ProjectAgentCanvasAssetRef = {
   id: string;
   name: string;
+  projectId?: string | null;
+  projectType?: ProjectAgentFeedbackProjectType | null;
   imageUrl?: string | null;
   photos?: string[];
   content?: string | null;
@@ -57,6 +61,24 @@ export type ProjectAgentCanvasAssetRef = {
   videoCdnUrl?: string | null;
   analysisLanguage?: string | null;
   isSystem?: boolean;
+};
+
+export type ProjectAgentOutputFeedbackPayload = {
+  projectId: string;
+  projectType: ProjectAgentFeedbackProjectType;
+  feedbackType: ProjectAgentFeedbackType;
+};
+
+export const buildProjectAgentOutputFeedbackPayload = (
+  asset: ProjectAgentCanvasAssetRef | null | undefined,
+  feedbackType: ProjectAgentFeedbackType
+): ProjectAgentOutputFeedbackPayload | null => {
+  if (!asset?.projectId || !asset.projectType) return null;
+  return {
+    projectId: asset.projectId,
+    projectType: asset.projectType,
+    feedbackType,
+  };
 };
 
 export type ProjectAgentFeatureNodeConfig = {
@@ -264,6 +286,21 @@ export const getProjectAgentFeatureDisplayName = (
   }
 };
 
+export const getProjectAgentFeedbackProjectType = (
+  type: ProjectAgentFeatureNodeType
+): ProjectAgentFeedbackProjectType => {
+  switch (type) {
+    case 'avatar_ads':
+      return 'avatar-ads';
+    case 'video_clone':
+      return 'video-clone';
+    case 'motion_clone':
+      return 'motion-clone';
+    default:
+      return 'video-clone';
+  }
+};
+
 export const getProjectAgentAssetDisplayName = (
   type: ProjectAgentAssetNodeType
 ) => {
@@ -353,6 +390,36 @@ export const createProjectAgentFeatureNode = (input: {
     phase: 'idle',
   },
 });
+
+export const createProjectAgentOutputVideoNode = (input: {
+  sourceNode: Pick<ProjectAgentCanvasNode, 'id' | 'type' | 'x' | 'y'>;
+  projectId: string;
+  outputUrl: string;
+  previewUrl?: string | null;
+  linkedOutputCount: number;
+  existing?: Pick<ProjectAgentCanvasNode, 'x' | 'y'> | null;
+}): ProjectAgentCanvasNode => {
+  const projectType = isProjectAgentFeatureNode(input.sourceNode.type)
+    ? getProjectAgentFeedbackProjectType(input.sourceNode.type)
+    : null;
+
+  return {
+    id: `output-${input.sourceNode.id}-${input.projectId}`,
+    type: 'output_video',
+    x: input.existing?.x ?? input.sourceNode.x + 328,
+    y: input.existing?.y ?? input.sourceNode.y - 75 + (input.linkedOutputCount * 24),
+    label: 'Output',
+    asset: {
+      id: input.sourceNode.id,
+      name: 'Output',
+      videoUrl: input.outputUrl,
+      imageUrl: input.previewUrl || null,
+      projectId: input.projectId,
+      projectType,
+    },
+    runtime: null,
+  };
+};
 
 export const getProjectAgentCanvasNodeById = (
   state: ProjectAgentCanvasState,

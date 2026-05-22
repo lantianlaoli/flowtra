@@ -337,6 +337,32 @@ export function PromptInputBox({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    const isSelectAllShortcut = (
+      event.key.toLowerCase() === 'a' &&
+      !event.shiftKey &&
+      (event.metaKey || event.ctrlKey || event.altKey)
+    );
+
+    if (isSelectAllShortcut) {
+      event.preventDefault();
+      setCommandMenuOpen(false);
+      setUploadMenuOpen(false);
+
+      const nextValue = `${committedText}${value}`;
+      if (promptParts.length > 0) {
+        setPromptParts([]);
+        onValueChange(nextValue);
+      }
+
+      window.requestAnimationFrame(() => {
+        const element = textareaRef.current;
+        if (!element) return;
+        element.focus();
+        element.setSelectionRange(0, nextValue.length);
+      });
+      return;
+    }
+
     if (commandMenuOpen && visibleCommands.length > 0) {
       if (event.key === 'ArrowDown') {
         event.preventDefault();

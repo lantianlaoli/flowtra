@@ -4208,6 +4208,82 @@ export async function POST(request: Request) {
       return sendDirectAssistantReply(blockedExecutionReply);
     }
 
+    // Deterministic canvas commands should not wait on semantic model planning.
+    // This keeps layout cleanup, destructive confirmations, and execution-blocking
+    // replies responsive even when the model/provider is slow.
+    const immediateCanvasCommand = planProjectAgentCanvasCommand(
+      messageText(normalizedIncomingMessage),
+      latestCanvas,
+    );
+
+    if (immediateCanvasCommand?.type === 'confirmation') {
+      const nextState = mergeState(sessionState, {
+        pendingUiRequest: immediateCanvasCommand.request,
+      });
+      return sendDirectCanvasActionReply({
+        replyText: immediateCanvasCommand.reply,
+        toolName: 'confirmDestructiveCanvasAction',
+        output: {
+          success: true,
+          actions: [
+            {
+              kind: 'ui_action',
+              action: {
+                type: 'request_confirmation',
+                request: immediateCanvasCommand.request,
+              },
+            },
+          ],
+        },
+        nextState,
+      });
+    }
+
+    if (
+      immediateCanvasCommand?.type === 'safe_edit' &&
+      immediateCanvasCommand.actions.every((action) => (
+        action.kind === 'canvas_mutation' && action.mutation.type === 'format_layout'
+      ))
+    ) {
+      const nextCanvasResult = executeProjectAgentCanvasActions({
+        canvas: latestCanvas,
+        actions: immediateCanvasCommand.actions,
+      });
+      const nextState = mergeState(sessionState, {
+        canvas: nextCanvasResult.canvas,
+        pendingUiRequest: nextCanvasResult.pendingUiRequest,
+      });
+      return sendDirectCanvasActionReply({
+        replyText: immediateCanvasCommand.reply,
+        toolName: 'planCanvasEdit',
+        output: {
+          success: true,
+          actions: immediateCanvasCommand.actions,
+        },
+        nextState,
+      });
+    }
+
+    if (immediateCanvasCommand?.type === 'inspect_only') {
+      return sendDirectAssistantReply(immediateCanvasCommand.reply);
+    }
+
+    // Try deterministic asset-name resolution before semantic planning. This
+    // keeps exact commands such as "clone Decorations 1 for red lapel pin" from
+    // depending on model intent classification.
+    const immediateNamedCanvasWorkflowPlan = await resolveNamedCanvasWorkflowPlan();
+    if (immediateNamedCanvasWorkflowPlan) {
+      return sendDirectCanvasActionReply({
+        replyText: immediateNamedCanvasWorkflowPlan.replyText,
+        toolName: 'planCanvasEdit',
+        output: {
+          success: true,
+          actions: immediateNamedCanvasWorkflowPlan.actions,
+        },
+        nextState: immediateNamedCanvasWorkflowPlan.nextState,
+      });
+    }
+
     if (shouldAttemptSemanticCanvasPlanning(latestUserTurnRaw)) {
       return runSemanticPlanningWithEarlyFeedback();
     }

@@ -612,14 +612,14 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
   }
 
   return (
-    <div className="assets-manager space-y-6">
+    <div className={embedded ? "assets-manager space-y-4" : "assets-manager space-y-6"}>
       {/* Tab Switcher */}
       <div className="assets-tabs border-b border-gray-200">
-        <div className="assets-tabs-list flex gap-8">
+        <div className={embedded ? "assets-tabs-list flex gap-6" : "assets-tabs-list flex gap-8"}>
           <button
             onClick={() => setActiveTab('products')}
             className={`
-              assets-tab flex items-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors
+              assets-tab flex items-center gap-2 ${embedded ? 'py-2.5' : 'py-4'} text-sm font-medium border-b-2 transition-colors
               ${activeTab === 'products'
                 ? 'border-black text-black'
                 : 'border-transparent text-gray-500 hover:text-gray-700'}
@@ -631,7 +631,7 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
           <button
             onClick={() => setActiveTab('avatars')}
             className={`
-              assets-tab flex items-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors
+              assets-tab flex items-center gap-2 ${embedded ? 'py-2.5' : 'py-4'} text-sm font-medium border-b-2 transition-colors
               ${activeTab === 'avatars'
                 ? 'border-black text-black'
                 : 'border-transparent text-gray-500 hover:text-gray-700'}
@@ -643,7 +643,7 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
           <button
             onClick={() => setActiveTab('videos')}
             className={`
-              assets-tab flex items-center gap-2 py-4 text-sm font-medium border-b-2 transition-colors
+              assets-tab flex items-center gap-2 ${embedded ? 'py-2.5' : 'py-4'} text-sm font-medium border-b-2 transition-colors
               ${activeTab === 'videos'
                 ? 'border-black text-black'
                 : 'border-transparent text-gray-500 hover:text-gray-700'}
@@ -656,7 +656,7 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
       </div>
 
       {/* Content */}
-      <div className="assets-content space-y-6">
+      <div className={embedded ? "assets-content space-y-4" : "assets-content space-y-6"}>
         {activeTab === 'products' ? (
           <>
             <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">

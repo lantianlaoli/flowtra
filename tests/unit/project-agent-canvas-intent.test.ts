@@ -145,6 +145,68 @@ test('refineCanvasIntent remaps generic clone with video and product from motion
   assert.equal(refined.workflow, 'video_clone');
 });
 
+test('refineCanvasIntent converts generic clone for-product wording when the model mislabeled the product as an avatar', () => {
+  const refined = refineCanvasIntent({
+    workflow: 'motion_clone',
+    operation: 'build_workflow',
+    assetRefs: [
+      { type: 'video', value: 'Decorations 1', mode: 'named' },
+      { type: 'avatar', value: 'red lapel pin', mode: 'named' },
+    ],
+    constraints: {},
+    executionMode: 'build_only',
+    replyLanguage: 'en',
+    nextRequiredSelection: null,
+    confidence: 0.81,
+    rawUserRequest: 'I want to clone Decorations 1 for red lapel pin.',
+  });
+
+  assert.equal(refined.workflow, 'video_clone');
+  assert.deepEqual(refined.assetRefs.map((ref) => ref.type), ['video', 'product']);
+});
+
+test('refineCanvasIntent infers product references from generic clone for-product wording when the model omitted product refs', () => {
+  const refined = refineCanvasIntent({
+    workflow: 'motion_clone',
+    operation: 'build_workflow',
+    assetRefs: [
+      { type: 'video', value: 'Decorations 1', mode: 'named' },
+    ],
+    constraints: {},
+    executionMode: 'build_only',
+    replyLanguage: 'en',
+    nextRequiredSelection: 'avatar',
+    confidence: 0.81,
+    rawUserRequest: 'I want to clone Decorations 1 for red lapel pin.',
+  });
+
+  assert.equal(refined.workflow, 'video_clone');
+  assert.deepEqual(refined.assetRefs.map((ref) => [ref.type, ref.value]), [
+    ['video', 'Decorations 1'],
+    ['product', 'red lapel pin'],
+  ]);
+});
+
+test('refineCanvasIntent infers video and product refs when the model misroutes generic clone to avatar ads', () => {
+  const refined = refineCanvasIntent({
+    workflow: 'avatar_ads',
+    operation: 'build_workflow',
+    assetRefs: [],
+    constraints: {},
+    executionMode: 'build_only',
+    replyLanguage: 'en',
+    nextRequiredSelection: null,
+    confidence: 0.81,
+    rawUserRequest: 'I want to clone Decorations 1 for red lapel pin.',
+  });
+
+  assert.equal(refined.workflow, 'video_clone');
+  assert.deepEqual(refined.assetRefs.map((ref) => [ref.type, ref.value]), [
+    ['video', 'decorations 1'],
+    ['product', 'red lapel pin'],
+  ]);
+});
+
 test('refineCanvasIntent keeps explicit motion clone requests as motion clone', () => {
   const refined = refineCanvasIntent({
     workflow: 'motion_clone',

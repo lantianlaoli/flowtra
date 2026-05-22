@@ -1,6 +1,7 @@
 'use client';
 
 import type { AiReferenceAngleJob } from '@/lib/ai-reference-angle-jobs';
+import type { ToolGenerationTask } from '@/lib/tools/job-store';
 
 type FetchJobsResponse = {
   jobs: AiReferenceAngleJob[];
@@ -32,33 +33,47 @@ export async function fetchAiReferenceAngleJobs(jobIds: string[]): Promise<AiRef
 }
 
 export function subscribeToAiReferenceAngleJobs(
-  _supabase: unknown,
+  supabase: unknown,
   jobIds: string[],
   onJobChange: (job: AiReferenceAngleJob) => void
 ): () => void {
   if (!jobIds.length) return () => {};
 
-  const params = new URLSearchParams();
-  jobIds.forEach((jobId) => params.append('jobId', jobId));
-
-  const eventSource = new EventSource(`/api/assets/ai-reference-angles/sse?${params.toString()}`);
-
-  eventSource.onmessage = (event) => {
-    try {
-      const job = JSON.parse(event.data) as AiReferenceAngleJob;
-      onJobChange(job);
-    } catch {
-      // Ignore parse errors
-    }
+  const client = supabase as {
+    channel?: (name: string) => {
+      on: (
+        event: 'postgres_changes',
+        config: Record<string, unknown>,
+        callback: (payload: { new: ToolGenerationTask }) => void
+      ) => unknown;
+      subscribe: () => unknown;
+    };
+    removeChannel?: (channel: unknown) => unknown;
   };
 
-  eventSource.onerror = () => {
-    // Let polling fallback handle reconnect
-    eventSource.close();
-  };
+  if (typeof client.channel !== 'function') return () => {};
+
+  let channel = client.channel(`ai-reference-angle-jobs-${jobIds.join('-')}`);
+  for (const jobId of jobIds) {
+    const nextChannel = channel.on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'tool_generation_tasks',
+        filter: `kie_task_id=eq.${jobId}`,
+      },
+      (payload) => {
+        onJobChange(mapTaskToAiReferenceJob(payload.new));
+      }
+    );
+    channel = nextChannel as typeof channel;
+  }
+
+  channel.subscribe();
 
   return () => {
-    eventSource.close();
+    client.removeChannel?.(channel);
   };
 }
 
@@ -77,7 +92,7 @@ export async function waitForAiReferenceAngleJobs(options: {
   timeoutMs?: number;
   pollIntervalMs?: number;
 }): Promise<AiReferenceAngleJob[]> {
-  const { supabase, jobIds, onJobsUpdated, timeoutMs = 180000, pollIntervalMs = 2000 } = options;
+  const { supabase, jobIds, onJobsUpdated, timeoutMs = 180000 } = options;
   const initialJobs = await fetchAiReferenceAngleJobs(jobIds);
   onJobsUpdated?.(initialJobs);
 
@@ -93,8 +108,6 @@ export async function waitForAiReferenceAngleJobs(options: {
   return new Promise<AiReferenceAngleJob[]>((resolve, reject) => {
     let settled = false;
     let jobs = initialJobs;
-    let pollingInFlight = false;
-
     const evaluateJobs = (nextJobs: AiReferenceAngleJob[], failedJobOverride?: AiReferenceAngleJob) => {
       jobs = nextJobs;
       onJobsUpdated?.(jobs);
@@ -117,7 +130,6 @@ export async function waitForAiReferenceAngleJobs(options: {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutId);
-      clearInterval(pollingIntervalId);
       unsubscribe();
       callback();
     };
@@ -126,19 +138,6 @@ export async function waitForAiReferenceAngleJobs(options: {
       const nextJobs = jobs.map((job) => (job.id === updatedJob.id ? updatedJob : job));
       evaluateJobs(nextJobs, updatedJob.status === 'failed' ? updatedJob : undefined);
     });
-
-    const pollingIntervalId = window.setInterval(async () => {
-      if (settled || pollingInFlight) return;
-      pollingInFlight = true;
-      try {
-        const latestJobs = await fetchAiReferenceAngleJobs(jobIds);
-        evaluateJobs(latestJobs);
-      } catch {
-        // Ignore transient polling errors and continue waiting.
-      } finally {
-        pollingInFlight = false;
-      }
-    }, pollIntervalMs);
 
     const timeoutId = window.setTimeout(async () => {
       try {
@@ -152,4 +151,24 @@ export async function waitForAiReferenceAngleJobs(options: {
       }
     }, timeoutMs);
   });
+}
+
+function mapTaskToAiReferenceJob(task: ToolGenerationTask): AiReferenceAngleJob {
+  const metadata = task.metadata ?? {};
+  return {
+    id: task.kie_task_id,
+    user_id: '',
+    asset_type: (metadata.asset_type as AiReferenceAngleJob['asset_type']) || 'universal',
+    source_image_url: '',
+    preset_key: (metadata.preset_key as string) || '',
+    preset_label: (metadata.preset_label as string) || '',
+    kie_task_id: task.kie_task_id,
+    status: task.status,
+    result_image_url: task.result_url,
+    error_message: task.error_message,
+    webhook_received_at: task.webhook_received_at,
+    created_at: task.created_at,
+    updated_at: task.updated_at,
+    aspect_ratio: (metadata.aspect_ratio as string) || null,
+  };
 }

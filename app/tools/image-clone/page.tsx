@@ -37,6 +37,8 @@ import { OpenAI } from "@lobehub/icons";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
 import { useI18n } from "@/providers/I18nProvider";
 import { useToolUsageAccess } from "@/lib/tools/use-tool-usage-access";
+import { useToolGenerationRealtime } from "@/lib/tools/use-tool-generation-realtime";
+import type { ToolGenerationJob } from "@/lib/tools/job-store";
 import {
   IMAGE_GENERATION_CREDIT_COST,
   getImageGenerationCreditCost,
@@ -70,6 +72,7 @@ const MAX_BULK_REGENERATION_LOCAL_IMAGES = 4;
 const MAX_BULK_REGENERATION_LOCAL_IMAGE_BYTES = 10 * 1024 * 1024;
 const FONT_REFERENCE_INSTRUCTION =
   "Match the typography style, font weight, spacing, and text treatment of the selected font reference image while keeping the current product composition.";
+const QUICK_IMAGE_CLONE_SESSION_KEY = "flowtra:image-clone:quick";
 
 type BulkRegenerationTextBlock = {
   id: string;
@@ -89,6 +92,17 @@ type BulkRegenerationModalState = {
   resultUrl: string;
   aspectRatio: ImageCloneBulkAspectRatio;
   resolution: ImageCloneBulkResolution;
+};
+
+type QuickImageCloneSession = {
+  jobId: string | null;
+  status: Extract<QuickStatus, "generating" | "success">;
+  resultUrls: string[];
+  productPhotoUrl?: string | null;
+  referencePhotoUrl?: string | null;
+  copyText?: string;
+  aspectRatio?: (typeof ASPECT_RATIOS)[number];
+  resolution?: (typeof RESOLUTIONS)[number];
 };
 
 function estimateDataUrlRequestSize(fileSize: number, mimeType: string) {
@@ -429,6 +443,7 @@ export default function ImageClonePage() {
   const [resolution, setResolution] = useState<(typeof RESOLUTIONS)[number]>("2K");
   const [resultUrls, setResultUrls] = useState<string[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [manualCopyUrl, setManualCopyUrl] = useState<string | null>(null);
 
   const [bulkWorkbook, setBulkWorkbook] = useState<ImageCloneBulkWorkbook | null>(null);
   const [bulkJobs, setBulkJobs] = useState<ImageCloneBulkJob[]>([]);
@@ -449,6 +464,11 @@ export default function ImageClonePage() {
   const [isRegeneratingBulkJob, setIsRegeneratingBulkJob] = useState(false);
   const [regenerationError, setRegenerationError] = useState<string | null>(null);
 
+  const [quickJobId, setQuickJobId] = useState<string | null>(null);
+  const [bulkJobId, setBulkJobId] = useState<string | null>(null);
+  const { job: quickJob } = useToolGenerationRealtime(quickJobId);
+  const { job: bulkJob, tasks: bulkTasks } = useToolGenerationRealtime(bulkJobId);
+
   const bulkRows = useMemo(() => allBulkRows(bulkWorkbook), [bulkWorkbook]);
   const completedBulkCount = useMemo(
     () => bulkJobs.filter((job) => job.status === "success" || job.status === "fail").length,
@@ -463,6 +483,126 @@ export default function ImageClonePage() {
   );
   const isQuickBusy = quickStatus === "uploading" || quickStatus === "generating";
   const isBulkBusy = pageMode === "bulkParsing" || pageMode === "bulkGenerating";
+
+  const clearQuickSession = useCallback(() => {
+    try {
+      window.sessionStorage.removeItem(QUICK_IMAGE_CLONE_SESSION_KEY);
+    } catch {
+      // Storage can be unavailable in hardened browser contexts.
+    }
+  }, []);
+
+  const persistQuickSession = useCallback((session: QuickImageCloneSession) => {
+    try {
+      window.sessionStorage.setItem(QUICK_IMAGE_CLONE_SESSION_KEY, JSON.stringify(session));
+    } catch {
+      // The generation itself should continue even if session storage quota is exhausted.
+    }
+  }, []);
+
+  const resetQuickResults = useCallback(() => {
+    setQuickJobId(null);
+    setResultUrls([]);
+    setCopiedId(null);
+    setManualCopyUrl(null);
+    clearQuickSession();
+  }, [clearQuickSession]);
+
+  const restoreQuickJobSnapshot = useCallback(
+    (job: ToolGenerationJob) => {
+      const metadata = (job.metadata ?? {}) as Record<string, unknown>;
+      const productImageUrl = typeof metadata.product_image_url === "string" ? metadata.product_image_url : null;
+      const referenceImageUrls = Array.isArray(metadata.reference_image_urls)
+        ? metadata.reference_image_urls.filter((url): url is string => typeof url === "string")
+        : [];
+      const savedAspectRatio = ASPECT_RATIOS.find((ratio) => ratio === metadata.aspect_ratio);
+      const savedResolution = RESOLUTIONS.find((value) => value === metadata.resolution);
+
+      if (productImageUrl) setProductPhotoUrl(productImageUrl);
+      if (referenceImageUrls[0]) setReferencePhotoUrl(referenceImageUrls[0]);
+      if (savedAspectRatio) setAspectRatio(savedAspectRatio);
+      if (savedResolution) setResolution(savedResolution);
+
+      if (job.status === "completed" && job.result_url) {
+        const nextResultUrls = [job.result_url];
+        setResultUrls((prev) => (prev.includes(job.result_url!) ? prev : [...prev, job.result_url!]));
+        setQuickStatus("success");
+        setQuickJobId(null);
+        persistQuickSession({
+          jobId: null,
+          status: "success",
+          resultUrls: nextResultUrls,
+          productPhotoUrl: productImageUrl,
+          referencePhotoUrl: referenceImageUrls[0] ?? null,
+          copyText,
+          aspectRatio: savedAspectRatio ?? aspectRatio,
+          resolution: savedResolution ?? resolution,
+        });
+      } else if (job.status === "failed") {
+        setError(job.error_message || "Generation failed");
+        setQuickStatus("error");
+        setQuickJobId(null);
+        clearQuickSession();
+      } else {
+        setQuickStatus("generating");
+        setQuickJobId(job.id);
+        persistQuickSession({
+          jobId: job.id,
+          status: "generating",
+          resultUrls: [],
+          productPhotoUrl: productImageUrl,
+          referencePhotoUrl: referenceImageUrls[0] ?? null,
+          copyText,
+          aspectRatio: savedAspectRatio ?? aspectRatio,
+          resolution: savedResolution ?? resolution,
+        });
+      }
+    },
+    [aspectRatio, clearQuickSession, copyText, persistQuickSession, resolution]
+  );
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const restoreLatestJob = async () => {
+      try {
+        const response = await fetch("/api/tools/jobs/latest?toolKey=image-clone&maxAgeMinutes=180");
+        if (!response.ok) return;
+        const payload = (await response.json()) as { job?: ToolGenerationJob | null };
+        if (isCancelled || !payload.job) return;
+        setPageMode("quick");
+        restoreQuickJobSnapshot(payload.job);
+      } catch {
+        // Best-effort recovery only.
+      }
+    };
+
+    try {
+      const saved = window.sessionStorage.getItem(QUICK_IMAGE_CLONE_SESSION_KEY);
+      if (!saved) {
+        void restoreLatestJob();
+        return () => {
+          isCancelled = true;
+        };
+      }
+      const session = JSON.parse(saved) as QuickImageCloneSession;
+      if (session.productPhotoUrl) setProductPhotoUrl(session.productPhotoUrl);
+      if (session.referencePhotoUrl) setReferencePhotoUrl(session.referencePhotoUrl);
+      if (typeof session.copyText === "string") setCopyText(session.copyText);
+      if (session.aspectRatio && ASPECT_RATIOS.includes(session.aspectRatio)) setAspectRatio(session.aspectRatio);
+      if (session.resolution && RESOLUTIONS.includes(session.resolution)) setResolution(session.resolution);
+      if (session.resultUrls.length > 0) setResultUrls(session.resultUrls);
+      setPageMode("quick");
+      setQuickStatus(session.status);
+      if (session.jobId) setQuickJobId(session.jobId);
+    } catch {
+      clearQuickSession();
+      void restoreLatestJob();
+    }
+    return () => {
+      isCancelled = true;
+    };
+  }, [clearQuickSession, restoreQuickJobSnapshot]);
 
   const validateAndReadDataUrl = useCallback(async (file: File): Promise<string> => {
     const formatCheck = validateImageFormat(file);
@@ -524,6 +664,7 @@ export default function ImageClonePage() {
     setPageMode("quick");
     setQuickStatus("uploading");
     setError(null);
+    resetQuickResults();
 
     try {
       const imageDataUrl = await validateAndReadDataUrl(file);
@@ -539,6 +680,7 @@ export default function ImageClonePage() {
     setPageMode("quick");
     setQuickStatus("uploading");
     setError(null);
+    resetQuickResults();
 
     try {
       const imageDataUrl = await validateAndReadDataUrl(file);
@@ -553,6 +695,7 @@ export default function ImageClonePage() {
   const handleLandingQuickUpload = async (file: File) => {
     setQuickStatus("uploading");
     setError(null);
+    resetQuickResults();
 
     try {
       const imageDataUrl = await validateAndReadDataUrl(file);
@@ -565,24 +708,6 @@ export default function ImageClonePage() {
       setQuickStatus("error");
       setPageMode("error");
     }
-  };
-
-  const pollJobStatus = async (jobId: string, maxAttempts = 90) => {
-    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      const response = await fetch(`/api/tools/image-clone?jobId=${encodeURIComponent(jobId)}`);
-      const data = await response.json();
-
-      if (data.status === "completed" && data.resultImageUrl) {
-        return data.resultImageUrl as string;
-      }
-
-      if (data.status === "failed") {
-        throw new Error(data.errorMessage || "Generation failed");
-      }
-    }
-
-    throw new Error("Generation timed out. Please try again.");
   };
 
   const handleGenerate = async () => {
@@ -621,9 +746,15 @@ export default function ImageClonePage() {
         throw new Error(data.error || "Failed to start generation.");
       }
 
-      const resultImageUrl = await pollJobStatus(data.jobId);
-      setResultUrls((prev) => [...prev, resultImageUrl]);
-      setQuickStatus("success");
+      setQuickJobId(data.jobId);
+      persistQuickSession({
+        jobId: data.jobId,
+        status: "generating",
+        resultUrls: [],
+        copyText,
+        aspectRatio,
+        resolution,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate image.");
       setQuickStatus("error");
@@ -856,6 +987,7 @@ export default function ImageClonePage() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to start regeneration.");
       const replacementJob = payload.job as ImageCloneBulkJob;
+      if (payload.jobId) setBulkJobId(payload.jobId);
       setBulkJobs((jobs) => jobs.map((job) => (job.rowId === replacementJob.rowId ? replacementJob : job)));
       setRegenerationModal({
         job: replacementJob,
@@ -870,56 +1002,6 @@ export default function ImageClonePage() {
       setIsRegeneratingBulkJob(false);
     }
   };
-
-  const pollBulkJobs = useCallback(async (currentJobs: ImageCloneBulkJob[]) => {
-    const nextJobs = await Promise.all(
-      currentJobs.map(async (job) => {
-        if (!job.taskId || job.status === "success" || job.status === "fail") return job;
-        try {
-          const response = await fetch(`/api/tools/image-clone/bulk/status?taskId=${encodeURIComponent(job.taskId)}`);
-          const payload = await response.json();
-          if (!response.ok) throw new Error(payload.error || "Status check failed.");
-          return {
-            ...job,
-            taskId: payload.taskId ?? job.taskId,
-            status: payload.status,
-            resultUrl: payload.resultUrl ?? job.resultUrl,
-            error: payload.error ?? (payload.taskId && payload.taskId !== job.taskId ? undefined : job.error),
-          } satisfies ImageCloneBulkJob;
-        } catch (pollError) {
-          return {
-            ...job,
-            error: pollError instanceof Error ? pollError.message : "Status check failed.",
-          };
-        }
-      })
-    );
-
-    setBulkJobs(nextJobs);
-    setRegenerationModal((current) => {
-      if (!current) return current;
-      const updatedJob = nextJobs.find((job) => job.rowId === current.job.rowId);
-      if (!updatedJob) return current;
-      return {
-        ...current,
-        job: updatedJob,
-        resultUrl: updatedJob.resultUrl ?? current.resultUrl,
-        aspectRatio: updatedJob.aspectRatio,
-        resolution: updatedJob.resolution,
-      };
-    });
-    if (nextJobs.every((job) => job.status === "success" || job.status === "fail")) {
-      setPageMode("bulkDone");
-    }
-  }, []);
-
-  useEffect(() => {
-    if (pageMode !== "bulkGenerating") return;
-    const interval = window.setInterval(() => {
-      void pollBulkJobs(bulkJobs);
-    }, 8000);
-    return () => window.clearInterval(interval);
-  }, [bulkJobs, pageMode, pollBulkJobs]);
 
   const startBulkGeneration = async () => {
     if (!bulkWorkbook?.workbookId) return;
@@ -964,6 +1046,7 @@ export default function ImageClonePage() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to start generation.");
       setBulkJobs(payload.jobs);
+      setBulkJobId(payload.jobId);
       if (payload.jobs.every((job: ImageCloneBulkJob) => job.status === "success" || job.status === "fail")) {
         setPageMode("bulkDone");
       }
@@ -988,13 +1071,88 @@ export default function ImageClonePage() {
     return () => window.cancelAnimationFrame(frame);
   }, [bulkJobs.length, pageMode]);
 
+  // React to quick job completion via Realtime
+  useEffect(() => {
+    if (!quickJob) return;
+    restoreQuickJobSnapshot(quickJob);
+  }, [quickJob, restoreQuickJobSnapshot]);
+
+  // React to bulk job/task changes via Realtime
+  useEffect(() => {
+    if (!bulkJob || !bulkTasks.length) return;
+    setBulkJobs((currentJobs) => {
+      const nextJobs = currentJobs.map((job) => {
+        if (job.status === 'success' || job.status === 'fail') return job;
+        const task = bulkTasks.find((t) => t.kie_task_id === job.taskId);
+        if (!task) return job;
+        const newStatus = task.status === 'completed' ? 'success' : task.status === 'failed' ? 'fail' : job.status === 'processing' && task.status === 'processing' ? 'processing' : 'waiting';
+        return {
+          ...job,
+          status: newStatus,
+          resultUrl: task.result_url ?? job.resultUrl,
+          error: task.error_message ?? job.error,
+        } as ImageCloneBulkJob;
+      });
+
+      if (nextJobs.every((job) => job.status === "success" || job.status === "fail")) {
+        setPageMode("bulkDone");
+      }
+
+      return nextJobs;
+    });
+
+    setRegenerationModal((current) => {
+      if (!current) return current;
+      const task = bulkTasks.find((t) => t.kie_task_id === current.job.taskId);
+      if (!task) return current;
+      const updatedJob = {
+        ...current.job,
+        status: task.status === 'completed' ? 'success' : task.status === 'failed' ? 'fail' : current.job.status,
+        resultUrl: task.result_url ?? current.job.resultUrl,
+        error: task.error_message ?? current.job.error,
+      } as ImageCloneBulkJob;
+      return {
+        ...current,
+        job: updatedJob,
+        resultUrl: updatedJob.resultUrl ?? current.resultUrl,
+        aspectRatio: updatedJob.aspectRatio,
+        resolution: updatedJob.resolution,
+      };
+    });
+  }, [bulkJob, bulkTasks]);
+
   const handleCopyUrl = async (url: string, id: string) => {
+    const copyWithTextarea = () => {
+      const textarea = document.createElement("textarea");
+      textarea.value = url;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      if (!ok) throw new Error("Copy command was blocked.");
+    };
+
     try {
-      await navigator.clipboard.writeText(url);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        copyWithTextarea();
+      }
       setCopiedId(id);
+      setManualCopyUrl(null);
       setTimeout(() => setCopiedId(null), 1200);
     } catch {
-      setError("Failed to copy URL.");
+      try {
+        copyWithTextarea();
+        setCopiedId(id);
+        setManualCopyUrl(null);
+        setTimeout(() => setCopiedId(null), 1200);
+      } catch {
+        setManualCopyUrl(url);
+      }
     }
   };
 
@@ -1002,6 +1160,9 @@ export default function ImageClonePage() {
     setPageMode("landing");
     setQuickStatus("idle");
     setError(null);
+    setQuickJobId(null);
+    setBulkJobId(null);
+    clearQuickSession();
   };
 
   return (
@@ -1074,7 +1235,14 @@ export default function ImageClonePage() {
                     imageUrl={productPhotoUrl}
                     isLoading={quickStatus === "uploading"}
                     onFileSelect={handleProductPhotoUpload}
-                    onRemove={productPhotoUrl ? () => setProductPhotoUrl(null) : undefined}
+                    onRemove={
+                      productPhotoUrl
+                        ? () => {
+                            setProductPhotoUrl(null);
+                            resetQuickResults();
+                          }
+                        : undefined
+                    }
                     disabled={isQuickBusy}
                     required
                   />
@@ -1083,7 +1251,14 @@ export default function ImageClonePage() {
                     imageUrl={referencePhotoUrl}
                     isLoading={quickStatus === "uploading"}
                     onFileSelect={handleReferencePhotoUpload}
-                    onRemove={referencePhotoUrl ? () => setReferencePhotoUrl(null) : undefined}
+                    onRemove={
+                      referencePhotoUrl
+                        ? () => {
+                            setReferencePhotoUrl(null);
+                            resetQuickResults();
+                          }
+                        : undefined
+                    }
                     disabled={isQuickBusy}
                   />
                 </div>
@@ -1193,6 +1368,7 @@ export default function ImageClonePage() {
                 status={quickStatus}
                 resultUrls={resultUrls}
                 copiedId={copiedId}
+                manualCopyUrl={manualCopyUrl}
                 primaryButtonClass={primaryButtonClass}
                 secondaryButtonClass={secondaryButtonClass}
                 onCopyUrl={handleCopyUrl}
@@ -1806,6 +1982,7 @@ function QuickResults({
   status,
   resultUrls,
   copiedId,
+  manualCopyUrl,
   primaryButtonClass,
   secondaryButtonClass,
   onCopyUrl,
@@ -1813,6 +1990,7 @@ function QuickResults({
   status: QuickStatus;
   resultUrls: string[];
   copiedId: string | null;
+  manualCopyUrl: string | null;
   primaryButtonClass: string;
   secondaryButtonClass: string;
   onCopyUrl: (url: string, id: string) => void;
@@ -1864,6 +2042,17 @@ function QuickResults({
           </div>
         ))}
       </div>
+      {manualCopyUrl ? (
+        <div className="mt-3 rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 text-xs text-[#666666]">
+          <p className="mb-1">Browser blocked clipboard access. Select and copy this URL:</p>
+          <input
+            readOnly
+            value={manualCopyUrl}
+            className="w-full rounded-md border border-[#E5E5E5] bg-[#F8F8F8] px-2 py-1 font-mono text-[11px] text-black"
+            onFocus={(event) => event.currentTarget.select()}
+          />
+        </div>
+      ) : null}
       {status !== "generating" && resultUrls.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12">
           <ImageIcon className="mb-2 h-8 w-8 text-[#CCCCCC]" />
