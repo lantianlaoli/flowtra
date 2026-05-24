@@ -41,7 +41,7 @@ If lock file missing, tell the user to run `pnpm install` and stop.
 
 ## 4) Remove temporary scripts
 
-Look only in project root (not `tests/` or `scripts/`).
+Look only in project root (not `scripts/`).
 
 Patterns:
 - `test-*.js`, `test-*.ts`
@@ -56,7 +56,7 @@ Process:
 
 Never delete:
 - `package.json`, `pnpm-lock.yaml`
-- Anything under `scripts/`, `tests/`, `.claude/`, `node_modules/`
+- Anything under `scripts/`, `.claude/`, `node_modules/`
 - Any `*-sound.sh` scripts
 
 ## 5) Confirm changes

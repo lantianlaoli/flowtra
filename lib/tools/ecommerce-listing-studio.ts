@@ -1,6 +1,19 @@
 import { extractOpenRouterJsonContent, extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 
-export type EcommerceListingTextLanguage = 'en' | 'zh';
+export type EcommerceListingTextLanguage =
+  | 'en'
+  | 'fr'
+  | 'de'
+  | 'es'
+  | 'pt'
+  | 'it'
+  | 'zh'
+  | 'ja'
+  | 'ko'
+  | 'ar'
+  | 'he'
+  | 'ru'
+  | 'hi';
 export type EcommerceListingAssetScope = 'carousel' | 'detail' | 'video';
 export type EcommerceListingImageAspectRatio = '1:1' | '4:3' | '3:4' | '16:9' | '9:16';
 export type EcommerceListingImageResolution = '1K' | '2K' | '4K';
@@ -77,7 +90,20 @@ export function normalizeEcommerceListingScopes(value: unknown): EcommerceListin
 }
 
 export function normalizeTextLanguage(value: unknown): EcommerceListingTextLanguage {
-  return value === 'zh' ? 'zh' : 'en';
+  return value === 'fr' ||
+    value === 'de' ||
+    value === 'es' ||
+    value === 'pt' ||
+    value === 'it' ||
+    value === 'zh' ||
+    value === 'ja' ||
+    value === 'ko' ||
+    value === 'ar' ||
+    value === 'he' ||
+    value === 'ru' ||
+    value === 'hi'
+    ? value
+    : 'en';
 }
 
 export function normalizeImageAspectRatio(value: unknown): EcommerceListingImageAspectRatio {
@@ -106,15 +132,42 @@ export function normalizeVideoResolution(
   return value === '480p' ? '480p' : '720p';
 }
 
+export function ecommerceListingLanguageName(textLanguage: EcommerceListingTextLanguage) {
+  const names: Record<EcommerceListingTextLanguage, string> = {
+    en: 'English',
+    fr: 'French',
+    de: 'German',
+    es: 'Spanish',
+    pt: 'Portuguese',
+    it: 'Italian',
+    zh: 'Simplified Chinese',
+    ja: 'Japanese',
+    ko: 'Korean',
+    ar: 'Arabic',
+    he: 'Hebrew',
+    ru: 'Russian using Cyrillic script',
+    hi: 'Hindi using Devanagari script',
+  };
+  return names[textLanguage] ?? names.en;
+}
+
 function languageInstruction(textLanguage: EcommerceListingTextLanguage) {
-  if (textLanguage === 'zh') {
-    return [
-      'Use concise Simplified Chinese visible text only for newly generated marketing copy.',
-      'Keep text sparse, short, readable, and do not mix English and Chinese.',
-      'Original product logos, print, or packaging text from the reference photo may remain unchanged.',
-    ].join(' ');
-  }
-  return 'Use concise English visible text only. Keep visible text minimal, short, readable, and accurately spelled. Preserve original product logo, print, or packaging text from the reference photo.';
+  const languageName = ecommerceListingLanguageName(textLanguage);
+  const extraScriptRules: Partial<Record<EcommerceListingTextLanguage, string>> = {
+    zh: 'Do not mix English and Chinese unless preserving original product text.',
+    ja: 'Use natural Japanese typography and do not mix English and Japanese unless preserving original product text.',
+    ko: 'Use natural Korean typography and do not mix English and Korean unless preserving original product text.',
+    ar: 'Use correct right-to-left Arabic text direction and readable Arabic typography.',
+    he: 'Use correct right-to-left Hebrew text direction and readable Hebrew typography.',
+    ru: 'Use readable Cyrillic typography suitable for Russian ecommerce copy.',
+    hi: 'Use readable Devanagari typography suitable for Hindi ecommerce copy.',
+  };
+  return [
+    `Use concise ${languageName} visible text only for newly generated marketing copy.`,
+    'Keep visible text minimal, short, readable, and accurately spelled.',
+    extraScriptRules[textLanguage] ?? '',
+    'Preserve original product logo, print, or packaging text from the reference photo.',
+  ].filter(Boolean).join(' ');
 }
 
 function sellingPointText(brief: EcommerceListingCreativeBrief) {
@@ -122,35 +175,22 @@ function sellingPointText(brief: EcommerceListingCreativeBrief) {
 }
 
 export function fallbackEcommerceListingBrief(
-  textLanguage: EcommerceListingTextLanguage
+  _textLanguage: EcommerceListingTextLanguage
 ): EcommerceListingCreativeBrief {
   return {
-    productCategory: textLanguage === 'zh' ? '电商产品' : 'ecommerce product',
+    productCategory: 'ecommerce product',
     productIdentity:
-      textLanguage === 'zh'
-        ? '用户上传照片中的真实产品，保持外观、比例、材质、颜色和可识别细节'
-        : 'the real product from the uploaded photo, preserving appearance, proportions, materials, colors, and recognizable details',
-    materialsAndColors: textLanguage === 'zh' ? '根据产品照片判断' : 'infer from the product photo',
-    sellingPoints:
-      textLanguage === 'zh'
-        ? ['真实产品外观', '干净高级视觉', '突出核心卖点']
-        : ['true product appearance', 'clean premium visuals', 'clear selling points'],
+      'the real product from the uploaded photo, preserving appearance, proportions, materials, colors, and recognizable details',
+    materialsAndColors: 'infer from the product photo',
+    sellingPoints: ['true product appearance', 'clean premium visuals', 'clear selling points'],
     designLanguage:
-      textLanguage === 'zh'
-        ? '干净、高级、留白充足的电商视觉，少文字，统一字体和柔和光影'
-        : 'clean premium ecommerce visuals with generous whitespace, minimal text, one font family, and soft studio lighting',
+      'clean premium ecommerce visuals with generous whitespace, minimal text, one font family, and soft studio lighting',
     carouselDirection:
-      textLanguage === 'zh'
-        ? '统一风格的商品轮播图，先白底主图，再展示场景和卖点'
-        : 'consistent marketplace listing carousel images: white-background main image first, then hero and benefit visuals',
+      'consistent marketplace listing carousel images: white-background main image first, then hero and benefit visuals',
     detailDirection:
-      textLanguage === 'zh'
-        ? '统一风格的详情图，展示卖点、材质、使用场景和信任感'
-        : 'consistent marketplace detail images showing benefits, materials, use cases, and trust cues',
+      'consistent marketplace detail images showing benefits, materials, use cases, and trust cues',
     videoDirection:
-      textLanguage === 'zh'
-        ? '15 秒电商广告短片，产品展示、细节、卖点和最终英雄镜头'
-        : '15-second ecommerce ad with product reveal, macro details, benefits, and final hero shot',
+      '15-second ecommerce ad with product reveal, macro details, benefits, and final hero shot',
   };
 }
 
@@ -199,9 +239,7 @@ export async function analyzeProductForEcommerceListing(input: {
                 'Return ONLY a JSON object with these fields: productCategory, productIdentity, materialsAndColors, sellingPoints, designLanguage, carouselDirection, detailDirection, videoDirection.',
                 'The creative direction must be clean, premium, low-text, product-led, and suitable for Temu-style marketplace listing images, detail images, and short product videos.',
                 'Use all views to understand the product shape, depth, materials, colors, and functional details.',
-                input.textLanguage === 'zh'
-                  ? 'Write returned creative fields in Simplified Chinese. Newly generated visible marketing text in assets must be Simplified Chinese.'
-                  : 'Write returned creative fields in English. Newly generated visible marketing text in assets must be English.',
+                `Write returned creative fields in ${ecommerceListingLanguageName(input.textLanguage)}. Newly generated visible marketing text in assets must be ${ecommerceListingLanguageName(input.textLanguage)}.`,
                 input.customRequirements
                   ? `User custom requirements (MUST follow when generating all assets): ${input.customRequirements}`
                   : '',
@@ -421,7 +459,7 @@ export function buildEcommerceListingStoryboardPrompt(input: {
     input.numViews > 1
       ? 'Use the front, side, and back views to accurately represent the product through the storyboard beats.'
       : 'Use the product photo as the strict identity reference and preserve the exact product.',
-    `Visible text language: ${input.textLanguage === 'zh' ? 'Simplified Chinese' : 'English'}.`,
+    `Visible text language: ${ecommerceListingLanguageName(input.textLanguage)}.`,
     languageInstruction(input.textLanguage),
     'Storyboard structure: 6 clean beats in a grid: product reveal, macro detail, core benefit, use context, premium hero motion, final hero shot.',
     `Product category: ${input.brief.productCategory}.`,
@@ -446,7 +484,7 @@ export function buildEcommerceListingVideoPrompt(input: {
     input.numViews > 1
       ? 'Use the product views to animate the product from accurate perspectives: reveal, rotate, macro detail, use context, premium hero motion, final hero shot.'
       : 'Preserve the exact product appearance, proportions, materials, color, and recognizable details.',
-    `Visible text and any generated audio language: ${input.textLanguage === 'zh' ? 'Chinese' : 'English'}.`,
+    `Visible text and any generated audio language: ${ecommerceListingLanguageName(input.textLanguage)}.`,
     languageInstruction(input.textLanguage),
     `Product category: ${input.brief.productCategory}.`,
     `Selling points: ${sellingPointText(input.brief)}.`,

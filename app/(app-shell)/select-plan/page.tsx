@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
@@ -15,35 +14,6 @@ const FAQ = dynamic(() => import('@/components/sections/FAQ'), {
 export default function SelectPlanPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
-  const [showWelcomeBonusCard, setShowWelcomeBonusCard] = useState(true);
-  const [welcomeBonusCredits, setWelcomeBonusCredits] = useState(100);
-
-  useEffect(() => {
-    const checkWelcomeCredits = async () => {
-      if (!isLoaded || !user) {
-        return;
-      }
-
-      try {
-        const response = await fetch('/api/credits/check');
-        const data = await response.json();
-
-        const creditsRemaining = data?.credits?.credits_remaining || 0;
-
-        // Show welcome bonus card for users with 0 credits (new users with no subscription)
-        if (creditsRemaining === 0) {
-          setShowWelcomeBonusCard(true);
-          setWelcomeBonusCredits(Math.max(100, creditsRemaining));
-        } else {
-          setShowWelcomeBonusCard(false);
-        }
-      } catch (error) {
-        console.error('Failed to check welcome bonus credits:', error);
-      }
-    };
-
-    checkWelcomeCredits();
-  }, [isLoaded, user]);
 
   // TEMPORARY: All subscription checks disabled to allow all users access
   // TODO: Re-enable after fixing webhook handling
@@ -155,11 +125,7 @@ export default function SelectPlanPage() {
           </p>
         </div>
 
-        <PricingSection
-          showTitle={false}
-          showWelcomeBonusCard={showWelcomeBonusCard}
-          welcomeBonusCredits={welcomeBonusCredits}
-        />
+        <PricingSection showTitle={false} />
 
         <div className="text-center mt-8 text-sm text-gray-500">
           Need help choosing? <a href="/support" className="text-black underline">Contact support</a>
