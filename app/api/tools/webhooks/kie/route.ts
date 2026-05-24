@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
         // Update parent job
         const job = await getToolGenerationJob(task.job_id);
         if (job) {
-          const siblingTasks = await getToolGenerationTasksByJobId(task.job_id);
+          const siblingTasks = await getToolGenerationTasksByJobId(task.job_id, { skipCache: true });
           const updates = buildWebhookJobUpdate({
             job,
             task,

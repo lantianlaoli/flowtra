@@ -22,7 +22,6 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { ByteDance } from "@lobehub/icons";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
@@ -47,7 +46,7 @@ import type {
 
 type ProductView = "front" | "side" | "back";
 type PageStatus = "idle" | "uploading" | "starting" | "processing" | "completed" | "error";
-type ProductPhoto = { view: ProductView; label: string; helper: string; dataUrl: string | null; fileName: string | null; required?: boolean };
+type ProductPhoto = { view: ProductView; label: string; dataUrl: string | null; fileName: string | null; required?: boolean };
 
 const SESSION_KEY = "flowtra:ecommerce-listing-studio";
 const VERCEL_FUNCTION_BODY_LIMIT_BYTES = 4.5 * 1024 * 1024;
@@ -57,19 +56,13 @@ const MAX_CLIENT_UPLOAD_DIMENSION = 2048;
 const IMAGE_RATIOS: EcommerceListingImageAspectRatio[] = ["1:1", "4:3", "3:4", "16:9", "9:16"];
 const VIDEO_RATIOS: EcommerceListingVideoAspectRatio[] = ["1:1", "4:3", "3:4", "16:9", "9:16"];
 const IMAGE_RESOLUTIONS: EcommerceListingImageResolution[] = ["1K", "2K", "4K"];
-const VIDEO_MODELS: { value: EcommerceListingVideoModel; label: string; icon: ReactNode }[] = [
-  { value: "seedance_2_fast", label: "Seedance 2 Fast", icon: <ByteDance className="h-4 w-4" /> },
-  { value: "seedance_2", label: "Seedance 2", icon: <ByteDance className="h-4 w-4" /> },
-];
-const VIDEO_RESOLUTIONS_BY_MODEL: Record<EcommerceListingVideoModel, EcommerceListingVideoResolution[]> = {
-  seedance_2_fast: ["480p", "720p"],
-  seedance_2: ["480p", "720p", "1080p"],
-};
+const DEFAULT_VIDEO_MODEL: EcommerceListingVideoModel = "seedance_2_fast";
+const VIDEO_RESOLUTIONS: EcommerceListingVideoResolution[] = ["480p", "720p"];
 const ALL_SCOPES: EcommerceListingAssetScope[] = ["carousel", "detail", "video"];
-const ASSET_SCOPE_OPTIONS: { scope: EcommerceListingAssetScope; label: string; helper: string }[] = [
-  { scope: "carousel", label: "Carousel", helper: "6 images" },
-  { scope: "detail", label: "Detail", helper: "6 images" },
-  { scope: "video", label: "Video", helper: "15s" },
+const ASSET_SCOPE_OPTIONS: { scope: EcommerceListingAssetScope; label: string }[] = [
+  { scope: "carousel", label: "Carousel" },
+  { scope: "detail", label: "Detail" },
+  { scope: "video", label: "Video" },
 ];
 
 function estimateDataUrlRequestSize(fileSize: number, mimeType: string) {
@@ -81,9 +74,9 @@ function estimateDataUrlRequestSize(fileSize: number, mimeType: string) {
 
 function initialProductPhotos(): ProductPhoto[] {
   return [
-    { view: "front", label: "Front View", helper: "Required primary product angle.", dataUrl: null, fileName: null, required: true },
-    { view: "side", label: "Side View", helper: "Optional depth and shape reference.", dataUrl: null, fileName: null },
-    { view: "back", label: "Back View", helper: "Optional rear and detail reference.", dataUrl: null, fileName: null },
+    { view: "front", label: "Front View", dataUrl: null, fileName: null, required: true },
+    { view: "side", label: "Side View", dataUrl: null, fileName: null },
+    { view: "back", label: "Back View", dataUrl: null, fileName: null },
   ];
 }
 
@@ -137,7 +130,6 @@ export default function EcommerceListingStudioPage() {
   const [textLanguage, setTextLanguage] = useState<EcommerceListingTextLanguage>("en");
   const [imageAspectRatio, setImageAspectRatio] = useState<EcommerceListingImageAspectRatio>("1:1");
   const [imageResolution, setImageResolution] = useState<EcommerceListingImageResolution>("1K");
-  const [videoModel, setVideoModel] = useState<EcommerceListingVideoModel>("seedance_2_fast");
   const [videoAspectRatio, setVideoAspectRatio] = useState<EcommerceListingVideoAspectRatio>("1:1");
   const [videoResolution, setVideoResolution] = useState<EcommerceListingVideoResolution>("480p");
   const [assetScopes, setAssetScopes] = useState<EcommerceListingAssetScope[]>(ALL_SCOPES);
@@ -163,10 +155,10 @@ export default function EcommerceListingStudioPage() {
         carousel: assetScopes.includes("carousel"),
         detail: assetScopes.includes("detail"),
         video: assetScopes.includes("video"),
-        videoModel,
+        videoModel: DEFAULT_VIDEO_MODEL,
         videoResolution,
       }),
-    [assetScopes, videoModel, videoResolution]
+    [assetScopes, videoResolution]
   );
 
   const restoreJob = useCallback((nextJob: ToolGenerationJob) => {
@@ -181,12 +173,6 @@ export default function EcommerceListingStudioPage() {
   useEffect(() => {
     if (job) restoreJob(job);
   }, [job, restoreJob]);
-
-  useEffect(() => {
-    if (!VIDEO_RESOLUTIONS_BY_MODEL[videoModel].includes(videoResolution)) {
-      setVideoResolution("720p");
-    }
-  }, [videoModel, videoResolution]);
 
   useEffect(() => {
     let cancelled = false;
@@ -330,7 +316,7 @@ export default function EcommerceListingStudioPage() {
           textLanguage,
           imageAspectRatio,
           imageResolution,
-          videoModel,
+          videoModel: DEFAULT_VIDEO_MODEL,
           videoAspectRatio,
           videoResolution,
           assetScopes,
@@ -483,14 +469,7 @@ export default function EcommerceListingStudioPage() {
                 </SettingsGroup>
 
                 <SettingsGroup icon={<Film className="h-4 w-4" />} label="Video Format">
-                  <SettingSelect
-                    value={videoModel}
-                    disabled={isBusy}
-                    onValueChange={(value) => setVideoModel(value as EcommerceListingVideoModel)}
-                    options={VIDEO_MODELS}
-                    leadingIcon={VIDEO_MODELS.find((model) => model.value === videoModel)?.icon}
-                  />
-                  <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <SettingSelect
                       value={videoAspectRatio}
                       disabled={isBusy}
@@ -501,11 +480,8 @@ export default function EcommerceListingStudioPage() {
                       value={videoResolution}
                       disabled={isBusy}
                       onValueChange={(value) => setVideoResolution(value as EcommerceListingVideoResolution)}
-                      options={VIDEO_RESOLUTIONS_BY_MODEL[videoModel].map((resolution) => ({ value: resolution, label: resolution }))}
+                      options={VIDEO_RESOLUTIONS.map((resolution) => ({ value: resolution, label: resolution }))}
                     />
-                    <div className="flex h-9 items-center justify-center rounded-lg border border-[#E5E5E5] bg-white px-3 text-xs font-medium text-[#666666]">
-                      15s
-                    </div>
                   </div>
                 </SettingsGroup>
 
@@ -529,7 +505,6 @@ export default function EcommerceListingStudioPage() {
                             </span>
                             {item.label}
                           </span>
-                          <span className="mt-0.5 block pl-5 text-[11px] text-[#777777]">{item.helper}</span>
                         </button>
                       );
                     })}
@@ -725,7 +700,6 @@ function PhotoUploadCard({
       <div className="mb-2 flex items-start justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold text-black">{photo.label}</h3>
-          <p className="mt-0.5 text-xs text-[#666666]">{photo.helper}</p>
         </div>
         {photo.required ? <span className="rounded-full border border-[#E5E5E5] bg-white px-2 py-0.5 text-[10px] font-semibold text-[#666666]">Required</span> : null}
       </div>
@@ -890,9 +864,11 @@ function ResultCard({
         <div className="mt-2 grid grid-cols-2 gap-1.5">
           <button type="button" onClick={() => onCopy(slot.resultUrl!)} className={`${primaryButtonClass} h-8 justify-center text-[11px]`} aria-label="Copy image URL">
             {copiedUrl === slot.resultUrl ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            <span>{copiedUrl === slot.resultUrl ? "Copied" : "Copy"}</span>
           </button>
           <a href={slot.resultUrl} download={`${slot.id}.png`} target="_blank" rel="noreferrer" className={`${secondaryButtonClass} h-8 justify-center text-[11px]`} aria-label="Download image">
             <Download className="h-3 w-3" />
+            <span>Download</span>
           </a>
         </div>
       ) : null}
@@ -945,9 +921,11 @@ function VideoSection({
             <div className="mt-2 grid grid-cols-2 gap-1.5">
               <button type="button" onClick={() => onCopy(video.resultUrl!)} className={`${primaryButtonClass} h-8 justify-center text-[11px]`} aria-label="Copy video URL">
                 {copiedUrl === video.resultUrl ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                <span>{copiedUrl === video.resultUrl ? "Copied" : "Copy"}</span>
               </button>
               <a href={video.resultUrl} download="ecommerce-listing-video.mp4" target="_blank" rel="noreferrer" className={`${secondaryButtonClass} h-8 justify-center text-[11px]`} aria-label="Download video">
                 <Download className="h-3 w-3" />
+                <span>Download</span>
               </a>
             </div>
           ) : null}

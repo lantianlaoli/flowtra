@@ -21,6 +21,9 @@ type TaskLike = {
 
 type SiblingTaskLike = {
   status: ToolGenerationTaskStatus;
+  result_url?: string | null;
+  error_message?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 export type ToolGenerationJobUpdate = {
@@ -58,6 +61,46 @@ function updateEcommerceImageSlot(
   updates: Partial<EcommerceListingImageSlot>
 ) {
   return (slots ?? []).map((slot) => (slot.id === slotId ? { ...slot, ...updates } : slot));
+}
+
+function reconcileEcommerceImageTasks(
+  metadata: EcommerceListingMetadata,
+  siblingTasks: SiblingTaskLike[]
+): EcommerceListingMetadata {
+  return siblingTasks.reduce<EcommerceListingMetadata>((nextMetadata, siblingTask) => {
+    const taskMetadata = siblingTask.metadata ?? {};
+    if (taskMetadata.stage !== 'image') return nextMetadata;
+
+    if (siblingTask.status === 'completed' && siblingTask.result_url) {
+      return {
+        ...nextMetadata,
+        carousel_images: updateEcommerceImageSlot(nextMetadata.carousel_images, taskMetadata.slot_id, {
+          status: 'success',
+          resultUrl: siblingTask.result_url,
+        }),
+        detail_images: updateEcommerceImageSlot(nextMetadata.detail_images, taskMetadata.slot_id, {
+          status: 'success',
+          resultUrl: siblingTask.result_url,
+        }),
+      };
+    }
+
+    if (siblingTask.status === 'failed') {
+      return {
+        ...nextMetadata,
+        carousel_images: updateEcommerceImageSlot(nextMetadata.carousel_images, taskMetadata.slot_id, {
+          status: 'fail',
+          error: siblingTask.error_message ?? 'Generation failed',
+        }),
+        detail_images: updateEcommerceImageSlot(nextMetadata.detail_images, taskMetadata.slot_id, {
+          status: 'fail',
+          error: siblingTask.error_message ?? 'Generation failed',
+        }),
+      };
+    }
+
+    return nextMetadata;
+  }, metadata);
 }
 
 export function buildEcommerceListingFailureUpdate(input: {
@@ -175,7 +218,7 @@ export function buildWebhookJobUpdate(input: {
     const ecommerceMetadata = metadata as EcommerceListingMetadata;
 
     if (taskMetadata.stage === 'image') {
-      const nextMetadata: EcommerceListingMetadata = {
+      let nextMetadata: EcommerceListingMetadata = {
         ...ecommerceMetadata,
         carousel_images: updateEcommerceImageSlot(ecommerceMetadata.carousel_images, taskMetadata.slot_id, {
           status: 'success',
@@ -186,6 +229,7 @@ export function buildWebhookJobUpdate(input: {
           resultUrl: input.resultUrl,
         }),
       };
+      nextMetadata = reconcileEcommerceImageTasks(nextMetadata, input.siblingTasks);
       const progress = calculateEcommerceListingProgress(nextMetadata);
       nextMetadata.completed_outputs = progress.completed;
       nextMetadata.total_outputs = progress.total;

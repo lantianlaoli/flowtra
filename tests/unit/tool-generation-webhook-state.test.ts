@@ -128,6 +128,49 @@ test('ecommerce listing image success updates matching slot without completing p
   assert.equal((update.metadata?.carousel_images as Array<{ resultUrl?: string }>)[0].resultUrl, 'https://example.com/carousel.png');
 });
 
+test('ecommerce listing image success reconciles completed sibling image tasks', () => {
+  const update = buildWebhookJobUpdate({
+    job: {
+      tool_key: 'ecommerce-listing-studio',
+      metadata: {
+        asset_scopes: ['carousel'],
+        carousel_images: [
+          { id: 'carousel-1', kind: 'carousel', index: 1, title: 'One', taskId: 't1', status: 'processing', prompt: 'p' },
+          { id: 'carousel-2', kind: 'carousel', index: 2, title: 'Two', taskId: 't2', status: 'processing', prompt: 'p' },
+        ],
+        detail_images: [],
+        total_outputs: 2,
+        completed_outputs: 0,
+      },
+    },
+    task: {
+      metadata: { stage: 'image', slot_id: 'carousel-2' },
+    },
+    resultUrl: 'https://example.com/two.png',
+    webhookReceivedAt: '2026-05-22T00:00:00.000Z',
+    siblingTasks: [
+      {
+        status: 'completed',
+        result_url: 'https://example.com/one.png',
+        metadata: { stage: 'image', slot_id: 'carousel-1' },
+      },
+      {
+        status: 'completed',
+        result_url: 'https://example.com/two.png',
+        metadata: { stage: 'image', slot_id: 'carousel-2' },
+      },
+    ],
+  });
+
+  const slots = update.metadata?.carousel_images as Array<{ status?: string; resultUrl?: string }>;
+  assert.equal(update.status, 'completed');
+  assert.equal(update.metadata?.completed_outputs, 2);
+  assert.equal(slots[0].status, 'success');
+  assert.equal(slots[0].resultUrl, 'https://example.com/one.png');
+  assert.equal(slots[1].status, 'success');
+  assert.equal(slots[1].resultUrl, 'https://example.com/two.png');
+});
+
 test('ecommerce listing storyboard success starts video stage once', () => {
   const update = buildWebhookJobUpdate({
     job: {
