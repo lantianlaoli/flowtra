@@ -251,7 +251,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         discountCopied: 'Discount code copied!',
         codePrefix: 'Code: ',
         klingLive: 'Seedance 2 is live',
-        klingMotionLive: 'Kling 3.0 is live',
+        klingMotionLive: 'Gemini Omni is live',
         gptImage2Live: 'ChatGPT image 2 is live',
       },
       shutdownNotice: {
@@ -588,7 +588,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         discountCopied: '优惠码已复制！',
         codePrefix: '优惠码：',
         klingLive: 'Seedance 2 已上线',
-        klingMotionLive: 'Kling 3.0 已上线',
+        klingMotionLive: 'Gemini Omni 已上线',
         gptImage2Live: 'ChatGPT image 2 已上线',
       },
       shutdownNotice: {

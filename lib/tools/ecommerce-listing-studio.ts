@@ -17,9 +17,9 @@ export type EcommerceListingTextLanguage =
 export type EcommerceListingAssetScope = 'carousel' | 'detail' | 'video';
 export type EcommerceListingImageAspectRatio = '1:1' | '4:3' | '3:4' | '16:9' | '9:16';
 export type EcommerceListingImageResolution = '1K' | '2K' | '4K';
-export type EcommerceListingVideoModel = 'seedance_2_fast' | 'seedance_2';
+export type EcommerceListingVideoModel = 'gemini_omni_video' | 'seedance_2_fast' | 'seedance_2';
 export type EcommerceListingVideoAspectRatio = '1:1' | '4:3' | '3:4' | '16:9' | '9:16';
-export type EcommerceListingVideoResolution = '480p' | '720p' | '1080p';
+export type EcommerceListingVideoResolution = '480p' | '720p' | '1080p' | '4k';
 
 export type EcommerceListingSlotStatus = 'waiting' | 'processing' | 'success' | 'fail';
 
@@ -75,7 +75,7 @@ export type EcommerceListingMetadata = {
   completed_outputs?: number;
 };
 
-export const ECOMMERCE_LISTING_VIDEO_DURATION_SECONDS = 15;
+export const ECOMMERCE_LISTING_VIDEO_DURATION_SECONDS = 10;
 
 const ALL_SCOPES: EcommerceListingAssetScope[] = ['carousel', 'detail', 'video'];
 
@@ -115,17 +115,27 @@ export function normalizeImageResolution(value: unknown): EcommerceListingImageR
 }
 
 export function normalizeVideoModel(value: unknown): EcommerceListingVideoModel {
-  return value === 'seedance_2' ? 'seedance_2' : 'seedance_2_fast';
+  if (value === 'seedance_2_fast' || value === 'seedance_2') return value;
+  return 'gemini_omni_video';
 }
 
-export function normalizeVideoAspectRatio(value: unknown): EcommerceListingVideoAspectRatio {
+export function normalizeVideoAspectRatio(
+  value: unknown,
+  videoModel: EcommerceListingVideoModel = 'gemini_omni_video'
+): EcommerceListingVideoAspectRatio {
+  if (videoModel === 'gemini_omni_video') {
+    return value === '16:9' ? '16:9' : '9:16';
+  }
   return value === '4:3' || value === '3:4' || value === '16:9' || value === '9:16' ? value : '1:1';
 }
 
 export function normalizeVideoResolution(
   value: unknown,
-  videoModel: EcommerceListingVideoModel = 'seedance_2_fast'
+  videoModel: EcommerceListingVideoModel = 'gemini_omni_video'
 ): EcommerceListingVideoResolution {
+  if (videoModel === 'gemini_omni_video') {
+    return value === '1080p' || value === '4k' ? value : '720p';
+  }
   if (videoModel === 'seedance_2') {
     return value === '480p' || value === '1080p' ? value : '720p';
   }
@@ -190,7 +200,7 @@ export function fallbackEcommerceListingBrief(
     detailDirection:
       'consistent marketplace detail images showing benefits, materials, use cases, and trust cues',
     videoDirection:
-      '15-second ecommerce ad with product reveal, macro details, benefits, and final hero shot',
+      '10-second ecommerce ad with product reveal, macro detail, benefit/use moment, and final hero shot',
   };
 }
 
@@ -455,13 +465,13 @@ export function buildEcommerceListingStoryboardPrompt(input: {
   numViews: number;
 }) {
   return [
-    `Create a storyboard image for a 15-second ecommerce marketplace product advertisement using the uploaded product photo${input.numViews > 1 ? 's' : ''}.`,
+    `Create a storyboard image for a 10-second ecommerce marketplace product advertisement using the uploaded product photo${input.numViews > 1 ? 's' : ''}.`,
     input.numViews > 1
       ? 'Use the front, side, and back views to accurately represent the product through the storyboard beats.'
       : 'Use the product photo as the strict identity reference and preserve the exact product.',
     `Visible text language: ${ecommerceListingLanguageName(input.textLanguage)}.`,
     languageInstruction(input.textLanguage),
-    'Storyboard structure: 6 clean beats in a grid: product reveal, macro detail, core benefit, use context, premium hero motion, final hero shot.',
+    'Storyboard structure: 4 compact clean beats in a grid: product reveal, macro detail, benefit/use moment, final hero shot.',
     `Product category: ${input.brief.productCategory}.`,
     `Product identity: ${input.brief.productIdentity}.`,
     `Selling points: ${sellingPointText(input.brief)}.`,
@@ -479,10 +489,10 @@ export function buildEcommerceListingVideoPrompt(input: {
 }) {
   const prompt = [
     input.numViews > 1
-      ? 'Create a 15-second ecommerce product advertisement using the provided product photos and storyboard image as visual references.'
-      : 'Create a 15-second ecommerce product advertisement using the provided product photo and storyboard image as visual references.',
+      ? 'Create a 10-second ecommerce product advertisement using the provided product photos and storyboard image as visual references.'
+      : 'Create a 10-second ecommerce product advertisement using the provided product photo and storyboard image as visual references.',
     input.numViews > 1
-      ? 'Use the product views to animate the product from accurate perspectives: reveal, rotate, macro detail, use context, premium hero motion, final hero shot.'
+      ? 'Use the product views to animate the product from accurate perspectives: reveal, macro detail, benefit/use moment, final hero shot.'
       : 'Preserve the exact product appearance, proportions, materials, color, and recognizable details.',
     `Visible text and any generated audio language: ${ecommerceListingLanguageName(input.textLanguage)}.`,
     languageInstruction(input.textLanguage),

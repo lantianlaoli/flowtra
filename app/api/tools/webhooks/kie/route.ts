@@ -29,6 +29,7 @@ export const dynamic = 'force-dynamic';
 const KIE_CREATE_TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const SEEDANCE_MODEL = 'bytedance/seedance-2-fast';
 const SEEDANCE_2_MODEL = 'bytedance/seedance-2';
+const GEMINI_OMNI_VIDEO_MODEL = 'gemini-omni-video';
 
 interface KIEWebhookPayload {
   code: number;
@@ -360,10 +361,17 @@ async function createEcommerceListingVideoTask(input: {
   const productImageUrls = Array.isArray(metadata.product_image_urls)
     ? metadata.product_image_urls.filter((url): url is string => typeof url === 'string')
     : [];
-  const prompt = metadata.video?.prompt || 'Create a 15-second ecommerce marketplace product ad video.';
-  const videoModel = metadata.video_model === 'seedance_2' ? 'seedance_2' : 'seedance_2_fast';
+  const prompt = metadata.video?.prompt || 'Create a 10-second ecommerce marketplace product ad video.';
+  const videoModel =
+    metadata.video_model === 'seedance_2' || metadata.video_model === 'seedance_2_fast'
+      ? metadata.video_model
+      : 'gemini_omni_video';
   const videoResolution =
-    videoModel === 'seedance_2'
+    videoModel === 'gemini_omni_video'
+      ? metadata.video_resolution === '1080p' || metadata.video_resolution === '4k'
+        ? metadata.video_resolution
+        : '720p'
+      : videoModel === 'seedance_2'
       ? metadata.video_resolution === '480p' || metadata.video_resolution === '1080p'
         ? metadata.video_resolution
         : '720p'
@@ -371,12 +379,45 @@ async function createEcommerceListingVideoTask(input: {
         ? '480p'
         : '720p';
   const aspectRatio =
-    metadata.video_aspect_ratio === '4:3' ||
+    videoModel === 'gemini_omni_video'
+      ? metadata.video_aspect_ratio === '16:9'
+        ? '16:9'
+        : '9:16'
+      : metadata.video_aspect_ratio === '4:3' ||
     metadata.video_aspect_ratio === '3:4' ||
     metadata.video_aspect_ratio === '16:9' ||
     metadata.video_aspect_ratio === '9:16'
       ? metadata.video_aspect_ratio
       : '1:1';
+
+  const requestBody = videoModel === 'gemini_omni_video'
+    ? {
+        model: GEMINI_OMNI_VIDEO_MODEL,
+        input: {
+          prompt,
+          image_urls: [...productImageUrls, input.storyboardImageUrl].filter(Boolean).slice(0, 7),
+          duration: String(ECOMMERCE_LISTING_VIDEO_DURATION_SECONDS),
+          aspect_ratio: aspectRatio,
+          resolution: videoResolution,
+        },
+        callBackUrl: `${siteUrl}/api/tools/webhooks/kie`,
+      }
+    : {
+        model: videoModel === 'seedance_2' ? SEEDANCE_2_MODEL : SEEDANCE_MODEL,
+        input: {
+          prompt,
+          reference_image_urls: [...productImageUrls, input.storyboardImageUrl].filter(Boolean).slice(0, 9),
+          reference_video_urls: [''],
+          reference_audio_urls: [''],
+          resolution: videoResolution,
+          aspect_ratio: aspectRatio,
+          duration: ECOMMERCE_LISTING_VIDEO_DURATION_SECONDS,
+          generate_audio: true,
+          web_search: false,
+          nsfw_checker: true,
+        },
+        callBackUrl: `${siteUrl}/api/tools/webhooks/kie`,
+      };
 
   const response = await fetchWithRetry(KIE_CREATE_TASK_URL, {
     method: 'POST',
@@ -384,31 +425,16 @@ async function createEcommerceListingVideoTask(input: {
       Authorization: `Bearer ${getKieApiKey()}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model: videoModel === 'seedance_2' ? SEEDANCE_2_MODEL : SEEDANCE_MODEL,
-      input: {
-        prompt,
-        reference_image_urls: [...productImageUrls, input.storyboardImageUrl].filter(Boolean).slice(0, 9),
-        reference_video_urls: [''],
-        reference_audio_urls: [''],
-        resolution: videoResolution,
-        aspect_ratio: aspectRatio,
-        duration: ECOMMERCE_LISTING_VIDEO_DURATION_SECONDS,
-        generate_audio: true,
-        web_search: false,
-        nsfw_checker: true,
-      },
-      callBackUrl: `${siteUrl}/api/tools/webhooks/kie`,
-    }),
+    body: JSON.stringify(requestBody),
   }, 5, 30000);
 
   if (!response.ok) {
-    throw new Error(`KIE Seedance task creation failed: ${response.status} ${await response.text()}`);
+    throw new Error(`KIE video task creation failed: ${response.status} ${await response.text()}`);
   }
 
   const data = await response.json();
   if (data.code !== 200 || !data.data?.taskId) {
-    throw new Error(data.msg || 'Failed to start KIE Seedance task');
+    throw new Error(data.msg || 'Failed to start KIE video task');
   }
 
   const videoTaskId = data.data.taskId as string;

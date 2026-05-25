@@ -1,6 +1,6 @@
 'use client';
 
-import { OpenAI, ByteDance, Kling, Qwen } from '@lobehub/icons';
+import { OpenAI, ByteDance, Gemini, Kling, Qwen } from '@lobehub/icons';
 import { BadgeDollarSign, Boxes, Coins, ScanLine } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import { WAN_27_QUALITY_COSTS } from '@/lib/constants';
@@ -18,6 +18,19 @@ export default function ModelPricingSection() {
   };
 
   const models = [
+    {
+      name: 'Gemini Omni',
+      description: 'Multimodal ecommerce video generation for listing studio ads',
+      icon: Gemini,
+      badge: pricingMessages.newBadge,
+      durationRange: '4-10s',
+      billingType: 'generation' as const,
+      pricingOptions: [
+        { resolution: '720p', credits: 360 },
+        { resolution: '1080p', credits: 360 },
+        { resolution: '4K', credits: 600 },
+      ] as PricingOption[],
+    },
     {
       name: 'Seedance 2 Fast',
       description: 'Fastest Seedance model for avatar ads and video clone generation',

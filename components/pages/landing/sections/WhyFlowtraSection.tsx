@@ -1,6 +1,6 @@
 'use client';
 
-import { ByteDance, Kling, OpenAI, Qwen } from '@lobehub/icons';
+import { ByteDance, Gemini, Kling, OpenAI, Qwen } from '@lobehub/icons';
 import { Coins, DollarSign } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
@@ -26,6 +26,16 @@ type ModelCard = {
 };
 
 const MODEL_CARDS: ModelCard[] = [
+  {
+    name: 'Gemini Omni',
+    unit: 'sec',
+    qualities: [
+      { label: '720p', credits: 6 },
+      { label: '1080p', credits: 6 },
+      { label: '4K', credits: 10 },
+    ],
+    icon: Gemini,
+  },
   {
     name: 'Seedance 2 Fast',
     unit: 'sec',
@@ -75,11 +85,12 @@ const MODEL_CARDS: ModelCard[] = [
 ];
 
 const STACK_STYLES = [
-  'lg:left-0 lg:top-12 lg:-rotate-6',
-  'lg:left-[18%] lg:top-4 lg:-rotate-2',
-  'lg:left-[36.5%] lg:top-0 lg:rotate-1',
-  'lg:left-[55%] lg:top-5 lg:rotate-4',
-  'lg:left-[73.5%] lg:top-12 lg:rotate-7',
+  'lg:left-0 lg:top-14 lg:-rotate-7',
+  'lg:left-[15%] lg:top-5 lg:-rotate-4',
+  'lg:left-[30%] lg:top-0 lg:-rotate-1',
+  'lg:left-[45%] lg:top-4 lg:rotate-2',
+  'lg:left-[60%] lg:top-6 lg:rotate-5',
+  'lg:left-[75%] lg:top-14 lg:rotate-8',
 ];
 
 function formatUsd(credits: number) {
@@ -90,9 +101,11 @@ function formatUsd(credits: number) {
 function RollingValue({
   value,
   decimals = 0,
+  motionKey,
 }: {
   value: number;
   decimals?: number;
+  motionKey?: string;
 }) {
   const shouldReduceMotion = useReducedMotion();
   const formattedValue = value.toFixed(decimals);
@@ -105,7 +118,7 @@ function RollingValue({
     <span className="relative inline-flex min-w-[4ch] items-baseline justify-start overflow-hidden align-baseline tabular-nums">
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.span
-          key={formattedValue}
+          key={`${motionKey ?? ''}:${formattedValue}`}
           initial={{ y: '70%', opacity: 0 }}
           animate={{ y: '0%', opacity: 1 }}
           exit={{ y: '-70%', opacity: 0 }}
@@ -163,17 +176,27 @@ function ModelPricingCard({
         })}
       </div>
 
-      <div className="flex items-center gap-5 border-t border-[#ECECEC] pt-4 text-black">
-        <div className="flex items-center gap-2">
-          <Coins className="h-4 w-4 flex-shrink-0 text-[#666666]" />
-          <div className="flex items-center text-[20px] font-bold leading-none tracking-tight">
-            <RollingValue value={selectedQuality.credits} decimals={Number.isInteger(selectedQuality.credits) ? 0 : 1} />
+      <div className="border-t border-[#ECECEC] pt-4 text-black">
+        <div className="flex items-center gap-5">
+          <div className="flex items-center gap-2">
+            <Coins className="h-4 w-4 flex-shrink-0 text-[#666666]" />
+            <div className="flex items-center text-[20px] font-bold leading-none tracking-tight">
+              <RollingValue
+                value={selectedQuality.credits}
+                decimals={Number.isInteger(selectedQuality.credits) ? 0 : 1}
+                motionKey={selectedQuality.label}
+              />
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <DollarSign className="h-4 w-4 flex-shrink-0 text-[#666666]" />
-          <div className="flex items-center text-[20px] font-bold leading-none tracking-tight">
-            <RollingValue value={Number(formatUsd(selectedQuality.credits))} decimals={2} />
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4 flex-shrink-0 text-[#666666]" />
+            <div className="flex items-center text-[20px] font-bold leading-none tracking-tight">
+              <RollingValue
+                value={Number(formatUsd(selectedQuality.credits))}
+                decimals={2}
+                motionKey={selectedQuality.label}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -192,7 +215,7 @@ export default function WhyFlowtraSection() {
           <h2 className="mb-4 text-[32px] font-bold tracking-tight text-black md:text-[40px]">{copy.title}</h2>
           <p className="text-base text-[#666666] md:text-lg">{copy.description}</p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:relative lg:block lg:h-[230px]">
+        <div className="grid gap-4 sm:grid-cols-2 lg:relative lg:block lg:h-[250px]">
           {MODEL_CARDS.map((model, index) => (
             <ModelPricingCard key={model.name} model={model} stackClassName={STACK_STYLES[index]} />
           ))}

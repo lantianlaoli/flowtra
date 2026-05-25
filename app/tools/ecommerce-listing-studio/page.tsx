@@ -24,6 +24,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { ByteDance, Gemini } from "@lobehub/icons";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
@@ -59,8 +60,12 @@ const MAX_CLIENT_UPLOAD_DIMENSION = 2048;
 const IMAGE_RATIOS: EcommerceListingImageAspectRatio[] = ["1:1", "4:3", "3:4", "16:9", "9:16"];
 const VIDEO_RATIOS: EcommerceListingVideoAspectRatio[] = ["1:1", "4:3", "3:4", "16:9", "9:16"];
 const IMAGE_RESOLUTIONS: EcommerceListingImageResolution[] = ["1K", "2K", "4K"];
-const DEFAULT_VIDEO_MODEL: EcommerceListingVideoModel = "seedance_2_fast";
-const VIDEO_RESOLUTIONS: EcommerceListingVideoResolution[] = ["480p", "720p"];
+const DEFAULT_VIDEO_MODEL: EcommerceListingVideoModel = "gemini_omni_video";
+const VIDEO_MODEL_OPTIONS: Array<{ value: EcommerceListingVideoModel; label: string; icon: ReactNode }> = [
+  { value: "gemini_omni_video", label: "Gemini Omni", icon: <Gemini className="h-4 w-4 text-black" /> },
+  { value: "seedance_2_fast", label: "Seedance 2 Fast", icon: <ByteDance className="h-4 w-4 text-black" /> },
+  { value: "seedance_2", label: "Seedance 2", icon: <ByteDance className="h-4 w-4 text-black" /> },
+];
 const ALL_SCOPES: EcommerceListingAssetScope[] = ["carousel", "detail", "video"];
 const ASSET_SCOPE_OPTIONS: { scope: EcommerceListingAssetScope; label: string }[] = [
   { scope: "carousel", label: "Carousel" },
@@ -106,6 +111,16 @@ function imageAspectClass(ratio: EcommerceListingImageAspectRatio | EcommerceLis
   return "aspect-square";
 }
 
+function videoRatioOptionsForModel(videoModel: EcommerceListingVideoModel): EcommerceListingVideoAspectRatio[] {
+  return videoModel === "gemini_omni_video" ? ["9:16", "16:9"] : VIDEO_RATIOS;
+}
+
+function videoResolutionOptionsForModel(videoModel: EcommerceListingVideoModel): EcommerceListingVideoResolution[] {
+  if (videoModel === "gemini_omni_video") return ["720p", "1080p", "4k"];
+  if (videoModel === "seedance_2") return ["480p", "720p", "1080p"];
+  return ["480p", "720p"];
+}
+
 function terminalJob(job: ToolGenerationJob | null) {
   return job?.status === "completed" || job?.status === "failed";
 }
@@ -137,8 +152,9 @@ export default function EcommerceListingStudioPage() {
   const [textLanguage, setTextLanguage] = useState<EcommerceListingTextLanguage>("en");
   const [imageAspectRatio, setImageAspectRatio] = useState<EcommerceListingImageAspectRatio>("1:1");
   const [imageResolution, setImageResolution] = useState<EcommerceListingImageResolution>("1K");
-  const [videoAspectRatio, setVideoAspectRatio] = useState<EcommerceListingVideoAspectRatio>("1:1");
-  const [videoResolution, setVideoResolution] = useState<EcommerceListingVideoResolution>("480p");
+  const [videoModel, setVideoModel] = useState<EcommerceListingVideoModel>(DEFAULT_VIDEO_MODEL);
+  const [videoAspectRatio, setVideoAspectRatio] = useState<EcommerceListingVideoAspectRatio>("9:16");
+  const [videoResolution, setVideoResolution] = useState<EcommerceListingVideoResolution>("720p");
   const [assetScopes, setAssetScopes] = useState<EcommerceListingAssetScope[]>(ALL_SCOPES);
   const [jobId, setJobId] = useState<string | null>(null);
   const [currentJob, setCurrentJob] = useState<ToolGenerationJob | null>(null);
@@ -167,11 +183,13 @@ export default function EcommerceListingStudioPage() {
         carousel: assetScopes.includes("carousel"),
         detail: assetScopes.includes("detail"),
         video: assetScopes.includes("video"),
-        videoModel: DEFAULT_VIDEO_MODEL,
+        videoModel,
         videoResolution,
       }),
-    [assetScopes, videoResolution]
+    [assetScopes, videoModel, videoResolution]
   );
+  const videoRatioOptions = useMemo(() => videoRatioOptionsForModel(videoModel), [videoModel]);
+  const videoResolutionOptions = useMemo(() => videoResolutionOptionsForModel(videoModel), [videoModel]);
 
   const restoreJob = useCallback((nextJob: ToolGenerationJob) => {
     setCurrentJob(nextJob);
@@ -185,6 +203,14 @@ export default function EcommerceListingStudioPage() {
   useEffect(() => {
     if (job) restoreJob(job);
   }, [job, restoreJob]);
+
+  useEffect(() => {
+    const ratioOptions = videoRatioOptionsForModel(videoModel);
+    if (!ratioOptions.includes(videoAspectRatio)) setVideoAspectRatio(ratioOptions[0]);
+
+    const resolutionOptions = videoResolutionOptionsForModel(videoModel);
+    if (!resolutionOptions.includes(videoResolution)) setVideoResolution(resolutionOptions[0]);
+  }, [videoAspectRatio, videoModel, videoResolution]);
 
   useEffect(() => {
     let cancelled = false;
@@ -328,7 +354,7 @@ export default function EcommerceListingStudioPage() {
           textLanguage,
           imageAspectRatio,
           imageResolution,
-          videoModel: DEFAULT_VIDEO_MODEL,
+          videoModel,
           videoAspectRatio,
           videoResolution,
           assetScopes,
@@ -549,18 +575,24 @@ export default function EcommerceListingStudioPage() {
                 </SettingsGroup>
 
                 <SettingsGroup icon={<Film className="h-4 w-4" />} label="Video Format">
+                  <SettingSelect
+                    value={videoModel}
+                    disabled={isBusy}
+                    onValueChange={(value) => setVideoModel(value as EcommerceListingVideoModel)}
+                    options={VIDEO_MODEL_OPTIONS}
+                  />
                   <div className="grid grid-cols-2 gap-2">
                     <SettingSelect
                       value={videoAspectRatio}
                       disabled={isBusy}
                       onValueChange={(value) => setVideoAspectRatio(value as EcommerceListingVideoAspectRatio)}
-                      options={VIDEO_RATIOS.map((ratio) => ({ value: ratio, label: ratio }))}
+                      options={videoRatioOptions.map((ratio) => ({ value: ratio, label: ratio }))}
                     />
                     <SettingSelect
                       value={videoResolution}
                       disabled={isBusy}
                       onValueChange={(value) => setVideoResolution(value as EcommerceListingVideoResolution)}
-                      options={VIDEO_RESOLUTIONS.map((resolution) => ({ value: resolution, label: resolution }))}
+                      options={videoResolutionOptions.map((resolution) => ({ value: resolution, label: resolution }))}
                     />
                   </div>
                 </SettingsGroup>
@@ -723,7 +755,7 @@ function SettingSelect({
         <div
           role="listbox"
           className={cn(
-            "absolute left-0 right-0 top-full z-[100] mt-1 overflow-hidden rounded-xl border border-[#DCDCDC] bg-white/95 p-1.5 shadow-[0_18px_48px_rgba(0,0,0,0.16)] backdrop-blur-xl",
+            "absolute left-0 right-0 top-full z-[100] mt-1 max-h-[min(360px,calc(100vh-180px))] overflow-y-auto overscroll-contain rounded-xl border border-[#DCDCDC] bg-white/95 p-1.5 shadow-[0_18px_48px_rgba(0,0,0,0.16)] backdrop-blur-xl",
             "animate-in fade-in-0 slide-in-from-top-1 duration-150 motion-reduce:animate-none"
           )}
         >
@@ -1150,7 +1182,7 @@ function VideoSection({
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-black">Product Ad Video</h2>
-          <p className="mt-1 text-sm text-[#666666]">Storyboard-driven 15-second ecommerce short video.</p>
+          <p className="mt-1 text-sm text-[#666666]">Storyboard-driven 10-second ecommerce short video.</p>
         </div>
         <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusBadgeClass(video.status)}`}>
           {statusLabel(video.status)}

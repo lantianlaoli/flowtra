@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
     const imageAspectRatio = normalizeImageAspectRatio(body.imageAspectRatio);
     const imageResolution = normalizeImageResolution(body.imageResolution);
     const videoModel = normalizeVideoModel(body.videoModel);
-    const videoAspectRatio = normalizeVideoAspectRatio(body.videoAspectRatio);
+    const videoAspectRatio = normalizeVideoAspectRatio(body.videoAspectRatio, videoModel);
     const videoResolution = normalizeVideoResolution(body.videoResolution, videoModel);
     const customRequirements =
       typeof body.customRequirements === 'string' ? body.customRequirements.trim().slice(0, 2000) : '';
