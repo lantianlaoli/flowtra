@@ -81,7 +81,6 @@ const IMPORTANT_KNOWN_URLS = [
   '/academy',
   '/support',
   '/features/ai-agent',
-  '/mcp-demo',
 ];
 
 function stripTrailingSlash(value: string) {

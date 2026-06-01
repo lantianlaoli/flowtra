@@ -72,3 +72,6 @@ CLAUDE.md
 GEMINI.md
 scripts/*
 !scripts/audit-google-seo-urls.ts
+
+# Google Search Console exports + service account credentials
+/google/

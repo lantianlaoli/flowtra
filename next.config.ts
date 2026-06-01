@@ -60,6 +60,30 @@ const nextConfig: NextConfig = {
 
   async redirects() {
     return [
+      // SEO cleanup 2026-06-01: pages removed from the app but still
+      // indexed by Google. Each one is a 301 so the link equity (and
+      // crawl budget) is transferred to the canonical replacement.
+      // See scripts/seo-audit/ for the audit pipeline.
+      {
+        source: '/sora2-watermark-removal',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/pricing',
+        destination: '/#pricing',
+        permanent: true,
+      },
+      {
+        source: '/features',
+        destination: '/features/video-clone',
+        permanent: true,
+      },
+      {
+        source: '/features/motion-swap',
+        destination: '/features/motion-clone',
+        permanent: true,
+      },
       {
         source: '/dashboard/generate',
         destination: '/dashboard/video-clone',
@@ -83,6 +107,16 @@ const nextConfig: NextConfig = {
       {
         source: '/tools/ad-short-film',
         destination: '/tools/ecommerce-listing-studio',
+        permanent: true,
+      },
+      {
+        source: '/blog/best-tiktok-shot-analysis-model-march-2026',
+        destination: '/blog/which-model-was-best-at-analyzing-tiktok-video-shot-structure-march-2026',
+        permanent: true,
+      },
+      {
+        source: '/blog/fix-ai-watermark-text-errors',
+        destination: '/blog',
         permanent: true,
       },
     ];
