@@ -4,8 +4,6 @@ import fs from 'fs'
 import { createClient } from '@supabase/supabase-js'
 
 const CSV_PATH = 'docs/ins_31lWXXgV4ypNnDoMOERKgfk9tHB (1).csv'
-const INITIAL_FREE_CREDITS = 100
-const WELCOME_BONUS_DESCRIPTION = 'Initial free credits for new user'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY
@@ -74,39 +72,19 @@ async function main() {
     return
   }
 
-  // Schema verified via Supabase MCP (2026-03-14):
-  // user_credits columns used: user_id, has_purchased, subscription_credits, purchased_credits.
-  // credits_remaining is maintained by the compute_total_credits trigger.
+  // Schema verified via Supabase MCP (2026-06-01):
+  // user_credits columns used: user_id, credits_remaining.
   const { error: creditsError } = await supabase
     .from('user_credits')
     .insert(
       missingIds.map((userId) => ({
         user_id: userId,
-        has_purchased: false,
-        subscription_credits: 0,
-        purchased_credits: INITIAL_FREE_CREDITS,
+        credits_remaining: 0,
       }))
     )
 
   if (creditsError) {
     throw new Error(`Failed to insert user_credits rows: ${creditsError.message}`)
-  }
-
-  // Schema verified via Supabase MCP (2026-03-14):
-  // credit_transactions columns used: user_id, type, amount, description.
-  const { error: transactionsError } = await supabase
-    .from('credit_transactions')
-    .insert(
-      missingIds.map((userId) => ({
-        user_id: userId,
-        type: 'purchase',
-        amount: INITIAL_FREE_CREDITS,
-        description: WELCOME_BONUS_DESCRIPTION,
-      }))
-    )
-
-  if (transactionsError) {
-    throw new Error(`Failed to insert credit_transactions rows: ${transactionsError.message}`)
   }
 
   const afterUserCredits = await countTable('user_credits')

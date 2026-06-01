@@ -123,13 +123,6 @@ export type LandingMessages = {
     trial: string;
     trialBadge: string;
     perMonth: string;
-    welcomeBonus: {
-      title: string;
-      descriptionBefore: string;
-      descriptionAfter: string;
-      features: string[];
-      cta: string;
-    };
     plans: {
       lite: {
         name: string;
@@ -217,8 +210,8 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       faq: 'FAQ',
       academy: 'Academy',
       dashboard: 'Dashboard',
-      signUpDesktop: 'Sign up · Get 100 free credits',
-      signUpMobile: 'Get 100 Credits',
+      signUpDesktop: 'Sign up',
+      signUpMobile: 'Sign up',
       themeToggleLabel: 'Toggle light and dark mode',
       mainNavLabel: 'Main navigation',
       mobileMenuLabel: 'Toggle mobile menu',
@@ -400,21 +393,6 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       trial: '1 Day Free Trial',
       trialBadge: 'Trial',
       perMonth: '/month',
-      welcomeBonus: {
-        title: 'Welcome Bonus',
-        descriptionBefore: 'Congratulations. You received ',
-        descriptionAfter: ' credits.',
-        features: [
-          'AI Agent',
-          'Avatar Ads',
-          'Clone viral video',
-          'Motion Clone',
-          'Unlimited product configuration',
-          'Unlimited character configuration',
-          'Import TikTok videos',
-        ],
-        cta: 'Enter Console',
-      },
       plans: {
         lite: {
           name: 'Lite',
@@ -554,8 +532,8 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       faq: '常见问题',
       academy: '学院',
       dashboard: '控制台',
-      signUpDesktop: '注册 · 获得 100 免费积分',
-      signUpMobile: '领取 100 积分',
+      signUpDesktop: 'Sign up',
+      signUpMobile: 'Sign up',
       themeToggleLabel: '切换明暗主题',
       mainNavLabel: '主导航',
       mobileMenuLabel: '切换移动端菜单',
@@ -737,21 +715,6 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       trial: '1 天免费试用',
       trialBadge: '试用',
       perMonth: '/月',
-      welcomeBonus: {
-        title: '欢迎奖励',
-        descriptionBefore: '恭喜，你已获得 ',
-        descriptionAfter: ' 积分。',
-        features: [
-          'AI 智能体',
-          '数字人广告',
-          '爆款视频复刻',
-          '动作复刻',
-          '无限产品配置',
-          '无限角色配置',
-          '导入 TikTok 视频',
-        ],
-        cta: '进入控制台',
-      },
       plans: {
         lite: {
           name: 'Lite',

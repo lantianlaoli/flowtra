@@ -2,7 +2,6 @@
 
 import { PricingButton } from "@/components/pages/landing/PricingButton";
 import { Check, Zap, TrendingUp, Crown } from "lucide-react";
-import Link from "next/link";
 import { getPackageModelDurationRows } from "@/lib/constants";
 import { useI18n } from "@/providers/I18nProvider";
 
@@ -14,12 +13,8 @@ type PlanFeatureItem = {
 
 export default function PricingSection({
   showTitle = true,
-  showWelcomeBonusCard = false,
-  welcomeBonusCredits = 100,
 }: {
   showTitle?: boolean;
-  showWelcomeBonusCard?: boolean;
-  welcomeBonusCredits?: number;
 }) {
   const { messages } = useI18n();
   const pricingMessages = messages.landing.pricing;
@@ -54,42 +49,7 @@ export default function PricingSection({
         </div>
       )}
 
-      <div
-        className={`grid grid-cols-1 md:grid-cols-2 gap-8 max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 ${
-          showWelcomeBonusCard ? "lg:grid-cols-4" : "lg:grid-cols-3"
-        }`}
-      >
-        {showWelcomeBonusCard && (
-          <article className="landing-plan-card flex flex-col rounded-[24px] border border-[#E5E5E5] bg-white p-8">
-            <h3 className="text-[20px] font-bold text-black tracking-tight mb-2">
-              {pricingMessages.welcomeBonus.title}
-            </h3>
-            <p className="text-[14px] text-[#666666] mb-6 leading-6">
-              {pricingMessages.welcomeBonus.descriptionBefore}
-              <span className="font-semibold text-black">{welcomeBonusCredits}</span>
-              {pricingMessages.welcomeBonus.descriptionAfter}
-            </p>
-
-            <ul className="space-y-4 mb-10 flex-grow">
-              {pricingMessages.welcomeBonus.features.map((item) => (
-                <li key={item} className="flex items-center gap-3 text-[14px] text-[#666666]">
-                  <Check className="w-4 h-4 text-black flex-shrink-0" />
-                  <span className="font-medium text-black">{item}</span>
-                </li>
-              ))}
-            </ul>
-
-            <div className="mt-auto">
-              <Link
-                href="/dashboard"
-                className="landing-press-button landing-press-button--wide text-[14px] font-semibold"
-              >
-                {pricingMessages.welcomeBonus.cta}
-              </Link>
-            </div>
-          </article>
-        )}
-
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 lg:grid-cols-3">
         {/* Lite Plan */}
 
         <article

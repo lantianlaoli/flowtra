@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { SignInButton, useUser } from '@clerk/nextjs';
-import { ArrowUpRight, Copy, Gift, X } from 'lucide-react';
+import { ArrowUpRight, Copy, MessageCircle, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectItemText, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -48,10 +48,10 @@ function getFeatureDisplayName(feature: FeatureInterestOption, otherText?: strin
 
 function getShareMessage(feature: FeatureInterestOption, otherText?: string): string {
   const displayName = getFeatureDisplayName(feature, otherText);
-  return `Hi Flowtra team, I want to try ${displayName}. I just claimed the 100-credit trial and want onboarding help.`;
+  return `Hi Flowtra team, I want to try ${displayName}. Please help me choose the right plan and onboarding path.`;
 }
 
-function FeatureInterestForm({ submitLabel = 'Claim 100 Free Credits' }: { submitLabel?: string }) {
+function FeatureInterestForm({ submitLabel = 'Send Request' }: { submitLabel?: string }) {
   const { isLoaded, isSignedIn } = useUser();
   const socialLinks = getSocialMediaLinks();
 
@@ -96,7 +96,7 @@ function FeatureInterestForm({ submitLabel = 'Claim 100 Free Credits' }: { submi
     setError(null);
 
     if (!isSignedIn) {
-      setError('Please sign in to claim your 100 free credits.');
+      setError('Please sign in to send your request.');
       return;
     }
 
@@ -125,13 +125,13 @@ function FeatureInterestForm({ submitLabel = 'Claim 100 Free Credits' }: { submi
       const data = (await response.json().catch(() => ({}))) as FeatureInterestResponse;
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to claim credits.');
+        throw new Error(data.error || 'Failed to send request.');
       }
 
       setSubmitted(true);
       setAlreadyClaimed(Boolean(data.alreadyClaimed));
     } catch (submitError) {
-      const message = submitError instanceof Error ? submitError.message : 'Failed to claim credits.';
+      const message = submitError instanceof Error ? submitError.message : 'Failed to send request.';
       setError(message);
     } finally {
       setSubmitting(false);
@@ -144,7 +144,7 @@ function FeatureInterestForm({ submitLabel = 'Claim 100 Free Credits' }: { submi
         <>
           <div className="grid grid-cols-3 gap-2 text-[11px] text-[#666666]">
             <div className="rounded-full border border-[#E5E5E5] bg-white px-2.5 py-1 text-center">1. Pick</div>
-            <div className="rounded-full border border-[#E5E5E5] bg-white px-2.5 py-1 text-center">2. Claim</div>
+            <div className="rounded-full border border-[#E5E5E5] bg-white px-2.5 py-1 text-center">2. Request</div>
             <div className="rounded-full border border-[#E5E5E5] bg-white px-2.5 py-1 text-center">3. Send</div>
           </div>
 
@@ -213,14 +213,14 @@ function FeatureInterestForm({ submitLabel = 'Claim 100 Free Credits' }: { submi
               disabled={!isLoaded || submitting}
               className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-[15px] font-semibold text-white transition-all hover:bg-[#1a1a1a] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Gift className="w-4 h-4" />
-              {submitting ? 'Claiming...' : submitLabel}
+              <MessageCircle className="w-4 h-4" />
+              {submitting ? 'Sending...' : submitLabel}
             </button>
           ) : (
             <SignInButton mode="modal">
               <button className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-[15px] font-semibold text-white transition-all hover:bg-[#1a1a1a]">
-                <Gift className="w-4 h-4" />
-                Sign in to claim credits
+                <MessageCircle className="w-4 h-4" />
+                Sign in to send request
               </button>
             </SignInButton>
           )}
@@ -230,7 +230,7 @@ function FeatureInterestForm({ submitLabel = 'Claim 100 Free Credits' }: { submi
       {submitted && (
         <div className="space-y-3 rounded-xl border border-[#E5E5E5] bg-white p-4">
           <p className="text-[14px] font-medium text-black">
-            {alreadyClaimed ? 'Reward already claimed.' : '100 credits added to your account.'}
+            {alreadyClaimed ? 'Request already received.' : 'Request received.'}
           </p>
           <p className="text-[13px] text-[#666666]">Copy this message and send it on any platform:</p>
 
@@ -277,14 +277,14 @@ function FeatureInterestForm({ submitLabel = 'Claim 100 Free Credits' }: { submi
 export function FeatureInterestReward({
   variant = 'embedded',
   className = '',
-  buttonLabel = 'Get 100 Free Credits',
+  buttonLabel = 'Request Onboarding',
   buttonClassName = '',
-  dialogTitle = 'Get 100 Free Credits',
+  dialogTitle = 'Request Onboarding',
   dialogDescription = 'Tell us which feature you want to try, then send your interest message on any platform.',
   showEmbeddedHeader = true,
-  embeddedTitle = 'Get 100 Free Credits',
-  embeddedDescription = 'Pick one feature, claim credits, then send one message on your preferred platform.',
-  submitLabel = 'Claim 100 Free Credits',
+  embeddedTitle = 'Request Onboarding',
+  embeddedDescription = 'Pick one feature, send a request, then contact us on your preferred platform.',
+  submitLabel = 'Send Request',
 }: FeatureInterestRewardProps) {
   if (variant === 'buttonTrigger') {
     return (
@@ -296,7 +296,7 @@ export function FeatureInterestReward({
               'inline-flex items-center justify-center gap-2 rounded-lg bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1a1a1a] transition-colors'
             }
           >
-            <Gift className="w-4 h-4" />
+            <MessageCircle className="w-4 h-4" />
             <span>{buttonLabel}</span>
           </button>
         </Dialog.Trigger>

@@ -38,7 +38,7 @@ export default function TermsPage() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">4. Credits and Payment</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              New users receive 100 free credits upon registration. Additional credits can be purchased through our pricing plans. Credits are non-refundable and do not expire. All payments are processed securely through our payment partners.
+              Credits are provided through active subscription plans and are deducted when you generate paid AI outputs. Credits are non-refundable and follow the limits and renewal terms of the selected plan. All payments are processed securely through our payment partners.
             </p>
           </section>
 

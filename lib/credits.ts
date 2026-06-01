@@ -1,8 +1,6 @@
 'use server'
 
 import { getSupabase, getSupabaseAdmin, UserCredits } from '@/lib/supabase'
-import { sendWelcomeEmail } from '@/lib/resend'
-import { clerkClient } from '@clerk/nextjs/server'
 
 interface CreditTransaction {
   id: string;
@@ -12,6 +10,29 @@ interface CreditTransaction {
   description: string;
   history_id?: string;
   created_at: string;
+}
+
+const ACTIVE_CREDIT_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing'])
+
+async function hasActiveCreditSubscription(userId: string) {
+  // Schema verified via Supabase MCP (2026-06-01):
+  // user_subscriptions has user_id/status; generation credit usage requires active/trialing.
+  const supabase = getSupabaseAdmin()
+  const { data, error } = await supabase
+    .from('user_subscriptions')
+    .select('status')
+    .eq('user_id', userId)
+    .in('status', ['active', 'trialing'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    console.error('Failed to check user subscription:', error)
+    return false
+  }
+
+  return !!data?.status && ACTIVE_CREDIT_SUBSCRIPTION_STATUSES.has(data.status)
 }
 
 // Get user's current credits
@@ -57,7 +78,7 @@ export async function getUserCredits(userId: string): Promise<{
 }
 
 // Initialize credits for new user
-export async function initializeUserCredits(userId: string, initialCredits: number = 0): Promise<{
+export async function initializeUserCredits(userId: string): Promise<{
   success: boolean
   credits?: UserCredits
   error?: string
@@ -70,7 +91,7 @@ export async function initializeUserCredits(userId: string, initialCredits: numb
       .from('user_credits')
       .upsert({
         user_id: userId,
-        credits_remaining: initialCredits
+        credits_remaining: 0
       }, {
         onConflict: 'user_id',
         ignoreDuplicates: true  // Don't update if record already exists
@@ -121,42 +142,8 @@ export async function initializeUserCredits(userId: string, initialCredits: numb
       }
     }
 
-    // Only log and record transaction if this is a new initialization with credits
     if (credits) {
-      console.log(`✅ Initialized ${initialCredits} credits for new user:`, userId)
-
-      // Only record transaction and send emails if user is getting credits (old migration path)
-      // New users get 0 credits and must purchase, so skip this
-      if (initialCredits > 0) {
-        // Record the initial credit transaction
-        await recordCreditTransaction(
-          userId,
-          'purchase',
-          initialCredits,
-          'Initial free credits for new user',
-          undefined,
-          true // Use admin client
-        )
-
-        // Fire-and-forget: send welcome email to new user
-        try {
-          // clerkClient can be a function returning a ClerkClient in this runtime
-          const client = typeof clerkClient === 'function' ? await clerkClient() : clerkClient
-          const user = await client.users.getUser(userId)
-          const primaryEmail = user.emailAddresses?.[0]?.emailAddress
-          const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || null
-
-          // Send welcome email to new user
-          if (primaryEmail) {
-            await sendWelcomeEmail({ to: primaryEmail, name: fullName })
-            console.log(`✉️ Welcome email sent to new user: ${primaryEmail}`)
-          } else {
-            console.warn('⚠️ No primary email found for user, skipping welcome email:', userId)
-          }
-        } catch (notifyError) {
-          console.warn('sendWelcomeEmail failed or skipped:', notifyError)
-        }
-      }
+      console.log('Initialized zero-credit account for new user:', userId)
     } else {
       console.log(`👤 User ${userId} already has credits, no initialization needed`)
     }
@@ -236,6 +223,24 @@ export async function checkCredits(userId: string, requiredCredits: number): Pro
       }
     }
 
+    if (requiredCredits <= 0) {
+      return {
+        success: true,
+        hasEnoughCredits: true,
+        currentCredits: result.credits.credits_remaining
+      }
+    }
+
+    const hasSubscription = await hasActiveCreditSubscription(userId)
+    if (!hasSubscription) {
+      console.warn('Active subscription required before using credits:', userId)
+      return {
+        success: true,
+        hasEnoughCredits: false,
+        currentCredits: result.credits.credits_remaining
+      }
+    }
+
     const currentCredits = result.credits.credits_remaining
     const hasEnoughCredits = currentCredits >= requiredCredits
     
@@ -281,6 +286,17 @@ export async function deductCredits(userId: string, creditsToDeduct: number): Pr
       return {
         success: false,
         error: 'Failed to fetch credits'
+      }
+    }
+
+    if (creditsToDeduct > 0) {
+      const hasSubscription = await hasActiveCreditSubscription(userId)
+      if (!hasSubscription) {
+        console.warn('Active subscription required before deducting credits:', userId)
+        return {
+          success: false,
+          error: 'An active subscription is required to use credits'
+        }
       }
     }
 

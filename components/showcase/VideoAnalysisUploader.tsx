@@ -278,7 +278,7 @@ export function VideoAnalysisUploader({ initialFile }: { initialFile?: File | nu
             </Link>
             <FeatureInterestReward
               variant="buttonTrigger"
-              buttonLabel="Claim 100 Free Credits"
+              buttonLabel="Request Onboarding"
               buttonClassName="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white border-2 border-black text-black font-medium hover:bg-gray-50 transition-colors rounded-[8px]"
             />
           </div>
@@ -457,7 +457,7 @@ export function VideoAnalysisUploader({ initialFile }: { initialFile?: File | nu
 
               <FeatureInterestReward
                 variant="buttonTrigger"
-                buttonLabel="Claim 100 Free Credits"
+                buttonLabel="Request Onboarding"
                 buttonClassName="flex items-center justify-center gap-2 w-full px-6 py-3 bg-white border-2 border-black text-black font-medium hover:bg-gray-50 transition-colors rounded-[8px]"
               />
             </div>

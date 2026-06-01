@@ -1,9 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { parseStorageObjectRefFromPublicUrl, removeStorageObject } from '@/lib/storage/ops'
 
-const WELCOME_BONUS_DESCRIPTION = 'Initial free credits for new user'
-const INITIAL_FREE_CREDITS = 100
-
 type StorageRef = {
   bucket: string
   path: string
@@ -97,7 +94,7 @@ async function deleteByIds(table: string, column: string, ids: string[]) {
 export async function ensureClerkUserWelcomeState(userId: string) {
   const supabase = getSupabaseAdmin()
 
-  // Schema verified via Supabase MCP (2026-03-14):
+  // Schema verified via Supabase MCP (2026-06-01):
   // public.user_credits includes user_id, credits_remaining.
   const { data: existingCredits, error: fetchCreditsError } = await supabase
     .from('user_credits')
@@ -116,7 +113,7 @@ export async function ensureClerkUserWelcomeState(userId: string) {
       .from('user_credits')
       .insert({
         user_id: userId,
-        credits_remaining: INITIAL_FREE_CREDITS,
+        credits_remaining: 0,
       })
 
     if (insertCreditsError) {
@@ -126,44 +123,9 @@ export async function ensureClerkUserWelcomeState(userId: string) {
     insertedCredits = true
   }
 
-  // Schema verified via Supabase MCP (2026-03-14):
-  // public.credit_transactions includes user_id, type, amount, description.
-  const { data: existingWelcomeTx, error: fetchTxError } = await supabase
-    .from('credit_transactions')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('type', 'purchase')
-    .eq('amount', INITIAL_FREE_CREDITS)
-    .eq('description', WELCOME_BONUS_DESCRIPTION)
-    .maybeSingle()
-
-  if (fetchTxError) {
-    throw new Error(`Failed to fetch welcome transaction for ${userId}: ${fetchTxError.message}`)
-  }
-
-  let insertedWelcomeTransaction = false
-
-  if (!existingWelcomeTx) {
-    const { error: insertTxError } = await supabase
-      .from('credit_transactions')
-      .insert({
-        user_id: userId,
-        type: 'purchase',
-        amount: INITIAL_FREE_CREDITS,
-        description: WELCOME_BONUS_DESCRIPTION,
-        history_id: null,
-      })
-
-    if (insertTxError) {
-      throw new Error(`Failed to insert welcome transaction for ${userId}: ${insertTxError.message}`)
-    }
-
-    insertedWelcomeTransaction = true
-  }
-
   return {
     insertedCredits,
-    insertedWelcomeTransaction,
+    insertedWelcomeTransaction: false,
   }
 }
 

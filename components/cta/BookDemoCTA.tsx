@@ -11,7 +11,7 @@ interface BookDemoCTAProps {
 
 export function BookDemoCTA({
   title = "Ready to Transform Your Video Marketing?",
-  description = "Tell us which feature you want to try, then send your interest message on any platform to get 100 free credits.",
+  description = "Tell us which feature you want to try, then send your interest message on any platform for onboarding help.",
   variant = 'default'
 }: BookDemoCTAProps) {
   if (variant === 'compact') {
@@ -24,7 +24,7 @@ export function BookDemoCTA({
           </div>
           <FeatureInterestReward
             variant="buttonTrigger"
-            buttonLabel="Claim 100 Free Credits"
+            buttonLabel="Request Onboarding"
             buttonClassName="flex-shrink-0 bg-black text-white px-6 py-3 rounded-lg font-medium text-[14px] transition-all duration-200 hover:bg-[#1a1a1a] active:scale-[0.98] inline-flex items-center gap-2 whitespace-nowrap"
           />
         </div>
@@ -56,14 +56,14 @@ export function BookDemoCTA({
             <div className="pt-4">
               <FeatureInterestReward
                 variant="buttonTrigger"
-                buttonLabel="Claim 100 Free Credits"
+                buttonLabel="Request Onboarding"
                 buttonClassName="inline-flex items-center gap-3 bg-black text-white px-8 py-4 rounded-lg font-semibold text-[16px] transition-all duration-200 hover:bg-[#1a1a1a] hover:shadow-[0_8px_24px_rgba(0,0,0,0.2)] active:scale-[0.98] group"
               />
             </div>
 
             {/* Fine Print */}
             <p className="text-[12px] text-[#999999] uppercase tracking-wider">
-              Get personalized trial access • Quick response
+              Get personalized plan guidance • Quick response
             </p>
           </div>
         </div>

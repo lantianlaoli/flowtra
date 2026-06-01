@@ -18,14 +18,14 @@ export function DemoContactCard({ className = '' }: DemoContactCardProps) {
           Try Any Feature
         </h3>
         <p className="text-[13px] text-[#666666] leading-6 mt-1">
-          Minimal steps. 100 free credits.
+          Tell us what you want to generate, then choose the plan that fits.
         </p>
       </div>
 
       <div className="flex-grow">
         <FeatureInterestReward
           showEmbeddedHeader={false}
-          submitLabel="Claim Credits"
+          submitLabel="Send Request"
           className="p-0 border-0 bg-transparent"
         />
       </div>

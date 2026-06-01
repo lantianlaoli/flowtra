@@ -111,7 +111,7 @@ export function CTASection({ result }: CTASectionProps) {
 
           <FeatureInterestReward
             variant="buttonTrigger"
-            buttonLabel="Claim 100 Free Credits"
+            buttonLabel="Request Onboarding"
             buttonClassName="inline-flex items-center gap-2 px-4 py-3 bg-white border-2 border-gray-200 rounded-lg font-medium text-gray-700 hover:border-black hover:bg-gray-50 transition-all"
           />
         </div>

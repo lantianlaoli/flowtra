@@ -137,6 +137,33 @@ export async function chargeToolGenerationCredits(input: {
   };
 }
 
+export async function requireActiveToolSubscription(userId: string): Promise<ToolBillingSuccess | ToolBillingFailure> {
+  // Schema verified via Supabase MCP (2026-06-01):
+  // user_subscriptions has user_id/status; active tool access accepts active/trialing only.
+  const subscriptionResult = await getUserSubscription(userId);
+  const subscription = subscriptionResult.subscription;
+  const hasActiveSubscription =
+    !!subscription?.status && ACTIVE_SUBSCRIPTION_STATUSES.has(subscription.status);
+
+  if (!hasActiveSubscription) {
+    return {
+      success: false,
+      status: 402,
+      code: 'SUBSCRIPTION_REQUIRED',
+      error: 'An active subscription is required to use this generation tool.',
+      requiredCredits: 0,
+      currentCredits: null,
+      subscriptionRequired: true,
+    };
+  }
+
+  return {
+    success: true,
+    chargedCredits: 0,
+    remainingCredits: null,
+  };
+}
+
 export async function refundToolGenerationCredits(input: {
   userId: string;
   amount: number;

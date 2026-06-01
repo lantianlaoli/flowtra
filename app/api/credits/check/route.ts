@@ -28,6 +28,8 @@ export async function GET() {
 
     const result = await getUserCredits(userId)
     const subscriptionResult = await getUserSubscription(userId)
+    const subscriptionStatus = subscriptionResult.subscription?.status
+    const hasActiveSubscription = subscriptionStatus === 'active' || subscriptionStatus === 'trialing'
 
     if (!result.success) {
       return NextResponse.json(
@@ -39,7 +41,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       credits: result.credits,
-      hasCredits: (result.credits?.credits_remaining ?? 0) > 0,
+      hasCredits: hasActiveSubscription && (result.credits?.credits_remaining ?? 0) > 0,
       userId: userId,
       subscription: subscriptionResult.subscription || null
     })
@@ -85,6 +87,9 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await getUserCredits(userId)
+    const subscriptionResult = await getUserSubscription(userId)
+    const subscriptionStatus = subscriptionResult.subscription?.status
+    const hasActiveSubscription = subscriptionStatus === 'active' || subscriptionStatus === 'trialing'
 
     if (!result.success) {
       return NextResponse.json(
@@ -103,14 +108,15 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const hasEnoughCredits = result.credits.credits_remaining >= requiredCredits
+    const hasEnoughCredits = hasActiveSubscription && result.credits.credits_remaining >= requiredCredits
 
     return NextResponse.json({
       success: true,
       hasEnoughCredits,
       currentCredits: result.credits.credits_remaining,
       requiredCredits,
-      shortfall: hasEnoughCredits ? 0 : requiredCredits - result.credits.credits_remaining
+      subscriptionRequired: !hasActiveSubscription,
+      shortfall: hasEnoughCredits ? 0 : Math.max(0, requiredCredits - result.credits.credits_remaining)
     })
 
   } catch (error) {
