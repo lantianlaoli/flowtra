@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
-    "test:unit": "node --test --import tsx tests/unit/**/*.test.ts"
+    "test:unit": "node --test --import tsx tests/unit/**/*.test.ts",
+    "seo:audit": "tsx scripts/audit-google-seo-urls.ts"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.192",

@@ -70,4 +70,5 @@ supabase/*
 
 CLAUDE.md
 GEMINI.md
-scripts/
+scripts/*
+!scripts/audit-google-seo-urls.ts
