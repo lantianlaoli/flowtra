@@ -178,9 +178,6 @@ export async function POST(request: NextRequest) {
 
     let job: Awaited<ReturnType<typeof createToolGenerationJob>> | null = null;
     try {
-      // Schema verified via Supabase MCP (2026-05-22):
-      // tool_generation_jobs has metadata, status, billed_credits, error/refund fields.
-      // tool_generation_tasks has kie_task_id, tool_key, status, result_url, metadata.
       job = await createToolGenerationJob({
         userId,
         toolKey: 'ecommerce-listing-studio',

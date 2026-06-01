@@ -14,9 +14,9 @@ import {
   createToolGenerationJob,
   createToolGenerationTask,
   getToolGenerationJob,
-  getToolGenerationJobsByUser,
   getToolGenerationTasksByJobId,
   getToolGenerationTasksByKieTaskIds,
+  type ToolGenerationJob,
   type ToolGenerationTask,
 } from '@/lib/tools/job-store';
 import {
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: uploadResult?.msg || 'Source image upload failed' }, { status: 500 });
       }
 
-      // Create parent job in Supabase
+      // Create parent job in the temporary Redis job store.
       const job = await createToolGenerationJob({
         userId,
         toolKey: 'ai-reference-angle',
@@ -242,8 +242,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, jobs: orderedJobs });
     }
 
-    const jobs = await getToolGenerationJobsByUser(userId, 'ai-reference-angle');
-    const filteredJobs = jobs.filter((j) => jobIds.includes(j.id));
+    const directJobs = await Promise.all(jobIds.map((jobId) => getToolGenerationJob(jobId)));
+    const filteredJobs = directJobs.filter(
+      (job): job is ToolGenerationJob =>
+        job !== null && job.user_id === userId && job.tool_key === 'ai-reference-angle'
+    );
 
     // Enrich with tasks
     const enrichedJobs = await Promise.all(

@@ -227,7 +227,7 @@ export default function AiAngleGeneratorPage() {
     window.sessionStorage.removeItem(RECOVERY_STORAGE_KEY);
   }, []);
 
-  // Map Realtime tasks to GeneratedImage[]
+  // Map hydrated task state to GeneratedImage[]
   useEffect(() => {
     if (!tasks.length) return;
     const images: GeneratedImage[] = [];

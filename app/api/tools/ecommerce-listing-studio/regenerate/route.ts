@@ -14,6 +14,12 @@ import {
   getToolGenerationJob,
   updateToolGenerationJob,
 } from '@/lib/tools/job-store';
+import {
+  IMAGE_GENERATION_CREDIT_COST,
+  chargeToolGenerationCredits,
+  refundToolGenerationCredits,
+  toolBillingErrorPayload,
+} from '@/lib/tools/billing';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -196,70 +202,88 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Only completed image slots can be edited.' }, { status: 400 });
     }
 
-    const localImageUrls = await uploadLocalImages(body.localImages);
-    const prompt = [
-      slot.prompt,
-      '',
-      'Image edit request:',
-      refinement || 'Use the uploaded reference image(s) as visual guidance for the requested image-to-image edit.',
-      '',
-      'Use the current generated image as the primary visual base.',
-      'Preserve the exact product identity, proportions, material, color, logo placement if present, and recognizable details.',
-      'Update only what is needed to satisfy the edit request. Keep the same ecommerce listing quality and clean product-led composition.',
-      localImageUrls.length ? 'Use the uploaded reference image(s) as additional visual guidance for the requested changes.' : '',
-    ].filter(Boolean).join('\n');
-
-    const imageAspectRatio = normalizeImageAspectRatio(metadata.image_aspect_ratio);
-    const imageResolution = normalizeImageResolution(metadata.image_resolution);
-    const taskId = await createKieRegenerationTask({
-      prompt,
-      inputUrls: [body.resultUrl, ...localImageUrls],
-      aspectRatio: imageAspectRatio,
-      resolution: imageResolution,
-      callBackUrl: `${siteUrl}/api/tools/webhooks/kie`,
+    const charge = await chargeToolGenerationCredits({
+      userId,
+      amount: IMAGE_GENERATION_CREDIT_COST,
+      description: 'Ecommerce Listing Studio - image edit',
+      historyId: job.id,
     });
+    if (!charge.success) {
+      return NextResponse.json(toolBillingErrorPayload(charge), { status: charge.status });
+    }
 
-    // Schema follows the verified tool generation tables used by job-store:
-    // tool_generation_jobs.metadata/status and tool_generation_tasks.kie_task_id/tool_key/metadata.
-    await createToolGenerationTask({
-      jobId: job.id,
-      kieTaskId: taskId,
-      toolKey: 'ecommerce-listing-studio',
-      metadata: {
-        stage: 'image',
-        slot_id: slot.id,
-        kind: slot.kind,
-        index: slot.index,
-        regeneration: true,
-      },
-    });
+    try {
+      const localImageUrls = await uploadLocalImages(body.localImages);
+      const prompt = [
+        slot.prompt,
+        '',
+        'Image edit request:',
+        refinement || 'Use the uploaded reference image(s) as visual guidance for the requested image-to-image edit.',
+        '',
+        'Use the current generated image as the primary visual base.',
+        'Preserve the exact product identity, proportions, material, color, logo placement if present, and recognizable details.',
+        'Update only what is needed to satisfy the edit request. Keep the same ecommerce listing quality and clean product-led composition.',
+        localImageUrls.length ? 'Use the uploaded reference image(s) as additional visual guidance for the requested changes.' : '',
+      ].filter(Boolean).join('\n');
 
-    const nextMetadata: EcommerceListingMetadata = {
-      ...metadata,
-      carousel_images: updateSlot(metadata.carousel_images, slot.id, {
-        taskId,
+      const imageAspectRatio = normalizeImageAspectRatio(metadata.image_aspect_ratio);
+      const imageResolution = normalizeImageResolution(metadata.image_resolution);
+      const taskId = await createKieRegenerationTask({
+        prompt,
+        inputUrls: [body.resultUrl, ...localImageUrls],
+        aspectRatio: imageAspectRatio,
+        resolution: imageResolution,
+        callBackUrl: `${siteUrl}/api/tools/webhooks/kie`,
+      });
+
+      await createToolGenerationTask({
+        jobId: job.id,
+        kieTaskId: taskId,
+        toolKey: 'ecommerce-listing-studio',
+        metadata: {
+          stage: 'image',
+          slot_id: slot.id,
+          kind: slot.kind,
+          index: slot.index,
+          regeneration: true,
+        },
+      });
+
+      const nextMetadata: EcommerceListingMetadata = {
+        ...metadata,
+        carousel_images: updateSlot(metadata.carousel_images, slot.id, {
+          taskId,
+          status: 'processing',
+          resultUrl: undefined,
+          error: undefined,
+        }),
+        detail_images: updateSlot(metadata.detail_images, slot.id, {
+          taskId,
+          status: 'processing',
+          resultUrl: undefined,
+          error: undefined,
+        }),
+      };
+      const progress = calculateEcommerceListingProgress(nextMetadata);
+      nextMetadata.completed_outputs = progress.completed;
+      nextMetadata.total_outputs = progress.total;
+
+      const nextJob = await updateToolGenerationJob(job.id, {
         status: 'processing',
-        resultUrl: undefined,
-        error: undefined,
-      }),
-      detail_images: updateSlot(metadata.detail_images, slot.id, {
-        taskId,
-        status: 'processing',
-        resultUrl: undefined,
-        error: undefined,
-      }),
-    };
-    const progress = calculateEcommerceListingProgress(nextMetadata);
-    nextMetadata.completed_outputs = progress.completed;
-    nextMetadata.total_outputs = progress.total;
+        metadata: nextMetadata,
+        error_message: null,
+      });
 
-    const nextJob = await updateToolGenerationJob(job.id, {
-      status: 'processing',
-      metadata: nextMetadata,
-      error_message: null,
-    });
-
-    return NextResponse.json({ success: true, jobId: job.id, taskId, job: nextJob }, { status: 202 });
+      return NextResponse.json({ success: true, jobId: job.id, taskId, job: nextJob }, { status: 202 });
+    } catch (error) {
+      await refundToolGenerationCredits({
+        userId,
+        amount: charge.chargedCredits,
+        reason: 'Ecommerce Listing Studio image edit failed to start',
+        historyId: job.id,
+      });
+      throw error;
+    }
   } catch (error) {
     console.error('[tools/ecommerce-listing-studio/regenerate] Error:', error);
     return NextResponse.json(

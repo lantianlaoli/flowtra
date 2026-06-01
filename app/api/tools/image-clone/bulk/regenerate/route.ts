@@ -159,7 +159,7 @@ export async function POST(request: Request) {
         userId, billedCredits: charge.chargedCredits, billingRefundedAt: null,
       });
 
-      // Create parent job + task in Supabase
+      // Create parent job + task in the temporary Redis job store.
       const parentJob = await createToolGenerationJob({
         userId,
         toolKey: 'image-clone-bulk',

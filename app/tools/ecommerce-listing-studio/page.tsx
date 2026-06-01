@@ -139,6 +139,14 @@ function statusLabel(status?: string) {
   return "Queued";
 }
 
+function userFriendlyError(error?: string): string {
+  if (!error) return "Generation failed, please try again";
+  if (error.includes("PUBLIC_ERROR_UNSAFE_GENERATION") || error.includes("UNSAFE")) {
+    return "Generation failed, please try again";
+  }
+  return "Generation failed, please try again";
+}
+
 export default function EcommerceListingStudioPage() {
   const { isLoading: isToolAccessLoading, hasUnlimitedAccess } = useToolUsageAccess();
   const primaryButtonClass = "landing-press-button landing-press-button--compact text-sm font-medium";
@@ -166,6 +174,8 @@ export default function EcommerceListingStudioPage() {
   const [regenerateImages, setRegenerateImages] = useState<LocalReferenceImage[]>([]);
   const [regenerateError, setRegenerateError] = useState<string | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isRetryingVideo, setIsRetryingVideo] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const inputRefs = {
     front: useRef<HTMLInputElement | null>(null),
     side: useRef<HTMLInputElement | null>(null),
@@ -449,7 +459,32 @@ export default function EcommerceListingStudioPage() {
     setRegenerateText("");
     setRegenerateImages([]);
     setRegenerateError(null);
+    setIsRetryingVideo(false);
+    setPreviewImageUrl(null);
     window.sessionStorage.removeItem(SESSION_KEY);
+  }
+
+  async function retryVideo() {
+    if (!currentJob) return;
+    setIsRetryingVideo(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/tools/ecommerce-listing-studio/retry-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: currentJob.id }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to retry video generation.");
+      if (payload.job) restoreJob(payload.job);
+      setJobId(payload.jobId || currentJob.id);
+      setStatus("processing");
+      window.sessionStorage.setItem(SESSION_KEY, JSON.stringify({ jobId: payload.jobId || currentJob.id }));
+    } catch (retryError) {
+      setError(retryError instanceof Error ? retryError.message : "Failed to retry video generation.");
+    } finally {
+      setIsRetryingVideo(false);
+    }
   }
 
   async function copyUrl(url: string) {
@@ -539,6 +574,9 @@ export default function EcommerceListingStudioPage() {
                 manualCopyUrl={manualCopyUrl}
                 onCopy={copyUrl}
                 onRegenerate={openRegenerateModal}
+                onPreview={setPreviewImageUrl}
+                onRetryVideo={() => void retryVideo()}
+                isRetryingVideo={isRetryingVideo}
               />
             </section>
 
@@ -683,6 +721,9 @@ export default function EcommerceListingStudioPage() {
           onRemoveImage={(id) => setRegenerateImages((current) => current.filter((image) => image.id !== id))}
           onSubmit={() => void submitRegeneration()}
         />
+      ) : null}
+      {previewImageUrl ? (
+        <ImagePreviewModal url={previewImageUrl} onClose={() => setPreviewImageUrl(null)} />
       ) : null}
       <Footer />
     </>
@@ -875,6 +916,9 @@ function ResultsPanel({
   manualCopyUrl,
   onCopy,
   onRegenerate,
+  onPreview,
+  onRetryVideo,
+  isRetryingVideo,
 }: {
   job: ToolGenerationJob | null;
   metadata: EcommerceListingMetadata;
@@ -886,6 +930,9 @@ function ResultsPanel({
   manualCopyUrl: string | null;
   onCopy: (url: string) => void;
   onRegenerate: (slot: EcommerceListingImageSlot) => void;
+  onPreview?: (url: string) => void;
+  onRetryVideo?: () => void;
+  isRetryingVideo?: boolean;
 }) {
   const carousel = metadata.carousel_images ?? [];
   const detail = metadata.detail_images ?? [];
@@ -904,9 +951,9 @@ function ResultsPanel({
 
   return (
     <div className="space-y-6">
-      <AssetSection title="Carousel Images" subtitle="Marketplace listing visuals" slots={carousel} aspectRatio={imageAspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} onCopy={onCopy} onRegenerate={onRegenerate} />
-      <AssetSection title="Detail Images" subtitle="Benefit, material, usage, and trust visuals" slots={detail} aspectRatio={imageAspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} onCopy={onCopy} onRegenerate={onRegenerate} />
-      <VideoSection video={video} aspectRatio={videoAspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} onCopy={onCopy} />
+      <AssetSection title="Carousel Images" subtitle="Marketplace listing visuals" slots={carousel} aspectRatio={imageAspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} onCopy={onCopy} onRegenerate={onRegenerate} onPreview={onPreview} />
+      <AssetSection title="Detail Images" subtitle="Benefit, material, usage, and trust visuals" slots={detail} aspectRatio={imageAspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} onCopy={onCopy} onRegenerate={onRegenerate} onPreview={onPreview} />
+      <VideoSection video={video} aspectRatio={videoAspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} onCopy={onCopy} onRetry={onRetryVideo} isRetrying={isRetryingVideo} />
       {manualCopyUrl ? (
         <div className="rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 text-xs text-[#666666]">
           <p className="mb-1">Browser blocked clipboard access. Select and copy this URL:</p>
@@ -927,6 +974,7 @@ function AssetSection({
   copiedUrl,
   onCopy,
   onRegenerate,
+  onPreview,
 }: {
   title: string;
   subtitle: string;
@@ -937,6 +985,7 @@ function AssetSection({
   copiedUrl: string | null;
   onCopy: (url: string) => void;
   onRegenerate: (slot: EcommerceListingImageSlot) => void;
+  onPreview?: (url: string) => void;
 }) {
   if (slots.length === 0) return null;
   return (
@@ -952,7 +1001,7 @@ function AssetSection({
       </div>
       <div className="grid gap-3 md:grid-cols-3">
         {slots.map((slot) => (
-          <ResultCard key={slot.id} slot={slot} aspectRatio={aspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} onCopy={onCopy} onRegenerate={onRegenerate} />
+          <ResultCard key={slot.id} slot={slot} aspectRatio={aspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} onCopy={onCopy} onRegenerate={onRegenerate} onPreview={onPreview} />
         ))}
       </div>
     </section>
@@ -967,6 +1016,7 @@ function ResultCard({
   copiedUrl,
   onCopy,
   onRegenerate,
+  onPreview,
 }: {
   slot: EcommerceListingImageSlot;
   aspectRatio: EcommerceListingImageAspectRatio;
@@ -975,6 +1025,7 @@ function ResultCard({
   copiedUrl: string | null;
   onCopy: (url: string) => void;
   onRegenerate: (slot: EcommerceListingImageSlot) => void;
+  onPreview?: (url: string) => void;
 }) {
   return (
     <article className="rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] p-2">
@@ -985,7 +1036,14 @@ function ResultCard({
         </span>
       </div>
       {slot.resultUrl ? (
-        <Image src={slot.resultUrl} alt={slot.title} width={520} height={520} className={`${imageAspectClass(aspectRatio)} w-full rounded-lg border border-[#E5E5E5] bg-white object-cover`} unoptimized />
+        <button
+          type="button"
+          onClick={() => onPreview?.(slot.resultUrl!)}
+          className="block w-full cursor-zoom-in"
+          aria-label="Preview image"
+        >
+          <Image src={slot.resultUrl} alt={slot.title} width={520} height={520} className={`${imageAspectClass(aspectRatio)} w-full rounded-lg border border-[#E5E5E5] bg-white object-cover`} unoptimized />
+        </button>
       ) : slot.status === "fail" ? (
         <div className={`${imageAspectClass(aspectRatio)} flex items-center justify-center rounded-lg border border-red-200 bg-red-50 p-4 text-center text-xs text-red-700`}>
           {slot.error || "Generation failed"}
@@ -998,17 +1056,17 @@ function ResultCard({
       )}
       {slot.resultUrl ? (
         <div className="mt-2 grid grid-cols-3 gap-1.5">
-          <button type="button" onClick={() => onRegenerate(slot)} className={`${secondaryButtonClass} h-8 justify-center text-[11px]`} aria-label="Edit image">
-            <RefreshCw className="h-3 w-3" />
+          <button type="button" onClick={() => onRegenerate(slot)} className={`${secondaryButtonClass} h-8 justify-center text-xs`} aria-label="Edit image">
+            <RefreshCw className="h-4 w-4" />
             <span>Edit</span>
           </button>
-          <button type="button" onClick={() => onCopy(slot.resultUrl!)} className={`${primaryButtonClass} h-8 justify-center text-[11px]`} aria-label="Copy image URL">
-            {copiedUrl === slot.resultUrl ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+          <button type="button" onClick={() => onCopy(slot.resultUrl!)} className={`${primaryButtonClass} h-8 justify-center text-xs`} aria-label="Copy image URL">
+            {copiedUrl === slot.resultUrl ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             <span>{copiedUrl === slot.resultUrl ? "Copied" : "Copy"}</span>
           </button>
-          <a href={slot.resultUrl} download={`${slot.id}.png`} target="_blank" rel="noreferrer" className={`${secondaryButtonClass} h-8 justify-center text-[11px]`} aria-label="Download image">
-            <Download className="h-3 w-3" />
-            <span>Download</span>
+          <a href={slot.resultUrl} download={`${slot.id}.png`} target="_blank" rel="noreferrer" className={`${secondaryButtonClass} h-8 justify-center text-xs`} aria-label="Save image">
+            <Download className="h-4 w-4" />
+            <span>Save</span>
           </a>
         </div>
       ) : null}
@@ -1161,6 +1219,41 @@ function RegenerateImageModal({
   );
 }
 
+function ImagePreviewModal({ url, onClose }: { url: string; onClose: () => void }) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[250] flex items-center justify-center bg-black/80 px-4 py-6 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white transition hover:bg-black/75"
+        aria-label="Close preview"
+      >
+        <X className="h-5 w-5" />
+      </button>
+      <Image
+        src={url}
+        alt="Preview"
+        width={1920}
+        height={1920}
+        className="max-h-[90vh] max-w-[90vw] rounded-xl object-contain"
+        unoptimized
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
 function VideoSection({
   video,
   aspectRatio,
@@ -1168,6 +1261,8 @@ function VideoSection({
   secondaryButtonClass,
   copiedUrl,
   onCopy,
+  onRetry,
+  isRetrying,
 }: {
   video: EcommerceListingMetadata["video"];
   aspectRatio: EcommerceListingVideoAspectRatio;
@@ -1175,6 +1270,8 @@ function VideoSection({
   secondaryButtonClass: string;
   copiedUrl: string | null;
   onCopy: (url: string) => void;
+  onRetry?: () => void;
+  isRetrying?: boolean;
 }) {
   if (!video) return null;
   return (
@@ -1193,8 +1290,28 @@ function VideoSection({
           {video.resultUrl ? (
             <video src={video.resultUrl} controls className={`${imageAspectClass(aspectRatio)} w-full rounded-lg border border-[#E5E5E5] bg-black object-cover`} />
           ) : video.status === "fail" ? (
-            <div className={`${imageAspectClass(aspectRatio)} flex items-center justify-center rounded-lg border border-red-200 bg-red-50 p-4 text-center text-xs text-red-700`}>
-              {video.error || "Video generation failed"}
+            <div className={`${imageAspectClass(aspectRatio)} relative flex flex-col items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4`}>
+              <p className="text-center text-xs text-red-700">{userFriendlyError(video.error)}</p>
+              {onRetry ? (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  disabled={isRetrying}
+                  className={`${primaryButtonClass} h-8 justify-center text-xs`}
+                >
+                  {isRetrying ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Retrying...</span>
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4" />
+                      <span>Retry</span>
+                    </>
+                  )}
+                </button>
+              ) : null}
             </div>
           ) : (
             <div className={`${imageAspectClass(aspectRatio)} relative flex items-center justify-center overflow-hidden rounded-lg border border-[#E5E5E5] bg-[#F8F8F8] text-xs text-[#888888]`}>
@@ -1204,13 +1321,13 @@ function VideoSection({
           )}
           {video.resultUrl ? (
             <div className="mt-2 grid grid-cols-2 gap-1.5">
-              <button type="button" onClick={() => onCopy(video.resultUrl!)} className={`${primaryButtonClass} h-8 justify-center text-[11px]`} aria-label="Copy video URL">
-                {copiedUrl === video.resultUrl ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+              <button type="button" onClick={() => onCopy(video.resultUrl!)} className={`${primaryButtonClass} h-8 justify-center text-xs`} aria-label="Copy video URL">
+                {copiedUrl === video.resultUrl ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 <span>{copiedUrl === video.resultUrl ? "Copied" : "Copy"}</span>
               </button>
-              <a href={video.resultUrl} download="ecommerce-listing-video.mp4" target="_blank" rel="noreferrer" className={`${secondaryButtonClass} h-8 justify-center text-[11px]`} aria-label="Download video">
-                <Download className="h-3 w-3" />
-                <span>Download</span>
+              <a href={video.resultUrl} download="ecommerce-listing-video.mp4" target="_blank" rel="noreferrer" className={`${secondaryButtonClass} h-8 justify-center text-xs`} aria-label="Save video">
+                <Download className="h-4 w-4" />
+                <span>Save</span>
               </a>
             </div>
           ) : null}

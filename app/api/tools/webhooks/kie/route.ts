@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Lookup task: Redis first, then Supabase
+      // Lookup task from the temporary Redis job store.
       const task = await getToolGenerationTaskByKieTaskId(taskId);
       if (!task) {
         console.warn(`[KIE Webhook] Task not found yet for kieTaskId: ${taskId}`);
@@ -153,6 +153,7 @@ export async function POST(request: NextRequest) {
             shouldCreateAdShortFilmVideoTask({
               taskMetadata: task.metadata,
               jobMetadata: job.metadata,
+              toolKey: job.tool_key,
             })
           ) {
             try {
@@ -278,7 +279,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('[KIE Webhook] Error:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 200 });
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }
 

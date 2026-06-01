@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { randomUUID } from 'crypto';
 import { redis } from '@/lib/redis';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -54,20 +54,39 @@ export interface ToolGenerationTask {
 
 // ─── Redis key helpers ────────────────────────────────────────────────────────
 
-const JOB_CACHE_PREFIX = 'tool:job:';
-const TASK_LOOKUP_PREFIX = 'tool:task:';
+const JOB_PREFIX = 'tool:job:';
+const TASK_PREFIX = 'tool:task:';
+const USER_LATEST_PREFIX = 'tool:user:';
 const WEBHOOK_IDEM_PREFIX = 'tool:webhook:';
 const LOCK_PREFIX = 'tool:lock:';
-const CACHE_TTL_SECONDS = 300; // 5 minutes
-const WEBHOOK_IDEM_TTL_SECONDS = 86400; // 24 hours
+
+const ACTIVE_JOB_TTL_SECONDS = 86400; // Active jobs are temporary but should survive long provider runs.
+const TERMINAL_JOB_TTL_SECONDS = 1800; // 30 minutes after completed/failed.
+const WEBHOOK_IDEM_TTL_SECONDS = 86400; // 24 hours.
 const LOCK_TTL_SECONDS = 30;
 
-function jobCacheKey(jobId: string) {
-  return `${JOB_CACHE_PREFIX}${jobId}`;
+const TOOL_KEYS: ToolKey[] = [
+  'ai-reference-angle',
+  'image-clone',
+  'image-clone-bulk',
+  'ad-short-film',
+  'ecommerce-listing-studio',
+];
+
+function jobKey(jobId: string) {
+  return `${JOB_PREFIX}${jobId}`;
 }
 
-function taskLookupKey(kieTaskId: string) {
-  return `${TASK_LOOKUP_PREFIX}${kieTaskId}`;
+function jobTasksKey(jobId: string) {
+  return `${JOB_PREFIX}${jobId}:tasks`;
+}
+
+function taskKey(kieTaskId: string) {
+  return `${TASK_PREFIX}${kieTaskId}`;
+}
+
+function userLatestKey(userId: string, toolKey: ToolKey) {
+  return `${USER_LATEST_PREFIX}${userId}:${toolKey}:latest`;
 }
 
 function webhookIdemKey(kieTaskId: string, state: string) {
@@ -78,11 +97,32 @@ function lockKey(kieTaskId: string) {
   return `${LOCK_PREFIX}${kieTaskId}`;
 }
 
+function isTerminalStatus(status: ToolGenerationJobStatus) {
+  return status === 'completed' || status === 'failed';
+}
+
+function ttlForJob(job: Pick<ToolGenerationJob, 'status'>) {
+  return isTerminalStatus(job.status) ? TERMINAL_JOB_TTL_SECONDS : ACTIVE_JOB_TTL_SECONDS;
+}
+
+async function setJson<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
+  await redis.set(key, value, { ex: ttlSeconds });
+}
+
+async function refreshJobRelatedTtls(job: ToolGenerationJob): Promise<void> {
+  const ttl = ttlForJob(job);
+  const tasks = await getToolGenerationTasksByJobId(job.id);
+
+  await Promise.all([
+    setJson(jobKey(job.id), job, ttl),
+    setJson(userLatestKey(job.user_id, job.tool_key), job.id, ttl),
+    setJson(jobTasksKey(job.id), tasks.map((task) => task.kie_task_id), ttl),
+    ...tasks.map((task) => setJson(taskKey(task.kie_task_id), task, ttl)),
+  ]);
+}
+
 // ─── Job CRUD ─────────────────────────────────────────────────────────────────
 
-// Schema verified via Supabase MCP (2026-05-21):
-// tool_generation_jobs and tool_generation_tasks exist in public schema.
-// Source migration 20260522_tool_generation_jobs.sql defines the columns used here.
 export async function createToolGenerationJob(params: {
   userId: string;
   toolKey: ToolKey;
@@ -90,45 +130,34 @@ export async function createToolGenerationJob(params: {
   metadata?: Record<string, unknown>;
   billedCredits?: number;
 }): Promise<ToolGenerationJob> {
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('tool_generation_jobs')
-    .insert({
-      user_id: params.userId,
-      tool_key: params.toolKey,
-      status: params.status ?? 'processing',
-      metadata: params.metadata ?? {},
-      billed_credits: params.billedCredits ?? 0,
-    })
-    .select()
-    .single();
+  const now = new Date().toISOString();
+  const job: ToolGenerationJob = {
+    id: randomUUID(),
+    user_id: params.userId,
+    tool_key: params.toolKey,
+    status: params.status ?? 'processing',
+    metadata: params.metadata ?? {},
+    result_url: null,
+    error_message: null,
+    billed_credits: params.billedCredits ?? 0,
+    billing_refunded_at: null,
+    webhook_received_at: null,
+    created_at: now,
+    updated_at: now,
+  };
 
-  if (error || !data) {
-    throw new Error(`Failed to create tool generation job: ${error?.message ?? 'unknown'}`);
-  }
+  const ttl = ttlForJob(job);
+  await Promise.all([
+    setJson(jobKey(job.id), job, ttl),
+    setJson(jobTasksKey(job.id), [], ttl),
+    setJson(userLatestKey(job.user_id, job.tool_key), job.id, ttl),
+  ]);
 
-  const job = data as ToolGenerationJob;
-  await cacheJobSnapshot(job.id, job);
   return job;
 }
 
 export async function getToolGenerationJob(jobId: string): Promise<ToolGenerationJob | null> {
-  // Try cache first
-  const cached = await getCachedJobSnapshot(jobId);
-  if (cached) return cached;
-
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('tool_generation_jobs')
-    .select('*')
-    .eq('id', jobId)
-    .single();
-
-  if (error || !data) return null;
-
-  const job = data as ToolGenerationJob;
-  await cacheJobSnapshot(jobId, job);
-  return job;
+  return await redis.get<ToolGenerationJob>(jobKey(jobId));
 }
 
 export async function updateToolGenerationJob(
@@ -143,18 +172,16 @@ export async function updateToolGenerationJob(
     webhook_received_at?: string | null;
   }
 ): Promise<ToolGenerationJob | null> {
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('tool_generation_jobs')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', jobId)
-    .select()
-    .single();
+  const current = await getToolGenerationJob(jobId);
+  if (!current) return null;
 
-  if (error || !data) return null;
+  const job: ToolGenerationJob = {
+    ...current,
+    ...updates,
+    updated_at: new Date().toISOString(),
+  };
 
-  const job = data as ToolGenerationJob;
-  await cacheJobSnapshot(jobId, job);
+  await refreshJobRelatedTtls(job);
   return job;
 }
 
@@ -162,21 +189,17 @@ export async function getToolGenerationJobsByUser(
   userId: string,
   toolKey?: ToolKey
 ): Promise<ToolGenerationJob[]> {
-  const supabase = getSupabaseAdmin();
-  let query = supabase
-    .from('tool_generation_jobs')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+  const toolKeys = toolKey ? [toolKey] : TOOL_KEYS;
+  const latestJobIds = await Promise.all(
+    toolKeys.map((key) => redis.get<string>(userLatestKey(userId, key)))
+  );
+  const jobs = await Promise.all(
+    latestJobIds.filter((id): id is string => Boolean(id)).map((id) => getToolGenerationJob(id))
+  );
 
-  if (toolKey) {
-    query = query.eq('tool_key', toolKey);
-  }
-
-  const { data, error } = await query;
-  if (error || !data) return [];
-
-  return data as ToolGenerationJob[];
+  return jobs
+    .filter((job): job is ToolGenerationJob => job !== null && job.user_id === userId)
+    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
 }
 
 // ─── Task CRUD ────────────────────────────────────────────────────────────────
@@ -188,47 +211,45 @@ export async function createToolGenerationTask(params: {
   provider?: string;
   metadata?: Record<string, unknown>;
 }): Promise<ToolGenerationTask> {
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('tool_generation_tasks')
-    .insert({
-      job_id: params.jobId,
-      kie_task_id: params.kieTaskId,
-      tool_key: params.toolKey,
-      provider: params.provider ?? 'kie',
-      metadata: params.metadata ?? {},
-    })
-    .select()
-    .single();
-
-  if (error || !data) {
-    throw new Error(`Failed to create tool generation task: ${error?.message ?? 'unknown'}`);
+  const job = await getToolGenerationJob(params.jobId);
+  if (!job) {
+    throw new Error(`Failed to create tool generation task: job ${params.jobId} was not found in Redis`);
   }
 
-  const task = data as ToolGenerationTask;
-  await cacheTaskLookup(params.kieTaskId, task);
+  const now = new Date().toISOString();
+  const task: ToolGenerationTask = {
+    id: randomUUID(),
+    job_id: params.jobId,
+    kie_task_id: params.kieTaskId,
+    provider: params.provider ?? 'kie',
+    tool_key: params.toolKey,
+    status: 'processing',
+    result_url: null,
+    error_message: null,
+    webhook_received_at: null,
+    metadata: params.metadata ?? {},
+    created_at: now,
+    updated_at: now,
+  };
+
+  const taskIds = await redis.get<string[]>(jobTasksKey(params.jobId)) ?? [];
+  const nextTaskIds = Array.from(new Set([...taskIds, params.kieTaskId]));
+  const ttl = ttlForJob(job);
+
+  await Promise.all([
+    setJson(taskKey(params.kieTaskId), task, ttl),
+    setJson(jobTasksKey(params.jobId), nextTaskIds, ttl),
+    setJson(jobKey(job.id), { ...job, updated_at: now }, ttl),
+    setJson(userLatestKey(job.user_id, job.tool_key), job.id, ttl),
+  ]);
+
   return task;
 }
 
 export async function getToolGenerationTaskByKieTaskId(
   kieTaskId: string
 ): Promise<ToolGenerationTask | null> {
-  // Try cache first
-  const cached = await getCachedTaskLookup(kieTaskId);
-  if (cached) return cached;
-
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('tool_generation_tasks')
-    .select('*')
-    .eq('kie_task_id', kieTaskId)
-    .single();
-
-  if (error || !data) return null;
-
-  const task = data as ToolGenerationTask;
-  await cacheTaskLookup(kieTaskId, task);
-  return task;
+  return await redis.get<ToolGenerationTask>(taskKey(kieTaskId));
 }
 
 export async function getToolGenerationTasksByKieTaskIds(
@@ -237,17 +258,8 @@ export async function getToolGenerationTasksByKieTaskIds(
   const uniqueTaskIds = Array.from(new Set(kieTaskIds.filter(Boolean)));
   if (uniqueTaskIds.length === 0) return [];
 
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('tool_generation_tasks')
-    .select('*')
-    .in('kie_task_id', uniqueTaskIds);
-
-  if (error || !data) return [];
-
-  const tasks = data as ToolGenerationTask[];
-  await Promise.all(tasks.map((task) => cacheTaskLookup(task.kie_task_id, task)));
-  return tasks;
+  const tasks = await Promise.all(uniqueTaskIds.map((id) => getToolGenerationTaskByKieTaskId(id)));
+  return tasks.filter((task): task is ToolGenerationTask => Boolean(task));
 }
 
 export async function updateToolGenerationTask(
@@ -260,87 +272,36 @@ export async function updateToolGenerationTask(
     metadata?: Record<string, unknown>;
   }
 ): Promise<ToolGenerationTask | null> {
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('tool_generation_tasks')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('kie_task_id', kieTaskId)
-    .select()
-    .single();
+  const current = await getToolGenerationTaskByKieTaskId(kieTaskId);
+  if (!current) return null;
 
-  if (error || !data) return null;
+  const job = await getToolGenerationJob(current.job_id);
+  const ttl = job ? ttlForJob(job) : TERMINAL_JOB_TTL_SECONDS;
+  const task: ToolGenerationTask = {
+    ...current,
+    ...updates,
+    updated_at: new Date().toISOString(),
+  };
 
-  const task = data as ToolGenerationTask;
-  await cacheTaskLookup(kieTaskId, task);
-  // Invalidate task list cache for the job
-  await redis.del(`${JOB_CACHE_PREFIX}tasks:${task.job_id}`);
+  await setJson(taskKey(kieTaskId), task, ttl);
+  if (job) {
+    await refreshJobRelatedTtls(job);
+  }
+
   return task;
 }
 
 export async function getToolGenerationTasksByJobId(
   jobId: string,
-  options: { skipCache?: boolean } = {}
+  _options: { skipCache?: boolean } = {}
 ): Promise<ToolGenerationTask[]> {
-  const cacheKey = `${JOB_CACHE_PREFIX}tasks:${jobId}`;
-  if (!options.skipCache) {
-    try {
-      const cached = await redis.get<ToolGenerationTask[]>(cacheKey);
-      if (cached) return cached;
-    } catch {
-      // Redis miss, fall through to Supabase
-    }
-  }
+  const taskIds = await redis.get<string[]>(jobTasksKey(jobId)) ?? [];
+  if (taskIds.length === 0) return [];
 
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('tool_generation_tasks')
-    .select('*')
-    .eq('job_id', jobId)
-    .order('created_at', { ascending: true });
-
-  if (error || !data) return [];
-
-  const tasks = data as ToolGenerationTask[];
-  try {
-    await redis.set(cacheKey, tasks, { ex: CACHE_TTL_SECONDS });
-  } catch {
-    // Cache write failure is non-critical
-  }
-  return tasks;
-}
-
-// ─── Redis caching ────────────────────────────────────────────────────────────
-
-async function cacheJobSnapshot(jobId: string, job: ToolGenerationJob): Promise<void> {
-  try {
-    await redis.set(jobCacheKey(jobId), job, { ex: CACHE_TTL_SECONDS });
-  } catch {
-    // Cache write failure is non-critical
-  }
-}
-
-async function getCachedJobSnapshot(jobId: string): Promise<ToolGenerationJob | null> {
-  try {
-    return await redis.get<ToolGenerationJob>(jobCacheKey(jobId));
-  } catch {
-    return null;
-  }
-}
-
-async function cacheTaskLookup(kieTaskId: string, task: ToolGenerationTask): Promise<void> {
-  try {
-    await redis.set(taskLookupKey(kieTaskId), task, { ex: CACHE_TTL_SECONDS });
-  } catch {
-    // Cache write failure is non-critical
-  }
-}
-
-async function getCachedTaskLookup(kieTaskId: string): Promise<ToolGenerationTask | null> {
-  try {
-    return await redis.get<ToolGenerationTask>(taskLookupKey(kieTaskId));
-  } catch {
-    return null;
-  }
+  const tasks = await Promise.all(taskIds.map((id) => getToolGenerationTaskByKieTaskId(id)));
+  return tasks
+    .filter((task): task is ToolGenerationTask => Boolean(task))
+    .sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime());
 }
 
 // ─── Webhook idempotency ──────────────────────────────────────────────────────
@@ -349,44 +310,35 @@ export async function acquireWebhookIdempotencyKey(
   kieTaskId: string,
   state: string
 ): Promise<boolean> {
-  try {
-    const result = await redis.set(webhookIdemKey(kieTaskId, state), '1', {
-      ex: WEBHOOK_IDEM_TTL_SECONDS,
-      nx: true,
-    });
-    return result === 'OK';
-  } catch {
-    // If Redis is down, allow the webhook through (idempotency is best-effort)
-    return true;
-  }
+  const result = await redis.set(webhookIdemKey(kieTaskId, state), '1', {
+    ex: WEBHOOK_IDEM_TTL_SECONDS,
+    nx: true,
+  });
+  return result === 'OK';
 }
 
 export async function acquireWebhookLock(kieTaskId: string): Promise<boolean> {
-  try {
-    const result = await redis.set(lockKey(kieTaskId), '1', {
-      ex: LOCK_TTL_SECONDS,
-      nx: true,
-    });
-    return result === 'OK';
-  } catch {
-    return true; // Allow through if Redis is unavailable
-  }
+  const result = await redis.set(lockKey(kieTaskId), '1', {
+    ex: LOCK_TTL_SECONDS,
+    nx: true,
+  });
+  return result === 'OK';
 }
 
 export async function releaseWebhookLock(kieTaskId: string): Promise<void> {
-  try {
-    await redis.del(lockKey(kieTaskId));
-  } catch {
-    // Best effort
-  }
+  await redis.del(lockKey(kieTaskId));
 }
 
 // ─── Cache invalidation ───────────────────────────────────────────────────────
 
 export async function invalidateJobCache(jobId: string): Promise<void> {
-  try {
-    await redis.del(jobCacheKey(jobId));
-  } catch {
-    // Best effort
-  }
+  const job = await getToolGenerationJob(jobId);
+  const tasks = await getToolGenerationTasksByJobId(jobId);
+
+  await Promise.all([
+    redis.del(jobKey(jobId)),
+    redis.del(jobTasksKey(jobId)),
+    ...(job ? [redis.del(userLatestKey(job.user_id, job.tool_key))] : []),
+    ...tasks.map((task) => redis.del(taskKey(task.kie_task_id))),
+  ]);
 }

@@ -162,7 +162,7 @@ export async function POST(request: Request) {
           userId, billedCredits: IMAGE_GENERATION_CREDIT_COST, billingRefundedAt: null,
         });
 
-        // Create task in Supabase
+        // Create task in the temporary Redis job store.
         await createToolGenerationTask({
           jobId: job.id,
           kieTaskId: taskId,

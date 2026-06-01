@@ -37,8 +37,10 @@ export type ToolGenerationJobUpdate = {
 export function shouldCreateAdShortFilmVideoTask(input: {
   taskMetadata: Record<string, unknown> | null | undefined;
   jobMetadata: Record<string, unknown> | null | undefined;
+  toolKey?: string;
 }) {
   return (
+    input.toolKey === 'ad-short-film' &&
     input.taskMetadata?.stage === 'storyboard_image' &&
     typeof input.jobMetadata?.video_task_id !== 'string'
   );
