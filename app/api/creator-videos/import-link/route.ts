@@ -2,7 +2,7 @@ import { after, NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { fetchSocialVideoInfo, isValidSocialVideoUrl, detectPlatform } from '@/lib/fetch-social-video';
-import { downloadVideoBuffer, uploadCreatorVideoCoverToStorage, uploadCreatorVideoToStorage } from '@/lib/creator-videos-storage';
+import { downloadVideoBuffer, uploadCreatorVideoToStorage } from '@/lib/creator-videos-storage';
 import { analyzeCreatorVideoAndUpdate } from '@/lib/creator-video-analysis';
 
 export const dynamic = 'force-dynamic';
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch video URL' }, { status: 500 });
     }
 
-    const { videoUrl: cdnUrl, thumbnailUrl: apiThumbnail, durationSeconds: apiDuration } = videoInfo;
+    const { videoUrl: cdnUrl, durationSeconds: apiDuration } = videoInfo;
 
     const platformVideoId = videoId || crypto.randomUUID();
     const analysisDurationSeconds =
@@ -114,7 +114,6 @@ export async function POST(request: NextRequest) {
       platform_video_id: platformVideoId,
       video_url: url,
       video_cdn_url: cdnUrl,
-      cover_url: null,
       analysis_error: null
     };
 
@@ -146,8 +145,6 @@ export async function POST(request: NextRequest) {
     const sourceNameForAnalysis = source.source_name;
     const originalCdnUrl = cdnUrl;
     const expectedVideoFileName = `${platformVideoId}.mp4`;
-    const expectedCoverFileName = `${platformVideoId}.png`;
-    const thumbnailUrl = apiThumbnail;
 
     // Run heavy tasks after response to avoid connection timeouts
     after(async () => {
@@ -177,31 +174,6 @@ export async function POST(request: NextRequest) {
           .eq('id', storedVideoId);
       } catch (storageError) {
         console.warn('[Creator Videos Import Link] Background storage upload failed, using CDN URL:', storageError);
-      }
-
-      // Upload cover thumbnail from API response (works for all platforms)
-      if (thumbnailUrl) {
-        try {
-          const coverFile = await downloadVideoBuffer(thumbnailUrl);
-          const coverUpload = await uploadCreatorVideoCoverToStorage({
-            userId,
-            creatorVideoId: storedVideoId,
-            fileName: expectedCoverFileName,
-            buffer: coverFile.buffer,
-            contentType: coverFile.contentType
-          });
-
-          await bgSupabase
-            .from('creator_source_videos')
-            .update({
-              cover_url: coverUpload.publicUrl,
-              cover_storage_bucket: coverUpload.bucket,
-              cover_storage_path: coverUpload.path
-            })
-            .eq('id', storedVideoId);
-        } catch (coverError) {
-          console.warn('[Creator Videos Import Link] Cover upload failed:', coverError);
-        }
       }
 
       // Run AI analysis if not already provided

@@ -2183,7 +2183,7 @@ export async function POST(request: Request) {
     const loadSemanticVideoCloneReferenceAssets = async () => {
       const { data: creatorSources, error: creatorSourcesError } = await supabase
         .from('creator_sources')
-        .select('id, source_name, creator_source_videos(id, video_url, video_cdn_url, cover_url, description, duration_seconds, analysis_language)')
+        .select('id, source_name, creator_source_videos(id, video_url, video_cdn_url, description, duration_seconds, analysis_language)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
@@ -2214,7 +2214,7 @@ export async function POST(request: Request) {
           name: typeof video.description === 'string' && video.description.trim().length > 0
             ? video.description
             : sourceName || 'Reference video',
-          imageUrl: typeof video.cover_url === 'string' ? video.cover_url : null,
+          imageUrl: null,
           durationSeconds: typeof video.duration_seconds === 'number' ? video.duration_seconds : null,
           sourceType: 'creator' as const,
           videoUrl: typeof video.video_url === 'string' ? video.video_url : null,
@@ -2278,7 +2278,7 @@ export async function POST(request: Request) {
 
       const { data: semanticMotionVideos, error: semanticMotionVideosError } = await supabase
         .from('creator_source_videos')
-        .select('id, video_url, video_cdn_url, cover_url, description, duration_seconds, analysis_language, analysis_result')
+        .select('id, video_url, video_cdn_url, description, duration_seconds, analysis_language, analysis_result')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
@@ -2297,7 +2297,7 @@ export async function POST(request: Request) {
           name: typeof video.description === 'string' && video.description.trim().length > 0
             ? video.description
             : 'Reference video',
-          imageUrl: typeof video.cover_url === 'string' ? video.cover_url : null,
+          imageUrl: null,
           durationSeconds: typeof video.duration_seconds === 'number' ? video.duration_seconds : null,
           sourceType: 'creator' as const,
           videoUrl: typeof video.video_url === 'string' ? video.video_url : null,
@@ -3583,7 +3583,7 @@ export async function POST(request: Request) {
 
       const { data: creatorSources, error: creatorSourcesError } = await supabase
         .from('creator_sources')
-        .select('id, source_name, creator_source_videos(id, video_url, video_cdn_url, cover_url, description, duration_seconds, analysis_language)')
+        .select('id, source_name, creator_source_videos(id, video_url, video_cdn_url, description, duration_seconds, analysis_language)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
@@ -3618,7 +3618,7 @@ export async function POST(request: Request) {
           sourceType: 'creator' as const,
           videoUrl: typeof video.video_url === 'string' ? video.video_url : null,
           videoCdnUrl: typeof video.video_cdn_url === 'string' ? video.video_cdn_url : null,
-          coverUrl: typeof video.cover_url === 'string' ? video.cover_url : null,
+          coverUrl: null,
           durationSeconds: typeof video.duration_seconds === 'number' ? video.duration_seconds : null,
           analysisLanguage: typeof video.analysis_language === 'string' ? video.analysis_language : null,
         }));
@@ -4857,10 +4857,10 @@ export async function POST(request: Request) {
     const fetchMotionCloneReferenceVideos = async (): Promise<ProjectAgentMotionCloneReferenceVideo[]> => {
       // Schema verified via Supabase MCP (2026-03-18):
       // creator_source_videos columns used here:
-      // id, user_id, video_url, video_cdn_url, cover_url, description, duration_seconds, analysis_language, analysis_result, created_at
+      // id, user_id, video_url, video_cdn_url, description, duration_seconds, analysis_language, analysis_result, created_at
       const { data, error } = await supabase
         .from('creator_source_videos')
-        .select('id, video_url, video_cdn_url, cover_url, description, duration_seconds, analysis_language, analysis_result')
+        .select('id, video_url, video_cdn_url, description, duration_seconds, analysis_language, analysis_result')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
@@ -4881,7 +4881,7 @@ export async function POST(request: Request) {
             description: typeof video.description === 'string' ? video.description : null,
             videoUrl: typeof video.video_url === 'string' ? video.video_url : null,
             videoCdnUrl: typeof video.video_cdn_url === 'string' ? video.video_cdn_url : null,
-            coverUrl: typeof video.cover_url === 'string' ? video.cover_url : null,
+            coverUrl: null,
             durationSeconds: typeof video.duration_seconds === 'number' ? video.duration_seconds : null,
             analysisLanguage: typeof video.analysis_language === 'string' ? video.analysis_language : null,
             analysisResult,
@@ -6632,7 +6632,7 @@ export async function POST(request: Request) {
             const videos = await fetchMotionCloneReferenceVideos();
             return {
               success: true,
-              videos: videos.filter((video) => Boolean(video.coverUrl))
+              videos
             };
           }
         }),
@@ -6651,10 +6651,6 @@ export async function POST(request: Request) {
             if (!match) {
               return { success: false, message: 'No matching reference video found.' };
             }
-            if (!match.coverUrl) {
-              return { success: false, message: 'This reference video is missing a first frame and cannot be used yet.' };
-            }
-
             const baseState = buildFreshMotionCloneState(sessionState);
             await persistSession({
               ...baseState,

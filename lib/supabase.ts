@@ -316,9 +316,6 @@ export interface CreatorSourceVideo {
   video_cdn_url?: string | null
   storage_bucket?: StorageBucket | null
   storage_path?: string | null
-  cover_url?: string | null
-  cover_storage_bucket?: StorageBucket | null
-  cover_storage_path?: string | null
   description?: string | null
   stats?: Record<string, unknown> | null
   duration_seconds?: number | null
@@ -352,7 +349,6 @@ export interface MotionCloneProject {
   product_photo_id?: string | null
   reference_video_url?: string | null
   reference_video_cdn_url?: string | null
-  reference_cover_url?: string | null
   reference_duration_seconds?: number | null
   photo_prompt?: string | null
   video_prompt?: string | null

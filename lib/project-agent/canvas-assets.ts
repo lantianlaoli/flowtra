@@ -9,10 +9,9 @@ export const toProjectAgentVideoAssets = (value: unknown): ProjectAgentCanvasAss
       const sourceType = item.source_type === 'reference_video' ? 'reference_video' : 'creator';
       if (sourceType === 'reference_video') return true;
 
-      const coverUrl = typeof item.cover_url === 'string' ? item.cover_url.trim() : '';
       const videoUrl = typeof item.video_url === 'string' ? item.video_url.trim() : '';
       const videoCdnUrl = typeof item.video_cdn_url === 'string' ? item.video_cdn_url.trim() : '';
-      return coverUrl.length > 0 || videoUrl.length > 0 || videoCdnUrl.length > 0;
+      return videoUrl.length > 0 || videoCdnUrl.length > 0;
     })
     .map((item) => ({
       id: String(item.id),
@@ -21,7 +20,7 @@ export const toProjectAgentVideoAssets = (value: unknown): ProjectAgentCanvasAss
         : typeof item.source_name === 'string' && item.source_name.trim().length > 0
           ? item.source_name.trim()
           : 'Video',
-      imageUrl: typeof item.cover_url === 'string' ? item.cover_url : null,
+      imageUrl: null,
       durationSeconds: typeof item.duration_seconds === 'number' ? item.duration_seconds : null,
       sourceType: item.source_type === 'reference_video' ? 'reference_video' : 'creator',
       videoUrl: typeof item.video_url === 'string' ? item.video_url : null,

@@ -2103,7 +2103,6 @@ export default function VideoClonePage() {
               videos={assetVideos}
               selectedVideoId={selectedReferenceVideoId}
               onSelectVideoId={setSelectedReferenceVideoId}
-              requireFirstFrameForSelection={false}
               variant="inline"
               showLabel={false}
               className="flex-shrink-0"

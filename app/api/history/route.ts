@@ -189,7 +189,7 @@ export async function GET() {
 
     // Fetch Motion Clone data
     // Schema verified via Supabase MCP (2026-03-18): motion_clone_projects columns include
-    // id, user_id, status, preview_image_url, reference_cover_url, output_video_url,
+    // id, user_id, status, preview_image_url, output_video_url,
     // credits_cost, generation_credits_used, downloaded, progress_percentage, mode,
     // reference_duration_seconds, photo_prompt, video_prompt, error_message, created_at
     const { data: motionCloneItems, error: motionCloneError } = await supabase
@@ -300,7 +300,7 @@ export async function GET() {
 
       return {
         id: item.id,
-        coverImageUrl: item.preview_image_url || item.reference_cover_url || undefined,
+        coverImageUrl: item.preview_image_url || undefined,
         coverAspectRatio: resolveCoverAspectRatio('9:16'),
         videoUrl,
         downloaded: item.downloaded || false,

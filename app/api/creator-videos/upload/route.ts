@@ -80,8 +80,6 @@ export async function POST(request: NextRequest) {
 
     const uploadedPublicUrl = publicUrlData.publicUrl;
 
-    const coverUrl: string | null = null;
-
     const sourceName = 'Uploaded';
 
     // Schema verified via Supabase MCP (2026-02-26): creator_sources
@@ -130,7 +128,6 @@ export async function POST(request: NextRequest) {
         video_cdn_url: uploadedPublicUrl,
         storage_bucket: storageBucket,
         storage_path: storagePath,
-        cover_url: coverUrl,
         analysis_status: 'pending',
         analysis_error: null
       })

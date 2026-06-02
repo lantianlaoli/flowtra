@@ -20,7 +20,6 @@ interface CreatorSourceVideo {
   platform: string;
   video_url: string;
   video_cdn_url?: string | null;
-  cover_url?: string | null;
   description?: string | null;
   duration_seconds?: number | null;
   stats?: Record<string, unknown> | null;
@@ -234,18 +233,10 @@ function CreatorSourceVideoTile({ video, sourceId }: { video: CreatorSourceVideo
           <video
             ref={videoRef}
             src={video.video_cdn_url}
-            poster={video.cover_url || undefined}
             muted
             playsInline
             loop
             className="absolute inset-0 w-full h-full object-cover"
-          />
-        ) : video.cover_url ? (
-          <Image
-            src={video.cover_url}
-            alt={video.description || 'TikTok video'}
-            fill
-            className="object-cover"
           />
         ) : (
           <div className="flex items-center justify-center h-full text-gray-300">

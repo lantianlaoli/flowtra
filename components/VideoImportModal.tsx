@@ -25,7 +25,6 @@ interface ImportedVideo {
   source_name?: string | null;
   video_url?: string | null;
   video_cdn_url?: string | null;
-  cover_url?: string | null;
   description?: string | null;
   duration_seconds?: number | null;
   analysis_status?: string | null;
@@ -44,8 +43,6 @@ interface VideoImportModalProps {
 }
 
 type ImportStep = 'choose' | 'link' | 'upload' | 'creator' | 'creator-preview' | 'processing' | 'processing-batch';
-type ProcessingOrigin = 'upload' | 'link' | 'creator' | null;
-
 const readApiErrorMessage = async (response: Response, fallback: string) => {
   const text = await response.text();
   if (!text) return fallback;
@@ -204,9 +201,6 @@ export default function VideoImportModal({
   const [processingVideo, setProcessingVideo] = useState<ImportedVideo | null>(null);
   const [processingMessage, setProcessingMessage] = useState('');
   const [processingCount, setProcessingCount] = useState(0);
-  const [processingOrigin, setProcessingOrigin] = useState<ProcessingOrigin>(null);
-  const [isFirstFrameUploading, setIsFirstFrameUploading] = useState(false);
-  const [firstFrameUploadError, setFirstFrameUploadError] = useState<string | null>(null);
   const [videoName, setVideoName] = useState('');
   const [isSavingVideoName, setIsSavingVideoName] = useState(false);
   const [isRetryingAnalysis, setIsRetryingAnalysis] = useState(false);
@@ -234,9 +228,6 @@ export default function VideoImportModal({
     setProcessingVideo(null);
     setProcessingMessage('');
     setProcessingCount(0);
-    setProcessingOrigin(null);
-    setIsFirstFrameUploading(false);
-    setFirstFrameUploadError(null);
     setVideoName('');
     setIsSavingVideoName(false);
     setIsRetryingAnalysis(false);
@@ -334,8 +325,6 @@ export default function VideoImportModal({
     };
   }, [onVideoUpdated, processingVideo?.analysis_result, processingVideo?.analysis_status, processingVideo?.id, step, supabase]);
 
-  const requiresFirstFrameForMotionClone = processingOrigin === 'upload';
-  const hasFirstFrameImage = Boolean(processingVideo?.cover_url);
   const previewWidth = 324;
   const previewHeight = 576;
   const previewCardClassName = 'flex-none overflow-hidden rounded-xl';
@@ -498,8 +487,6 @@ export default function VideoImportModal({
     setStep('processing');
     setIsSubmitting(true);
     setError(null);
-    setFirstFrameUploadError(null);
-    setProcessingOrigin('link');
     setProcessingMessage('Importing video and running analysis...');
     setProcessingVideo(null);
 
@@ -557,8 +544,6 @@ export default function VideoImportModal({
     setStep('processing');
     setIsSubmitting(true);
     setError(null);
-    setFirstFrameUploadError(null);
-    setProcessingOrigin('upload');
     setProcessingMessage('Uploading video and running analysis...');
     setProcessingVideo(null);
 
@@ -683,8 +668,6 @@ export default function VideoImportModal({
     setStep('processing-batch');
     setIsSubmitting(true);
     setError(null);
-    setFirstFrameUploadError(null);
-    setProcessingOrigin('creator');
     setProcessingMessage('Processing selected videos. This may take a few minutes.');
     setProcessingCount(selectedVideos.length);
 
@@ -766,46 +749,6 @@ export default function VideoImportModal({
       onError?.(message);
     } finally {
       setIsRetryingAnalysis(false);
-    }
-  };
-
-  const handleUploadFirstFrame = async (file: File | null) => {
-    if (!file || !processingVideo?.id) {
-      return;
-    }
-
-    setIsFirstFrameUploading(true);
-    setFirstFrameUploadError(null);
-
-    try {
-      if (!file.type.startsWith('image/')) {
-        throw new Error('Please upload an image file for the first frame.');
-      }
-
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch(`/api/creator-videos/${processingVideo.id}/first-frame`, {
-        method: 'POST',
-        body: formData
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to upload first frame image.');
-      }
-
-      const updatedVideo = data.video as ImportedVideo;
-      setProcessingVideo(prev => prev ? { ...prev, cover_url: updatedVideo.cover_url || null } : prev);
-      onImported([updatedVideo], {
-        message: 'First frame uploaded. Motion Clone is now available.'
-      });
-    } catch (uploadError) {
-      const message = uploadError instanceof Error ? uploadError.message : 'Failed to upload first frame image.';
-      setFirstFrameUploadError(message);
-      onError?.(message);
-    } finally {
-      setIsFirstFrameUploading(false);
     }
   };
 
@@ -1102,56 +1045,7 @@ export default function VideoImportModal({
             {step === 'processing' && (
               <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6">
                 <div className="grid min-h-0 grid-cols-1 items-start gap-6 lg:grid-cols-[max-content_minmax(0,1fr)] lg:items-end">
-                  <div className={`min-h-0 min-w-0 overflow-hidden ${requiresFirstFrameForMotionClone ? 'flex items-end gap-4' : 'flex items-end justify-center'}`}>
-                    {requiresFirstFrameForMotionClone ? (
-                      <label
-                        className={`flex min-w-0 min-h-0 cursor-pointer border-2 border-dashed border-gray-300 bg-white transition-colors hover:border-gray-500 ${previewCardClassName}`}
-                        style={{ width: `${previewWidth}px`, height: `${previewHeight}px` }}
-                      >
-                        <div className="relative flex h-full w-full items-center justify-center overflow-hidden px-5 text-center">
-                          {processingVideo?.cover_url ? (
-                            <Image
-                              src={processingVideo.cover_url}
-                              alt="First frame"
-                              fill
-                              sizes={`${previewWidth}px`}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex flex-col items-center justify-center gap-3">
-                              <Upload className="w-5 h-5 text-gray-500" />
-                              {isFirstFrameUploading ? (
-                                <div className="flex items-center gap-2 text-sm text-gray-600">
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  <span>Uploading first frame...</span>
-                                </div>
-                              ) : (
-                                <>
-                                  <p className="text-sm font-medium text-gray-800">First Frame</p>
-                                  <p className="text-xs text-gray-500">Click to upload</p>
-                                </>
-                              )}
-                              {firstFrameUploadError ? (
-                                <p className="max-w-[220px] text-xs text-red-500">{firstFrameUploadError}</p>
-                              ) : null}
-                            </div>
-                          )}
-                          <span className="sr-only">Upload first frame</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            disabled={isFirstFrameUploading}
-                            onChange={(event) => {
-                              const file = event.target.files?.[0] || null;
-                              void handleUploadFirstFrame(file);
-                              event.currentTarget.value = '';
-                            }}
-                          />
-                        </div>
-                      </label>
-                    ) : null}
-
+                  <div className="min-h-0 min-w-0 overflow-hidden flex items-end justify-center">
                     <div className="min-h-0 flex items-stretch justify-center">
                       <div
                         className={`bg-black/95 ${previewCardClassName}`}

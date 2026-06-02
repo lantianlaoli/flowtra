@@ -106,7 +106,7 @@ export async function DELETE(
     // Schema verified via Supabase MCP (2026-01-28): creator_source_videos has id and user_id columns.
     const { data: existingVideo, error: fetchError } = await supabase
       .from('creator_source_videos')
-      .select('id, user_id, video_url, video_cdn_url, cover_url, storage_bucket, storage_path, cover_storage_bucket, cover_storage_path')
+      .select('id, user_id, video_url, video_cdn_url, storage_bucket, storage_path')
       .eq('id', id)
       .eq('user_id', userId)
       .single();
@@ -132,11 +132,6 @@ export async function DELETE(
         bucket: existingVideo.storage_bucket,
         path: existingVideo.storage_path,
         publicUrl: existingVideo.video_cdn_url || existingVideo.video_url
-      },
-      {
-        bucket: existingVideo.cover_storage_bucket,
-        path: existingVideo.cover_storage_path,
-        publicUrl: existingVideo.cover_url
       }
     ];
 

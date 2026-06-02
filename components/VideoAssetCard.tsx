@@ -9,7 +9,6 @@ interface VideoAsset {
   platform?: string;
   video_url?: string | null;
   video_cdn_url?: string | null;
-  cover_url?: string | null;
   description?: string | null;
   duration_seconds?: number | null;
   source_id?: string | null;

@@ -1,7 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import Image from 'next/image';
+import { useState } from 'react';
 import { Clapperboard, Video as VideoIcon, Clock3, Languages, Rows3, ChevronRight } from 'lucide-react';
 import BottomBarDropdown from '@/components/ui/BottomBarDropdown';
 import { cn } from '@/lib/utils';
@@ -13,7 +12,6 @@ interface MotionCloneVideo {
   platform_video_id?: string | null;
   video_url: string;
   video_cdn_url?: string | null;
-  cover_url?: string | null;
   description?: string | null;
   duration_seconds?: number | null;
   analysis_result?: Record<string, unknown> | null;
@@ -26,7 +24,6 @@ interface MotionCloneReferenceControlsProps {
   videos: MotionCloneVideo[];
   selectedVideoId: string;
   onSelectVideoId: (id: string) => void;
-  requireFirstFrameForSelection?: boolean;
   variant?: 'inline' | 'stacked';
   showLabel?: boolean;
   className?: string;
@@ -41,17 +38,12 @@ export default function MotionCloneReferenceControls({
   videos,
   selectedVideoId,
   onSelectVideoId,
-  requireFirstFrameForSelection = true,
   variant = 'stacked',
   showLabel = true,
   className
 }: MotionCloneReferenceControlsProps) {
   const [videoOpen, setVideoOpen] = useState(false);
 
-  const selectedVideo = useMemo(
-    () => videos.find(video => video.id === selectedVideoId),
-    [videos, selectedVideoId]
-  );
   const isInline = variant === 'inline';
 
   return (
@@ -78,8 +70,6 @@ export default function MotionCloneReferenceControls({
           {videos.length > 0 ? (
             <div className="max-h-[340px] space-y-1.5 overflow-y-auto pr-1">
               {videos.map(video => {
-                const hasFirstFrame = Boolean(video.cover_url);
-                const canSelectVideo = requireFirstFrameForSelection ? hasFirstFrame : true;
                 const languageDisplay = getLanguageDisplayInfo(video.analysis_language);
                 const durationLabel = video.duration_seconds ? `${video.duration_seconds}s` : '--';
                 const languageLabel = languageDisplay?.label || '--';
@@ -90,17 +80,13 @@ export default function MotionCloneReferenceControls({
                     key={video.id}
                     type="button"
                     onClick={() => {
-                      if (!canSelectVideo) return;
                       onSelectVideoId(video.id);
                       setVideoOpen(false);
                     }}
-                    disabled={!canSelectVideo}
                     className={`bottom-bar-video-option w-full rounded-[18px] border px-2.5 py-2.5 text-left transition-all ${
-                      selectedVideoId === video.id && canSelectVideo
+                      selectedVideoId === video.id
                         ? 'border-black bg-[#f8f8f5] shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_2px_0_rgba(232,232,228,0.98)]'
-                        : canSelectVideo
-                          ? 'border-[#e1e1dc] bg-white hover:border-black/45 hover:bg-[#fcfcfa]'
-                          : 'cursor-not-allowed border-[#e6e6e1] bg-[#f7f7f4] opacity-70'
+                        : 'border-[#e1e1dc] bg-white hover:border-black/45 hover:bg-[#fcfcfa]'
                     }`}
                   >
                     <div className="flex items-start gap-2.5">
@@ -108,19 +94,10 @@ export default function MotionCloneReferenceControls({
                         {video.video_cdn_url ? (
                           <video
                             src={video.video_cdn_url}
-                            poster={video.cover_url || undefined}
                             className="h-full w-full object-cover"
                             muted
                             playsInline
                             preload="metadata"
-                          />
-                        ) : video.cover_url ? (
-                          <Image
-                            src={video.cover_url}
-                            alt={video.description || 'Video cover'}
-                            width={64}
-                            height={84}
-                            className="h-full w-full object-cover"
                           />
                         ) : (
                           <VideoIcon className="h-4 w-4 text-[#8a8a84]" />
@@ -132,14 +109,11 @@ export default function MotionCloneReferenceControls({
                             <p className="bottom-bar-video-option-title truncate text-[14px] font-semibold tracking-tight text-black">
                               {sourceTitle}
                             </p>
-                            {requireFirstFrameForSelection && !hasFirstFrame ? (
-                              <p className="mt-0.5 text-[11px] font-medium text-[#8a8a84]">First frame required</p>
-                            ) : null}
                           </div>
                           <ChevronRight
                             className={cn(
                               'mt-0.5 h-[15px] w-[15px] flex-shrink-0 text-[#9a9a94] transition-transform',
-                              selectedVideoId === video.id && canSelectVideo && 'translate-x-0.5 text-black'
+                              selectedVideoId === video.id && 'translate-x-0.5 text-black'
                             )}
                           />
                         </div>

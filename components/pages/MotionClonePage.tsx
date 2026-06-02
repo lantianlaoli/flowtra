@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Loader2,
   Image as ImageIcon,
@@ -47,7 +47,6 @@ interface MotionCloneVideo {
   platform_video_id?: string | null;
   video_url: string;
   video_cdn_url?: string | null;
-  cover_url?: string | null;
   description?: string | null;
   duration_seconds?: number | null;
   analysis_result?: Record<string, unknown> | null;
@@ -66,7 +65,6 @@ interface MotionCloneProject {
   creator_source_video_id?: string | null;
   avatar_id?: string | null;
   product_id?: string | null;
-  reference_cover_url?: string | null;
   preview_image_url?: string | null;
   output_video_url?: string | null;
   reference_duration_seconds?: number | null;
@@ -87,7 +85,6 @@ type PersistedMotionCloneProject = Pick<
   | "creator_source_video_id"
   | "avatar_id"
   | "product_id"
-  | "reference_cover_url"
   | "preview_image_url"
   | "output_video_url"
   | "reference_duration_seconds"
@@ -158,7 +155,6 @@ const serializeMotionCloneProject = (
   creator_source_video_id: project.creator_source_video_id ?? null,
   avatar_id: project.avatar_id ?? null,
   product_id: project.product_id ?? null,
-  reference_cover_url: project.reference_cover_url ?? null,
   preview_image_url: project.preview_image_url ?? null,
   output_video_url: project.output_video_url ?? null,
   reference_duration_seconds: project.reference_duration_seconds ?? null,
@@ -213,7 +209,6 @@ export default function MotionClonePage() {
   const [downloadStates, setDownloadStates] = useState<
     Record<string, "idle" | "processing" | "success">
   >({});
-  const invalidSelectionToastRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -251,7 +246,6 @@ export default function MotionClonePage() {
     () => videos.find((video) => video.id === selectedVideoId),
     [videos, selectedVideoId],
   );
-  const selectedVideoHasFirstFrame = Boolean(selectedVideo?.cover_url);
   const activeProject = useMemo(() => {
     if (activeProjectId) {
       return projects.find((item) => item.id === activeProjectId) || null;
@@ -397,18 +391,13 @@ export default function MotionClonePage() {
     if (videoId) {
       const video = videos.find((item) => item.id === videoId);
       if (video) {
-        if (video.cover_url) {
-          setSelectedVideoId(videoId);
-        } else {
-          setSelectedVideoId("");
-          showError("This video needs a first-frame image before Motion Clone.");
-        }
+        setSelectedVideoId(videoId);
         if (typeof window !== "undefined") {
           window.history.replaceState({}, "", "/dashboard/motion-clone");
         }
       }
     }
-  }, [isLoading, searchParams, showError, videos]);
+  }, [isLoading, searchParams, videos]);
 
   // Preselect video from sessionStorage (for Motion Clone)
   useEffect(() => {
@@ -427,37 +416,15 @@ export default function MotionClonePage() {
 
       const video = videos.find((item) => item.id === targetId);
       if (video) {
-        if (video.cover_url) {
-          setSelectedVideoId(targetId);
-          showSuccess("Video selected for Motion Clone.");
-        } else {
-          setSelectedVideoId("");
-          showError("This video needs a first-frame image before Motion Clone.");
-        }
+        setSelectedVideoId(targetId);
+        showSuccess("Video selected for Motion Clone.");
       } else {
         setSelectedVideoId("");
       }
     } catch (error) {
       console.error("[MotionClonePage] Failed to preselect video:", error);
     }
-  }, [isLoading, videos, showError, showSuccess]);
-
-  useEffect(() => {
-    if (!selectedVideoId) {
-      invalidSelectionToastRef.current = null;
-      return;
-    }
-    if (!selectedVideo) return;
-    if (selectedVideo.cover_url) {
-      invalidSelectionToastRef.current = null;
-      return;
-    }
-    if (invalidSelectionToastRef.current !== selectedVideo.id) {
-      showError("This video needs a first-frame image before Motion Clone.");
-      invalidSelectionToastRef.current = selectedVideo.id;
-    }
-    setSelectedVideoId("");
-  }, [selectedVideoId, selectedVideo, showError]);
+  }, [isLoading, videos, showSuccess]);
 
   useEffect(() => {
     if (!projects.length) {
@@ -697,8 +664,6 @@ export default function MotionClonePage() {
 
   const editFirstFrameUrl =
     projectInEditor?.preview_image_url ||
-    projectInEditor?.reference_cover_url ||
-    selectedVideo?.cover_url ||
     null;
   const effectiveSegmentStatus = useMemo(() => {
     if (projectInEditor?.status === "generating_preview")
@@ -721,7 +686,6 @@ export default function MotionClonePage() {
   const canGenerateImage = Boolean(
     projectInEditor?.id &&
       selectedVideoId &&
-      selectedVideoHasFirstFrame &&
       editPhotoPrompt.trim().length > 0 &&
       hasSwapTarget &&
       !isSubmittingEdit &&
@@ -730,7 +694,6 @@ export default function MotionClonePage() {
   const canGenerateVideo = Boolean(
     projectInEditor?.id &&
       selectedVideoId &&
-      selectedVideoHasFirstFrame &&
       editPhotoPrompt.trim().length > 0 &&
       editVideoPrompt.trim().length > 0 &&
       hasSwapTarget &&
@@ -814,11 +777,6 @@ export default function MotionClonePage() {
           item.status === "completed" ? item.output_video_url || undefined : undefined,
         coverUrl:
           item.preview_image_url ||
-          item.reference_cover_url ||
-          fallbackVideo?.cover_url ||
-          (item.id === activeProject?.id
-            ? selectedVideo?.cover_url
-            : undefined) ||
           undefined,
         product: item.product_id
           ? productById.get(item.product_id)?.product_name || undefined
@@ -837,7 +795,6 @@ export default function MotionClonePage() {
     activeProject?.id,
     downloadStates,
     selectedVideo?.duration_seconds,
-    selectedVideo?.cover_url,
     selectedSize,
     selectedVideoQuality,
   ]);
@@ -877,10 +834,6 @@ export default function MotionClonePage() {
     }
     if (!selectedVideoId) {
       showError("Select a reference video to continue.");
-      return;
-    }
-    if (!selectedVideoHasFirstFrame) {
-      showError("This video needs a first-frame image before Motion Clone.");
       return;
     }
     if (!hasSwapTarget) {
@@ -1162,13 +1115,7 @@ export default function MotionClonePage() {
               videos={videos}
               selectedVideoId={selectedVideoId}
               onSelectVideoId={(id) => {
-                const targetVideo = videos.find((video) => video.id === id);
-                if (targetVideo?.cover_url) {
-                  setSelectedVideoId(id);
-                  return;
-                }
-                setSelectedVideoId("");
-                showError("This video needs a first-frame image before Motion Clone.");
+                setSelectedVideoId(id);
               }}
               variant="inline"
               showLabel={false}

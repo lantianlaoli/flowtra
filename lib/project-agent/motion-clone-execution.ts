@@ -66,7 +66,6 @@ type MotionCloneProjectRow = {
   creator_source_video_id?: string | null;
   reference_video_url?: string | null;
   reference_video_cdn_url?: string | null;
-  reference_cover_url?: string | null;
   reference_duration_seconds?: number | null;
   photo_prompt?: string | null;
   video_prompt?: string | null;

@@ -86,7 +86,7 @@ export const buildCreatorVideoPath = ({
   userId: string
   creatorVideoId: string
   extension: string
-  variant?: 'source' | 'cover'
+  variant?: 'source'
 }) =>
   `users/${sanitizeSegment(userId)}/creator-videos/${sanitizeSegment(creatorVideoId)}/${variant}/original.${extension}`
 
@@ -164,7 +164,6 @@ export const getBucketForPathBuilder = {
   avatarImage: STORAGE_BUCKETS.userImages,
   productImage: STORAGE_BUCKETS.userImages,
   creatorVideo: STORAGE_BUCKETS.userVideos,
-  creatorVideoCover: STORAGE_BUCKETS.userImages,
   referenceVideo: STORAGE_BUCKETS.userVideos,
   tempUpload: STORAGE_BUCKETS.tempUploads,
 } satisfies Record<string, StorageBucket>

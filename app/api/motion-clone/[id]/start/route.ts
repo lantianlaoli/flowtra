@@ -5,8 +5,6 @@ import { createMotionClonePreviewTask, createMotionCloneVideoTask } from '@/lib/
 import { buildMotionClonePreviewPrompt, buildMotionCloneVideoPrompt } from '@/lib/motion-clone-prompts';
 import { checkCredits, deductCredits, recordCreditTransaction, refundCredits } from '@/lib/credits';
 import { fetchTikTokVideoUrl } from '@/lib/fetch-tiktok-video';
-import { fetchSocialVideoInfo } from '@/lib/fetch-social-video';
-import { downloadVideoBuffer, uploadCreatorVideoCoverToStorage } from '@/lib/creator-videos-storage';
 import { getMotionCloneGenerationCost, normalizeMotionCloneQuality } from '@/lib/constants';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 import {
@@ -55,7 +53,6 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     const { id } = await context.params;
     const body = await request.json().catch(() => ({}));
-    const coverUrlOverride = typeof body?.cover_url === 'string' ? body.cover_url : null;
     const referenceVideoId = typeof body?.reference_video_id === 'string' ? body.reference_video_id : null;
     const avatarId = typeof body?.avatar_id === 'string' ? body.avatar_id : null;
     const productId = typeof body?.product_id === 'string' ? body.product_id : null;
@@ -212,33 +209,6 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     if (!videoCdnUrl) {
       return NextResponse.json({ error: 'Failed to resolve reference video URL' }, { status: 400 });
-    }
-
-    let coverUrl = coverUrlOverride || project.reference_cover_url || referenceVideo.cover_url;
-    if (!coverUrl && referenceVideo.video_url) {
-      try {
-        const info = await fetchSocialVideoInfo(referenceVideo.video_url as string);
-        const fallbackCover = info.thumbnailUrl;
-        if (fallbackCover) {
-          const coverFile = await downloadVideoBuffer(fallbackCover);
-          const coverUpload = await uploadCreatorVideoCoverToStorage({
-            userId,
-            fileName: `${referenceVideo.id}.png`,
-            buffer: coverFile.buffer,
-            contentType: coverFile.contentType
-          });
-          coverUrl = coverUpload.publicUrl;
-          await supabase
-            .from('creator_source_videos')
-            .update({ cover_url: coverUrl })
-            .eq('id', referenceVideo.id);
-        }
-      } catch (fallbackError) {
-        console.warn('[Motion Clone Start] Cover download failed:', fallbackError);
-      }
-    }
-    if (!coverUrl) {
-      return NextResponse.json({ error: 'Cover image is missing' }, { status: 400 });
     }
 
     const creditsCost = getMotionCloneGenerationCost(durationSeconds, selectedQuality);
@@ -409,7 +379,6 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
       const callbackUrl = new URL('/api/motion-clone/webhooks/preview', baseUrl).toString();
       const previewTaskId = await createMotionClonePreviewTask({
-        coverUrl,
         avatarUrl: avatar?.photo_url || null,
         productUrl: productPhoto?.photo_url || null,
         aspectRatio: '9:16',
@@ -428,7 +397,6 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           product_photo_id: persistableProductPhotoId,
           reference_video_url: referenceVideo.video_url,
           reference_video_cdn_url: videoCdnUrl,
-          reference_cover_url: coverUrl,
           reference_duration_seconds: durationSeconds,
           photo_prompt: photoPrompt || null,
           video_prompt: videoPrompt || buildMotionCloneVideoPrompt({ hasAvatar, hasProduct }),

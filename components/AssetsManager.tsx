@@ -24,7 +24,6 @@ interface CreatorSourceVideo {
   id: string;
   platform?: string;
   video_url?: string | null;
-  cover_url?: string | null;
   description?: string | null;
   duration_seconds?: number | null;
   video_cdn_url?: string | null;

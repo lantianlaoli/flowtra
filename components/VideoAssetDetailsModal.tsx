@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -12,7 +11,6 @@ import {
   Languages,
   Film,
   Trash2,
-  Upload,
   Save,
 } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
@@ -25,7 +23,6 @@ interface VideoAsset {
   id: string;
   video_url?: string | null;
   video_cdn_url?: string | null;
-  cover_url?: string | null;
   description?: string | null;
   duration_seconds?: number | null;
   source_id?: string | null;
@@ -67,15 +64,11 @@ export default function VideoAssetDetailsModal({
   const { showError, showSuccess } = useToast();
   const [deletingVideoIds, setDeletingVideoIds] = useState<Set<string>>(new Set());
   const [currentVideo, setCurrentVideo] = useState<VideoAsset | null>(video);
-  const [isUploadingFirstFrame, setIsUploadingFirstFrame] = useState(false);
-  const [firstFrameUploadError, setFirstFrameUploadError] = useState<string | null>(null);
   const [editableVideoName, setEditableVideoName] = useState("");
   const [isSavingVideoName, setIsSavingVideoName] = useState(false);
-  const firstFrameInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setCurrentVideo(video);
-    setFirstFrameUploadError(null);
   }, [video]);
 
   const parsedShots = useMemo(
@@ -121,7 +114,6 @@ export default function VideoAssetDetailsModal({
   const hasAnalysis = Boolean(currentVideo?.analysis_result);
   const isSystemVideo = Boolean(currentVideo?.isSystem);
   const isCompact = size === "compact";
-  const shouldShowFirstFramePanel = currentVideo?.source_type === "creator";
   const previewWidth = isCompact ? 252 : 324;
   const previewHeight = Math.round((previewWidth * 16) / 9);
   const previewCardClassName = "flex-none overflow-hidden rounded-xl";
@@ -250,48 +242,6 @@ export default function VideoAssetDetailsModal({
     }
   };
 
-  const handleUploadFirstFrame = async (file: File | null) => {
-    if (!file || !currentVideo?.id) return;
-
-    setIsUploadingFirstFrame(true);
-    setFirstFrameUploadError(null);
-
-    try {
-      if (!file.type.startsWith("image/")) {
-        throw new Error("Please upload an image file for the first frame.");
-      }
-
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await fetch(`/api/creator-videos/${currentVideo.id}/first-frame`, {
-        method: "POST",
-        body: formData,
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok || !data.video) {
-        throw new Error(data.error || "Failed to upload first frame image.");
-      }
-
-      const nextVideo = {
-        ...currentVideo,
-        ...data.video,
-      } as VideoAsset;
-
-      setCurrentVideo(nextVideo);
-      onVideoUpdated?.(nextVideo);
-      showSuccess("First frame uploaded. Motion Clone is now available.");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to upload first frame image.";
-      setFirstFrameUploadError(message);
-      showError(message);
-    } finally {
-      setIsUploadingFirstFrame(false);
-    }
-  };
-
   const content = isOpen && currentVideo ? (
     <motion.div
             className={embedded
@@ -337,56 +287,7 @@ export default function VideoAssetDetailsModal({
             </div>
 
             <div className={`assets-modal-body grid min-h-0 grid-cols-1 items-start gap-6 overflow-y-auto ${embedded ? "p-5" : "p-6"} ${isCompact ? "lg:grid-cols-[max-content_minmax(0,1fr)]" : "lg:grid-cols-[max-content_minmax(0,1fr)]"} lg:items-end`}>
-              <div className={`min-h-0 min-w-0 overflow-hidden ${shouldShowFirstFramePanel ? "flex items-end gap-4" : "flex items-end justify-center"}`}>
-                {shouldShowFirstFramePanel ? (
-                  <label
-                    className={`assets-video-details-preview flex min-w-0 min-h-0 border-2 border-dashed border-gray-300 bg-white transition-colors hover:border-gray-500 cursor-pointer ${previewCardClassName}`}
-                    style={{ width: `${previewWidth}px`, height: `${previewHeight}px` }}
-                  >
-                    <div className="relative flex h-full w-full items-center justify-center overflow-hidden px-5 text-center">
-                      {currentVideo.cover_url ? (
-                        <Image
-                          src={currentVideo.cover_url}
-                          alt="First frame"
-                          fill
-                          sizes={`${previewWidth}px`}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center justify-center gap-3">
-                          <Upload className="w-5 h-5 text-gray-500" />
-                          {isUploadingFirstFrame ? (
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              <span>Uploading first frame...</span>
-                            </div>
-                          ) : (
-                            <>
-                              <p className="text-sm font-medium text-gray-800">First Frame</p>
-                              <p className="text-xs text-gray-500">Click to upload</p>
-                            </>
-                          )}
-                          {firstFrameUploadError ? (
-                            <p className="max-w-[220px] text-xs text-red-500">{firstFrameUploadError}</p>
-                          ) : null}
-                        </div>
-                      )}
-                      <span className="sr-only">Upload first frame</span>
-                      <input
-                        ref={firstFrameInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled={isUploadingFirstFrame}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0] || null;
-                          void handleUploadFirstFrame(file);
-                          event.currentTarget.value = "";
-                        }}
-                      />
-                    </div>
-                  </label>
-                ) : null}
+              <div className="min-h-0 min-w-0 overflow-hidden flex items-end justify-center">
                 <div className="min-h-0 flex items-stretch justify-center">
                   <div
                     className={`assets-video-details-preview bg-black/95 ${previewCardClassName}`}

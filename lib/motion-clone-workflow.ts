@@ -16,7 +16,6 @@ const KIE_FILE_URL_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-url-upload
 export const MOTION_CLONE_MODE = '720p' as const;
 
 export interface MotionClonePreviewInput {
-  coverUrl: string;
   avatarUrl?: string | null;
   productUrl?: string | null;
   aspectRatio?: string;
@@ -97,7 +96,7 @@ export const createMotionClonePreviewTask = async (
     hasAvatar: Boolean(input.avatarUrl),
     hasProduct: Boolean(input.productUrl)
   });
-  const referenceImageUrls = [input.coverUrl, input.avatarUrl, input.productUrl].filter(Boolean) as string[];
+  const referenceImageUrls = [input.avatarUrl, input.productUrl].filter(Boolean) as string[];
   const requestBody = buildKieGptImageTaskPayload({
     prompt,
     referenceImageUrls,

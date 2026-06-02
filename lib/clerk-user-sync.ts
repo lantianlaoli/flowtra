@@ -181,7 +181,7 @@ export async function purgeClerkUserData(userId: string) {
 
   const { data: creatorVideos, error: creatorVideoError } = await supabase
     .from('creator_source_videos')
-    .select('id, storage_bucket, storage_path, video_url, video_cdn_url, cover_storage_bucket, cover_storage_path, cover_url')
+    .select('id, storage_bucket, storage_path, video_url, video_cdn_url')
     .eq('user_id', userId)
 
   if (creatorVideoError) {
@@ -193,11 +193,6 @@ export async function purgeClerkUserData(userId: string) {
       bucket: video.storage_bucket,
       path: video.storage_path,
       publicUrl: video.video_cdn_url || video.video_url,
-    })
-    addStorageRef(storageRefs, {
-      bucket: video.cover_storage_bucket,
-      path: video.cover_storage_path,
-      publicUrl: video.cover_url,
     })
   }
 

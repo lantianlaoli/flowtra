@@ -115,7 +115,6 @@ export async function GET() {
       platform_video_id: ad.id,
       video_url: '',
       video_cdn_url: getReferenceVideoPublicUrl(supabase, ad),
-      cover_url: null,
       description: ad.reference_name,
       stats: null,
       duration_seconds: ad.video_duration_seconds,
