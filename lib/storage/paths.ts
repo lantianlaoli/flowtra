@@ -62,6 +62,19 @@ export const buildUserAvatarImagePath = ({
   return `${basePath}/primary/original.${extension}`
 }
 
+export const buildUserPetPhotoPath = ({
+  userId,
+  petId,
+  view,
+  extension,
+}: {
+  userId: string
+  petId: string
+  view: 'front' | 'side' | 'back'
+  extension: string
+}) =>
+  `users/${sanitizeSegment(userId)}/pets/${sanitizeSegment(petId)}/${view}/original.${extension}`
+
 export const buildUserProductPhotoPath = ({
   userId,
   productId,

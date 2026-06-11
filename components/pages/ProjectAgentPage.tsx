@@ -2485,7 +2485,7 @@ export default function ProjectAgentPage() {
               {workspacePanelVisibility.assetsMounted ? (
                 <FloatingWorkspacePanel
                   title="Assets"
-                  description="Products, avatars, and videos"
+                  description="Products, avatars, pets, and videos"
                   onClose={() => setActiveWorkspacePanel(null)}
                   visible={workspacePanelVisibility.assetsVisible}
                 >

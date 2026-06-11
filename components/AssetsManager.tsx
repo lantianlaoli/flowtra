@@ -2,8 +2,8 @@
 
 import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Loader2, Package, ExternalLink, Plus, UserCircle, Video } from 'lucide-react';
-import { UserProduct, UserAvatar } from '@/lib/supabase';
+import { Search, Loader2, Package, ExternalLink, Plus, UserCircle, Video, PawPrint } from 'lucide-react';
+import { UserProduct, UserAvatar, UserPet } from '@/lib/supabase';
 import type { SystemAvatar } from '@/lib/default-avatars';
 import { useToast } from '@/contexts/ToastContext';
 import { useI18n } from '@/providers/I18nProvider';
@@ -13,6 +13,8 @@ import CreateProductModal from './CreateProductModal';
 import CreateAvatarModal from './CreateAvatarModal';
 import EditAvatarModal from './EditAvatarModal';
 import AvatarCard from './AvatarCard';
+import PetCard from './PetCard';
+import CreatePetModal from './CreatePetModal';
 import SystemAvatarDetailsModal from './SystemAvatarDetailsModal';
 import SystemProductDetailsModal from './SystemProductDetailsModal';
 import VideoImportModal from './VideoImportModal';
@@ -102,16 +104,19 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
   const [searchTerm, setSearchTerm] = useState('');
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [deletingAvatarId, setDeletingAvatarId] = useState<string | null>(null);
+  const [deletingPetId, setDeletingPetId] = useState<string | null>(null);
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
 
   // Avatar state
   type AvatarItem = UserAvatar | SystemAvatar;
   const [avatars, setAvatars] = useState<AvatarItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'products' | 'avatars' | 'videos'>('products');
+  const [pets, setPets] = useState<UserPet[]>([]);
+  const [activeTab, setActiveTab] = useState<'products' | 'avatars' | 'pets' | 'videos'>('products');
 
   // Modal states
   const [showCreateProductModal, setShowCreateProductModal] = useState(false);
   const [showCreateAvatarModal, setShowCreateAvatarModal] = useState(false);
+  const [showCreatePetModal, setShowCreatePetModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<UserProduct | null>(null);
   const [editingAvatar, setEditingAvatar] = useState<UserAvatar | null>(null);
   const [systemAvatarDetails, setSystemAvatarDetails] = useState<SystemAvatar | null>(null);
@@ -126,6 +131,7 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
   useEffect(() => {
     loadAssets();
     loadAvatars();
+    loadPets();
   }, []);
 
   useEffect(() => {
@@ -134,6 +140,7 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
     if (!becameActive || !hasLoadedRef.current) return;
     void loadAssets();
     void loadAvatars();
+    void loadPets();
   }, [active]);
 
   useEffect(() => {
@@ -179,6 +186,18 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
       }
     } catch (error) {
       console.error('Error loading avatars:', error);
+    }
+  };
+
+  const loadPets = async () => {
+    try {
+      const response = await fetch('/api/user-pets', { cache: 'no-store' });
+      if (response.ok) {
+        const data = await response.json();
+        setPets(data.pets || []);
+      }
+    } catch (error) {
+      console.error('Error loading pets:', error);
     }
   };
 
@@ -383,6 +402,31 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
     }
   };
 
+  const handlePetCreated = (newPet: UserPet) => {
+    setPets((prev) => [newPet, ...prev]);
+    showSuccess('Pet saved successfully');
+  };
+
+  const handleDeletePet = async (petId: string) => {
+    if (deletingPetId) return;
+    try {
+      setDeletingPetId(petId);
+      const response = await fetch(`/api/user-pets?petId=${petId}`, { method: 'DELETE' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showError(payload?.error || 'Failed to delete pet');
+        return;
+      }
+      setPets((prev) => prev.filter((pet) => pet.id !== petId));
+      showSuccess('Pet deleted successfully');
+    } catch (error) {
+      console.error('Error deleting pet:', error);
+      showError('An error occurred while deleting the pet. Please try again.');
+    } finally {
+      setDeletingPetId(null);
+    }
+  };
+
   const handleVideosImported = (
     newVideos: VideoAsset[],
     options?: { message?: string; skipRefresh?: boolean }
@@ -514,6 +558,10 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
     );
   }, [avatars, normalizedSearch]);
 
+  const filteredPets = useMemo(() => {
+    return pets.filter((pet) => pet.pet_name.toLowerCase().includes(normalizedSearch));
+  }, [normalizedSearch, pets]);
+
   const filteredVideos = useMemo(() => {
     const filtered = assetsData.videos.filter(video => {
       const matchesSearch = !normalizedSearch
@@ -640,6 +688,18 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
             <span>{assetsMessages.tabs.avatars}</span>
           </button>
           <button
+            onClick={() => setActiveTab('pets')}
+            className={`
+              assets-tab flex items-center gap-2 ${embedded ? 'py-2.5' : 'py-4'} text-sm font-medium border-b-2 transition-colors
+              ${activeTab === 'pets'
+                ? 'border-black text-black'
+                : 'border-transparent text-gray-500 hover:text-gray-700'}
+            `}
+          >
+            <PawPrint className="w-4 h-4" />
+            <span>Pets</span>
+          </button>
+          <button
             onClick={() => setActiveTab('videos')}
             className={`
               assets-tab flex items-center gap-2 ${embedded ? 'py-2.5' : 'py-4'} text-sm font-medium border-b-2 transition-colors
@@ -713,6 +773,34 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
                   </div>
                   <span className="text-sm font-semibold text-gray-700 transition-colors group-hover:text-black">
                     {assetsMessages.actions.upload}
+                  </span>
+                </div>
+              </button>
+            </div>
+          </>
+        ) : activeTab === 'pets' ? (
+          <>
+            <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {filteredPets.map((pet) => (
+                <PetCard
+                  key={pet.id}
+                  pet={pet}
+                  onDelete={handleDeletePet}
+                  isDeleting={deletingPetId === pet.id}
+                />
+              ))}
+
+              <button
+                type="button"
+                onClick={() => setShowCreatePetModal(true)}
+                className="assets-library-upload-card group relative flex w-full flex-col overflow-hidden rounded-xl border border-dashed border-gray-300 bg-white text-left transition-all duration-200"
+              >
+                <div className="flex aspect-[4/5] w-full flex-col items-center justify-center gap-4 bg-[#fcfcfc] px-4 text-center">
+                  <div className="flex h-18 w-18 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 transition-colors group-hover:border-gray-300 group-hover:text-black">
+                    <Plus className="h-7 w-7" />
+                  </div>
+                  <span className="text-sm font-semibold text-gray-700 transition-colors group-hover:text-black">
+                    Upload pet
                   </span>
                 </div>
               </button>
@@ -816,6 +904,12 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
         isOpen={showCreateAvatarModal}
         onClose={() => setShowCreateAvatarModal(false)}
         onAvatarCreated={handleAvatarCreated}
+      />
+
+      <CreatePetModal
+        isOpen={showCreatePetModal}
+        onClose={() => setShowCreatePetModal(false)}
+        onPetCreated={handlePetCreated}
       />
 
       <EditAvatarModal

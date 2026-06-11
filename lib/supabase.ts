@@ -6,6 +6,7 @@ import {
   buildTempProductPhotoPath,
   buildToolTempUploadPath,
   buildUserAvatarImagePath,
+  buildUserPetPhotoPath,
   buildUserProductPhotoPath,
   getFileExtension,
 } from '@/lib/storage/paths'
@@ -241,6 +242,29 @@ export interface AvatarPhotoSet {
   updated_at: string
 }
 
+export type PetPhotoView = 'front' | 'side' | 'back'
+
+export interface UserPet {
+  id: string
+  user_id: string
+  pet_name: string
+  front_photo_url: string
+  front_file_name: string
+  front_storage_bucket?: StorageBucket | null
+  front_storage_path?: string | null
+  side_photo_url: string
+  side_file_name: string
+  side_storage_bucket?: StorageBucket | null
+  side_storage_path?: string | null
+  back_photo_url: string
+  back_file_name: string
+  back_storage_bucket?: StorageBucket | null
+  back_storage_path?: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 // Database types for user_products table
 export interface UserProduct {
   id: string
@@ -417,6 +441,11 @@ export type Database = {
         Row: UserAvatar
         Insert: Omit<UserAvatar, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<UserAvatar, 'id' | 'created_at' | 'updated_at'>>
+      }
+      user_pets: {
+        Row: UserPet
+        Insert: Omit<UserPet, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<UserPet, 'id' | 'created_at' | 'updated_at'>>
       }
     }
     Views: {
@@ -830,6 +859,174 @@ export const deleteAvatar = async (avatarId: string, userId: string): Promise<vo
       })
     } catch (storageError) {
       console.warn('[deleteAvatar] Failed to remove reference photo:', storageError)
+    }
+  }
+}
+
+export const uploadPetPhotoToStorage = async (
+  file: File,
+  userId: string,
+  options: { petId: string; view: PetPhotoView }
+) => {
+  const extension = getFileExtension(file.name, 'jpg')
+  const fileName = `${options.view}_${Date.now()}.${extension}`
+  const filePath = buildUserPetPhotoPath({
+    userId,
+    petId: options.petId,
+    view: options.view,
+    extension,
+  })
+  const supabase = getSupabaseAdmin()
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+
+  const { data, error } = await supabase.storage
+    .from(STORAGE_BUCKETS.userImages)
+    .upload(filePath, buffer, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: file.type || 'image/jpeg',
+    })
+
+  if (error) {
+    throw new Error(`Storage upload failed: ${error.message}`)
+  }
+
+  const ref = buildStorageRef(supabase, STORAGE_BUCKETS.userImages, data.path)
+  return {
+    bucket: ref.bucket,
+    path: ref.path,
+    fileName,
+    publicUrl: ref.publicUrl,
+  }
+}
+
+export const createUserPet = async (
+  userId: string,
+  petName: string,
+  files: Record<PetPhotoView, File>
+): Promise<UserPet> => {
+  // Schema verified via Supabase MCP (2026-06-10):
+  // user_pets has user_id, pet_name, front/side/back photo URLs, file names, storage refs, and is_active.
+  const supabase = getSupabaseAdmin()
+  const petId = crypto.randomUUID()
+  const uploaded: Partial<Record<PetPhotoView, Awaited<ReturnType<typeof uploadPetPhotoToStorage>>>> = {}
+
+  try {
+    for (const view of ['front', 'side', 'back'] as PetPhotoView[]) {
+      uploaded[view] = await uploadPetPhotoToStorage(files[view], userId, { petId, view })
+    }
+
+    const front = uploaded.front!
+    const side = uploaded.side!
+    const back = uploaded.back!
+    const { data, error } = await supabase
+      .from('user_pets')
+      .insert({
+        id: petId,
+        user_id: userId,
+        pet_name: petName,
+        front_photo_url: front.publicUrl,
+        front_file_name: front.fileName,
+        front_storage_bucket: front.bucket,
+        front_storage_path: front.path,
+        side_photo_url: side.publicUrl,
+        side_file_name: side.fileName,
+        side_storage_bucket: side.bucket,
+        side_storage_path: side.path,
+        back_photo_url: back.publicUrl,
+        back_file_name: back.fileName,
+        back_storage_bucket: back.bucket,
+        back_storage_path: back.path,
+        is_active: true,
+      })
+      .select('*')
+      .single()
+
+    if (error || !data) {
+      throw error ?? new Error('Failed to create pet')
+    }
+
+    return data as UserPet
+  } catch (error) {
+    for (const item of Object.values(uploaded)) {
+      if (!item) continue
+      try {
+        await removeStorageObject(supabase, item.bucket, item.path)
+      } catch (cleanupError) {
+        console.warn('[createUserPet] Failed to cleanup uploaded pet photo:', cleanupError)
+      }
+    }
+    throw error
+  }
+}
+
+export const getUserPets = async (userId: string): Promise<UserPet[]> => {
+  // Schema verified via Supabase MCP (2026-06-10): user_pets has user_id, is_active, and created_at.
+  const supabase = getSupabaseAdmin()
+  const { data, error } = await supabase
+    .from('user_pets')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw error
+  }
+
+  return (data || []) as UserPet[]
+}
+
+export const getUserPetById = async (petId: string, userId: string): Promise<UserPet | null> => {
+  // Schema verified via Supabase MCP (2026-06-10): user_pets has id, user_id, and is_active.
+  const supabase = getSupabaseAdmin()
+  const { data, error } = await supabase
+    .from('user_pets')
+    .select('*')
+    .eq('id', petId)
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+
+  return (data as UserPet | null) ?? null
+}
+
+export const deleteUserPet = async (petId: string, userId: string): Promise<void> => {
+  const supabase = getSupabaseAdmin()
+  const pet = await getUserPetById(petId, userId)
+  if (!pet) {
+    throw new Error('Pet not found or unauthorized')
+  }
+
+  const { error } = await supabase
+    .from('user_pets')
+    .update({ is_active: false })
+    .eq('id', petId)
+    .eq('user_id', userId)
+
+  if (error) {
+    throw error
+  }
+
+  const refs = [
+    { bucket: pet.front_storage_bucket, path: pet.front_storage_path, photoUrl: pet.front_photo_url },
+    { bucket: pet.side_storage_bucket, path: pet.side_storage_path, photoUrl: pet.side_photo_url },
+    { bucket: pet.back_storage_bucket, path: pet.back_storage_path, photoUrl: pet.back_photo_url },
+  ]
+  for (const ref of refs) {
+    try {
+      await removeStorageObjectWithFallback(supabase, {
+        bucket: ref.bucket,
+        path: ref.path,
+        publicUrl: ref.photoUrl,
+      })
+    } catch (storageError) {
+      console.warn('[deleteUserPet] Failed to remove pet photo:', storageError)
     }
   }
 }

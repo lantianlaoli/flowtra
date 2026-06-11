@@ -12,35 +12,46 @@ import {
   Copy,
   Download,
   Film,
+  HelpCircle,
   Image as ImageIcon,
   Languages,
   Loader2,
+  Megaphone,
   Monitor,
-  PackageSearch,
+  Package,
+  PawPrint,
   Plus,
   RefreshCw,
   Settings2,
   Sparkles,
+  Stamp,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
 import { ByteDance, Gemini } from "@lobehub/icons";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import CreatePetModal from "@/components/CreatePetModal";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
 import { cn } from "@/lib/utils";
 import { useToolUsageAccess } from "@/lib/tools/use-tool-usage-access";
 import { useToolGenerationRealtime } from "@/lib/tools/use-tool-generation-realtime";
 import {
+  IMAGE_GENERATION_CREDIT_COST,
   getEcommerceListingStudioCreditCost,
 } from "@/lib/tools/billing-constants";
 import type { ToolGenerationJob } from "@/lib/tools/job-store";
+import type { UserPet } from "@/lib/supabase";
 import type {
   EcommerceListingAssetScope,
+  EcommerceListingCategory,
   EcommerceListingImageAspectRatio,
   EcommerceListingImageResolution,
   EcommerceListingImageSlot,
+  EcommerceListingLogoCorner,
   EcommerceListingMetadata,
+  EcommerceListingSourceMode,
   EcommerceListingTextLanguage,
   EcommerceListingVideoAspectRatio,
   EcommerceListingVideoModel,
@@ -50,9 +61,13 @@ import type {
 type ProductView = "front" | "side" | "back";
 type PageStatus = "idle" | "uploading" | "starting" | "processing" | "completed" | "error";
 type ProductPhoto = { view: ProductView; label: string; dataUrl: string | null; fileName: string | null; required?: boolean };
+type LocalUploadImage = { id: string; fileName: string; dataUrl: string };
 type LocalReferenceImage = { id: string; fileName: string; dataUrl: string };
+type QuickPhrase = { id: string; text: string };
 
 const SESSION_KEY = "flowtra:ecommerce-listing-studio";
+const QUICK_PHRASES_STORAGE_KEY = "flowtra:ecommerce-listing-studio:quick-phrases";
+const MAX_SOURCE_IMAGE_COUNT = 6;
 const VERCEL_FUNCTION_BODY_LIMIT_BYTES = 4.5 * 1024 * 1024;
 const REQUEST_SIZE_BUFFER_BYTES = 350 * 1024;
 const MAX_CLIENT_UPLOAD_SIZE_MB = 2.6;
@@ -67,10 +82,10 @@ const VIDEO_MODEL_OPTIONS: Array<{ value: EcommerceListingVideoModel; label: str
   { value: "seedance_2", label: "Seedance 2", icon: <ByteDance className="h-4 w-4 text-black" /> },
 ];
 const ALL_SCOPES: EcommerceListingAssetScope[] = ["carousel", "detail", "video"];
-const ASSET_SCOPE_OPTIONS: { scope: EcommerceListingAssetScope; label: string }[] = [
-  { scope: "carousel", label: "Carousel" },
-  { scope: "detail", label: "Detail" },
-  { scope: "video", label: "Video" },
+const ASSET_SCOPE_OPTIONS: { scope: EcommerceListingAssetScope; label: string; icon: ReactNode; description: string }[] = [
+  { scope: "carousel", label: "Carousel", icon: <ImageIcon className="h-4 w-4" />, description: "Marketplace listing visuals" },
+  { scope: "detail", label: "Detail", icon: <Sparkles className="h-4 w-4" />, description: "Benefit, material, usage, and trust visuals" },
+  { scope: "video", label: "Video", icon: <Film className="h-4 w-4" />, description: "Product ad video" },
 ];
 const TEXT_LANGUAGE_OPTIONS: Array<{ value: EcommerceListingTextLanguage; label: string; group: string }> = [
   { value: "en", label: "English", group: "NA" },
@@ -87,20 +102,18 @@ const TEXT_LANGUAGE_OPTIONS: Array<{ value: EcommerceListingTextLanguage; label:
   { value: "ru", label: "Cyrillic (Russian etc.)", group: "EU" },
   { value: "hi", label: "हिन्दी", group: "AS" },
 ];
+const DEFAULT_QUICK_PHRASES: QuickPhrase[] = [
+  { id: "minimal-premium", text: "Minimal premium style" },
+  { id: "avoid-dense-text", text: "Avoid dense text" },
+  { id: "material-texture", text: "Emphasize material texture" },
+  { id: "clean-marketplace", text: "Clean marketplace-ready composition" },
+];
 
 function estimateDataUrlRequestSize(fileSize: number, mimeType: string) {
   const dataUrlPrefixLength = `data:${mimeType || "image/jpeg"};base64,`.length;
   const base64Size = Math.ceil(fileSize / 3) * 4;
   const jsonEnvelopeSize = 1024;
   return dataUrlPrefixLength + base64Size + jsonEnvelopeSize;
-}
-
-function initialProductPhotos(): ProductPhoto[] {
-  return [
-    { view: "front", label: "Front View", dataUrl: null, fileName: null, required: true },
-    { view: "side", label: "Side View", dataUrl: null, fileName: null },
-    { view: "back", label: "Back View", dataUrl: null, fileName: null },
-  ];
 }
 
 function imageAspectClass(ratio: EcommerceListingImageAspectRatio | EcommerceListingVideoAspectRatio) {
@@ -154,8 +167,15 @@ export default function EcommerceListingStudioPage() {
     "landing-press-button landing-press-button--secondary landing-press-button--compact text-sm font-medium";
 
   const [status, setStatus] = useState<PageStatus>("idle");
-  const [productPhotos, setProductPhotos] = useState<ProductPhoto[]>(initialProductPhotos);
-  const [readingView, setReadingView] = useState<ProductView | null>(null);
+  const [sourceMode, setSourceMode] = useState<EcommerceListingSourceMode>("product-photos");
+  const [category, setCategory] = useState<EcommerceListingCategory>("general");
+  const [uploadedImages, setUploadedImages] = useState<LocalUploadImage[]>([]);
+  const [isReadingUploads, setIsReadingUploads] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [quickPhrases, setQuickPhrases] = useState<QuickPhrase[]>(DEFAULT_QUICK_PHRASES);
+  const [quickPhraseDraft, setQuickPhraseDraft] = useState("");
+  const [editingPhraseId, setEditingPhraseId] = useState<string | null>(null);
+  const [isAddingPhrase, setIsAddingPhrase] = useState(false);
   const [customRequirements, setCustomRequirements] = useState("");
   const [textLanguage, setTextLanguage] = useState<EcommerceListingTextLanguage>("en");
   const [imageAspectRatio, setImageAspectRatio] = useState<EcommerceListingImageAspectRatio>("1:1");
@@ -164,6 +184,14 @@ export default function EcommerceListingStudioPage() {
   const [videoAspectRatio, setVideoAspectRatio] = useState<EcommerceListingVideoAspectRatio>("9:16");
   const [videoResolution, setVideoResolution] = useState<EcommerceListingVideoResolution>("720p");
   const [assetScopes, setAssetScopes] = useState<EcommerceListingAssetScope[]>(ALL_SCOPES);
+  const [brandLogoDataUrl, setBrandLogoDataUrl] = useState<string | null>(null);
+  const [brandLogoFileName, setBrandLogoFileName] = useState<string | null>(null);
+  const [brandLogoCorner, setBrandLogoCorner] = useState<EcommerceListingLogoCorner>("top-left");
+  const [isReadingBrandLogo, setIsReadingBrandLogo] = useState(false);
+  const [savedPets, setSavedPets] = useState<UserPet[]>([]);
+  const [selectedPetId, setSelectedPetId] = useState("");
+  const [showCreatePetModal, setShowCreatePetModal] = useState(false);
+  const [deletingPetId, setDeletingPetId] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [currentJob, setCurrentJob] = useState<ToolGenerationJob | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -176,33 +204,47 @@ export default function EcommerceListingStudioPage() {
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isRetryingVideo, setIsRetryingVideo] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
-  const inputRefs = {
-    front: useRef<HTMLInputElement | null>(null),
-    side: useRef<HTMLInputElement | null>(null),
-    back: useRef<HTMLInputElement | null>(null),
-  };
+  const brandLogoInputRef = useRef<HTMLInputElement | null>(null);
+  const configPopoverRef = useRef<HTMLDivElement | null>(null);
 
   const { job } = useToolGenerationRealtime(jobId);
   const metadata = (currentJob?.metadata ?? {}) as EcommerceListingMetadata;
   const isBusy = status === "uploading" || status === "starting" || status === "processing";
-  const frontPhoto = productPhotos.find((photo) => photo.view === "front");
-  const canGenerate = Boolean(frontPhoto?.dataUrl) && assetScopes.length > 0 && !isBusy && !isToolAccessLoading;
+  const uploadedImageCount = uploadedImages.length;
+  const selectedPet = savedPets.find((pet) => pet.id === selectedPetId) ?? null;
+  const petReady = Boolean(selectedPet);
+  const isManufacturerMode = sourceMode === "manufacturer-promos";
+  const petReplacementAvailable = category === "pet" && isManufacturerMode;
+  const effectivePetReplacementEnabled = petReplacementAvailable && Boolean(selectedPet);
+  const effectiveAssetScopes = isManufacturerMode ? (["carousel"] as EcommerceListingAssetScope[]) : assetScopes;
+  const canGenerate =
+    uploadedImageCount > 0 &&
+    uploadedImageCount <= MAX_SOURCE_IMAGE_COUNT &&
+    (!effectivePetReplacementEnabled || petReady) &&
+    (isManufacturerMode || assetScopes.length > 0) &&
+    !isBusy &&
+    !isToolAccessLoading;
   const creditCost = useMemo(
     () =>
-      getEcommerceListingStudioCreditCost({
-        carousel: assetScopes.includes("carousel"),
-        detail: assetScopes.includes("detail"),
-        video: assetScopes.includes("video"),
-        videoModel,
-        videoResolution,
-      }),
-    [assetScopes, videoModel, videoResolution]
+      isManufacturerMode
+        ? uploadedImageCount * IMAGE_GENERATION_CREDIT_COST
+        : getEcommerceListingStudioCreditCost({
+            carousel: assetScopes.includes("carousel"),
+            detail: assetScopes.includes("detail"),
+            video: assetScopes.includes("video"),
+            videoModel,
+            videoResolution,
+          }),
+    [assetScopes, isManufacturerMode, uploadedImageCount, videoModel, videoResolution]
   );
   const videoRatioOptions = useMemo(() => videoRatioOptionsForModel(videoModel), [videoModel]);
   const videoResolutionOptions = useMemo(() => videoResolutionOptionsForModel(videoModel), [videoModel]);
 
   const restoreJob = useCallback((nextJob: ToolGenerationJob) => {
     setCurrentJob(nextJob);
+    const nextMetadata = (nextJob.metadata ?? {}) as EcommerceListingMetadata;
+    setSourceMode(nextMetadata.source_mode === "manufacturer-promos" ? "manufacturer-promos" : "product-photos");
+    setCategory(nextMetadata.category === "pet" ? "pet" : "general");
     setStatus(nextJob.status === "completed" ? "completed" : nextJob.status === "failed" ? "error" : "processing");
     if (!terminalJob(nextJob)) setJobId(nextJob.id);
     try {
@@ -221,6 +263,46 @@ export default function EcommerceListingStudioPage() {
     const resolutionOptions = videoResolutionOptionsForModel(videoModel);
     if (!resolutionOptions.includes(videoResolution)) setVideoResolution(resolutionOptions[0]);
   }, [videoAspectRatio, videoModel, videoResolution]);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!configPopoverRef.current?.contains(event.target as Node)) {
+        setSettingsOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSettingsOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [settingsOpen]);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(QUICK_PHRASES_STORAGE_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved) as QuickPhrase[];
+      const valid = Array.isArray(parsed)
+        ? parsed.filter((phrase) => typeof phrase?.id === "string" && typeof phrase?.text === "string" && phrase.text.trim())
+        : [];
+      if (valid.length > 0) setQuickPhrases(valid.slice(0, 12));
+    } catch {
+      // Browser-local preferences are optional.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(QUICK_PHRASES_STORAGE_KEY, JSON.stringify(quickPhrases));
+    } catch {
+      // Ignore storage failures in private browsing.
+    }
+  }, [quickPhrases]);
 
   useEffect(() => {
     let cancelled = false;
@@ -245,6 +327,24 @@ export default function EcommerceListingStudioPage() {
       cancelled = true;
     };
   }, [restoreJob]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPets = async () => {
+      try {
+        const response = await fetch("/api/user-pets", { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = (await response.json()) as { pets?: UserPet[] };
+        if (!cancelled) setSavedPets(Array.isArray(payload.pets) ? payload.pets : []);
+      } catch {
+        // Pet assets are optional for this flow.
+      }
+    };
+    void loadPets();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const validateAndReadDataUrl = useCallback(async (file: File): Promise<string> => {
     const formatCheck = validateImageFormat(file);
@@ -295,36 +395,167 @@ export default function EcommerceListingStudioPage() {
     });
   }, []);
 
-  async function handlePhotoUpload(view: ProductView, file: File) {
-    setReadingView(view);
-    setStatus("uploading");
-    setError(null);
-    try {
-      const dataUrl = await validateAndReadDataUrl(file);
-      setProductPhotos((photos) =>
-        photos.map((photo) => (photo.view === view ? { ...photo, dataUrl, fileName: file.name } : photo))
-      );
-      setCurrentJob(null);
-      setJobId(null);
-      setStatus("idle");
-      window.sessionStorage.removeItem(SESSION_KEY);
-    } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "Failed to process image.");
-      setStatus("error");
-    } finally {
-      setReadingView(null);
-      if (inputRefs[view].current) inputRefs[view].current.value = "";
-    }
-  }
-
-  function removePhoto(view: ProductView) {
-    setProductPhotos((photos) =>
-      photos.map((photo) => (photo.view === view ? { ...photo, dataUrl: null, fileName: null } : photo))
-    );
+  function clearGeneratedJobState() {
     setCurrentJob(null);
     setJobId(null);
     setStatus("idle");
     window.sessionStorage.removeItem(SESSION_KEY);
+  }
+
+  function changeSourceMode(nextMode: EcommerceListingSourceMode) {
+    if (isBusy || sourceMode === nextMode) return;
+    setSourceMode(nextMode);
+    setError(null);
+    if (nextMode === "manufacturer-promos") {
+      setAssetScopes(["carousel"]);
+    }
+    clearGeneratedJobState();
+  }
+
+  function changeCategory(nextCategory: EcommerceListingCategory) {
+    if (isBusy || category === nextCategory) return;
+    setCategory(nextCategory);
+    setError(null);
+    clearGeneratedJobState();
+  }
+
+  async function handleUnifiedImageUpload(files: FileList | null) {
+    if (!files?.length) return;
+    const selected = Array.from(files);
+    if (uploadedImages.length + selected.length > MAX_SOURCE_IMAGE_COUNT) {
+      setError(`Upload up to ${MAX_SOURCE_IMAGE_COUNT} images.`);
+      return;
+    }
+    setIsReadingUploads(true);
+    setStatus("uploading");
+    setError(null);
+    try {
+      const images = await Promise.all(
+        selected.map(async (file) => ({
+          id: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
+          fileName: file.name,
+          dataUrl: await validateAndReadDataUrl(file),
+        }))
+      );
+      setUploadedImages((current) => [...current, ...images].slice(0, MAX_SOURCE_IMAGE_COUNT));
+      clearGeneratedJobState();
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Failed to process image.");
+      setStatus("error");
+    } finally {
+      setIsReadingUploads(false);
+    }
+  }
+
+  function removeUploadedImage(id: string) {
+    setUploadedImages((current) => current.filter((image) => image.id !== id));
+    clearGeneratedJobState();
+  }
+
+  function applyQuickPhrase(text: string) {
+    setCustomRequirements((current) => {
+      const trimmed = text.trim();
+      if (!trimmed) return current;
+      if (!current.trim()) return trimmed;
+      if (current.includes(trimmed)) return current;
+      return `${current.trim()}\n${trimmed}`;
+    });
+  }
+
+  function saveQuickPhrase() {
+    const text = quickPhraseDraft.trim();
+    if (!text) return;
+    if (editingPhraseId) {
+      setQuickPhrases((current) =>
+        current.map((phrase) => (phrase.id === editingPhraseId ? { ...phrase, text } : phrase))
+      );
+    } else {
+      setQuickPhrases((current) => [{ id: crypto.randomUUID(), text }, ...current].slice(0, 12));
+    }
+    setQuickPhraseDraft("");
+    setEditingPhraseId(null);
+    setIsAddingPhrase(false);
+  }
+
+  function startAddingPhrase() {
+    setEditingPhraseId(null);
+    setQuickPhraseDraft("");
+    setIsAddingPhrase(true);
+  }
+
+  function cancelQuickPhraseEdit() {
+    setQuickPhraseDraft("");
+    setEditingPhraseId(null);
+    setIsAddingPhrase(false);
+  }
+
+  function editQuickPhrase(phrase: QuickPhrase) {
+    setIsAddingPhrase(false);
+    setQuickPhraseDraft(phrase.text);
+    setEditingPhraseId(phrase.id);
+  }
+
+  function deleteQuickPhrase(id: string) {
+    setQuickPhrases((current) => current.filter((phrase) => phrase.id !== id));
+    if (editingPhraseId === id) {
+      setEditingPhraseId(null);
+      setQuickPhraseDraft("");
+    }
+  }
+
+  function resetQuickPhrases() {
+    setQuickPhrases(DEFAULT_QUICK_PHRASES);
+    setQuickPhraseDraft("");
+    setEditingPhraseId(null);
+    setIsAddingPhrase(false);
+  }
+
+  async function handleBrandLogoUpload(file: File) {
+    setIsReadingBrandLogo(true);
+    setStatus("uploading");
+    setError(null);
+    try {
+      const dataUrl = await validateAndReadDataUrl(file);
+      setBrandLogoDataUrl(dataUrl);
+      setBrandLogoFileName(file.name);
+      clearGeneratedJobState();
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Failed to process brand logo.");
+      setStatus("error");
+    } finally {
+      setIsReadingBrandLogo(false);
+      if (brandLogoInputRef.current) brandLogoInputRef.current.value = "";
+    }
+  }
+
+  function removeBrandLogo() {
+    setBrandLogoDataUrl(null);
+    setBrandLogoFileName(null);
+    clearGeneratedJobState();
+  }
+
+  async function handlePetCreated(pet: UserPet) {
+    setSavedPets((current) => [pet, ...current.filter((entry) => entry.id !== pet.id)]);
+    setSelectedPetId(pet.id);
+    clearGeneratedJobState();
+  }
+
+  async function handleDeletePet(petId: string) {
+    if (deletingPetId) return;
+    setDeletingPetId(petId);
+    setError(null);
+    try {
+      const response = await fetch(`/api/user-pets?petId=${encodeURIComponent(petId)}`, { method: "DELETE" });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Failed to delete pet.");
+      setSavedPets((current) => current.filter((pet) => pet.id !== petId));
+      if (selectedPetId === petId) setSelectedPetId("");
+      clearGeneratedJobState();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Failed to delete pet.");
+    } finally {
+      setDeletingPetId(null);
+    }
   }
 
   function toggleScope(scope: EcommerceListingAssetScope) {
@@ -338,11 +569,23 @@ export default function EcommerceListingStudioPage() {
   }
 
   async function startGeneration() {
-    const productPhotoDataUrls = productPhotos
-      .filter((photo) => photo.dataUrl)
-      .map((photo) => photo.dataUrl!);
-    if (!productPhotoDataUrls.length) {
-      setError("Upload a front product photo first.");
+    const uploadedDataUrls = uploadedImages.map((image) => image.dataUrl);
+    const productPhotoDataUrls = isManufacturerMode ? [] : uploadedDataUrls;
+    const manufacturerPromoDataUrls = isManufacturerMode ? uploadedDataUrls : [];
+    if (isManufacturerMode && !manufacturerPromoDataUrls.length) {
+      setError("Upload at least one manufacturer promo image first.");
+      return;
+    }
+    if (isManufacturerMode && effectivePetReplacementEnabled && !petReady) {
+      setError("Pet replacement requires a saved pet asset. Save a new pet or select one from your saved pets.");
+      return;
+    }
+    if (!isManufacturerMode && !productPhotoDataUrls.length) {
+      setError("Upload at least one product photo first.");
+      return;
+    }
+    if (uploadedDataUrls.length > MAX_SOURCE_IMAGE_COUNT) {
+      setError(`Upload up to ${MAX_SOURCE_IMAGE_COUNT} images.`);
       return;
     }
     setStatus("starting");
@@ -359,7 +602,15 @@ export default function EcommerceListingStudioPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          sourceMode,
+          category,
           productPhotoDataUrls,
+          manufacturerPromoDataUrls,
+          brandLogoEnabled: isManufacturerMode && Boolean(brandLogoDataUrl),
+          brandLogoDataUrl: isManufacturerMode && brandLogoDataUrl ? brandLogoDataUrl : undefined,
+          brandLogoCorner,
+          petReplacementEnabled: effectivePetReplacementEnabled,
+          petId: effectivePetReplacementEnabled && selectedPet ? selectedPet.id : undefined,
           customRequirements,
           textLanguage,
           imageAspectRatio,
@@ -367,7 +618,7 @@ export default function EcommerceListingStudioPage() {
           videoModel,
           videoAspectRatio,
           videoResolution,
-          assetScopes,
+          assetScopes: effectiveAssetScopes,
         }),
       });
       const payload = await response.json();
@@ -449,7 +700,11 @@ export default function EcommerceListingStudioPage() {
 
   function resetTool() {
     setStatus("idle");
-    setProductPhotos(initialProductPhotos());
+    setUploadedImages([]);
+    setBrandLogoDataUrl(null);
+    setBrandLogoFileName(null);
+    setBrandLogoCorner("top-left");
+    setSelectedPetId("");
     setCurrentJob(null);
     setJobId(null);
     setError(null);
@@ -534,175 +789,307 @@ export default function EcommerceListingStudioPage() {
             </p>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <section className="space-y-6">
-              <div className="rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-[0_24px_60px_rgba(0,0,0,0.08)] sm:p-6">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold text-black">Product References</h2>
-                    <p className="mt-1 text-sm text-[#666666]">Upload a front view and optional side/back views for better product accuracy.</p>
-                  </div>
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <div className="space-y-6">
+            <section className="rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-[0_24px_60px_rgba(0,0,0,0.08)] sm:p-6">
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                  <AnimatedTogglePill
+                    value={sourceMode}
+                    disabled={isBusy}
+                    onChange={(value) => changeSourceMode(value as EcommerceListingSourceMode)}
+                    options={[
+                      {
+                        value: "product-photos" as const,
+                        label: "Products",
+                        icon: <Package className="h-3.5 w-3.5" />,
+                        description: "Upload your own product photos. We'll generate marketplace listing images, detail images, and ad videos from them.",
+                      },
+                      {
+                        value: "manufacturer-promos" as const,
+                        label: "Redesign",
+                        icon: <Megaphone className="h-3.5 w-3.5" />,
+                        description: "Upload manufacturer promotional images. We'll redesign them into clean marketplace carousel layouts while preserving the product, packaging, and brand.",
+                      },
+                    ]}
+                  />
+                  <AnimatedTogglePill
+                    value={category}
+                    disabled={isBusy}
+                    onChange={(value) => changeCategory(value as EcommerceListingCategory)}
+                    options={[
+                      { value: "general" as const, label: "General", icon: <Sparkles className="h-3.5 w-3.5" /> },
+                      { value: "pet" as const, label: "Pet", icon: <PawPrint className="h-3.5 w-3.5" /> },
+                    ]}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
                   {currentJob ? (
                     <button type="button" onClick={resetTool} className={`${secondaryButtonClass} justify-center`}>
                       New Listing
                     </button>
                   ) : null}
-                </div>
-                <div className="grid gap-3 md:grid-cols-3">
-                  {productPhotos.map((photo) => (
-                    <PhotoUploadCard
-                      key={photo.view}
-                      photo={photo}
-                      inputRef={inputRefs[photo.view]}
-                      isBusy={isBusy}
-                      isLoading={readingView === photo.view}
-                      onFile={(file) => void handlePhotoUpload(photo.view, file)}
-                      onRemove={() => removePhoto(photo.view)}
-                    />
-                  ))}
+                  <div className="relative" ref={configPopoverRef}>
+                    <button
+                      type="button"
+                      onClick={() => setSettingsOpen((open) => !open)}
+                      className={`${secondaryButtonClass} justify-center`}
+                      aria-expanded={settingsOpen}
+                    >
+                      <Settings2 className="h-4 w-4" />
+                      Config
+                    </button>
+                    {settingsOpen ? (
+                      <div
+                        role="dialog"
+                        aria-label="Generation config"
+                        className="absolute right-0 top-full z-[190] mt-2 w-[320px] origin-top-right rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-[0_24px_60px_rgba(0,0,0,0.18)] animate-in fade-in-0 slide-in-from-top-1 duration-150 motion-reduce:animate-none"
+                      >
+                        <div className="mb-3 flex items-center justify-between">
+                          <div>
+                            <h2 className="text-sm font-semibold text-black">Generation Config</h2>
+                            <p className="mt-0.5 text-[11px] text-[#666666]">Language and output formats.</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSettingsOpen(false)}
+                            className="flex h-7 w-7 items-center justify-center rounded-full border border-[#E5E5E5] bg-white text-[#666666] transition hover:border-black hover:text-black"
+                            aria-label="Close config"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <div className="space-y-3">
+                          <SettingsGroup icon={<Languages className="h-3.5 w-3.5" />} label="Language">
+                            <SettingSelect
+                              value={textLanguage}
+                              disabled={isBusy}
+                              onValueChange={(value) => setTextLanguage(value as EcommerceListingTextLanguage)}
+                              options={TEXT_LANGUAGE_OPTIONS}
+                            />
+                          </SettingsGroup>
+
+                          <SettingsGroup icon={<Monitor className="h-3.5 w-3.5" />} label="Image Format">
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <SettingSelect
+                                value={imageAspectRatio}
+                                disabled={isBusy}
+                                onValueChange={(value) => setImageAspectRatio(value as EcommerceListingImageAspectRatio)}
+                                options={IMAGE_RATIOS.map((ratio) => ({ value: ratio, label: ratio }))}
+                              />
+                              <SettingSelect
+                                value={imageResolution}
+                                disabled={isBusy}
+                                onValueChange={(value) => setImageResolution(value as EcommerceListingImageResolution)}
+                                options={IMAGE_RESOLUTIONS.map((resolution) => ({ value: resolution, label: resolution }))}
+                              />
+                            </div>
+                          </SettingsGroup>
+
+                          {!isManufacturerMode ? (
+                            <SettingsGroup icon={<Film className="h-3.5 w-3.5" />} label="Video Format">
+                              <SettingSelect
+                                value={videoModel}
+                                disabled={isBusy}
+                                onValueChange={(value) => setVideoModel(value as EcommerceListingVideoModel)}
+                                options={VIDEO_MODEL_OPTIONS}
+                              />
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <SettingSelect
+                                  value={videoAspectRatio}
+                                  disabled={isBusy}
+                                  onValueChange={(value) => setVideoAspectRatio(value as EcommerceListingVideoAspectRatio)}
+                                  options={videoRatioOptions.map((ratio) => ({ value: ratio, label: ratio }))}
+                                />
+                                <SettingSelect
+                                  value={videoResolution}
+                                  disabled={isBusy}
+                                  onValueChange={(value) => setVideoResolution(value as EcommerceListingVideoResolution)}
+                                  options={videoResolutionOptions.map((resolution) => ({ value: resolution, label: resolution }))}
+                                />
+                              </div>
+                            </SettingsGroup>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
-              <ResultsPanel
-                job={currentJob}
-                metadata={metadata}
-                imageAspectRatio={metadata.image_aspect_ratio ?? imageAspectRatio}
-                videoAspectRatio={metadata.video_aspect_ratio ?? videoAspectRatio}
-                primaryButtonClass={primaryButtonClass}
-                secondaryButtonClass={secondaryButtonClass}
-                copiedUrl={copiedUrl}
-                manualCopyUrl={manualCopyUrl}
-                onCopy={copyUrl}
-                onRegenerate={openRegenerateModal}
-                onPreview={setPreviewImageUrl}
-                onRetryVideo={() => void retryVideo()}
-                isRetryingVideo={isRetryingVideo}
+              <UnifiedUploadArea
+                images={uploadedImages}
+                isBusy={isBusy}
+                isLoading={isReadingUploads}
+                onFiles={(files) => void handleUnifiedImageUpload(files)}
+                onRemove={removeUploadedImage}
               />
-            </section>
 
-            <aside className="rounded-2xl border border-[#E5E5E5] bg-[#FAFAFA] p-4 shadow-[0_24px_60px_rgba(0,0,0,0.08)] lg:sticky lg:top-5 lg:self-start">
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold text-black">Generation Settings</h2>
-                <p className="mt-1 text-xs leading-5 text-[#666666]">Choose language, formats, and assets.</p>
-              </div>
-              <div className="space-y-4">
-                <SettingsGroup icon={<Languages className="h-4 w-4" />} label="Language">
-                  <SettingSelect
-                    value={textLanguage}
+              <div className="mt-5 rounded-2xl border border-[#E5E5E5] bg-[#FAFAFA] p-3 sm:p-4">
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  {quickPhrases.map((phrase) => (
+                    <span key={phrase.id} className="group inline-flex items-center gap-1 rounded-full border border-[#E5E5E5] bg-white px-2.5 py-1 text-xs font-medium text-black">
+                      <button type="button" disabled={isBusy} onClick={() => applyQuickPhrase(phrase.text)} className="disabled:opacity-50">
+                        {phrase.text}
+                      </button>
+                      <button type="button" disabled={isBusy} onClick={() => editQuickPhrase(phrase)} className="text-[#999999] hover:text-black disabled:opacity-50" aria-label="Edit quick phrase">
+                        <Settings2 className="h-3 w-3" />
+                      </button>
+                      <button type="button" disabled={isBusy} onClick={() => deleteQuickPhrase(phrase.id)} className="text-[#999999] hover:text-black disabled:opacity-50" aria-label="Delete quick phrase">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {isAddingPhrase ? (
+                    <span className="inline-flex items-center gap-2 rounded-full border border-[#E5E5E5] bg-white py-1 pl-2.5 pr-1 text-xs font-medium text-black focus-within:border-[#E5E5E5]">
+                      <input
+                        autoFocus
+                        value={quickPhraseDraft}
+                        onChange={(event) => setQuickPhraseDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            saveQuickPhrase();
+                          } else if (event.key === "Escape") {
+                            event.preventDefault();
+                            cancelQuickPhraseEdit();
+                          }
+                        }}
+                        disabled={isBusy}
+                        placeholder="New phrase"
+                        style={{ outline: "none", boxShadow: "none" }}
+                        className="w-32 border-0 bg-transparent text-xs text-black placeholder:text-[#999999] focus:border-0 focus:outline-none focus:ring-0 disabled:opacity-50"
+                      />
+                      <button
+                        type="button"
+                        disabled={isBusy || !quickPhraseDraft.trim()}
+                        onClick={saveQuickPhrase}
+                        className="flex h-5 w-5 items-center justify-center rounded-full text-[#999999] transition hover:bg-[#F2F2F2] hover:text-black disabled:opacity-50"
+                        aria-label="Save phrase"
+                      >
+                        <Check className="h-3 w-3" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={cancelQuickPhraseEdit}
+                        className="flex h-5 w-5 items-center justify-center rounded-full text-[#999999] transition hover:bg-[#F2F2F2] hover:text-black disabled:opacity-50"
+                        aria-label="Cancel"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={startAddingPhrase}
+                      className="inline-flex items-center gap-1 rounded-full border border-dashed border-[#BEBEBE] bg-transparent px-2.5 py-1 text-xs font-medium text-[#666666] transition hover:border-black hover:text-black disabled:opacity-50"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add phrase
+                    </button>
+                  )}
+                  <button
+                    type="button"
                     disabled={isBusy}
-                    onValueChange={(value) => setTextLanguage(value as EcommerceListingTextLanguage)}
-                    options={TEXT_LANGUAGE_OPTIONS}
-                  />
-                </SettingsGroup>
+                    onClick={resetQuickPhrases}
+                    className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-[#999999] transition hover:text-black disabled:opacity-50"
+                    aria-label="Reset quick phrases"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Reset
+                  </button>
+                </div>
 
-                <SettingsGroup icon={<Monitor className="h-4 w-4" />} label="Image Format">
-                  <div className="grid grid-cols-2 gap-2">
-                    <SettingSelect
-                      value={imageAspectRatio}
-                      disabled={isBusy}
-                      onValueChange={(value) => setImageAspectRatio(value as EcommerceListingImageAspectRatio)}
-                      options={IMAGE_RATIOS.map((ratio) => ({ value: ratio, label: ratio }))}
-                    />
-                    <SettingSelect
-                      value={imageResolution}
-                      disabled={isBusy}
-                      onValueChange={(value) => setImageResolution(value as EcommerceListingImageResolution)}
-                      options={IMAGE_RESOLUTIONS.map((resolution) => ({ value: resolution, label: resolution }))}
-                    />
-                  </div>
-                </SettingsGroup>
-
-                <SettingsGroup icon={<Film className="h-4 w-4" />} label="Video Format">
-                  <SettingSelect
-                    value={videoModel}
-                    disabled={isBusy}
-                    onValueChange={(value) => setVideoModel(value as EcommerceListingVideoModel)}
-                    options={VIDEO_MODEL_OPTIONS}
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <SettingSelect
-                      value={videoAspectRatio}
-                      disabled={isBusy}
-                      onValueChange={(value) => setVideoAspectRatio(value as EcommerceListingVideoAspectRatio)}
-                      options={videoRatioOptions.map((ratio) => ({ value: ratio, label: ratio }))}
-                    />
-                    <SettingSelect
-                      value={videoResolution}
-                      disabled={isBusy}
-                      onValueChange={(value) => setVideoResolution(value as EcommerceListingVideoResolution)}
-                      options={videoResolutionOptions.map((resolution) => ({ value: resolution, label: resolution }))}
-                    />
-                  </div>
-                </SettingsGroup>
-
-                <SettingsGroup icon={<Settings2 className="h-4 w-4" />} label="Assets to Generate">
-                  <div className="grid grid-cols-3 gap-2">
-                    {ASSET_SCOPE_OPTIONS.map((item) => {
-                      const active = assetScopes.includes(item.scope);
-                      return (
-                        <button
-                          key={item.scope}
-                          type="button"
-                          disabled={isBusy}
-                          onClick={() => toggleScope(item.scope)}
-                          className={`rounded-lg border px-2.5 py-2 text-left transition disabled:opacity-50 ${
-                            active ? "border-black bg-white text-black" : "border-[#E5E5E5] bg-white text-[#666666] hover:border-black"
-                          }`}
-                        >
-                          <span className="flex items-center gap-1.5 text-xs font-semibold">
-                            <span className={`flex h-4 w-4 items-center justify-center rounded border ${active ? "border-black bg-black" : "border-[#D6D6D6] bg-white"}`}>
-                              {active ? <Check className="h-3 w-3 text-white" /> : null}
-                            </span>
-                            {item.label}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </SettingsGroup>
-
-                <SettingsGroup icon={<PackageSearch className="h-4 w-4" />} label="Custom Requirements">
+                <div className="rounded-xl border border-[#E5E5E5] bg-white p-2">
                   <textarea
                     value={customRequirements}
                     onChange={(event) => setCustomRequirements(event.target.value)}
                     disabled={isBusy}
-                    placeholder="Optional: keep the style minimal, avoid on-image text, emphasize material quality..."
-                    className="min-h-20 w-full resize-y rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 text-sm leading-5 text-black outline-none placeholder:text-[#999999] focus:border-black disabled:opacity-50"
+                    rows={4}
+                    placeholder="Describe the desired listing style, visual direction, text density, brand tone, or any constraints..."
+                    className="min-h-28 w-full resize-none rounded-lg border-0 bg-white px-3 py-2 text-sm leading-6 text-black outline-none placeholder:text-[#999999] disabled:opacity-50"
                   />
-                </SettingsGroup>
+                  <div className="flex flex-col gap-2 border-t border-[#E5E5E5] px-2 py-2 sm:flex-row sm:items-center sm:justify-end">
+                  <button
+                    type="button"
+                    disabled={!canGenerate}
+                    onClick={() => void startGeneration()}
+                    className={`${primaryButtonClass} justify-center ${!canGenerate ? "opacity-50" : ""}`}
+                  >
+                    {isBusy ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Generate
+                        <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-white/15 px-1.5 py-0.5 text-[11px] font-semibold leading-none">
+                          <Coins className="h-3 w-3" />
+                          {creditCost}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                </div>
               </div>
 
-              <button
-                type="button"
-                disabled={!canGenerate}
-                onClick={() => void startGeneration()}
-                className={`${primaryButtonClass} mt-5 w-full justify-center ${!canGenerate ? "opacity-50" : ""}`}
-              >
-                {isBusy ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    Generate Listing Assets
-                    <span className="inline-flex items-center gap-1">
-                      <Coins className="h-4 w-4" />
-                      {creditCost}
-                    </span>
-                  </>
-                )}
-              </button>
-
               {error ? (
-                <div className="mt-3 flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                <div className="mt-4 flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                   <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span>{error}</span>
                 </div>
               ) : null}
+            </section>
+            </div>
+
+            <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+              <SettingsSidebar
+                isBusy={isBusy}
+                isManufacturerMode={isManufacturerMode}
+                petReplacementAvailable={petReplacementAvailable}
+                assetScopes={assetScopes}
+                onToggleScope={toggleScope}
+                brandLogoDataUrl={brandLogoDataUrl}
+                brandLogoFileName={brandLogoFileName}
+                isReadingBrandLogo={isReadingBrandLogo}
+                brandLogoInputRef={brandLogoInputRef}
+                onBrandLogoUpload={(file) => void handleBrandLogoUpload(file)}
+                onRemoveBrandLogo={removeBrandLogo}
+                brandLogoCorner={brandLogoCorner}
+                onBrandLogoCornerChange={setBrandLogoCorner}
+                savedPets={savedPets}
+                selectedPetId={selectedPetId}
+                onSelectedPetChange={(petId) => {
+                  setSelectedPetId((current) => (current === petId ? "" : petId));
+                  clearGeneratedJobState();
+                }}
+                onOpenCreatePetModal={() => setShowCreatePetModal(true)}
+                onDeletePet={(petId) => void handleDeletePet(petId)}
+                deletingPetId={deletingPetId}
+              />
             </aside>
           </div>
+
+            <ResultsPanel
+              job={currentJob}
+              metadata={metadata}
+              imageAspectRatio={metadata.image_aspect_ratio ?? imageAspectRatio}
+              videoAspectRatio={metadata.video_aspect_ratio ?? videoAspectRatio}
+              primaryButtonClass={primaryButtonClass}
+              secondaryButtonClass={secondaryButtonClass}
+              copiedUrl={copiedUrl}
+              manualCopyUrl={manualCopyUrl}
+              onCopy={copyUrl}
+              onRegenerate={openRegenerateModal}
+              onPreview={setPreviewImageUrl}
+              onRetryVideo={() => void retryVideo()}
+              isRetryingVideo={isRetryingVideo}
+            />
         </section>
       </main>
       {regenerateSlot ? (
@@ -725,8 +1112,474 @@ export default function EcommerceListingStudioPage() {
       {previewImageUrl ? (
         <ImagePreviewModal url={previewImageUrl} onClose={() => setPreviewImageUrl(null)} />
       ) : null}
+      <CreatePetModal
+        isOpen={showCreatePetModal}
+        onClose={() => setShowCreatePetModal(false)}
+        onPetCreated={(pet) => void handlePetCreated(pet)}
+      />
       <Footer />
     </>
+  );
+}
+
+function UnifiedUploadArea({
+  images,
+  isBusy,
+  isLoading,
+  onFiles,
+  onRemove,
+}: {
+  images: LocalUploadImage[];
+  isBusy: boolean;
+  isLoading: boolean;
+  onFiles: (files: FileList | null) => void;
+  onRemove: (id: string) => void;
+}) {
+  const reachedLimit = images.length >= MAX_SOURCE_IMAGE_COUNT;
+  const disabled = isBusy || reachedLimit;
+  const showEmptyState = images.length === 0;
+  const remainingSlots = Math.max(0, MAX_SOURCE_IMAGE_COUNT - images.length);
+
+  return (
+    <div>
+      {showEmptyState ? (
+        <label
+          className={`flex h-[360px] w-full cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-[#BEBEBE] bg-[#FAFAFA] px-4 py-8 text-center transition ${
+            disabled ? "pointer-events-none opacity-60" : "hover:border-black hover:bg-white"
+          }`}
+        >
+          {isLoading ? <Loader2 className="h-8 w-8 animate-spin text-black" /> : <Upload className="h-8 w-8 text-black" />}
+          <span className="mt-3 text-sm font-semibold text-black">Drop images here or click to upload</span>
+          <span className="mt-1 text-xs text-[#666666]">JPG, PNG, WebP, AVIF, HEIC, or HEIF</span>
+          <input
+            type="file"
+            accept={getAcceptedImageFormats()}
+            multiple
+            disabled={disabled}
+            className="sr-only"
+            onChange={(event) => {
+              onFiles(event.currentTarget.files);
+              event.currentTarget.value = "";
+            }}
+          />
+        </label>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {images.map((image, index) => (
+            <div key={image.id} className="group rounded-xl border border-[#E5E5E5] bg-white p-2">
+              <div className="relative overflow-hidden rounded-lg border border-[#E5E5E5] bg-[#FAFAFA]">
+                <Image src={image.dataUrl} alt={`Uploaded source ${index + 1}`} width={420} height={420} className="aspect-square w-full object-contain" unoptimized />
+                <span className="absolute left-2 top-2 rounded-full bg-black px-2 py-0.5 text-[10px] font-semibold text-white">
+                  {index + 1}
+                </span>
+                {!isBusy ? (
+                  <button
+                    type="button"
+                    onClick={() => onRemove(image.id)}
+                    className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/75 text-white opacity-100 transition hover:bg-black"
+                    aria-label="Remove image"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
+              </div>
+              <p className="mt-2 truncate px-1 text-xs text-[#666666]">{image.fileName}</p>
+            </div>
+          ))}
+
+          {remainingSlots > 0 ? (
+            <label
+              className={`group flex aspect-square w-full cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#BEBEBE] bg-[#FAFAFA] p-2 text-center transition ${
+                disabled ? "pointer-events-none opacity-60" : "hover:border-black hover:bg-white"
+              }`}
+            >
+              <div className="flex aspect-square w-full flex-col items-center justify-center rounded-lg border border-dashed border-transparent">
+                {isLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-black" />
+                ) : (
+                  <Plus className="h-6 w-6 text-black transition group-hover:scale-110" />
+                )}
+                <span className="mt-2 text-xs font-semibold text-black">Add image</span>
+                <span className="mt-0.5 text-[10px] text-[#666666]">
+                  {remainingSlots} slot{remainingSlots === 1 ? "" : "s"} left
+                </span>
+              </div>
+              <input
+                type="file"
+                accept={getAcceptedImageFormats()}
+                multiple
+                disabled={disabled}
+                className="sr-only"
+                onChange={(event) => {
+                  onFiles(event.currentTarget.files);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AnimatedTogglePill({
+  value,
+  options,
+  disabled,
+  onChange,
+}: {
+  value: string;
+  options: { value: string; label: string; icon?: ReactNode; description?: string }[];
+  disabled?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const buttonRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const [activeIndex, setActiveIndex] = useState(() =>
+    Math.max(0, options.findIndex((option) => option.value === value))
+  );
+  const [thumb, setThumb] = useState<{ left: number; width: number }>({ left: 0, width: 0 });
+
+  useEffect(() => {
+    const nextIndex = options.findIndex((option) => option.value === value);
+    if (nextIndex >= 0) setActiveIndex(nextIndex);
+  }, [value, options]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const target = buttonRefs.current[activeIndex];
+    if (!container || !target) return;
+    const measure = () => {
+      const containerRect = container.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      setThumb({
+        left: targetRect.left - containerRect.left,
+        width: targetRect.width,
+      });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    buttonRefs.current.forEach((button) => {
+      if (button) observer.observe(button);
+    });
+    return () => observer.disconnect();
+  }, [activeIndex, options]);
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <div
+        ref={containerRef}
+        className="relative inline-flex items-center gap-1 rounded-full border border-[#E5E5E5] bg-[#F7F7F7] p-1"
+      >
+        <span
+          aria-hidden
+          className="pointer-events-none absolute top-1 bottom-1 rounded-full bg-white shadow-sm transition-all duration-300 ease-out motion-reduce:transition-none"
+          style={{ left: thumb.left, width: thumb.width }}
+        />
+        {options.map((option, index) => {
+          const active = option.value === value;
+          return (
+            <span
+              key={option.value}
+              ref={(element) => {
+                buttonRefs.current[index] = element;
+              }}
+              className="relative z-10 inline-flex items-center"
+            >
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onChange(option.value)}
+                className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full pl-3.5 pr-1.5 py-1.5 text-xs font-semibold transition-colors duration-200 disabled:opacity-50 ${
+                  active ? "text-black" : "text-[#666666] hover:text-black"
+                }`}
+              >
+                {option.icon ? <span className="flex h-4 w-4 items-center justify-center">{option.icon}</span> : null}
+                {option.label}
+              </button>
+              {option.description ? <InlineHelp description={option.description} /> : null}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CornerIcon({ corner, active }: { corner: EcommerceListingLogoCorner; active: boolean }) {
+  const cells: Array<{ x: number; y: number; key: string }> = [
+    { x: 2, y: 2, key: "top-left" },
+    { x: 10, y: 2, key: "top-right" },
+    { x: 2, y: 10, key: "bottom-left" },
+    { x: 10, y: 10, key: "bottom-right" },
+  ];
+  const fill = active ? "currentColor" : "transparent";
+  const stroke = active ? "currentColor" : "currentColor";
+  return (
+    <svg viewBox="0 0 16 16" width={14} height={14} aria-hidden="true" className="shrink-0">
+      <rect x="1" y="1" width="14" height="14" rx="2" fill="none" stroke={stroke} strokeWidth="1.4" />
+      {cells.map((cell) => (
+        <rect
+          key={cell.key}
+          x={cell.x}
+          y={cell.y}
+          width="4"
+          height="4"
+          rx="0.8"
+          fill={cell.key === corner ? fill : "none"}
+          stroke={stroke}
+          strokeWidth="1.2"
+          opacity={cell.key === corner ? 1 : 0.55}
+        />
+      ))}
+    </svg>
+  );
+}
+
+function InlineHelp({ description }: { description: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span
+      className="relative mr-1 inline-flex"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        tabIndex={0}
+        aria-label="What does this option do?"
+        className="flex h-5 w-5 items-center justify-center rounded-full text-[#9A9A9A] transition hover:text-black focus:text-black focus:outline-none"
+      >
+        <HelpCircle className="h-3.5 w-3.5" />
+      </button>
+      {open ? (
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 w-64 -translate-x-1/2 rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 text-[11px] leading-5 text-[#444444] shadow-[0_12px_32px_rgba(0,0,0,0.14)]"
+        >
+          {description}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function SettingsSidebar({
+  isBusy,
+  isManufacturerMode,
+  petReplacementAvailable,
+  assetScopes,
+  onToggleScope,
+  brandLogoDataUrl,
+  brandLogoFileName,
+  isReadingBrandLogo,
+  brandLogoInputRef,
+  onBrandLogoUpload,
+  onRemoveBrandLogo,
+  brandLogoCorner,
+  onBrandLogoCornerChange,
+  savedPets,
+  selectedPetId,
+  onSelectedPetChange,
+  onOpenCreatePetModal,
+  onDeletePet,
+  deletingPetId,
+}: {
+  isBusy: boolean;
+  isManufacturerMode: boolean;
+  petReplacementAvailable: boolean;
+  assetScopes: EcommerceListingAssetScope[];
+  onToggleScope: (scope: EcommerceListingAssetScope) => void;
+  brandLogoDataUrl: string | null;
+  brandLogoFileName: string | null;
+  isReadingBrandLogo: boolean;
+  brandLogoInputRef: RefObject<HTMLInputElement | null>;
+  onBrandLogoUpload: (file: File) => void;
+  onRemoveBrandLogo: () => void;
+  brandLogoCorner: EcommerceListingLogoCorner;
+  onBrandLogoCornerChange: (corner: EcommerceListingLogoCorner) => void;
+  savedPets: UserPet[];
+  selectedPetId: string;
+  onSelectedPetChange: (petId: string) => void;
+  onOpenCreatePetModal: () => void;
+  onDeletePet: (petId: string) => void;
+  deletingPetId: string | null;
+}) {
+  return (
+    <div className="rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-[0_24px_60px_rgba(0,0,0,0.06)] sm:p-5">
+      <h2 className="mb-1 text-sm font-semibold text-black">Asset Settings</h2>
+      <p className="mb-4 text-xs text-[#666666]">Choose what to generate and add brand references.</p>
+
+      <div className="space-y-5">
+        <SettingsGroup icon={<Settings2 className="h-4 w-4" />} label="Assets to Generate">
+          <div className="space-y-2">
+            {ASSET_SCOPE_OPTIONS.map((item) => {
+              const active = isManufacturerMode ? item.scope === "carousel" : assetScopes.includes(item.scope);
+              const disabledRow = isBusy || isManufacturerMode;
+              return (
+                <button
+                  key={item.scope}
+                  type="button"
+                  role="switch"
+                  aria-checked={active}
+                  disabled={disabledRow}
+                  onClick={() => onToggleScope(item.scope)}
+                  className={`flex h-10 w-full items-center gap-2.5 rounded-lg border px-3 text-left transition disabled:opacity-50 ${
+                    active ? "border-black bg-white" : "border-[#E5E5E5] bg-white hover:border-black"
+                  }`}
+                >
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
+                    active ? "bg-black text-white" : "bg-[#F7F7F7] text-[#666666]"
+                  }`}>
+                    {item.icon}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className={`block text-sm font-semibold ${active ? "text-black" : "text-[#666666]"}`}>
+                      {item.label}
+                    </span>
+                  </span>
+                  <span className={`flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition ${
+                    active ? "bg-black" : "bg-[#D8D8D8]"
+                  }`}>
+                    <span className={`h-4 w-4 rounded-full bg-white transition ${active ? "translate-x-4" : "translate-x-0"}`} />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {isManufacturerMode ? (
+            <p className="text-xs leading-5 text-[#666666]">Manufacturer Carousel generates carousel images only.</p>
+          ) : null}
+        </SettingsGroup>
+
+        {isManufacturerMode ? (
+          <SettingsGroup icon={<Stamp className="h-4 w-4" />} label="Brand Logo">
+            <div className="space-y-2 rounded-lg border border-[#E5E5E5] bg-white p-2">
+              {brandLogoDataUrl ? (
+                  <div className="flex items-center gap-3">
+                    <Image src={brandLogoDataUrl} alt="Brand logo" width={80} height={80} className="h-16 w-16 rounded-lg border border-[#E5E5E5] object-contain p-1" unoptimized />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium text-black">{brandLogoFileName}</p>
+                      <button type="button" onClick={onRemoveBrandLogo} disabled={isBusy} className="mt-1 inline-flex items-center gap-1 text-xs text-[#666666] hover:text-black disabled:opacity-50">
+                        <X className="h-3.5 w-3.5" />
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className={`flex h-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[#BEBEBE] bg-[#FAFAFA] text-sm font-medium text-black ${isBusy ? "pointer-events-none opacity-60" : "hover:border-black"}`}>
+                    {isReadingBrandLogo ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
+                    Upload logo
+                    <input
+                      ref={brandLogoInputRef}
+                      type="file"
+                      accept={getAcceptedImageFormats()}
+                      disabled={isBusy}
+                      className="sr-only"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) onBrandLogoUpload(file);
+                      }}
+                    />
+                  </label>
+                )}
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(["top-left", "top-right", "bottom-left", "bottom-right"] as EcommerceListingLogoCorner[]).map((corner) => {
+                    const active = brandLogoCorner === corner;
+                    return (
+                      <button
+                        key={corner}
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => onBrandLogoCornerChange(corner)}
+                        aria-label={corner.replace("-", " ")}
+                        aria-pressed={active}
+                        className={`flex items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-xs font-semibold capitalize transition disabled:opacity-50 ${
+                          active ? "border-black bg-black text-white" : "border-[#E5E5E5] bg-white text-[#666666] hover:border-black"
+                        }`}
+                      >
+                        <CornerIcon corner={corner} active={active} />
+                        {corner.replace("-", " ")}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+          </SettingsGroup>
+        ) : null}
+
+        {petReplacementAvailable ? (
+          <SettingsGroup
+            icon={<PawPrint className="h-4 w-4" />}
+            label="Pet Replacement"
+            description="Select a saved pet or upload front, side, and back photos, then save them as a reusable pet asset."
+          >
+            <div className="grid grid-cols-4 gap-2">
+              {savedPets.map((pet) => {
+                const isSelected = selectedPetId === pet.id;
+                const isDeleting = deletingPetId === pet.id;
+                return (
+                  <div
+                    key={pet.id}
+                    className={cn(
+                      "group relative overflow-hidden rounded-xl border bg-white text-left transition-all",
+                      isSelected
+                        ? "border-black ring-2 ring-black/15 shadow-[0_4px_12px_rgba(0,0,0,0.06)]"
+                        : "border-gray-200 hover:border-gray-300"
+                    )}
+                  >
+                    <button
+                      type="button"
+                      disabled={isBusy || isDeleting}
+                      onClick={() => onSelectedPetChange(pet.id)}
+                      className="block w-full text-left disabled:opacity-50"
+                      aria-label={`Select ${pet.pet_name}`}
+                      aria-pressed={isSelected}
+                    >
+                      <div className="aspect-square w-full overflow-hidden bg-[#fcfcfc]">
+                        <img
+                          src={pet.front_photo_url}
+                          alt={pet.pet_name}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    </button>
+                    <div className="flex items-center justify-between gap-2 px-2.5 pb-2.5">
+                      <p className="truncate text-xs font-semibold text-gray-900">{pet.pet_name}</p>
+                      <button
+                        type="button"
+                        disabled={isBusy || isDeleting}
+                        onClick={() => onDeletePet(pet.id)}
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[#999999] transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                        aria-label={`Delete ${pet.pet_name}`}
+                      >
+                        {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={onOpenCreatePetModal}
+                className="flex aspect-square flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white text-[#666666] transition-colors hover:border-black hover:text-black disabled:opacity-50"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white">
+                  <Plus className="h-5 w-5" />
+                </span>
+                <span className="text-xs font-semibold">New pet</span>
+              </button>
+            </div>
+          </SettingsGroup>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -839,12 +1692,13 @@ function SettingSelect({
   );
 }
 
-function SettingsGroup({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
+function SettingsGroup({ icon, label, description, children }: { icon: ReactNode; label: string; description?: string; children: ReactNode }) {
   return (
     <div>
       <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#666666]">
         {icon}
         {label}
+        {description ? <InlineHelp description={description} /> : null}
       </div>
       <div className="space-y-1.5">{children}</div>
     </div>
@@ -860,7 +1714,7 @@ function PhotoUploadCard({
   onRemove,
 }: {
   photo: ProductPhoto;
-  inputRef: RefObject<HTMLInputElement | null>;
+  inputRef?: RefObject<HTMLInputElement | null>;
   isBusy: boolean;
   isLoading: boolean;
   onFile: (file: File) => void;
@@ -892,6 +1746,7 @@ function PhotoUploadCard({
           onChange={(event) => {
             const file = event.target.files?.[0];
             if (file) onFile(file);
+            event.currentTarget.value = "";
           }}
         />
       </label>
@@ -941,7 +1796,7 @@ function ResultsPanel({
 
   if (!hasResult) {
     return (
-      <div className="rounded-2xl border border-[#E5E5E5] bg-[#FAFAFA] p-8 text-center">
+      <div className="mt-6 rounded-2xl border border-[#E5E5E5] bg-[#FAFAFA] p-8 text-center sm:p-10">
         <ImageIcon className="mx-auto h-8 w-8 text-[#CCCCCC]" />
         <h2 className="mt-3 text-base font-semibold text-black">Generated assets will appear here</h2>
         <p className="mt-1 text-sm text-[#666666]">Upload product photos and start generation to create listing assets.</p>
