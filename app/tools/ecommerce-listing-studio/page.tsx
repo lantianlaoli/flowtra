@@ -826,7 +826,8 @@ export default function EcommerceListingStudioPage() {
                 <div className="flex items-center gap-2">
                   {currentJob ? (
                     <button type="button" onClick={resetTool} className={`${secondaryButtonClass} justify-center`}>
-                      New Listing
+                      <RefreshCw className="h-4 w-4" />
+                      Reset
                     </button>
                   ) : null}
                   <div className="relative" ref={configPopoverRef}>
