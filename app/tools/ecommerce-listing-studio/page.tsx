@@ -1076,21 +1076,23 @@ export default function EcommerceListingStudioPage() {
             </aside>
           </div>
 
-            <ResultsPanel
-              job={currentJob}
-              metadata={metadata}
-              imageAspectRatio={metadata.image_aspect_ratio ?? imageAspectRatio}
-              videoAspectRatio={metadata.video_aspect_ratio ?? videoAspectRatio}
-              primaryButtonClass={primaryButtonClass}
-              secondaryButtonClass={secondaryButtonClass}
-              copiedUrl={copiedUrl}
-              manualCopyUrl={manualCopyUrl}
-              onCopy={copyUrl}
-              onRegenerate={openRegenerateModal}
-              onPreview={setPreviewImageUrl}
-              onRetryVideo={() => void retryVideo()}
-              isRetryingVideo={isRetryingVideo}
-            />
+            <div className="mt-6">
+              <ResultsPanel
+                job={currentJob}
+                metadata={metadata}
+                imageAspectRatio={metadata.image_aspect_ratio ?? imageAspectRatio}
+                videoAspectRatio={metadata.video_aspect_ratio ?? videoAspectRatio}
+                primaryButtonClass={primaryButtonClass}
+                secondaryButtonClass={secondaryButtonClass}
+                copiedUrl={copiedUrl}
+                manualCopyUrl={manualCopyUrl}
+                onCopy={copyUrl}
+                onRegenerate={openRegenerateModal}
+                onPreview={setPreviewImageUrl}
+                onRetryVideo={() => void retryVideo()}
+                isRetryingVideo={isRetryingVideo}
+              />
+            </div>
         </section>
       </main>
       {regenerateSlot ? (
