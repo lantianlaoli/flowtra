@@ -52,17 +52,3 @@ export type ImageCloneBulkJob = {
   resolution: ImageCloneBulkResolution;
   sourceRow: ImageCloneBulkRow["source"];
 };
-
-export type ImageCloneBulkStoredJobStatus = Pick<ImageCloneBulkJob, "status" | "resultUrl" | "error"> & {
-  taskId: string;
-  updatedAt: string;
-  prompt?: string;
-  inputUrls?: string[];
-  aspectRatio?: ImageCloneBulkAspectRatio;
-  resolution?: ImageCloneBulkResolution;
-  retryCount?: number;
-  maxRetries?: number;
-  userId?: string;
-  billedCredits?: number;
-  billingRefundedAt?: string | null;
-};

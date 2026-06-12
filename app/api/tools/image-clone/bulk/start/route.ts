@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { buildImageCloneBulkPrompt } from "@/lib/image-clone-bulk-prompt";
-import { getImageCloneBulkWorkbook, setImageCloneBulkJobStatus } from "@/lib/image-clone-bulk-store";
+import { getImageCloneBulkWorkbook } from "@/lib/image-clone-bulk-store";
 import type { ImageCloneBulkImage, ImageCloneBulkJob, ImageCloneBulkRow } from "@/lib/image-clone-bulk-types";
 import { uploadImageForClone } from "@/lib/image-clone";
 import { fetchWithRetry } from "@/lib/fetchWithRetry";
 import {
-  IMAGE_GENERATION_CREDIT_COST,
   chargeToolGenerationCredits,
   getImageGenerationCreditCost,
   refundToolGenerationCredits,
@@ -17,7 +16,6 @@ import { assertKieCreditsAvailable } from "@/lib/kie-credits-check";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
-const BULK_GENERATION_MAX_RETRIES = 2;
 const KIE_CREATE_TASK_URL = "https://api.kie.ai/api/v1/jobs/createTask";
 const KIE_MODEL = "gpt-image-2-image-to-image";
 
@@ -152,16 +150,6 @@ export async function POST(request: Request) {
 
         const taskId = await createKieBulkTask({
           prompt, inputUrls, aspectRatio: row.aspectRatio, resolution: row.resolution, callBackUrl,
-        });
-
-        // Track in-memory for fallback (workbook data is ephemeral)
-        setImageCloneBulkJobStatus({
-          taskId,
-          status: "waiting",
-          updatedAt: new Date().toISOString(),
-          prompt, inputUrls, aspectRatio: row.aspectRatio, resolution: row.resolution,
-          retryCount: 0, maxRetries: BULK_GENERATION_MAX_RETRIES,
-          userId, billedCredits: IMAGE_GENERATION_CREDIT_COST, billingRefundedAt: null,
         });
 
         // Create task in the temporary Redis job store.

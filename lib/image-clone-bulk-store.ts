@@ -1,19 +1,15 @@
 import type {
   ImageCloneBulkImage,
-  ImageCloneBulkStoredJobStatus,
   ImageCloneBulkWorkbook,
 } from "@/lib/image-clone-bulk-types";
 
 const globalForImageCloneBulk = globalThis as typeof globalThis & {
   flowtraImageCloneBulkWorkbooks?: Map<string, ImageCloneBulkWorkbook>;
-  flowtraImageCloneBulkJobs?: Map<string, ImageCloneBulkStoredJobStatus>;
 };
 
 const workbookStore = globalForImageCloneBulk.flowtraImageCloneBulkWorkbooks ?? new Map<string, ImageCloneBulkWorkbook>();
-const jobStore = globalForImageCloneBulk.flowtraImageCloneBulkJobs ?? new Map<string, ImageCloneBulkStoredJobStatus>();
 
 globalForImageCloneBulk.flowtraImageCloneBulkWorkbooks = workbookStore;
-globalForImageCloneBulk.flowtraImageCloneBulkJobs = jobStore;
 
 export function setImageCloneBulkWorkbook(workbook: ImageCloneBulkWorkbook) {
   const workbookId = workbook.workbookId ?? crypto.randomUUID();
@@ -58,12 +54,4 @@ export function findImageCloneBulkImage(workbookId: string, imageId: string) {
     ...workbook.rows.flatMap((row) => row.referenceImages),
   ];
   return images.find((image) => image.id === imageId);
-}
-
-export function setImageCloneBulkJobStatus(status: ImageCloneBulkStoredJobStatus) {
-  jobStore.set(status.taskId, status);
-}
-
-export function getImageCloneBulkJobStatus(taskId: string) {
-  return jobStore.get(taskId);
 }

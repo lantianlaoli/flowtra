@@ -21,7 +21,6 @@ import {
   ECOMMERCE_LISTING_VIDEO_DURATION_SECONDS,
   type EcommerceListingMetadata,
 } from '@/lib/tools/ecommerce-listing-studio';
-import { getImageCloneBulkJobStatus, setImageCloneBulkJobStatus } from '@/lib/image-clone-bulk-store';
 import { refundToolGenerationCredits } from '@/lib/tools/billing';
 import { assertKieCreditsAvailable } from '@/lib/kie-credits-check';
 
@@ -220,9 +219,6 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Update in-memory bulk store for backward compat
-        updateBulkStore(taskId, { status: 'success', resultUrl, error: undefined });
-
         return NextResponse.json({ success: true }, { status: 200 });
       }
 
@@ -269,9 +265,6 @@ export async function POST(request: NextRequest) {
             }),
           });
         }
-
-        // Update in-memory bulk store for backward compat
-        updateBulkStore(taskId, { status: 'fail', resultUrl: undefined, error: errorMessage });
       }
 
       return NextResponse.json({ success: true }, { status: 200 });
@@ -461,27 +454,4 @@ async function createEcommerceListingVideoTask(input: {
       },
     },
   });
-}
-
-type BulkStoreStatus = 'success' | 'fail';
-
-function updateBulkStore(
-  taskId: string,
-  result: { status: BulkStoreStatus; resultUrl?: string; error?: string }
-): void {
-  try {
-    const stored = getImageCloneBulkJobStatus(taskId);
-    if (!stored) return; // Not a bulk job
-
-    setImageCloneBulkJobStatus({
-      ...stored,
-      taskId,
-      status: result.status,
-      resultUrl: result.resultUrl,
-      error: result.error,
-      updatedAt: new Date().toISOString(),
-    });
-  } catch {
-    // Bulk store update is best-effort for backward compat
-  }
 }

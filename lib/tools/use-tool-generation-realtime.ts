@@ -10,10 +10,11 @@ export interface ToolGenerationState {
   error: string | null;
 }
 
-const POLL_INTERVAL_MS = 5_000;
-
-function isTerminalJob(job: ToolGenerationJob | null) {
-  return job?.status === 'completed' || job?.status === 'failed';
+interface SSEData {
+  job?: ToolGenerationJob;
+  tasks?: ToolGenerationTask[];
+  error?: string;
+  message?: string;
 }
 
 export function useToolGenerationRealtime(jobId: string | null): ToolGenerationState {
@@ -21,33 +22,12 @@ export function useToolGenerationRealtime(jobId: string | null): ToolGenerationS
   const [tasks, setTasks] = useState<ToolGenerationTask[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const latestJobRef = useRef<ToolGenerationJob | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
-  const hydrate = useCallback(async (id: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/tools/jobs/${id}`, { cache: 'no-store' });
-      if (!response.ok) {
-        if (response.status === 404) {
-          setError('Job not found');
-          setJob(null);
-          setTasks([]);
-          return null;
-        }
-        throw new Error(`Failed to fetch job: ${response.status}`);
-      }
-      const data = await response.json();
-      const nextJob = data.job as ToolGenerationJob | null;
-      setJob(nextJob);
-      setTasks((data.tasks || []) as ToolGenerationTask[]);
-      latestJobRef.current = nextJob;
-      return nextJob;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load job');
-      return null;
-    } finally {
-      setIsLoading(false);
+  const disconnect = useCallback(() => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
     }
   }, []);
 
@@ -56,27 +36,79 @@ export function useToolGenerationRealtime(jobId: string | null): ToolGenerationS
       setJob(null);
       setTasks([]);
       setError(null);
-      latestJobRef.current = null;
+      disconnect();
       return;
     }
 
-    let cancelled = false;
-    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    setIsLoading(true);
+    setError(null);
+    disconnect();
 
-    const poll = async () => {
-      if (cancelled) return;
-      const nextJob = await hydrate(jobId);
-      if (cancelled || isTerminalJob(nextJob ?? latestJobRef.current)) return;
-      pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
+    const es = new EventSource(`/api/tools/jobs/${jobId}/stream`);
+    eventSourceRef.current = es;
+
+    es.addEventListener('snapshot', (event: MessageEvent) => {
+      try {
+        const data: SSEData = JSON.parse(event.data);
+        setJob(data.job ?? null);
+        setTasks(data.tasks ?? []);
+        setIsLoading(false);
+      } catch {
+        // Ignore parse errors
+      }
+    });
+
+    es.addEventListener('update', (event: MessageEvent) => {
+      try {
+        const data: SSEData = JSON.parse(event.data);
+        if (data.job) setJob(data.job);
+        if (data.tasks) setTasks(data.tasks);
+      } catch {
+        // Ignore parse errors
+      }
+    });
+
+    es.addEventListener('terminal', (event: MessageEvent) => {
+      try {
+        const data: SSEData = JSON.parse(event.data);
+        if (data.job) setJob(data.job);
+        if (data.tasks) setTasks(data.tasks);
+        setIsLoading(false);
+      } catch {
+        // Ignore parse errors
+      }
+      es.close();
+    });
+
+    es.addEventListener('error', (event: MessageEvent) => {
+      try {
+        const data: SSEData = JSON.parse(event.data);
+        setError(data.error ?? 'Stream error');
+      } catch {
+        setError('Connection error');
+      }
+      setIsLoading(false);
+      es.close();
+    });
+
+    es.addEventListener('timeout', () => {
+      setError('Stream timed out. Please refresh.');
+      setIsLoading(false);
+      es.close();
+    });
+
+    // Handle connection errors (EventSource fires 'error' event with no data)
+    es.onerror = () => {
+      if (es.readyState === EventSource.CLOSED) {
+        setError('Connection lost');
+        setIsLoading(false);
+      }
     };
-
-    void poll();
 
     return () => {
-      cancelled = true;
-      if (pollTimer) clearTimeout(pollTimer);
+      es.close();
     };
-  }, [jobId, hydrate]);
+  }, [jobId, disconnect]);
 
   return { job, tasks, isLoading, error };
 }

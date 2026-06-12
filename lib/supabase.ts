@@ -18,8 +18,6 @@ import {
 } from '@/lib/storage/ops'
 import { STORAGE_BUCKETS, type StorageBucket } from '@/lib/storage/types'
 import type { PersistedVideoQuality } from '@/lib/constants'
-import type { AiReferenceAngleAssetType, AiReferenceAngleJobStatus } from '@/lib/ai-reference-angle-jobs'
-
 // Lazily initialize clients to avoid evaluating env vars during build time
 let browserClient: SupabaseClient | null = null
 let serviceClient: SupabaseClient | null = null
@@ -297,21 +295,6 @@ export interface UserProductPhoto {
   original_photo_url?: string | null
 }
 
-export interface AiReferenceAngleJob {
-  id: string
-  user_id: string
-  asset_type: AiReferenceAngleAssetType
-  source_image_url: string
-  preset_key: string
-  preset_label: string
-  kie_task_id: string
-  status: AiReferenceAngleJobStatus
-  result_image_url?: string | null
-  error_message?: string | null
-  webhook_received_at?: string | null
-  created_at: string
-  updated_at: string
-}
 
 // Creator Sources (TikTok, etc.)
 export interface CreatorSourcePlatform {

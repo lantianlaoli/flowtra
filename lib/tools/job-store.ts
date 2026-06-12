@@ -64,6 +64,9 @@ const ACTIVE_JOB_TTL_SECONDS = 86400; // Active jobs are temporary but should su
 const TERMINAL_JOB_TTL_SECONDS = 1800; // 30 minutes after completed/failed.
 const WEBHOOK_IDEM_TTL_SECONDS = 86400; // 24 hours.
 const LOCK_TTL_SECONDS = 30;
+const PING_PREFIX = "tool:job:";
+const PING_SUFFIX = ":ping";
+const PING_TTL_SECONDS = 30;
 
 const TOOL_KEYS: ToolKey[] = [
   'ai-reference-angle',
@@ -97,6 +100,10 @@ function lockKey(kieTaskId: string) {
   return `${LOCK_PREFIX}${kieTaskId}`;
 }
 
+function pingKey(jobId: string) {
+  return `${PING_PREFIX}${jobId}${PING_SUFFIX}`;
+}
+
 function isTerminalStatus(status: ToolGenerationJobStatus) {
   return status === 'completed' || status === 'failed';
 }
@@ -119,6 +126,10 @@ async function refreshJobRelatedTtls(job: ToolGenerationJob): Promise<void> {
     setJson(jobTasksKey(job.id), tasks.map((task) => task.kie_task_id), ttl),
     ...tasks.map((task) => setJson(taskKey(task.kie_task_id), task, ttl)),
   ]);
+}
+
+async function publishJobUpdate(jobId: string): Promise<void> {
+  await redis.set(pingKey(jobId), Date.now().toString(), { ex: PING_TTL_SECONDS });
 }
 
 // ─── Job CRUD ─────────────────────────────────────────────────────────────────
@@ -151,6 +162,7 @@ export async function createToolGenerationJob(params: {
     setJson(jobKey(job.id), job, ttl),
     setJson(jobTasksKey(job.id), [], ttl),
     setJson(userLatestKey(job.user_id, job.tool_key), job.id, ttl),
+    publishJobUpdate(job.id),
   ]);
 
   return job;
@@ -182,6 +194,7 @@ export async function updateToolGenerationJob(
   };
 
   await refreshJobRelatedTtls(job);
+  await publishJobUpdate(job.id);
   return job;
 }
 
@@ -241,6 +254,7 @@ export async function createToolGenerationTask(params: {
     setJson(jobTasksKey(params.jobId), nextTaskIds, ttl),
     setJson(jobKey(job.id), { ...job, updated_at: now }, ttl),
     setJson(userLatestKey(job.user_id, job.tool_key), job.id, ttl),
+    publishJobUpdate(job.id),
   ]);
 
   return task;
@@ -286,6 +300,7 @@ export async function updateToolGenerationTask(
   await setJson(taskKey(kieTaskId), task, ttl);
   if (job) {
     await refreshJobRelatedTtls(job);
+    await publishJobUpdate(job.id);
   }
 
   return task;

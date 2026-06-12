@@ -7,7 +7,6 @@ import {
   validateImageCloneBulkRegenerationOutputSize,
   type ImageCloneBulkRegenerationLocalImage,
 } from "@/lib/image-clone-bulk-regenerate";
-import { setImageCloneBulkJobStatus } from "@/lib/image-clone-bulk-store";
 import type { ImageCloneBulkAspectRatio, ImageCloneBulkJob, ImageCloneBulkResolution } from "@/lib/image-clone-bulk-types";
 import { uploadImageForClone } from "@/lib/image-clone";
 import { fetchWithRetry } from "@/lib/fetchWithRetry";
@@ -22,7 +21,6 @@ import { assertKieCreditsAvailable } from "@/lib/kie-credits-check";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
-const BULK_REGENERATION_MAX_RETRIES = 2;
 const KIE_CREATE_TASK_URL = "https://api.kie.ai/api/v1/jobs/createTask";
 const KIE_MODEL = "gpt-image-2-image-to-image";
 
@@ -151,15 +149,6 @@ export async function POST(request: Request) {
 
       const inputUrls = [body.resultUrl!, ...(body.fontReferenceUrl ? [body.fontReferenceUrl] : []), ...localImageUrls];
       const taskId = await createKieBulkRegenerateTask({ prompt, inputUrls, aspectRatio, resolution, callBackUrl });
-
-      // Track in-memory for fallback
-      setImageCloneBulkJobStatus({
-        taskId, status: "waiting",
-        updatedAt: new Date().toISOString(),
-        prompt, inputUrls, aspectRatio, resolution,
-        retryCount: 0, maxRetries: BULK_REGENERATION_MAX_RETRIES,
-        userId, billedCredits: charge.chargedCredits, billingRefundedAt: null,
-      });
 
       // Create parent job + task in the temporary Redis job store.
       const parentJob = await createToolGenerationJob({
