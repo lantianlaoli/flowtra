@@ -12,6 +12,7 @@ import {
 import { getSegmentDurationForModel, type PersistedVideoQuality, type VideoModel } from '@/lib/constants';
 import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
+import { validateKieCredits } from '@/lib/kie-credits-check';
 import {
   getEffectiveSegmentDurationSeconds,
   getSegmentPromptVideoGenerationCost
@@ -146,6 +147,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           { error: `Insufficient credits: need ${segmentCost}, have ${creditCheck.currentCredits || 0}` },
           { status: 402 }
         );
+      }
+
+      const kieValidation = await validateKieCredits();
+      if (kieValidation) {
+        return kieValidation;
       }
 
       const deduction = await deductCredits(userId, segmentCost);

@@ -50,6 +50,11 @@ import {
   parseMentionToken
 } from '@/lib/prompt-mention-tokens';
 import { normalizeAnalysisToV2 } from '@/lib/video-analysis-schema';
+import {
+  removeOriginalAvatarReferences,
+  removeOriginalProductReferences
+} from '@/lib/project-agent/clone-product-replacement';
+import { assertKieCreditsAvailable } from '@/lib/kie-credits-check';
 
 async function retryAsync<T>(fn: () => Promise<T>, options?: { maxAttempts?: number; baseDelayMs?: number; label?: string }): Promise<T> {
   const attempts = options?.maxAttempts && options.maxAttempts > 0 ? options.maxAttempts : 3;
@@ -202,6 +207,48 @@ export const applySupplementalTextToSegments = (
       ? segment.shots.map((shot) => ({
           ...shot,
           action: appendConstraint(shot.action || '', shotConstraint),
+        }))
+      : segment.shots,
+  }));
+};
+
+const removeOriginalReferenceEntitiesFromSegments = (
+  segments: SegmentPrompt[],
+  replacements: {
+    avatarName?: string | null;
+    productName?: string | null;
+  }
+): SegmentPrompt[] => {
+  const normalizedAvatarName = replacements.avatarName?.trim();
+  const normalizedProductName = replacements.productName?.trim();
+  if (!normalizedAvatarName && !normalizedProductName) return segments;
+
+  const clean = (text: string | undefined) => {
+    const avatarCleaned = removeOriginalAvatarReferences({
+      text: text || '',
+      avatarName: normalizedAvatarName
+    });
+    return removeOriginalProductReferences({
+      text: avatarCleaned,
+      productName: normalizedProductName
+    });
+  };
+
+  return segments.map((segment) => ({
+    ...segment,
+    audio: clean(segment.audio),
+    action: clean(segment.action),
+    subject: clean(segment.subject),
+    composition: clean(segment.composition),
+    first_frame_description: clean(segment.first_frame_description),
+    shots: Array.isArray(segment.shots)
+      ? segment.shots.map((shot) => ({
+          ...shot,
+          audio: clean(shot.audio),
+          ambient: clean(shot.ambient),
+          action: clean(shot.action),
+          subject: clean(shot.subject),
+          composition: clean(shot.composition),
         }))
       : segment.shots,
   }));
@@ -1590,6 +1637,8 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         };
       }
 
+      await assertKieCreditsAvailable();
+
       const deductResult = await deductCredits(request.userId, generationCost);
       if (!deductResult.success) {
         return {
@@ -1631,8 +1680,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       // Defer billing until the user explicitly starts video generation.
       if (
         generationCost > 0 &&
-        !isReferenceCloneCreate &&
-        request.requestSource !== 'project_agent_clone'
+        !isReferenceCloneCreate
       ) {
         // Check if user has enough credits
         const creditCheck = await checkCredits(request.userId, generationCost);
@@ -1651,6 +1699,8 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
             details: `Need ${generationCost} credits for ${actualVideoModel.toUpperCase()} model, have ${creditCheck.currentCredits || 0}`
           };
         }
+
+        await assertKieCreditsAvailable();
 
         // Deduct credits UPFRONT for ALL models
         const deductResult = await deductCredits(request.userId, generationCost);
@@ -1697,7 +1747,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           : 'generating_cover',
       progress_percentage: request.useCustomScript ? 50 : isReferenceCloneCreate ? 60 : hasSegmentFlow ? 25 : 20,
       credits_cost: generationCost, // Only generation cost (download cost charged separately)
-      generation_credits_used: isReferenceCloneCreate || request.requestSource === 'project_agent_clone'
+      generation_credits_used: isReferenceCloneCreate
         ? 0
         : generationCost,
       language: request.language || 'en', // Language for AI-generated content
@@ -3115,10 +3165,16 @@ async function startSegmentedWorkflow(
   const klingSegments = request.resolvedVideoModel === 'kling_3' && klingPlannedSegments?.length
     ? alignKlingPromptsToPlan(prompts, klingPlannedSegments, request.language || 'en')
     : null;
-  const normalizedSegments = (klingSegments || normalizeSegmentPrompts(prompts, segmentCount, referenceVideoShots, perSegmentDurationSeconds)).map(segment => ({
-    ...segment,
-    first_frame_image_size: segment.first_frame_image_size || defaultFrameSize
-  }));
+  const normalizedSegments = removeOriginalReferenceEntitiesFromSegments(
+    (klingSegments || normalizeSegmentPrompts(prompts, segmentCount, referenceVideoShots, perSegmentDurationSeconds)).map(segment => ({
+      ...segment,
+      first_frame_image_size: segment.first_frame_image_size || defaultFrameSize
+    })),
+    {
+      avatarName: cloneReferenceAssets?.avatarName,
+      productName: cloneReferenceAssets?.productName || productContext?.product_name
+    }
+  );
   const normalizedAvatarPhotoUrls = collectDistinctUrls(cloneReferenceAssets?.avatarPhotoUrls || [], 4);
   const normalizedProductImageUrls = collectDistinctUrls(
     [
@@ -4048,6 +4104,7 @@ export async function startSegmentVideoTask(
   if (!supportedSegmentModels.includes(videoModel)) {
     throw new Error(`Segmented workflow only supports Seedance 2 Fast, Seedance 2, or Kling 3.0. Received ${videoModel}`);
   }
+  await assertKieCreditsAvailable();
 
   const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
   const languageCode = (project.language || 'en') as LanguageCode;
@@ -5009,6 +5066,7 @@ async function startEditVideoTaskSeedance(input: {
   await moderatePromptBeforeGeneration(input.prompt, {
     externalId: `user_${input.userId}:video_clone_${input.projectId}:edit_video`,
   });
+  await assertKieCreditsAvailable();
 
   const requestBody = buildSeedanceEditVideoRequestBody(input);
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
@@ -5050,6 +5108,7 @@ async function startEditVideoTaskWan(input: {
   await moderatePromptBeforeGeneration(input.prompt, {
     externalId: `user_${input.userId}:video_clone_${input.projectId}:edit_video`,
   });
+  await assertKieCreditsAvailable();
 
   const requestBody = buildWanEditVideoRequestBody(input);
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
@@ -5122,6 +5181,8 @@ async function startEditVideoWorkflow(request: StartWorkflowRequest): Promise<Wo
       details: `Need ${generationCost} credits for ${model.toUpperCase()} model, have ${creditCheck.currentCredits || 0}`,
     };
   }
+
+  await assertKieCreditsAvailable();
 
   const deduction = await deductCredits(request.userId, generationCost);
   if (!deduction.success) {

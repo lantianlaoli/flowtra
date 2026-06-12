@@ -5,6 +5,7 @@ import { sendOpenRouterChat, extractOpenRouterTextContent, extractOpenRouterJson
 import { AD_SHORT_FILM_TOTAL_CREDIT_COST, chargeToolGenerationCredits, refundToolGenerationCredits, toolBillingErrorPayload } from '@/lib/tools/billing';
 import { createToolGenerationJob, createToolGenerationTask, getToolGenerationJob, getToolGenerationTasksByJobId, updateToolGenerationJob } from '@/lib/tools/job-store';
 import { GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL } from '@/lib/constants';
+import { assertKieCreditsAvailable } from '@/lib/kie-credits-check';
 
 const KIE_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-base64-upload';
 const KIE_CREATE_TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
@@ -89,6 +90,7 @@ async function createKieImageTask(params: {
   aspectRatio: string;
   callBackUrl: string;
 }): Promise<string> {
+  await assertKieCreditsAvailable();
   const response = await fetchWithRetry(KIE_CREATE_TASK_URL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${getKieApiKey()}`, 'Content-Type': 'application/json' },

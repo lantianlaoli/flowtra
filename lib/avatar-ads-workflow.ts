@@ -17,6 +17,7 @@ import { buildKieGptImageTaskPayload, createKieGptImageTask } from '@/lib/kie-im
 import { moderatePromptBeforeGeneration } from '@/lib/creem-moderation';
 import { mergeVideosWithFal, checkFalTaskStatus } from '@/lib/video-merge';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
+import { assertKieCreditsAvailable } from '@/lib/kie-credits-check';
 import { generateDialogueLengthGuidance } from '@/lib/dialogue-duration-estimator';
 import { extractOpenRouterJsonContent, extractOpenRouterTextContent, sendOpenRouterChat } from '@/lib/openrouter';
 import { MENTION_TOKEN_REGEX, parseMentionToken } from '@/lib/prompt-mention-tokens';
@@ -1538,6 +1539,7 @@ export async function generateVideoWithKIE(
   await moderatePromptBeforeGeneration(promptInBody, {
     externalId: options?.moderationExternalId,
   });
+  await assertKieCreditsAvailable();
 
   const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
     method: 'POST',
@@ -2059,6 +2061,8 @@ export async function processAvatarAdsProject(
             `Insufficient credits: Need ${generationCost} credits for ${videoScenes} video scenes (${resolvedVideoModel}), have ${creditCheck.currentCredits || 0}`
           );
         }
+
+        await assertKieCreditsAvailable();
 
         // Deduct credits UPFRONT before video generation
         const deductResult = await deductCredits(project.user_id, generationCost);

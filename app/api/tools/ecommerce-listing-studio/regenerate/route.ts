@@ -20,6 +20,7 @@ import {
   refundToolGenerationCredits,
   toolBillingErrorPayload,
 } from '@/lib/tools/billing';
+import { assertKieCreditsAvailable } from '@/lib/kie-credits-check';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -108,6 +109,7 @@ async function createKieRegenerationTask(input: {
   resolution: string;
   callBackUrl: string;
 }) {
+  await assertKieCreditsAvailable();
   const response = await fetchWithRetry(
     KIE_CREATE_TASK_URL,
     {

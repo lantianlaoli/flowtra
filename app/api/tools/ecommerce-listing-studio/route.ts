@@ -43,6 +43,7 @@ import {
   updateToolGenerationJob,
 } from '@/lib/tools/job-store';
 import { getUserPetById } from '@/lib/supabase';
+import { assertKieCreditsAvailable } from '@/lib/kie-credits-check';
 
 const KIE_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-base64-upload';
 const KIE_CREATE_TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
@@ -97,6 +98,7 @@ async function createKieImageTask(input: {
   resolution: string;
   callBackUrl: string;
 }) {
+  await assertKieCreditsAvailable();
   const response = await fetchWithRetry(
     KIE_CREATE_TASK_URL,
     {

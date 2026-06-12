@@ -15,6 +15,7 @@ import {
   getToolGenerationTasksByJobId,
 } from '@/lib/tools/job-store';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
+import { assertKieCreditsAvailable } from '@/lib/kie-credits-check';
 
 const KIE_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-base64-upload';
 const KIE_CREATE_TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
@@ -33,6 +34,7 @@ async function createKieImageTask(params: {
   resolution: string;
   callBackUrl: string;
 }): Promise<string> {
+  await assertKieCreditsAvailable();
   const response = await fetchWithRetry(
     KIE_CREATE_TASK_URL,
     {

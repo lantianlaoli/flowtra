@@ -24,6 +24,10 @@ import {
   normalizeProjectAgentCloneShot,
   type ProjectAgentCloneShot,
 } from '@/lib/project-agent/clone-prompt-schema';
+import {
+  removeOriginalAvatarReferences,
+  removeOriginalProductReferences
+} from '@/lib/project-agent/clone-product-replacement';
 import { normalizeProjectAgentKlingShots } from '@/lib/project-agent/kling-shot-normalization';
 import { KLING_MAX_MULTI_SHOT_ITEMS } from '@/lib/kling-shot-limits';
 import { injectMentionsInline, stripMentionTokens } from '@/lib/project-agent/clone-prompt-mentions';
@@ -127,28 +131,38 @@ const transformShotFieldInline = (
 ) => {
   const base = stripMentionTokens(text || '').trim();
   if (!base) return '';
+  const avatarCleanedBase = removeOriginalAvatarReferences({
+    text: base,
+    avatarName: input.avatarName,
+    avatarToken: input.avatarToken
+  });
+  const productCleanedBase = removeOriginalProductReferences({
+    text: avatarCleanedBase,
+    productName: input.productName,
+    productToken: input.productToken
+  });
 
   const hasAvatarSignal = Boolean(
-    AVATAR_HINT_REGEX.test(base) ||
-    hasExplicitMentionSignal(base, input.avatarName) ||
-    (input.avatarToken && base.includes(input.avatarToken))
+    AVATAR_HINT_REGEX.test(productCleanedBase) ||
+    hasExplicitMentionSignal(productCleanedBase, input.avatarName) ||
+    (input.avatarToken && productCleanedBase.includes(input.avatarToken))
   );
   const hasProductSignal = Boolean(
-    PRODUCT_HINT_REGEX.test(base) ||
-    hasExplicitMentionSignal(base, input.productName) ||
-    (input.productToken && base.includes(input.productToken))
+    PRODUCT_HINT_REGEX.test(productCleanedBase) ||
+    hasExplicitMentionSignal(productCleanedBase, input.productName) ||
+    (input.productToken && productCleanedBase.includes(input.productToken))
   );
 
   const avatarToken = (hasAvatarSignal || options?.forceAvatar) ? (input.avatarToken || null) : null;
   const productToken = (hasProductSignal || options?.forceProduct) ? (input.productToken || null) : null;
 
   if (!avatarToken && !productToken) {
-    return base;
+    return productCleanedBase;
   }
 
   return injectMentionsInline({
-    imagePrompt: base,
-    fallbackSummary: base,
+    imagePrompt: productCleanedBase,
+    fallbackSummary: productCleanedBase,
     avatarToken,
     productToken,
     avatarName: input.avatarName,

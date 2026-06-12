@@ -33,6 +33,7 @@ import type {
   ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
 import { signInternalUserRequest } from '@/lib/security/internal-request';
+import { assertKieCreditsAvailable } from '@/lib/kie-credits-check';
 import { buildAvatarGeneratedPrompts } from '@/lib/project-agent/avatar-script-planning';
 import {
   getProjectAgentVideoCloneDurationSeconds,
@@ -187,6 +188,8 @@ const ensureEnoughCredits = async (
     throw new CanvasInsufficientCreditsError(normalizedRequiredCredits, currentCredits);
   }
 
+  await assertKieCreditsAvailable();
+
   return {
     requiredCredits: normalizedRequiredCredits,
     currentCredits,
@@ -214,6 +217,8 @@ const chargeCredits = async (
   if (!creditCheck.hasEnoughCredits) {
     throw new CanvasInsufficientCreditsError(amount, currentCredits);
   }
+
+  await assertKieCreditsAvailable();
 
   const deduction = await deductCredits(userId, amount);
   if (!deduction.success) {

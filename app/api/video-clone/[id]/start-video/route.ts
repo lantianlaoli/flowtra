@@ -12,6 +12,7 @@ import { getGenerationCost, getSegmentDurationForModel, type PersistedVideoQuali
 import { isKlingPromptValidationError } from '@/lib/kling-prompt-budget';
 import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
+import { validateKieCredits } from '@/lib/kie-credits-check';
 import { getSegmentPromptVideoGenerationCost } from '@/lib/video-clone-segment-billing';
 import {
   getSupabaseAdmin,
@@ -307,6 +308,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           },
           { status: 402 }
         );
+      }
+
+      const kieValidation = await validateKieCredits();
+      if (kieValidation) {
+        return kieValidation;
       }
 
       const { data: lockRow, error: lockError } = await supabase

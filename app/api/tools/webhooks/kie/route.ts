@@ -23,6 +23,7 @@ import {
 } from '@/lib/tools/ecommerce-listing-studio';
 import { getImageCloneBulkJobStatus, setImageCloneBulkJobStatus } from '@/lib/image-clone-bulk-store';
 import { refundToolGenerationCredits } from '@/lib/tools/billing';
+import { assertKieCreditsAvailable } from '@/lib/kie-credits-check';
 
 export const dynamic = 'force-dynamic';
 
@@ -296,6 +297,7 @@ async function createAdShortFilmVideoTask(input: {
   const productImageUrl = input.jobMetadata.product_image_url as string | undefined;
   const storyboardPrompt = (input.jobMetadata.storyboard_prompt as string) || '';
 
+  await assertKieCreditsAvailable();
   const response = await fetchWithRetry(KIE_CREATE_TASK_URL, {
     method: 'POST',
     headers: {
@@ -420,6 +422,7 @@ async function createEcommerceListingVideoTask(input: {
         callBackUrl: `${siteUrl}/api/tools/webhooks/kie`,
       };
 
+  await assertKieCreditsAvailable();
   const response = await fetchWithRetry(KIE_CREATE_TASK_URL, {
     method: 'POST',
     headers: {

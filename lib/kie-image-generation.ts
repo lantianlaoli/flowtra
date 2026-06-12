@@ -3,6 +3,7 @@ import {
   GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL,
   GPT_IMAGE_2_TEXT_TO_IMAGE_MODEL,
 } from '@/lib/constants';
+import { assertKieCreditsAvailable } from '@/lib/kie-credits-check';
 
 const KIE_IMAGE_CREATE_TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 
@@ -99,6 +100,7 @@ export async function createKieGptImageTask(
   await moderatePromptBeforeGeneration(input.prompt, {
     externalId: input.moderationExternalId,
   });
+  await assertKieCreditsAvailable();
 
   const payload = buildKieGptImageTaskPayload(input);
   const response = await fetchWithRetry(KIE_IMAGE_CREATE_TASK_URL, {

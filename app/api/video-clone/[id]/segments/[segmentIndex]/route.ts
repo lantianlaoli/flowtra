@@ -15,6 +15,7 @@ import {
 } from '@/lib/video-clone-workflow';
 import { getSegmentDurationForModel, type PersistedVideoQuality, type VideoModel } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
+import { assertKieCreditsAvailable } from '@/lib/kie-credits-check';
 import { getAvatarPhotoUrls, SYSTEM_AVATARS } from '@/lib/default-avatars';
 import { getSystemProductPhotoUrls, SYSTEM_PRODUCTS } from '@/lib/default-products';
 import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
@@ -282,6 +283,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (!creditCheck.hasEnoughCredits) {
         throw new Error(`Insufficient credits: need ${amount}, have ${creditCheck.currentCredits || 0}`);
       }
+
+      await assertKieCreditsAvailable();
 
       const deductResult = await deductCredits(projectUserId, amount);
       if (!deductResult.success) {

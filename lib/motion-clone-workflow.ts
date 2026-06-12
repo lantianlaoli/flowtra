@@ -5,6 +5,7 @@ import {
   buildMotionClonePreviewPrompt,
   buildMotionCloneVideoPrompt,
 } from '@/lib/motion-clone-prompts';
+import { assertKieCreditsAvailable } from '@/lib/kie-credits-check';
 export {
   buildMotionClonePreviewPrompt,
   buildMotionCloneVideoPrompt,
@@ -144,6 +145,7 @@ export const createMotionCloneVideoTask = async (
   await moderatePromptBeforeGeneration(String((requestBody.input as { prompt?: unknown }).prompt || ''), {
     externalId: input.moderationExternalId,
   });
+  await assertKieCreditsAvailable();
 
   const response = await fetchWithRetry(KIE_CREATE_TASK_URL, {
     method: 'POST',

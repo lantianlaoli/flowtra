@@ -12,6 +12,7 @@ import {
   updateToolGenerationJob,
 } from '@/lib/tools/job-store';
 import { requireActiveToolSubscription, toolBillingErrorPayload } from '@/lib/tools/billing';
+import { validateKieCredits } from '@/lib/kie-credits-check';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -62,6 +63,11 @@ export async function POST(request: NextRequest) {
     const subscriptionAccess = await requireActiveToolSubscription(userId);
     if (!subscriptionAccess.success) {
       return NextResponse.json(toolBillingErrorPayload(subscriptionAccess), { status: subscriptionAccess.status });
+    }
+
+    const kieValidation = await validateKieCredits();
+    if (kieValidation) {
+      return kieValidation;
     }
 
     const productImageUrls = Array.isArray(metadata.product_image_urls)

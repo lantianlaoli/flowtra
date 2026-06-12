@@ -18,6 +18,7 @@ import {
   toolBillingErrorPayload,
 } from "@/lib/tools/billing";
 import { createToolGenerationJob, createToolGenerationTask } from "@/lib/tools/job-store";
+import { assertKieCreditsAvailable } from "@/lib/kie-credits-check";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -46,6 +47,7 @@ async function createKieBulkRegenerateTask(params: {
   resolution: ImageCloneBulkResolution;
   callBackUrl: string;
 }): Promise<string> {
+  await assertKieCreditsAvailable();
   const response = await fetchWithRetry(KIE_CREATE_TASK_URL, {
     method: "POST",
     headers: { Authorization: `Bearer ${getKieApiKey()}`, "Content-Type": "application/json" },

@@ -3,6 +3,7 @@
  * Provides server-side KIE credits validation for API endpoints
  */
 import { fetchWithRetry } from './fetchWithRetry';
+import { KIE_CREDIT_THRESHOLD } from '@/lib/constants';
 
 interface KieCreditsResponse {
   sufficient: boolean;
@@ -11,14 +12,23 @@ interface KieCreditsResponse {
   error?: string;
 }
 
+const KIE_CREDIT_CACHE_TTL_MS = 10_000;
+let cachedKieCredits: (KieCreditsResponse & { expiresAt: number }) | null = null;
+
 /**
  * Check if KIE credits are sufficient for generation
  * @returns Promise<KieCreditsResponse>
  */
 export async function checkKieCredits(): Promise<KieCreditsResponse> {
   try {
+    const now = Date.now();
+    if (cachedKieCredits && cachedKieCredits.expiresAt > now) {
+      const { expiresAt: _expiresAt, ...cached } = cachedKieCredits;
+      return cached;
+    }
+
     const kieApiKey = process.env.KIE_API_KEY;
-    const threshold = parseInt(process.env.KIE_CREDIT_THRESHOLD || '600');
+    const threshold = KIE_CREDIT_THRESHOLD;
 
     if (!kieApiKey) {
       console.error('KIE_API_KEY not configured');
@@ -59,11 +69,17 @@ export async function checkKieCredits(): Promise<KieCreditsResponse> {
 
     console.log(`KIE Credits Check: ${currentCredits}/${threshold} (sufficient: ${sufficient})`);
 
-    return {
+    const result = {
       sufficient,
       currentCredits,
       threshold
     };
+    cachedKieCredits = {
+      ...result,
+      expiresAt: now + KIE_CREDIT_CACHE_TTL_MS,
+    };
+
+    return result;
 
   } catch (error) {
     console.error('Error checking KIE credits:', error);
@@ -71,6 +87,31 @@ export async function checkKieCredits(): Promise<KieCreditsResponse> {
       sufficient: false,
       error: 'Failed to check KIE credits'
     };
+  }
+}
+
+export class KieCreditsUnavailableError extends Error {
+  currentCredits?: number;
+  threshold?: number;
+
+  constructor(message: string, details?: { currentCredits?: number; threshold?: number }) {
+    super(message);
+    this.name = 'KieCreditsUnavailableError';
+    this.currentCredits = details?.currentCredits;
+    this.threshold = details?.threshold;
+  }
+}
+
+export async function assertKieCreditsAvailable(): Promise<void> {
+  const creditsCheck = await checkKieCredits();
+  if (!creditsCheck.sufficient) {
+    throw new KieCreditsUnavailableError(
+      creditsCheck.error || 'AI generation service credits are temporarily unavailable.',
+      {
+        currentCredits: creditsCheck.currentCredits,
+        threshold: creditsCheck.threshold,
+      }
+    );
   }
 }
 

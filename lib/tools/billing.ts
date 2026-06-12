@@ -1,5 +1,6 @@
 import { checkCredits, deductCredits, recordCreditTransaction, refundCredits } from '@/lib/credits';
 import { getUserSubscription } from '@/lib/subscription';
+import { checkKieCredits } from '@/lib/kie-credits-check';
 export {
   AD_SHORT_FILM_TOTAL_CREDIT_COST,
   IMAGE_GENERATION_CREDIT_COST,
@@ -11,6 +12,7 @@ const ACTIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing']);
 export type ToolBillingFailureCode =
   | 'SUBSCRIPTION_REQUIRED'
   | 'INSUFFICIENT_CREDITS'
+  | 'KIE_CREDITS_UNAVAILABLE'
   | 'CREDITS_UNAVAILABLE'
   | 'CHARGE_FAILED';
 
@@ -91,6 +93,19 @@ export async function chargeToolGenerationCredits(input: {
       error: `Insufficient credits: need ${requiredCredits}, have ${creditCheck.currentCredits || 0}.`,
       requiredCredits,
       currentCredits: creditCheck.currentCredits ?? 0,
+      subscriptionRequired: false,
+    };
+  }
+
+  const kieCreditCheck = await checkKieCredits();
+  if (!kieCreditCheck.sufficient) {
+    return {
+      success: false,
+      status: 503,
+      code: 'KIE_CREDITS_UNAVAILABLE',
+      error: kieCreditCheck.error || 'AI generation service credits are temporarily unavailable.',
+      requiredCredits,
+      currentCredits: creditCheck.currentCredits ?? null,
       subscriptionRequired: false,
     };
   }
