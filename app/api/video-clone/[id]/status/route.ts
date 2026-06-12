@@ -42,7 +42,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .eq('id', id)
       .eq('user_id', userId);
 
-    const { data: record, error } = await query.single();
+    let { data: record, error } = await query.single();
 
     if (error) {
       console.error('Error fetching Video Clone project status:', error);
@@ -108,11 +108,54 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    const storedMergeUrl =
-      (record.segment_status as { mergedVideoUrl?: string | null } | null)?.mergedVideoUrl || null;
-    const segmentStatus = shouldUseSegmentRows
-      ? buildSegmentStatusFallback(segments, storedMergeUrl)
+    const recovered = await recoverCompletedKieVideoTaskIfNeeded(record, segments);
+    if (recovered) {
+      record = recovered.record;
+      segments = recovered.segments;
+    }
+
+    const selectedInputs = record.selected_inputs && typeof record.selected_inputs === 'object'
+      ? record.selected_inputs as Record<string, unknown>
       : null;
+    const executionMode = typeof selectedInputs?.executionMode === 'string'
+      ? selectedInputs.executionMode
+      : null;
+    const mergePolicy = typeof selectedInputs?.mergePolicy === 'string'
+      ? selectedInputs.mergePolicy
+      : null;
+    const referenceSourceVideoUrl = typeof selectedInputs?.referenceSourceVideoUrl === 'string'
+      ? selectedInputs.referenceSourceVideoUrl
+      : null;
+    const isProjectAgentSeedanceDirectMode = executionMode === 'clone_direct_reference';
+    const storedMergeUrl =
+      record.merged_video_url ||
+      (record.segment_status as { mergedVideoUrl?: string | null } | null)?.mergedVideoUrl ||
+      null;
+    const segmentStatus = shouldUseSegmentRows
+      ? buildSegmentStatusFallback(segments, storedMergeUrl, { skipFrameGeneration: isProjectAgentSeedanceDirectMode })
+      : null;
+    if (isProjectAgentSeedanceDirectMode && segmentStatus) {
+      const storedSegmentStatus = record.segment_status as {
+        framesReady?: number | null;
+        videosReady?: number | null;
+        mergedVideoUrl?: string | null;
+      } | null;
+      if (
+        storedSegmentStatus?.framesReady !== segmentStatus.framesReady ||
+        storedSegmentStatus?.videosReady !== segmentStatus.videosReady ||
+        (storedSegmentStatus?.mergedVideoUrl || null) !== (segmentStatus.mergedVideoUrl || null)
+      ) {
+        // Schema verified via Supabase MCP (2026-06-12): video_clone_projects has segment_status.
+        await getSupabaseAdmin()
+          .from('video_clone_projects')
+          .update({ segment_status: segmentStatus })
+          .eq('id', record.id);
+        record = {
+          ...record,
+          segment_status: segmentStatus,
+        };
+      }
+    }
 
     const normalizedPlanSegments = hydrateSegmentPlan(
       record.segment_plan as SerializedSegmentPlan | Record<string, unknown> | null,
@@ -122,11 +165,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const segmentPlanPayload = normalizedPlanSegments.length > 0
       ? { segments: normalizedPlanSegments }
       : null;
-    const selectedInputs = record.selected_inputs && typeof record.selected_inputs === 'object'
-      ? record.selected_inputs as Record<string, unknown>
-      : null;
-    const isProjectAgentSeedanceDirectMode = record.video_model === 'seedance_2_fast' &&
-      selectedInputs?.workflowSource === 'project_agent_clone';
     const hasReadySegmentWithoutVideoTask = Boolean(
       isProjectAgentSeedanceDirectMode &&
       segments?.length &&
@@ -165,6 +203,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         creditsUsed: record.generation_credits_used || 0,
         videoModel: record.video_model || 'seedance_2_fast',
         workflowSource: typeof selectedInputs?.workflowSource === 'string' ? selectedInputs.workflowSource : null,
+        executionMode,
+        mergePolicy,
+        referenceSourceVideoUrl,
         videoDuration: record.video_duration || null,
         segmentCount: record.segment_count || null,
         segmentDurationSeconds: record.segment_duration_seconds || null,
@@ -207,6 +248,171 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
+async function recoverCompletedKieVideoTaskIfNeeded(
+  record: Record<string, any>,
+  segments: Array<{
+    index: number;
+    status: string;
+    firstFrameTaskId: string | null;
+    firstFrameUrl: string | null;
+    closingFrameUrl: string | null;
+    videoUrl: string | null;
+    videoTaskId: string | null;
+    errorMessage?: string | null;
+    prompt: Record<string, unknown> | null;
+    updatedAt: string | null;
+  }> | null
+) {
+  const selectedInputs = record.selected_inputs && typeof record.selected_inputs === 'object'
+    ? record.selected_inputs as Record<string, unknown>
+    : null;
+  const executionMode = typeof selectedInputs?.executionMode === 'string'
+    ? selectedInputs.executionMode
+    : null;
+  const segment = segments?.find((candidate) => (
+    candidate.videoTaskId &&
+    !candidate.videoUrl &&
+    candidate.status === 'generating_video'
+  ));
+
+  if (
+    !segment ||
+    !segment.videoTaskId ||
+    !process.env.KIE_API_KEY ||
+    record.status === 'completed' ||
+    record.status === 'failed' ||
+    executionMode !== 'clone_direct_reference'
+  ) {
+    return null;
+  }
+  const videoTaskId = segment.videoTaskId;
+
+  try {
+    const response = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(videoTaskId)}`, {
+      headers: {
+        Authorization: `Bearer ${process.env.KIE_API_KEY}`,
+      },
+      cache: 'no-store',
+    });
+    if (!response.ok) return null;
+    const payload = await response.json() as {
+      code?: number;
+      data?: {
+        state?: string;
+        resultJson?: string | null;
+        failMsg?: string | null;
+      } | null;
+    };
+    const taskData = payload.data;
+    if (payload.code !== 200 || !taskData || taskData.state !== 'success') {
+      return null;
+    }
+
+    let videoUrl: string | null = null;
+    if (typeof taskData.resultJson === 'string') {
+      try {
+        const parsed = JSON.parse(taskData.resultJson) as { resultUrls?: unknown };
+        if (Array.isArray(parsed.resultUrls) && typeof parsed.resultUrls[0] === 'string') {
+          videoUrl = parsed.resultUrls[0];
+        }
+      } catch {
+        videoUrl = null;
+      }
+    }
+    if (!videoUrl) return null;
+
+    const now = new Date().toISOString();
+    const supabase = getSupabaseAdmin();
+
+    // Schema verified via Supabase MCP (2026-06-12): video_clone_segments has
+    // video_url, status, video_webhook_received_at, error_message, and updated_at.
+    await supabase
+      .from('video_clone_segments')
+      .update({
+        video_url: videoUrl,
+        status: 'video_ready',
+        video_webhook_received_at: now,
+        error_message: null,
+        updated_at: now,
+      })
+      .eq('project_id', record.id)
+      .eq('segment_index', segment.index);
+
+    const segmentStatus = {
+      total: segments?.length || 1,
+      framesReady: segments?.length || 1,
+      videosReady: 1,
+      segments: (segments || [segment]).map((candidate) => (
+        candidate.index === segment.index
+          ? {
+              index: candidate.index,
+              status: 'video_ready',
+              firstFrameTaskId: candidate.firstFrameTaskId,
+              firstFrameUrl: candidate.firstFrameUrl,
+              closingFrameUrl: candidate.closingFrameUrl,
+              videoUrl,
+              prompt: candidate.prompt || null,
+              errorMessage: null,
+            }
+          : {
+              index: candidate.index,
+              status: candidate.status,
+              firstFrameTaskId: candidate.firstFrameTaskId,
+              firstFrameUrl: candidate.firstFrameUrl,
+              closingFrameUrl: candidate.closingFrameUrl,
+              videoUrl: candidate.videoUrl,
+              prompt: candidate.prompt || null,
+              errorMessage: candidate.errorMessage || null,
+            }
+      )),
+      mergedVideoUrl: videoUrl,
+    };
+
+    // Schema verified via Supabase MCP (2026-06-12): video_clone_projects has
+    // video_url, merged_video_url, status, current_step, progress_percentage,
+    // segment_status, and last_processed_at.
+    await supabase
+      .from('video_clone_projects')
+      .update({
+        video_url: videoUrl,
+        merged_video_url: videoUrl,
+        status: 'completed',
+        current_step: 'completed',
+        progress_percentage: 100,
+        segment_status: segmentStatus,
+        last_processed_at: now,
+      })
+      .eq('id', record.id);
+
+    return {
+      record: {
+        ...record,
+        video_url: videoUrl,
+        merged_video_url: videoUrl,
+        status: 'completed',
+        current_step: 'completed',
+        progress_percentage: 100,
+        segment_status: segmentStatus,
+        last_processed_at: now,
+      },
+      segments: (segments || [segment]).map((candidate) => (
+        candidate.index === segment.index
+          ? {
+              ...candidate,
+              status: 'video_ready',
+              videoUrl,
+              errorMessage: null,
+              updatedAt: now,
+            }
+          : candidate
+      )),
+    };
+  } catch (error) {
+    console.warn('[Video Clone Status] Failed to recover completed KIE task:', error);
+    return null;
+  }
+}
+
 function buildSegmentStatusFallback(
   segments: Array<{
     index: number;
@@ -217,11 +423,14 @@ function buildSegmentStatusFallback(
     videoUrl: string | null;
     prompt?: Record<string, unknown> | null;
   }> | null,
-  mergedVideoUrl: string | null = null
+  mergedVideoUrl: string | null = null,
+  options?: { skipFrameGeneration?: boolean }
 ) {
   if (!segments?.length) return null;
   const total = segments.length;
-  const framesReady = segments.filter(seg => !!seg.firstFrameUrl).length;
+  const framesReady = options?.skipFrameGeneration
+    ? total
+    : segments.filter(seg => !!seg.firstFrameUrl).length;
   const videosReady = segments.filter(seg => !!seg.videoUrl).length;
 
   return {

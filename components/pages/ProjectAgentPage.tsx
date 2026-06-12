@@ -76,6 +76,7 @@ import {
   normalizeExecutionStatus,
   createQueuedExecutionStatus,
   getExecutionTableForNodeType,
+  buildVideoCloneStartPayload,
   type ProjectAgentCanvasExecutionStatus,
 } from '@/lib/project-agent/node-execution';
 import { getProjectAgentVideoCloneMode } from '@/lib/project-agent/video-clone-mode';
@@ -1948,6 +1949,22 @@ export default function ProjectAgentPage() {
     };
   }, [canvas]);
 
+  const shouldSkipCloneFrameMilestone = useCallback((
+    nodeType: ProjectAgentFeatureNodeType,
+    connectedAssets: ReturnType<typeof buildNodeConnectedAssetsPayload>,
+    config?: ProjectAgentFeatureNodeConfig | null
+  ) => {
+    if (nodeType !== 'video_clone' || !connectedAssets.video) return false;
+    const mode = getProjectAgentVideoCloneMode(connectedAssets);
+    if (mode === 'edit_video') return true;
+    if (mode !== 'clone') return false;
+    return buildVideoCloneStartPayload({
+      ...connectedAssets,
+      video: connectedAssets.video,
+      config,
+    }).executionMode === 'clone_direct_reference';
+  }, []);
+
   const handleRunNode = useCallback(async (nodeId: string) => {
     const node = getProjectAgentCanvasNodeById(canvas, nodeId);
     if (!node || !isProjectAgentFeatureNode(node.type)) return;
@@ -2012,8 +2029,7 @@ export default function ProjectAgentPage() {
     updateCanvas((current) => {
       const nextNode = getProjectAgentCanvasNodeById(current, nodeId);
       if (!nextNode || !isProjectAgentFeatureNode(nextNode.type)) return current;
-      const skipCloneFrames = nextNode.type === 'video_clone' &&
-        getProjectAgentVideoCloneMode(connectedAssets) === 'edit_video';
+      const skipCloneFrames = shouldSkipCloneFrameMilestone(nextNode.type, connectedAssets, nextNode.config);
       return upsertCanvasNode(current, {
         ...nextNode,
         runtime: {
@@ -2074,7 +2090,7 @@ export default function ProjectAgentPage() {
     }
 
     updateNodeRuntime(nodeId, payload.execution);
-  }, [buildNodeConnectedAssetsPayload, canvas, updateCanvas, updateNodeRuntime]);
+  }, [buildNodeConnectedAssetsPayload, canvas, shouldSkipCloneFrameMilestone, updateCanvas, updateNodeRuntime]);
 
   const handleRetryNode = useCallback(async (nodeId: string) => {
     const node = getProjectAgentCanvasNodeById(canvas, nodeId);
@@ -2090,8 +2106,7 @@ export default function ProjectAgentPage() {
     updateCanvas((current) => {
       const nextNode = getProjectAgentCanvasNodeById(current, nodeId);
       if (!nextNode || !isProjectAgentFeatureNode(nextNode.type)) return current;
-      const skipCloneFrames = nextNode.type === 'video_clone' &&
-        getProjectAgentVideoCloneMode(connectedAssets) === 'edit_video';
+      const skipCloneFrames = shouldSkipCloneFrameMilestone(nextNode.type, connectedAssets, nextNode.config);
       return upsertCanvasNode(current, {
         ...nextNode,
         runtime: {
@@ -2150,7 +2165,7 @@ export default function ProjectAgentPage() {
     }
 
     updateNodeRuntime(nodeId, payload.execution);
-  }, [buildNodeConnectedAssetsPayload, canvas, handleRunNode, updateCanvas, updateNodeRuntime]);
+  }, [buildNodeConnectedAssetsPayload, canvas, handleRunNode, shouldSkipCloneFrameMilestone, updateCanvas, updateNodeRuntime]);
 
   const handleRegenerateFeatureNode = useCallback(async (nodeId: string) => {
     await handleRunNode(nodeId);

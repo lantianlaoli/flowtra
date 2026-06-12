@@ -39,6 +39,7 @@ import {
   getProjectAgentVideoCloneDurationSeconds,
   getProjectAgentVideoCloneMode,
 } from '@/lib/project-agent/video-clone-mode';
+import { getProjectAgentCloneGenerationCost, normalizeCloneDurationSeconds } from '@/lib/video-clone-billing';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -298,14 +299,19 @@ const assertVideoCloneCredits = async (userId: string, body: CanvasRunRequestBod
     config: body.config,
   });
 
+  const sourceDuration = getProjectAgentVideoCloneDurationSeconds({ video });
   const duration = cloneMode === 'edit_video'
-    ? String(getProjectAgentVideoCloneDurationSeconds({ video }) || '')
-    : payload.videoDuration;
+    ? String(sourceDuration || '')
+    : String(normalizeCloneDurationSeconds(sourceDuration) || normalizeCloneDurationSeconds(payload.videoDuration) || 8);
 
   return ensureEnoughCredits(
     userId,
-    getGenerationCost(payload.videoModel, duration, body.config?.videoQuality, {
-      hasVideoInput: cloneMode === 'edit_video',
+    getProjectAgentCloneGenerationCost({
+      model: payload.videoModel,
+      durationSeconds: duration,
+      videoQuality: body.config?.videoQuality,
+      executionMode: cloneMode === 'edit_video' ? 'edit_video' : String(payload.executionMode),
+      hasReferenceVideoUrl: Boolean(payload.referenceSourceVideoUrl || payload.editVideoSourceUrl),
     }) * runCount
   );
 };

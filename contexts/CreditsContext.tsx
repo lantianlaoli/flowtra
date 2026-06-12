@@ -32,12 +32,89 @@ interface CreditsProviderProps {
   children: React.ReactNode;
 }
 
+const CREDITS_CACHE_PREFIX = 'flowtra:credits:';
+const CREDITS_CACHE_TTL_MS = 5 * 60 * 1000;
+const CREDITS_FETCH_TIMEOUT_MS = process.env.NODE_ENV === 'development' ? 1500 : 4000;
+
+interface CachedCredits {
+  credits_remaining: number;
+  cached_at: number;
+}
+
+const getCreditsCacheKey = (userId: string) => `${CREDITS_CACHE_PREFIX}${userId}`;
+
+const readCreditsRemaining = (creditsPayload: unknown): number | undefined => {
+  if (typeof creditsPayload === 'number' && Number.isFinite(creditsPayload)) {
+    return creditsPayload;
+  }
+
+  if (
+    creditsPayload &&
+    typeof creditsPayload === 'object' &&
+    'credits_remaining' in creditsPayload
+  ) {
+    const value = (creditsPayload as { credits_remaining?: unknown }).credits_remaining;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+  }
+
+  return undefined;
+};
+
+const readCachedCredits = (userId: string): CreditsData | undefined => {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const raw = window.sessionStorage.getItem(getCreditsCacheKey(userId));
+    if (!raw) return undefined;
+    const cached = JSON.parse(raw) as Partial<CachedCredits>;
+    if (
+      typeof cached.credits_remaining !== 'number' ||
+      !Number.isFinite(cached.credits_remaining) ||
+      typeof cached.cached_at !== 'number' ||
+      Date.now() - cached.cached_at > CREDITS_CACHE_TTL_MS
+    ) {
+      window.sessionStorage.removeItem(getCreditsCacheKey(userId));
+      return undefined;
+    }
+    return { credits_remaining: cached.credits_remaining };
+  } catch {
+    return undefined;
+  }
+};
+
+const writeCachedCredits = (userId: string, remainingCredits: number) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(
+      getCreditsCacheKey(userId),
+      JSON.stringify({ credits_remaining: remainingCredits, cached_at: Date.now() })
+    );
+  } catch {
+    // Ignore storage failures in private browsing or quota-limited sessions.
+  }
+};
+
+const fetchCreditsWithTimeout = async () => {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), CREDITS_FETCH_TIMEOUT_MS);
+  try {
+    return await fetch('/api/credits/check', {
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+};
+
 export function CreditsProvider({ children }: CreditsProviderProps) {
   const { user, isLoaded } = useUser();
   const [credits, setCredits] = useState<number | undefined>(undefined);
   const [creditsData, setCreditsData] = useState<CreditsData | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(true); // Start with true to prevent 0 flash
+  const [isLoading, setIsLoading] = useState(false);
   const isMountedRef = useRef(true);
+  const inFlightRef = useRef<Promise<void> | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const supabase = useSupabaseBrowserClient();
 
@@ -47,90 +124,66 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
     };
   }, []);
 
-  const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
-
-  const readCreditsRemaining = (creditsPayload: unknown): number | undefined => {
-    if (typeof creditsPayload === 'number' && Number.isFinite(creditsPayload)) {
-      return creditsPayload;
-    }
-
-    if (
-      creditsPayload &&
-      typeof creditsPayload === 'object' &&
-      'credits_remaining' in creditsPayload
-    ) {
-      const value = (creditsPayload as { credits_remaining?: unknown }).credits_remaining;
-      if (typeof value === 'number' && Number.isFinite(value)) {
-        return value;
-      }
-    }
-
-    return undefined;
-  };
-
   const fetchCredits = useCallback(async () => {
     if (!user?.id) {
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
-    try {
-      const maxAttempts = 4; // initial + 3 retries
-      let lastError: unknown = undefined;
-
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          const response = await fetch('/api/credits/check', { cache: 'no-store' });
-          const data = await response.json();
-          const remainingCredits = readCreditsRemaining(data?.credits);
-
-          if (data?.success && remainingCredits !== undefined) {
-            if (isMountedRef.current) {
-              setCreditsData({ credits_remaining: remainingCredits });
-              setCredits(remainingCredits);
-            }
-            lastError = undefined;
-            break;
-          }
-
-          if (data?.success && data?.credits == null) {
-            if (isMountedRef.current) {
-              setCreditsData({ credits_remaining: 0 });
-              setCredits(0);
-            }
-            lastError = undefined;
-            break;
-          }
-
-          // If API responded but not successful, treat as retryable unless final attempt
-          lastError = new Error(data?.error || 'Unknown credits API error');
-        } catch (err) {
-          // Network/parse error
-          lastError = err;
-        }
-
-        if (attempt < maxAttempts) {
-          // Exponential backoff with jitter: ~300ms, 700ms, 1500ms
-          const base = [300, 700, 1500][attempt - 1] ?? 2000;
-          const jitter = Math.floor(Math.random() * 200);
-          await sleep(base + jitter);
-          // Continue to next attempt
-          continue;
-        } else {
-          // Final failure after retries - keep undefined instead of setting to 0
-          // This prevents showing misleading "0 credits" when API is actually failing
-          console.error('Failed to fetch credits after all retries, keeping credits as undefined');
-          if (isMountedRef.current) setCredits(undefined);
-        }
-      }
-
-      if (lastError) {
-        console.error('Error fetching credits (with retries):', lastError);
-      }
-    } finally {
-      if (isMountedRef.current) setIsLoading(false);
+    if (inFlightRef.current) {
+      return inFlightRef.current;
     }
+
+    const cachedCredits = readCachedCredits(user.id);
+    if (cachedCredits && isMountedRef.current) {
+      setCreditsData(cachedCredits);
+      setCredits(cachedCredits.credits_remaining);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
+
+    const request = (async () => {
+      try {
+        const response = await fetchCreditsWithTimeout();
+        const data = await response.json();
+        const remainingCredits = readCreditsRemaining(data?.credits);
+
+        if (data?.success && remainingCredits !== undefined) {
+          writeCachedCredits(user.id, remainingCredits);
+          if (isMountedRef.current) {
+            setCreditsData({ credits_remaining: remainingCredits });
+            setCredits(remainingCredits);
+          }
+          return;
+        }
+
+        if (data?.success && data?.credits == null) {
+          writeCachedCredits(user.id, 0);
+          if (isMountedRef.current) {
+            setCreditsData({ credits_remaining: 0 });
+            setCredits(0);
+          }
+          return;
+        }
+
+        throw new Error(data?.error || 'Unknown credits API error');
+      } catch (error) {
+        // Keep the dashboard usable when local Supabase is slow or unavailable.
+        // The next explicit refetch or Realtime update will refresh the balance.
+        console.warn('Credits fetch skipped or timed out:', error);
+        if (!cachedCredits && isMountedRef.current) {
+          setCredits(undefined);
+          setCreditsData(undefined);
+        }
+      } finally {
+        if (isMountedRef.current) setIsLoading(false);
+        inFlightRef.current = null;
+      }
+    })();
+
+    inFlightRef.current = request;
+    return request;
   }, [user?.id]);
 
   useEffect(() => {

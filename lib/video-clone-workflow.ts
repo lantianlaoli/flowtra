@@ -26,6 +26,12 @@ import {
   type VideoModel
 } from '@/lib/constants';
 import {
+  getProjectAgentCloneExecutionMode,
+  getProjectAgentCloneGenerationCost,
+  isSeedanceCloneModel,
+  normalizeCloneDurationSeconds,
+} from '@/lib/video-clone-billing';
+import {
   parseReferenceVideoTimeline,
   sumShotDurations,
   parseTimecode,
@@ -128,7 +134,8 @@ export interface StartWorkflowRequest {
   useCustomScript?: boolean; // Flag to enable custom script mode
   resolvedVideoModel?: VideoModel;
   requestSource?: 'project_agent_clone' | 'project_agent_edit_video' | 'default';
-  executionMode?: 'clone' | 'edit_video';
+  executionMode?: 'clone' | 'clone_direct_reference' | 'clone_segmented_auto' | 'edit_video';
+  referenceSourceVideoUrl?: string;
   editVideoPrompt?: string;
   editVideoSourceUrl?: string;
   supplementalText?: string;
@@ -501,9 +508,11 @@ export const isProjectAgentSeedanceReferenceImageMode = (input: {
   requestSource?: string | null;
   videoModel?: VideoModel | null;
   resolvedVideoModel?: VideoModel | null;
+  executionMode?: string | null;
 }) => (
   input.requestSource === 'project_agent_clone' &&
-  (input.resolvedVideoModel || input.videoModel) === 'seedance_2_fast'
+  (input.resolvedVideoModel || input.videoModel) === 'seedance_2_fast' &&
+  input.executionMode === 'clone_direct_reference'
 );
 
 export const isProjectAgentSeedanceReferenceImageProject = (
@@ -513,7 +522,8 @@ export const isProjectAgentSeedanceReferenceImageProject = (
     ? project.selected_inputs as Record<string, unknown>
     : null;
   return project.video_model === 'seedance_2_fast' &&
-    selectedInputs?.workflowSource === 'project_agent_clone';
+    selectedInputs?.workflowSource === 'project_agent_clone' &&
+    selectedInputs?.executionMode === 'clone_direct_reference';
 };
 
 export const getProjectAgentSeedanceReferenceImageUrls = (
@@ -1441,6 +1451,12 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     // Use the selected video model directly
     const actualVideoModel: VideoModel = request.videoModel;
     const referenceDurationSeconds = Number(referenceVideoContext?.video_duration_seconds || 0);
+    const projectAgentCloneSourceDuration = request.requestSource === 'project_agent_clone'
+      ? normalizeCloneDurationSeconds(referenceDurationSeconds) || normalizeCloneDurationSeconds(request.videoDuration)
+      : null;
+    if (projectAgentCloneSourceDuration) {
+      request.videoDuration = String(projectAgentCloneSourceDuration) as VideoDuration;
+    }
     if (
       actualVideoModel === 'kling_3' &&
       Number.isFinite(referenceDurationSeconds) &&
@@ -1457,6 +1473,60 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       actualVideoModel,
       request.videoDuration
     );
+    const projectAgentCloneExecutionMode = request.requestSource === 'project_agent_clone' && isSeedanceCloneModel(actualVideoModel)
+      ? getProjectAgentCloneExecutionMode({
+          model: actualVideoModel,
+          durationSeconds: request.videoDuration,
+          hasReferenceVideoUrl: Boolean(request.referenceSourceVideoUrl),
+        })
+      : request.executionMode;
+    if (projectAgentCloneExecutionMode) {
+      request.executionMode = projectAgentCloneExecutionMode as StartWorkflowRequest['executionMode'];
+    }
+
+    if (request.executionMode === 'clone_direct_reference') {
+      const directDurationSeconds = normalizeCloneDurationSeconds(request.videoDuration);
+      if (!isSeedanceCloneModel(actualVideoModel)) {
+        return {
+          success: false,
+          error: 'Unsupported direct reference model',
+          details: 'Direct reference clone is only available for Seedance 2 models.'
+        };
+      }
+      if (!request.referenceSourceVideoUrl) {
+        return {
+          success: false,
+          error: 'Reference source video required',
+          details: 'Direct reference clone requires the original source video URL.'
+        };
+      }
+      if (!directDurationSeconds) {
+        return {
+          success: false,
+          error: 'Invalid reference duration',
+          details: 'Direct reference clone requires a source video duration between 2 and 15 seconds.'
+        };
+      }
+      const requestedQuality = request.videoQuality || getDefaultCloneVideoQuality(actualVideoModel);
+      const quality = normalizeCloneVideoQualityForModel(actualVideoModel, requestedQuality);
+      return startDirectReferenceCloneWorkflow({
+        request,
+        model: actualVideoModel,
+        quality,
+        durationSeconds: directDurationSeconds,
+        referenceSourceVideoUrl: request.referenceSourceVideoUrl,
+        cloneReferenceAssets,
+        referenceVideoContext
+      });
+    }
+    if (Array.isArray(request.segmentPrompts) && request.segmentPrompts.length > 0) {
+      const overrideTotalDurationSeconds = request.segmentPrompts.reduce((total, segment) => (
+        total + getPromptSegmentDurationSeconds(segment)
+      ), 0);
+      if (overrideTotalDurationSeconds > 0) {
+        request.videoDuration = snapDurationToModel(actualVideoModel, overrideTotalDurationSeconds);
+      }
+    }
     let referenceVideoShotTimeline: { shots: ReferenceVideoShot[]; totalDurationSeconds: number } | null = null;
     let plannedKlingSegments: PlannedKlingSegment[] | null = null;
 
@@ -1601,9 +1671,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     // ALL models: PAID generation, FREE download
     let generationCost = 0;
     const duration = request.videoDuration;
-    const requestedQuality = request.requestSource === 'project_agent_clone'
-      ? 'standard'
-      : (request.videoQuality || getDefaultCloneVideoQuality(actualVideoModel));
+    const requestedQuality = request.videoQuality || getDefaultCloneVideoQuality(actualVideoModel);
     const quality = normalizeCloneVideoQualityForModel(
       actualVideoModel,
       requestedQuality
@@ -1660,11 +1728,19 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       creditsDeductedAtCreate = true;
     } else if (!request.photoOnly) {
       // Calculate generation cost based on model
-      generationCost = getGenerationCost(
-        actualVideoModel,
-        duration,
-        quality
-      );
+      generationCost = request.requestSource === 'project_agent_clone'
+        ? getProjectAgentCloneGenerationCost({
+            model: actualVideoModel,
+            durationSeconds: duration,
+            videoQuality: quality,
+            executionMode: request.executionMode || 'clone_segmented_auto',
+            hasReferenceVideoUrl: Boolean(request.referenceSourceVideoUrl),
+          })
+        : getGenerationCost(
+            actualVideoModel,
+            duration,
+            quality
+          );
 
       console.log(`💳 [CREDITS DEBUG] Generation cost calculated:`, {
         model: actualVideoModel,
@@ -1793,7 +1869,9 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       avatarIds: cloneReferenceAssets.selectedAvatarIds || [],
       productIds: cloneReferenceAssets.selectedProductIds || [],
       workflowSource: request.requestSource || 'default',
-      mergePolicy: request.requestSource === 'project_agent_clone' ? 'manual_confirm' : 'auto',
+      mergePolicy: 'auto',
+      executionMode: request.executionMode || (request.requestSource === 'project_agent_clone' ? 'clone_segmented_auto' : 'clone'),
+      referenceSourceVideoUrl: request.referenceSourceVideoUrl || null,
       supplementalText: normalizeSupplementalText(request.supplementalText),
       ...cloneReferenceSource
     };
@@ -1942,6 +2020,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
         const { error: updateError } = await supabase
           .from('video_clone_projects')
           .update({
+            generation_credits_used: creditsDeductedAtCreate ? 0 : project.generation_credits_used,
             status: 'failed',
             error_message: `Workflow failed: ${workflowError instanceof Error ? workflowError.message : 'Unknown error'}`,
             last_processed_at: new Date().toISOString()
@@ -5006,10 +5085,12 @@ function buildSeedanceEditVideoRequestBody(input: {
   model: 'seedance_2_fast' | 'seedance_2';
   prompt: string;
   referenceVideoUrl: string;
+  referenceImageUrls?: string[];
   aspectRatio: '16:9' | '9:16';
   resolution: '480p' | '720p' | '1080p';
   duration: number;
 }) {
+  const referenceImageUrls = collectDistinctUrls(input.referenceImageUrls || [], 9);
   return {
     model: input.model === 'seedance_2_fast' ? 'bytedance/seedance-2-fast' : 'bytedance/seedance-2',
     input: {
@@ -5020,6 +5101,7 @@ function buildSeedanceEditVideoRequestBody(input: {
       generate_audio: true,
       fixed_lens: false,
       reference_video_urls: [input.referenceVideoUrl],
+      ...(referenceImageUrls.length > 0 ? { reference_image_urls: referenceImageUrls } : {}),
     },
     callBackUrl: buildSegmentVideoWebhookUrl(input.projectId, 0),
   };
@@ -5054,6 +5136,7 @@ async function startEditVideoTaskSeedance(input: {
   model: 'seedance_2_fast' | 'seedance_2';
   prompt: string;
   referenceVideoUrl: string;
+  referenceImageUrls?: string[];
   aspectRatio: '16:9' | '9:16';
   resolution: '480p' | '720p' | '1080p';
   duration: number;
@@ -5131,6 +5214,274 @@ async function startEditVideoTaskWan(input: {
   }
 
   return result.data.taskId as string;
+}
+
+async function startDirectReferenceCloneWorkflow(input: {
+  request: StartWorkflowRequest;
+  model: 'seedance_2' | 'seedance_2_fast';
+  quality: PersistedVideoQuality;
+  durationSeconds: number;
+  referenceSourceVideoUrl: string;
+  cloneReferenceAssets: Awaited<ReturnType<typeof resolveCloneReferenceAssets>>;
+  referenceVideoContext?: {
+    id?: string;
+    reference_name: string;
+    existing_analysis?: Record<string, unknown> | null;
+    analysis_status?: 'pending' | 'analyzing' | 'completed' | 'failed';
+    language?: string | null;
+    video_duration_seconds?: number | null;
+  };
+}): Promise<WorkflowResult> {
+  const supabase = getSupabaseAdmin();
+  const { request, model, quality, durationSeconds, referenceSourceVideoUrl, cloneReferenceAssets, referenceVideoContext } = input;
+  const referenceImageUrls = collectDistinctUrls([
+    ...cloneReferenceAssets.avatarPhotoUrls,
+    ...cloneReferenceAssets.productImageUrls,
+  ], 9);
+
+  if (referenceImageUrls.length === 0) {
+    return {
+      success: false,
+      error: 'Replacement assets required',
+      details: 'Direct reference clone requires at least one avatar or product image.',
+    };
+  }
+
+  const generationCost = getProjectAgentCloneGenerationCost({
+    model,
+    durationSeconds,
+    videoQuality: quality,
+    executionMode: 'clone_direct_reference',
+    hasReferenceVideoUrl: true,
+  });
+
+  const creditCheck = await checkCredits(request.userId, generationCost);
+  if (!creditCheck.success) {
+    return { success: false, error: 'Failed to check credits', details: creditCheck.error || 'Credit check failed' };
+  }
+  if (!creditCheck.hasEnoughCredits) {
+    return {
+      success: false,
+      error: 'Insufficient credits',
+      details: `Need ${generationCost} credits for ${model.toUpperCase()} model, have ${creditCheck.currentCredits || 0}`,
+    };
+  }
+
+  await assertKieCreditsAvailable();
+
+  const replacementSummary = [
+    cloneReferenceAssets.avatarName ? `avatar/person: ${cloneReferenceAssets.avatarName}` : null,
+    cloneReferenceAssets.productName ? `product: ${cloneReferenceAssets.productName}` : null,
+    normalizeSupplementalText(request.supplementalText) ? `notes: ${normalizeSupplementalText(request.supplementalText)}` : null,
+  ].filter(Boolean).join('; ');
+  const prompt = [
+    'Use the provided reference video as the source for timing, motion, shot order, framing, camera movement, pacing, and overall UGC ad structure.',
+    'Use the provided reference images as canonical replacement assets. Replace the original featured person and/or product with these assets while preserving the source video structure.',
+    replacementSummary ? `Replacement context: ${replacementSummary}.` : '',
+    'Keep the result commercially usable, natural, and free of watermarks or text overlays unless they are part of the replacement product packaging.',
+  ].filter(Boolean).join(' ');
+
+  const selectedInputs: VideoCloneSelectedInputs = {
+    primaryAvatarId: cloneReferenceAssets.selectedAvatarId || null,
+    primaryProductId: cloneReferenceAssets.selectedProductId || null,
+    avatarIds: cloneReferenceAssets.selectedAvatarIds || [],
+    productIds: cloneReferenceAssets.selectedProductIds || [],
+    workflowSource: 'project_agent_clone',
+    mergePolicy: 'auto',
+    executionMode: 'clone_direct_reference',
+    referenceSourceVideoUrl,
+    supplementalText: normalizeSupplementalText(request.supplementalText),
+    referenceSourceType: request.referenceVideoId ? 'reference_video' : 'creator_source_video',
+    referenceSourceMediaType: 'video',
+    referenceSourceId: request.referenceVideoId || request.creatorSourceVideoId || null,
+    isCloneMode: true,
+  };
+
+  // Schema verified via Supabase MCP (2026-06-12): video_clone_projects supports
+  // selected_inputs, video_duration, segment_count, segment_status, video_generation_requested.
+  const { data: project, error: projectError } = await supabase
+    .from('video_clone_projects')
+    .insert({
+      user_id: request.userId,
+      reference_video_id: request.referenceVideoId && !isSystemReferenceVideoId(request.referenceVideoId)
+        ? request.referenceVideoId
+        : null,
+      video_model: model,
+      video_aspect_ratio: request.videoAspectRatio || '9:16',
+      status: 'processing',
+      current_step: 'generating_video',
+      progress_percentage: 70,
+      credits_cost: generationCost,
+      generation_credits_used: 0,
+      language: request.language || referenceVideoContext?.language || 'en',
+      video_duration: String(durationSeconds),
+      video_quality: quality,
+      download_credits_used: 0,
+      is_segmented: true,
+      segment_count: 1,
+      segment_duration_seconds: durationSeconds,
+      segment_status: { total: 1, framesReady: 1, videosReady: 0, segments: [] },
+      selected_inputs: selectedInputs,
+      video_prompts: {
+        mode: 'clone_direct_reference',
+        prompt,
+        referenceVideoName: referenceVideoContext?.reference_name || null,
+        clone_reference_assets: {
+          selectedAvatarId: cloneReferenceAssets.selectedAvatarId || request.selectedAvatarId || null,
+          selectedProductId: cloneReferenceAssets.selectedProductId || request.selectedProductId || null,
+          selectedAvatarIds: cloneReferenceAssets.selectedAvatarIds || [],
+          selectedProductIds: cloneReferenceAssets.selectedProductIds || [],
+          avatarPhotoUrls: cloneReferenceAssets.avatarPhotoUrls,
+          productImageUrls: cloneReferenceAssets.productImageUrls,
+        },
+      },
+      segment_plan: { segments: [{ prompt, duration: durationSeconds, mode: 'clone_direct_reference' }] },
+      video_generation_requested: true,
+    })
+    .select()
+    .single();
+
+  if (projectError || !project) {
+    return {
+      success: false,
+      error: 'Failed to create project record',
+      details: projectError?.message || 'Unknown insert error',
+    };
+  }
+
+  const deduction = await deductCredits(request.userId, generationCost);
+  if (!deduction.success) {
+    await supabase
+      .from('video_clone_projects')
+      .update({
+        status: 'failed',
+        current_step: 'failed',
+        error_message: deduction.error || 'Credit deduction failed',
+        last_processed_at: new Date().toISOString(),
+      })
+      .eq('id', project.id);
+    return { success: false, error: 'Failed to deduct credits', details: deduction.error || 'Credit deduction failed' };
+  }
+
+  await recordCreditTransaction(
+    request.userId,
+    'usage',
+    generationCost,
+    `Video Clone - Direct reference generation (${model.toUpperCase()})`,
+    project.id,
+    true
+  );
+
+  const { data: segment, error: segmentError } = await supabase
+    .from('video_clone_segments')
+    .insert({
+      project_id: project.id,
+      segment_index: 0,
+      status: 'generating_video',
+      prompt: { mode: 'clone_direct_reference', prompt },
+      first_frame_url: null,
+      video_task_id: null,
+      video_url: null,
+      error_message: null,
+      video_generation_approved: true,
+    })
+    .select()
+    .single();
+
+  if (segmentError || !segment) {
+    await deductCredits(request.userId, -generationCost);
+    await recordCreditTransaction(request.userId, 'refund', generationCost, 'Video Clone - Direct reference generation refund', project.id, true);
+    await supabase
+      .from('video_clone_projects')
+      .update({
+        generation_credits_used: 0,
+        status: 'failed',
+        current_step: 'failed',
+        error_message: 'Failed to create direct reference segment',
+        last_processed_at: new Date().toISOString(),
+      })
+      .eq('id', project.id);
+    return { success: false, error: 'Failed to create direct reference segment', details: segmentError?.message || 'Unknown insert error' };
+  }
+
+  try {
+    const taskId = await startEditVideoTaskSeedance({
+      projectId: project.id,
+      userId: request.userId,
+      model,
+      prompt,
+      referenceVideoUrl: referenceSourceVideoUrl,
+      referenceImageUrls,
+      aspectRatio: request.videoAspectRatio === '16:9' ? '16:9' : '9:16',
+      resolution: mapCloneQualityToSeedanceResolution(quality),
+      duration: durationSeconds,
+    });
+
+    await supabase
+      .from('video_clone_segments')
+      .update({
+        video_task_id: taskId,
+        status: 'generating_video',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', segment.id);
+
+    await supabase
+      .from('video_clone_projects')
+      .update({
+        generation_credits_used: generationCost,
+        video_task_id: taskId,
+        segment_status: {
+          total: 1,
+          framesReady: 1,
+          videosReady: 0,
+          segments: [{ index: 0, status: 'generating_video', videoTaskId: taskId }],
+        },
+        last_processed_at: new Date().toISOString(),
+      })
+      .eq('id', project.id);
+
+    return {
+      success: true,
+      projectId: project.id,
+      remainingCredits: deduction.remainingCredits,
+      creditsUsed: generationCost,
+    };
+  } catch (error) {
+    await deductCredits(request.userId, -generationCost);
+    await recordCreditTransaction(
+      request.userId,
+      'refund',
+      generationCost,
+      `Video Clone - Refund for failed ${model.toUpperCase()} direct reference generation`,
+      project.id,
+      true
+    );
+    await supabase
+      .from('video_clone_projects')
+      .update({
+        generation_credits_used: 0,
+        status: 'failed',
+        current_step: 'failed',
+        error_message: error instanceof Error ? error.message : 'Direct reference workflow failed',
+        last_processed_at: new Date().toISOString(),
+      })
+      .eq('id', project.id);
+    await supabase
+      .from('video_clone_segments')
+      .update({
+        status: 'failed',
+        error_message: error instanceof Error ? error.message : 'Direct reference task failed',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', segment.id);
+
+    return {
+      success: false,
+      error: 'Direct reference workflow failed',
+      details: error instanceof Error ? error.message : 'Unknown task start error',
+    };
+  }
 }
 
 async function startEditVideoWorkflow(request: StartWorkflowRequest): Promise<WorkflowResult> {

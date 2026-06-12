@@ -13,6 +13,10 @@ import {
   normalizeProjectAgentVideoCloneModel,
 } from '@/lib/project-agent/video-clone-mode';
 import { getEffectiveProjectAgentVideoModel } from '@/lib/project-agent/video-model';
+import {
+  getProjectAgentCloneExecutionMode,
+  normalizeCloneDurationSeconds,
+} from '@/lib/video-clone-billing';
 
 export type ProjectAgentConnectedFeatureInputs = {
   avatar?: ProjectAgentCanvasAssetRef | null;
@@ -436,11 +440,22 @@ export const buildVideoCloneStartPayload = (input: {
     ? null
     : Math.ceil(sourceDurationSeconds);
   const playableVideoUrl = input.video.videoCdnUrl?.trim() || input.video.videoUrl?.trim() || undefined;
+  const cloneDurationSeconds = mode === 'clone'
+    ? normalizeCloneDurationSeconds(sourceDurationSeconds) || normalizeCloneDurationSeconds(input.config?.videoDuration) || 8
+    : executableEditVideoDurationSeconds;
+  const executionMode = mode === 'clone'
+    ? getProjectAgentCloneExecutionMode({
+        model: videoModel,
+        durationSeconds: cloneDurationSeconds,
+        hasReferenceVideoUrl: Boolean(playableVideoUrl),
+      })
+    : mode;
 
   return {
-    executionMode: mode,
+    executionMode,
     creatorSourceVideoId: input.video.sourceType === 'reference_video' ? undefined : input.video.id,
     referenceVideoId: input.video.sourceType === 'reference_video' ? input.video.id : undefined,
+    referenceSourceVideoUrl: mode === 'clone' ? playableVideoUrl : undefined,
     selectedAvatarIds: mode === 'clone' && input.avatar?.id ? [input.avatar.id] : [],
     selectedProductIds: mode === 'clone' && input.product?.id ? [input.product.id] : [],
     supplementalText: mode === 'clone' ? input.text?.content?.trim() || undefined : undefined,
@@ -450,7 +465,7 @@ export const buildVideoCloneStartPayload = (input: {
     videoAspectRatio: input.config?.aspectRatio || '9:16',
     videoDuration: mode === 'edit_video'
       ? String(executableEditVideoDurationSeconds || '')
-      : input.config?.videoDuration || '8',
+      : String(cloneDurationSeconds || 8),
     videoQuality: input.config?.videoQuality || (videoModel === 'seedance_2' ? '1080p' : '720p'),
     language: input.config?.language || input.video.analysisLanguage || 'en',
     shouldGenerateVideo: true,
@@ -559,9 +574,8 @@ export const normalizeCloneExecutionStatus = (
   const awaitingMerge = Boolean(data.awaitingMerge) || status === 'awaiting_merge';
   const videoGenerationRequested = data.videoGenerationRequested === true;
   const step = typeof payload.current_step === 'string' ? payload.current_step : '';
-  const skipsFrameGeneration = data.workflowSource === 'project_agent_edit_video' || (
-    data.videoModel === 'seedance_2_fast' && data.workflowSource === 'project_agent_clone'
-  );
+  const skipsFrameGeneration = data.workflowSource === 'project_agent_edit_video' ||
+    data.executionMode === 'clone_direct_reference';
   const segments = Array.isArray(data.segments)
     ? data.segments as Array<Record<string, unknown>>
     : [];
@@ -579,24 +593,24 @@ export const normalizeCloneExecutionStatus = (
     status === 'video_generating' ||
     hasSegmentVideoTask
   );
-  const hasStaleVideoStartLock = videoGenerationRequested &&
-    !hasActiveVideoGeneration &&
-    !mergedVideo &&
-    (
-      step === 'ready_for_video' ||
-      step === 'reviewing_segment_frames' ||
-      status === 'segment_frames_ready' ||
-      status === 'ready_for_video'
-    );
-  const needsVideoStart = (!videoGenerationRequested || hasStaleVideoStartLock) && (
+  const isReadyForVideoStart = (
     step === 'ready_for_video' ||
     step === 'reviewing_segment_frames' ||
     status === 'segment_frames_ready' ||
     status === 'ready_for_video'
   );
+  const hasStaleVideoStartLock = videoGenerationRequested &&
+    !hasActiveVideoGeneration &&
+    !mergedVideo &&
+    isReadyForVideoStart;
+  const awaitingManualVideoStart = !videoGenerationRequested &&
+    !hasActiveVideoGeneration &&
+    !mergedVideo &&
+    isReadyForVideoStart;
+  const needsVideoStart = hasStaleVideoStartLock && isReadyForVideoStart;
   const failed = status === 'failed';
   const completed = status === 'completed';
-  const executionState = completed ? 'completed' : failed ? 'failed' : 'running';
+  const executionState = completed ? 'completed' : failed ? 'failed' : awaitingManualVideoStart ? 'ready' : 'running';
   const currentMilestoneKey = getCurrentMilestoneForClone(
     status,
     skipsFrameGeneration && needsVideoStart ? 'generating_video' : step,
@@ -607,6 +621,13 @@ export const normalizeCloneExecutionStatus = (
   );
   const error = typeof data.errorMessage === 'string' ? data.errorMessage : null;
   const { retryable, userFacingError } = getProjectAgentCanvasErrorInfo(error);
+  const milestones = buildMilestones('video_clone', currentMilestoneKey, executionState, {
+    skipCloneFrames: skipsFrameGeneration,
+  }).map((milestone) => (
+    awaitingManualVideoStart && milestone.state === 'active'
+      ? { ...milestone, state: 'pending' as const }
+      : milestone
+  ));
 
   return {
     executionState,
@@ -626,8 +647,10 @@ export const normalizeCloneExecutionStatus = (
           : hasActiveVideoGeneration
             ? 'Running clone workflow'
             : needsVideoStart
-            ? 'Auto starting video generation'
-            : 'Running clone workflow',
+              ? 'Auto starting video generation'
+              : awaitingManualVideoStart
+                ? 'Ready for video'
+                : 'Running clone workflow',
     projectId,
     table: 'video_clone_projects',
     nextAction: awaitingMerge
@@ -635,9 +658,7 @@ export const normalizeCloneExecutionStatus = (
       : needsVideoStart
         ? 'start_clone_video'
         : 'none',
-    milestones: buildMilestones('video_clone', currentMilestoneKey, executionState, {
-      skipCloneFrames: skipsFrameGeneration,
-    }),
+    milestones,
     currentMilestoneKey,
     raw: payload,
   };

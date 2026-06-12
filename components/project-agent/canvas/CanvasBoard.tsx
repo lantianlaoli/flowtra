@@ -40,6 +40,7 @@ import {
   type PersistedVideoQuality,
   type VideoModel,
 } from '@/lib/constants';
+import { getProjectAgentCloneGenerationCost, normalizeCloneDurationSeconds } from '@/lib/video-clone-billing';
 import {
   getProjectAgentCanvasNodeSize,
   getProjectAgentAssetDisplayName,
@@ -181,8 +182,10 @@ const getBezierTangentAngle = (source: { x: number; y: number }, target: { x: nu
 
 function AgentOutputFeedbackButtons({
   asset,
+  variant = 'overlay',
 }: {
   asset: ProjectAgentCanvasNode['asset'];
+  variant?: 'overlay' | 'inline';
 }) {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState<ProjectAgentFeedbackType | null>(null);
@@ -217,18 +220,67 @@ function AgentOutputFeedbackButtons({
   if (!buildProjectAgentOutputFeedbackPayload(asset, 'positive')) return null;
 
   if (submitted) {
+    if (variant === 'inline') {
+      return (
+        <span className="inline-flex items-center gap-1 px-3.5 py-2 text-xs font-semibold text-[#0d7a43]">
+          Thanks!
+        </span>
+      );
+    }
     return (
-      <span className="ml-auto rounded-full bg-[#f3f1ea] px-2 py-1 text-[10px] font-semibold text-[#6f6a62]">
+      <span className="rounded-full border border-white/70 bg-white/95 px-2.5 py-1.5 text-[10px] font-semibold text-[#4a4944] shadow-[0_10px_24px_rgba(0,0,0,0.18)] backdrop-blur">
         Thanks!
       </span>
     );
   }
 
-  const buttonClass = 'inline-flex h-6 items-center gap-1 rounded-full border border-[#ddd8cc] bg-white px-2 text-[10px] font-semibold text-[#4a4944] transition-colors hover:border-black hover:text-black disabled:cursor-not-allowed disabled:opacity-60';
+  const buttonClass = variant === 'inline'
+    ? 'inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-[#4a4944] transition-colors hover:bg-[#eef7ef] hover:text-[#0d7a43] disabled:cursor-not-allowed disabled:opacity-60'
+    : 'inline-flex h-7 items-center gap-1 rounded-full border border-white/70 bg-white/95 px-2.5 text-[10px] font-semibold text-[#3d3c38] shadow-[0_10px_24px_rgba(0,0,0,0.18)] backdrop-blur transition-colors hover:border-black hover:text-black disabled:cursor-not-allowed disabled:opacity-60';
+
+  const failBadge = variant === 'inline'
+    ? <span className="px-3.5 py-2 text-xs font-medium text-red-500">Retry</span>
+    : <span className="rounded-full border border-white/70 bg-white/95 px-2 py-1 text-[10px] font-medium text-red-500 shadow-[0_10px_24px_rgba(0,0,0,0.18)] backdrop-blur">Retry</span>;
+
+  const failWrap = failed ? failBadge : null;
+
+  if (variant === 'inline') {
+    return (
+      <>
+        {failWrap}
+        <button
+          type="button"
+          className={buttonClass}
+          disabled={submitting !== null}
+          onClick={(event) => {
+            event.stopPropagation();
+            void submitFeedback('positive');
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          {submitting === 'positive' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ThumbsUp className="h-3.5 w-3.5" />}
+          Good
+        </button>
+        <button
+          type="button"
+          className={buttonClass}
+          disabled={submitting !== null}
+          onClick={(event) => {
+            event.stopPropagation();
+            void submitFeedback('negative');
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          {submitting === 'negative' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ThumbsDown className="h-3.5 w-3.5" />}
+          Bad
+        </button>
+      </>
+    );
+  }
 
   return (
-    <div className="ml-auto flex items-center gap-1">
-      {failed ? <span className="mr-1 text-[10px] font-medium text-red-500">Retry</span> : null}
+    <div className="flex items-center gap-1.5">
+      {failWrap}
       <button
         type="button"
         className={buttonClass}
@@ -398,10 +450,14 @@ const getFeatureEstimatedCredits = (
     }
     const effectiveDuration = mode === 'edit_video'
       ? String(editVideoDuration)
-      : duration;
+      : String(normalizeCloneDurationSeconds(editVideoDuration) || normalizeCloneDurationSeconds(duration) || 8);
     const quality = getEffectiveProjectAgentVideoQuality('video_clone', model, node.config?.videoQuality);
-    return getGenerationCost(model, effectiveDuration, quality, {
-      hasVideoInput: mode === 'edit_video',
+    return getProjectAgentCloneGenerationCost({
+      model,
+      durationSeconds: effectiveDuration,
+      videoQuality: quality,
+      executionMode: mode === 'edit_video' ? 'edit_video' : undefined,
+      hasReferenceVideoUrl: Boolean(inputs.video.videoCdnUrl || inputs.video.videoUrl),
     }) * runCount;
   }
 
@@ -834,6 +890,9 @@ export default function CanvasBoard({
                       Download
                     </a>
                   ) : null}
+                  {isProjectAgentOutputNode(node.type) ? (
+                    <AgentOutputFeedbackButtons asset={node.asset} variant="inline" />
+                  ) : null}
                   <button
                     className="inline-flex items-center gap-1.5 rounded-r-full px-3.5 py-2 text-xs font-medium text-[#4a4944] transition-colors hover:bg-[#fff1f0] hover:text-red-600"
                     onClick={(event) => {
@@ -853,11 +912,10 @@ export default function CanvasBoard({
                   <div className="flex items-center gap-1.5 px-2 pt-2 pb-1.5">
                     <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-[#c4c1b8] active:cursor-grabbing" strokeWidth={2} />
                     <span className="truncate text-xs font-semibold text-[#3d3c38]">Output</span>
-                    <AgentOutputFeedbackButtons asset={node.asset} />
                   </div>
                   <div className="px-2 pb-2">
                     <div
-                      className="relative w-full overflow-hidden rounded-xl bg-[#111]"
+                      className="project-agent-output-video relative w-full overflow-hidden rounded-xl bg-[#111]"
                       style={{ aspectRatio: '9/16' }}
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => e.stopPropagation()}

@@ -3784,6 +3784,12 @@ body {
     0 8px 18px rgba(0, 0, 0, 0.14) !important;
 }
 
+.project-agent-output-video:hover .project-agent-output-feedback,
+.project-agent-output-video:focus-within .project-agent-output-feedback {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .project-agent-selection-media {
   background: #efefed;
 }

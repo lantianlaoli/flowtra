@@ -48,7 +48,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       return
     }
 
-    if (isCreditsLoading) return
+    if (isCreditsLoading && credits === undefined) {
+      setIsCheckingPurchase(false)
+      return
+    }
 
     if (credits !== undefined && credits <= 0) {
       router.replace('/select-plan')
@@ -58,7 +61,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setIsCheckingPurchase(false)
   }, [credits, isCreditsLoading, user, isLoaded, router])
 
-  if (!isLoaded || isCheckingPurchase || isCreditsLoading) {
+  if (!isLoaded || isCheckingPurchase) {
     return <FlowtraLoading />
   }
 

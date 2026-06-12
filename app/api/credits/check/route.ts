@@ -26,8 +26,12 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const result = await getUserCredits(userId)
-    const subscriptionResult = await getUserSubscription(userId)
+    // Schema verified via Supabase MCP (2026-06-12):
+    // user_credits has user_id/credits_remaining; user_subscriptions has user_id/status/created_at.
+    const [result, subscriptionResult] = await Promise.all([
+      getUserCredits(userId),
+      getUserSubscription(userId),
+    ])
     const subscriptionStatus = subscriptionResult.subscription?.status
     const hasActiveSubscription = subscriptionStatus === 'active' || subscriptionStatus === 'trialing'
 
@@ -86,8 +90,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const result = await getUserCredits(userId)
-    const subscriptionResult = await getUserSubscription(userId)
+    // Schema verified via Supabase MCP (2026-06-12):
+    // user_credits has user_id/credits_remaining; user_subscriptions has user_id/status/created_at.
+    const [result, subscriptionResult] = await Promise.all([
+      getUserCredits(userId),
+      getUserSubscription(userId),
+    ])
     const subscriptionStatus = subscriptionResult.subscription?.status
     const hasActiveSubscription = subscriptionStatus === 'active' || subscriptionStatus === 'trialing'
 

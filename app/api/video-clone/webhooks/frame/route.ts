@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import {
+  buildSegmentStatusPayload,
   createSmartSegmentFrame,
   hydrateSerializedSegmentPrompt,
   resolveCloneModeFromProject,
   serializeSegmentPrompt,
+  startSegmentVideoTask,
   type SegmentPrompt,
   type SerializedSegmentPlanSegment
 } from '@/lib/video-clone-workflow';
 import type { VideoModel } from '@/lib/constants';
+import type { SingleVideoProject, VideoCloneSegment } from '@/lib/supabase';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
 
@@ -63,6 +66,16 @@ const readCloneReferenceAssets = (projectData: Record<string, unknown> | null | 
     avatarPhotoUrls: normalizeStringArray(parsed.avatarPhotoUrls, 4),
     productImageUrls: normalizeStringArray(parsed.productImageUrls, 8)
   };
+};
+
+const isProjectAgentAutoCloneProject = (projectData: Record<string, unknown> | null | undefined): boolean => {
+  const selectedInputs = projectData?.selected_inputs;
+  return Boolean(
+    selectedInputs &&
+    typeof selectedInputs === 'object' &&
+    (selectedInputs as { workflowSource?: unknown }).workflowSource === 'project_agent_clone' &&
+    (selectedInputs as { mergePolicy?: unknown }).mergePolicy === 'auto'
+  );
 };
 
 function readSegmentPlanEntry(container: Record<string, unknown> | null | undefined, segmentIndex: number): Record<string, unknown> | null {
@@ -240,14 +253,133 @@ export async function POST(request: NextRequest) {
             // All frames ready - update project status
             console.log(`✅ [UGC Frame Webhook] All ${allSegments.length} frames ready for project ${segment.project_id}`);
 
-            await supabase
+            const { data: fullProjectForAutoStart } = await supabase
               .from('video_clone_projects')
-              .update({
-                status: 'segment_frames_ready',
-                current_step: 'reviewing_segment_frames',
-                progress_percentage: 70
-              })
-              .eq('id', segment.project_id);
+              .select('*')
+              .eq('id', segment.project_id)
+              .single();
+
+            if (isProjectAgentAutoCloneProject(fullProjectForAutoStart as Record<string, unknown> | null)) {
+              const now = new Date().toISOString();
+              const { data: fullSegments } = await supabase
+                .from('video_clone_segments')
+                .select('*')
+                .eq('project_id', segment.project_id)
+                .order('segment_index', { ascending: true });
+              const videoSegments = Array.isArray(fullSegments)
+                ? fullSegments as VideoCloneSegment[]
+                : [];
+              const segmentDurationSeconds = Number(fullProjectForAutoStart?.segment_duration_seconds || 0) || undefined;
+              const normalizedProject = fullProjectForAutoStart as SingleVideoProject;
+              let startedVideoTasks = 0;
+              const startErrors: string[] = [];
+
+              // Schema verified via Supabase MCP (2026-06-12): video_clone_segments has
+              // video_task_id, video_generation_approved, video_webhook_received_at, and updated_at.
+              for (let index = 0; index < videoSegments.length; index += 1) {
+                const segmentRow = videoSegments[index];
+                const segmentIndex = segmentRow.segment_index ?? index;
+                if (segmentRow.video_url || segmentRow.video_task_id) {
+                  continue;
+                }
+                if (!segmentRow.first_frame_url) {
+                  startErrors.push(`Segment ${segmentIndex + 1}: first frame is missing.`);
+                  continue;
+                }
+                const segmentPrompt = resolveSegmentPromptForIndex(
+                  segmentRow.prompt,
+                  fullProjectForAutoStart as ProjectPromptContainer,
+                  segmentIndex
+                );
+                if (!segmentPrompt) {
+                  startErrors.push(`Segment ${segmentIndex + 1}: prompt is missing.`);
+                  continue;
+                }
+
+                try {
+                  const nextSegment = videoSegments[index + 1];
+                  const videoTaskId = await startSegmentVideoTask(
+                    normalizedProject,
+                    hydrateSerializedSegmentPrompt(
+                      serializeSegmentPrompt(segmentPrompt) as SerializedSegmentPlanSegment,
+                      segmentIndex,
+                      segmentDurationSeconds
+                    ),
+                    segmentRow.first_frame_url,
+                    segmentRow.closing_frame_url || nextSegment?.first_frame_url || null,
+                    segmentIndex,
+                    fullProjectForAutoStart?.segment_count || videoSegments.length
+                  );
+                  await supabase
+                    .from('video_clone_segments')
+                    .update({
+                      video_task_id: videoTaskId,
+                      status: 'generating_video',
+                      video_generation_approved: true,
+                      error_message: null,
+                      retry_count: 0,
+                      video_webhook_received_at: null,
+                      updated_at: now
+                    })
+                    .eq('id', segmentRow.id);
+                  startedVideoTasks += 1;
+                } catch (startError) {
+                  const message = startError instanceof Error ? startError.message : 'Unknown video task start error';
+                  startErrors.push(`Segment ${segmentIndex + 1}: ${message}`);
+                  await supabase
+                    .from('video_clone_segments')
+                    .update({
+                      status: 'failed',
+                      error_message: message,
+                      updated_at: now
+                    })
+                    .eq('id', segmentRow.id);
+                }
+              }
+
+              const { data: refreshedSegments } = await supabase
+                .from('video_clone_segments')
+                .select('*')
+                .eq('project_id', segment.project_id)
+                .order('segment_index', { ascending: true });
+              const latestSegments = Array.isArray(refreshedSegments)
+                ? refreshedSegments as VideoCloneSegment[]
+                : videoSegments;
+
+              if (startedVideoTasks === 0 && startErrors.length > 0) {
+                await supabase
+                  .from('video_clone_projects')
+                  .update({
+                    status: 'failed',
+                    current_step: 'failed',
+                    error_message: startErrors[0],
+                    segment_status: buildSegmentStatusPayload(latestSegments),
+                    last_processed_at: now
+                  })
+                  .eq('id', segment.project_id);
+              } else {
+                await supabase
+                  .from('video_clone_projects')
+                  .update({
+                    status: 'processing',
+                    current_step: 'generating_segment_videos',
+                    progress_percentage: 70,
+                    video_generation_requested: true,
+                    segment_status: buildSegmentStatusPayload(latestSegments),
+                    last_processed_at: now
+                  })
+                  .eq('id', segment.project_id);
+              }
+            } else {
+              await supabase
+                .from('video_clone_projects')
+                .update({
+                  status: 'segment_frames_ready',
+                  current_step: 'reviewing_segment_frames',
+                  progress_percentage: 70
+                })
+                .eq('id', segment.project_id);
+            }
           } else {
             // Not all ready yet - continue waiting
             console.log(`[UGC Frame Webhook] Waiting for remaining frames: ${allSegments.filter(s => !s.first_frame_url).length} pending`);

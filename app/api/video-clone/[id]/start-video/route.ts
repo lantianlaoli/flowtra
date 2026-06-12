@@ -13,7 +13,7 @@ import { isKlingPromptValidationError } from '@/lib/kling-prompt-budget';
 import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { validateKieCredits } from '@/lib/kie-credits-check';
-import { getSegmentPromptVideoGenerationCost } from '@/lib/video-clone-segment-billing';
+import { getCloneSegmentPromptGenerationCost } from '@/lib/video-clone-billing';
 import {
   getSupabaseAdmin,
   type VideoCloneSegment,
@@ -208,12 +208,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           segmentIndex,
           segmentDurationSeconds
         );
-        const segmentCost = getSegmentPromptVideoGenerationCost(
-          projectModel || 'seedance_2_fast',
-          segmentPrompt.shots,
-          segmentDurationSeconds,
-          (project.video_quality as PersistedVideoQuality | null | undefined) || undefined
-        );
+        const segmentCost = getCloneSegmentPromptGenerationCost({
+          model: projectModel || 'seedance_2_fast',
+          shots: segmentPrompt.shots,
+          fallbackDurationSeconds: segmentDurationSeconds,
+          videoQuality: (project.video_quality as PersistedVideoQuality | null | undefined) || undefined
+        });
 
         segmentsToStart.push({
           segment,
@@ -292,7 +292,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       });
     }
 
-    if (hasPendingVideoWork && generationCost > 0 && !shouldStartWithRecordedCharge) {
+    if (hasPendingVideoWork && generationCost > 0 && !hasRecordedChargeForPendingWork) {
       const creditCheck = await checkCredits(userId, generationCost);
       if (!creditCheck.success) {
         return NextResponse.json({ error: creditCheck.error || 'Failed to check credits' }, { status: 500 });

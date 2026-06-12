@@ -78,12 +78,15 @@ export const mapClonePhaseFromStatusPayload = (payload: Record<string, unknown>)
 
   if (
     step === 'generating_segment_videos' ||
-    step === 'ready_for_video' ||
     step === 'generating_video' ||
     videosReady > 0 ||
     videoGenerationRequested
   ) {
     return 'generating_videos';
+  }
+
+  if (step === 'ready_for_video' || status === 'ready_for_video') {
+    return 'reviewing_frames';
   }
 
   if (total > 0 && framesReady === total && videosReady < total) {

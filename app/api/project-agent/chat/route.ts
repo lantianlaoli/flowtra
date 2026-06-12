@@ -15,6 +15,7 @@ import {
 import { getSupabaseAdmin, normalizeAvatarPhotoSet } from '@/lib/supabase';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 import {
+  getDefaultCloneVideoQuality,
   getMotionCloneGenerationCost,
   getVideoModelDisplayName,
   normalizeMotionCloneQuality,
@@ -7208,13 +7209,14 @@ export async function POST(request: Request) {
               selectedAvatarIds,
               selectedProductIds,
               videoModel: normalizedModel,
-              videoQuality: 'standard',
+              videoQuality: getDefaultCloneVideoQuality(normalizedModel),
               videoAspectRatio: sessionState.videoAspectRatio || '9:16',
               videoDuration,
               language: sessionState.language || 'en',
               shouldGenerateVideo: true,
               segmentPrompts,
-              requestSource: 'project_agent_clone'
+              requestSource: 'project_agent_clone',
+              referenceSourceVideoUrl: cloneReferenceVideo.cdnUrl || cloneReferenceVideo.videoUrl || undefined
             };
             if (cloneReferenceVideo.sourceType === 'reference_video') {
               createPayload.referenceVideoId = cloneReferenceVideo.sourceId || cloneReferenceVideo.id;
