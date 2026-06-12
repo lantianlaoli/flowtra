@@ -845,20 +845,17 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                 {/* Fixed Download Button at Bottom Right */}
                 {(!showTikTokPanel && (canDownload || isExpired)) && (
                   <div className="my-ads-details-footer border-t border-[#E5E5E5] bg-white px-8 py-4">
-                    <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      {/* Feedback Buttons */}
-                      <div className="flex items-center gap-2">
-                        <FeedbackButtons
-                          projectId={item.id}
-                          projectType={
-                            item.adType === 'character'
-                              ? 'avatar-ads'
-                              : item.adType === 'video-clone'
-                              ? 'video-clone'
-                              : 'motion-clone'
-                          }
-                        />
-                      </div>
+                    <div className="flex flex-wrap items-center justify-end gap-3">
+                      <FeedbackButtons
+                        projectId={item.id}
+                        projectType={
+                          item.adType === 'character'
+                            ? 'avatar-ads'
+                            : item.adType === 'video-clone'
+                            ? 'video-clone'
+                            : 'motion-clone'
+                        }
+                      />
 
                       {/* Download Controls */}
                       <div className="flex items-center gap-3">
