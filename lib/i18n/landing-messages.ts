@@ -120,8 +120,6 @@ export type LandingMessages = {
     title: string;
     description: string;
     recommended: string;
-    trial: string;
-    trialBadge: string;
     perMonth: string;
     plans: {
       lite: {
@@ -158,7 +156,7 @@ export type LandingMessages = {
     readMore: string;
     fetchFailed: string;
   };
-  trialCta: {
+  liteCta: {
     eyebrow: string;
     title: string;
     description: string;
@@ -390,8 +388,6 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       title: 'Choose Your Plan',
       description: 'Monthly subscription with automatic credit reset',
       recommended: 'Recommended',
-      trial: '1 Day Free Trial',
-      trialBadge: 'Trial',
       perMonth: '/month',
       plans: {
         lite: {
@@ -460,11 +456,11 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       readMore: 'Read More',
       fetchFailed: 'Failed to fetch article previews',
     },
-    trialCta: {
+    liteCta: {
       eyebrow: 'Lite plan',
-      title: 'Subscribe to Lite and get a 1-day free trial',
-      description: 'Start testing Flowtra with the lightest plan, then scale when you are ready.',
-      buttonLabel: 'Start free trial',
+      title: 'Subscribe to Lite and start creating with Flowtra',
+      description: 'Start with the lightest plan, then scale when you are ready.',
+      buttonLabel: 'Get Lite',
     },
     faq: {
       title: 'Frequently Asked Questions',
@@ -712,8 +708,6 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       title: '选择你的方案',
       description: '按月订阅，积分自动重置',
       recommended: '推荐',
-      trial: '1 天免费试用',
-      trialBadge: '试用',
       perMonth: '/月',
       plans: {
         lite: {
@@ -782,11 +776,11 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       readMore: '继续阅读',
       fetchFailed: '获取文章预览失败',
     },
-    trialCta: {
+    liteCta: {
       eyebrow: 'Lite plan',
-      title: 'Subscribe to Lite and get a 1-day free trial',
-      description: 'Start testing Flowtra with the lightest plan, then scale when you are ready.',
-      buttonLabel: 'Start free trial',
+      title: 'Subscribe to Lite and start creating with Flowtra',
+      description: 'Start with the lightest plan, then scale when you are ready.',
+      buttonLabel: 'Get Lite',
     },
     faq: {
       title: '常见问题',

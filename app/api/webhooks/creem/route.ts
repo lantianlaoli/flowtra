@@ -9,7 +9,6 @@ import {
   createSubscription,
   grantSubscriptionAccess,
   resetMonthlyCredits,
-  clearTrialCreditsOnCancellation,
   revokeSubscriptionAccess,
   updateSubscriptionStatus,
   updateSubscriptionPeriod,
@@ -57,7 +56,7 @@ export async function POST(request: NextRequest) {
       // ===== CHECKOUT COMPLETED EVENTS =====
 
       // checkout.completed with subscription - Handle subscription creation directly
-      // CRITICAL: In production, Creem may ONLY send checkout.completed, not subscription.trialing/active
+      // CRITICAL: In production, Creem may only send checkout.completed before subscription.active.
       // So we must handle subscription creation here to ensure it works in all environments
       if (eventType === 'checkout.completed' && object.subscription) {
         console.log(`✅ Subscription checkout completed for user ${userId}`)
@@ -80,13 +79,16 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Failed to create subscription' }, { status: 500 })
           }
 
-          // Grant initial credits based on subscription status
-          const subscription = await getUserSubscription(userId)
-          if (subscription.subscription) {
-            const monthlyCredits = subscription.subscription.monthly_credits
-            const tier = subscription.subscription.tier
-            console.log(`   Granting ${monthlyCredits} credits (status: ${subscriptionStatus})`)
-            await grantSubscriptionAccess(userId, monthlyCredits, tier)
+          // Grant initial credits only for paid active subscriptions. Trial statuses are
+          // stored for compatibility but do not receive onboarding credits.
+          if (subscriptionStatus === 'active') {
+            const subscription = await getUserSubscription(userId)
+            if (subscription.subscription) {
+              const monthlyCredits = subscription.subscription.monthly_credits
+              const tier = subscription.subscription.tier
+              console.log(`   Granting ${monthlyCredits} credits (status: ${subscriptionStatus})`)
+              await grantSubscriptionAccess(userId, monthlyCredits, tier)
+            }
           }
         } else {
           console.log(`   Subscription already exists, skipping creation`)
@@ -172,13 +174,12 @@ export async function POST(request: NextRequest) {
         const creemSubscriptionId = object.id
         const productId = object.product?.id || object.product
 
-        // Check if subscription already exists (trial-to-paid conversion detection)
+        // Check if subscription already exists (idempotency)
         const existingSubscription = await getUserSubscription(userId)
 
         if (existingSubscription.subscription) {
-          // TRIAL-TO-PAID CONVERSION: Subscription exists from trialing event
-          console.log(`   Detected trial-to-paid conversion (subscription exists)`)
-          console.log(`   Preserving existing credits (no reset)`)
+          console.log(`   Subscription exists, updating status`)
+          const previousStatus = existingSubscription.subscription.status
 
           // Only update status to active
           const statusResult = await updateSubscriptionStatus(creemSubscriptionId, 'active')
@@ -199,9 +200,25 @@ export async function POST(request: NextRequest) {
               return NextResponse.json({ error: periodResult.error }, { status: 500 })
             }
           }
+
+          if (previousStatus === 'trialing') {
+            const subscription = await getUserSubscription(userId)
+            if (subscription.subscription) {
+              const monthlyCredits = subscription.subscription.monthly_credits
+              const tier = subscription.subscription.tier
+              console.log(`   Granting ${monthlyCredits} paid credits after active conversion`)
+              const grantResult = await grantSubscriptionAccess(userId, monthlyCredits, tier)
+              if (!grantResult.success) {
+                console.error('❌ Failed to grant credits:', grantResult.error)
+                return NextResponse.json({ error: grantResult.error }, { status: 500 })
+              }
+            }
+          } else {
+            console.log(`   Preserving existing credits (no reset)`)
+          }
         } else {
-          // NEW SUBSCRIPTION: No existing record (user purchased without trial or active arrived first)
-          console.log(`   Creating new subscription (no trial or active arrived first)`)
+          // NEW SUBSCRIPTION: No existing record
+          console.log(`   Creating new subscription`)
 
           // Create subscription record
           const createResult = await createSubscription(userId, object)
@@ -295,25 +312,11 @@ export async function POST(request: NextRequest) {
 
         const creemSubscriptionId = object.id
 
-        const clearResult = await clearTrialCreditsOnCancellation(userId, creemSubscriptionId)
-        if (!clearResult.success) {
-          console.error('❌ Failed to clear trial credits on cancellation:', clearResult.error)
-          return NextResponse.json({ error: clearResult.error }, { status: 500 })
-        }
-
         // Update subscription status
         await updateSubscriptionStatus(creemSubscriptionId, 'canceled')
 
         // Record event
         await recordSubscriptionEvent(userId, creemSubscriptionId, eventType, eventId, object)
-
-        if (clearResult.cleared) {
-          console.log(`✅ Subscription canceled during trial for user ${userId} (credits cleared)`)
-          return NextResponse.json({
-            success: true,
-            message: 'Subscription canceled during trial, credits cleared'
-          })
-        }
 
         console.log(`✅ Subscription marked as canceled for user ${userId} (credits preserved until expiration)`)
         return NextResponse.json({
@@ -393,10 +396,9 @@ export async function POST(request: NextRequest) {
             }
           }
         } else {
-          // CRITICAL: In production, Creem sends subscription.update BEFORE subscription.trialing
+          // CRITICAL: In production, Creem can send subscription.update before subscription.active.
           // We must create subscription here to avoid missing subscriptions
           console.log(`   No existing subscription found - creating from subscription.update`)
-          console.log(`   This is normal in production (subscription.update arrives before subscription.trialing)`)
 
           // Create subscription
           const createResult = await createSubscription(userId, object)
@@ -405,8 +407,9 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Failed to create subscription' }, { status: 500 })
           }
 
-          // Grant initial credits if status is trialing or active
-          if (['trialing', 'active'].includes(status)) {
+          // Grant initial credits only for paid active subscriptions. Existing trialing records
+          // remain compatible in access checks, but new trial events do not grant credits.
+          if (status === 'active') {
             const newSubscription = await getUserSubscription(userId)
             if (newSubscription.subscription) {
               const monthlyCredits = newSubscription.subscription.monthly_credits
@@ -426,46 +429,6 @@ export async function POST(request: NextRequest) {
 
         console.log(`✅ Subscription update recorded for user ${userId}`)
         return NextResponse.json({ success: true, message: 'Subscription updated' })
-      }
-
-      // subscription.trialing - Subscription started trial period
-      if (eventType === 'subscription.trialing') {
-        console.log(`🎁 Subscription trial started for user ${userId}`)
-
-        const creemSubscriptionId = object.id
-
-        // Check if subscription already exists (idempotency)
-        const existingSubscription = await getUserSubscription(userId)
-
-        if (existingSubscription.subscription) {
-          // Subscription already exists, just update status
-          console.log(`   Subscription exists, updating status only`)
-          await updateSubscriptionStatus(creemSubscriptionId, 'trialing')
-        } else {
-          // Create new subscription with trial status
-          console.log(`   Creating new subscription with trial status`)
-          const createResult = await createSubscription(userId, object)
-
-          if (!createResult.success) {
-            console.error('❌ Failed to create trial subscription:', createResult.error)
-            return NextResponse.json({ error: 'Failed to create trial subscription' }, { status: 500 })
-          }
-
-          // Grant full monthly credits for trial
-          const subscription = await getUserSubscription(userId)
-          if (subscription.subscription) {
-            const monthlyCredits = subscription.subscription.monthly_credits
-            const tier = subscription.subscription.tier
-            console.log(`   Granting ${monthlyCredits} trial credits`)
-            await grantSubscriptionAccess(userId, monthlyCredits, tier)
-          }
-        }
-
-        // Record event
-        await recordSubscriptionEvent(userId, creemSubscriptionId, eventType, eventId, object)
-
-        console.log(`✅ Trial started with full credits for user ${userId}`)
-        return NextResponse.json({ success: true, message: 'Trial started with full credits' })
       }
 
       // Unsupported event type

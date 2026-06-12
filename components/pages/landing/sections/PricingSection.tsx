@@ -79,19 +79,6 @@ export default function PricingSection({
               </span>
             </div>
 
-            {/* Trial Badge */}
-            <div className="landing-plan-chip mt-4 inline-flex items-center gap-2 rounded-xl border-2 border-black bg-white px-3 py-2 shadow-[0_8px_20px_rgba(0,0,0,0.08)]">
-              <span className="inline-flex items-center rounded-full bg-black px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">
-                {pricingMessages.trialBadge}
-              </span>
-              <span className="text-[12px] font-semibold leading-none text-black">
-                {pricingMessages.trial}
-              </span>
-              <span
-                aria-hidden="true"
-                className="h-1.5 w-1.5 rounded-full bg-green-500 motion-safe:animate-pulse motion-reduce:animate-none"
-              />
-            </div>
           </div>
 
           <ul className="space-y-4 mb-10 flex-grow">

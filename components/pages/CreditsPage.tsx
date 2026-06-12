@@ -455,51 +455,10 @@ export default function CreditsPage() {
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="text-lg font-semibold text-foreground capitalize">{subscription.tier} Plan</h3>
-                          {subscription.status === 'active' && (
+                          {['active', 'trialing'].includes(subscription.status) && (
                             <span className="px-2 py-1 bg-primary text-primary-foreground text-xs font-medium rounded">
                               Active
                             </span>
-                          )}
-                          {subscription.status === 'trialing' && (
-                            <>
-                              {(() => {
-                                // Defensive check: Is trial actually expired?
-                                const isExpired = subscription.current_period_end &&
-                                  new Date() > new Date(subscription.current_period_end);
-
-                                if (isExpired) {
-                                  return (
-                                    <>
-                                      <span className="px-2 py-1 bg-red-600 text-white text-xs font-medium rounded">
-                                        Trial Expired
-                                      </span>
-                                      <span className="text-xs text-muted-foreground">
-                                        Ended: {new Date(subscription.current_period_end).toLocaleDateString('en-US', {
-                                          month: 'short',
-                                          day: 'numeric',
-                                          year: 'numeric'
-                                        })}
-                                      </span>
-                                    </>
-                                  );
-                                }
-
-                                return (
-                                  <>
-                                    <span className="px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded">
-                                      Trial
-                                    </span>
-                                    <span className="text-xs text-muted-foreground">
-                                      Ends: {new Date(subscription.current_period_end).toLocaleDateString('en-US', {
-                                        month: 'short',
-                                        day: 'numeric',
-                                        year: 'numeric'
-                                      })}
-                                    </span>
-                                  </>
-                                );
-                              })()}
-                            </>
                           )}
                           {subscription.status === 'canceled' && (
                             <span className="px-2 py-1 bg-border text-muted-foreground text-xs font-medium rounded">
@@ -606,46 +565,6 @@ export default function CreditsPage() {
                     </div>
                   )}
 
-                  {/* Trial Notice */}
-                  {subscription.status === 'trialing' && (() => {
-                    const isExpired = subscription.current_period_end &&
-                      new Date() > new Date(subscription.current_period_end);
-
-                    if (isExpired) {
-                      return (
-                        <div className="flex items-start gap-3 p-4 bg-red-950/40 rounded-lg border border-red-900/40">
-                          <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-medium text-foreground mb-1">Trial Expired</p>
-                            <p className="text-xs text-muted-foreground">
-                              Your trial ended on {new Date(subscription.current_period_end).toLocaleDateString('en-US', {
-                                month: 'long',
-                                day: 'numeric',
-                                year: 'numeric'
-                              })}. Please update your payment method to continue using your subscription.
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div className="flex items-start gap-3 p-4 bg-blue-950/40 rounded-lg border border-blue-900/40">
-                        <Sparkles className="w-5 h-5 text-blue-600 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium text-foreground mb-1">Trial Active</p>
-                          <p className="text-xs text-muted-foreground">
-                            You have full access to {subscription.monthly_credits.toLocaleString()} credits during your trial.
-                            Your trial ends on {new Date(subscription.current_period_end).toLocaleDateString('en-US', {
-                              month: 'long',
-                              day: 'numeric',
-                              year: 'numeric'
-                            })}. Unused credits will remain after trial ends (no reset).
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })()}
                 </div>
               </div>
             </div>

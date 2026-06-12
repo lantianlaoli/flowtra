@@ -34,7 +34,7 @@ export function FeatureSignupCTA({
   buttonLabel,
 }: FeatureSignupCTAProps) {
   const { messages } = useI18n();
-  const copy = messages.landing.trialCta;
+  const copy = messages.landing.liteCta;
 
   const resolvedEyebrow = eyebrow ?? copy.eyebrow;
   const resolvedTitle = title ?? copy.title;

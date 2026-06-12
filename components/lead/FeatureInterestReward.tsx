@@ -77,7 +77,7 @@ function FeatureInterestForm({ submitLabel = 'Send Request' }: { submitLabel?: s
       return null;
     }
 
-    const subject = encodeURIComponent('Feature Trial Request');
+    const subject = encodeURIComponent('Feature Access Request');
     const body = encodeURIComponent(shareMessage);
     return `mailto:${address}?subject=${subject}&body=${body}`;
   }, [shareMessage, socialLinks]);

@@ -8,7 +8,6 @@ import { SectionViewTracker } from '@/components/analytics/SectionViewTracker';
 
 import FeaturesSection from '@/components/pages/landing/sections/FeaturesSection';
 import WhyFlowtraSection from '@/components/pages/landing/sections/WhyFlowtraSection';
-import LiteTrialCtaSection from '@/components/pages/landing/sections/LiteTrialCtaSection';
 
 const FAQ = dynamic(() => import('@/components/sections/FAQ'), {
   loading: () => <div className="py-12" aria-hidden="true" />
@@ -47,10 +46,6 @@ export default function LandingPage() {
       {/* FAQ Section */}
       <SectionViewTracker section="faq" />
       <FAQ />
-
-      {/* Lite Trial CTA Section */}
-      <SectionViewTracker section="lite_trial_cta" />
-      <LiteTrialCtaSection />
 
       <Footer />
     </div>

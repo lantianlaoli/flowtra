@@ -199,7 +199,7 @@ export default async function RootLayout({
                     price: '9',
                     priceCurrency: 'USD',
                     category: 'AI Marketing Tools',
-                    description: '500 credits for AI video and image generation with unlimited free trials'
+                    description: '500 credits for AI video and image generation'
                   },
                   {
                     '@type': 'Offer',

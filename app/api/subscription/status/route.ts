@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { getUserSubscription, revokeSubscriptionAccess } from '@/lib/subscription'
-import { getSupabaseAdmin } from '@/lib/supabase'
+import { getUserSubscription } from '@/lib/subscription'
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,45 +20,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const subscription = result.subscription
-
-    // Defensive check: Auto-expire trial if period has passed (webhook missed)
-    if (subscription && subscription.status === 'trialing' && subscription.current_period_end) {
-      const endDate = new Date(subscription.current_period_end)
-      const now = new Date()
-
-      if (now > endDate) {
-        console.warn(`⚠️ Auto-expiring trial for user ${userId} (webhook missed)`)
-        console.warn(`   Trial ended: ${endDate.toISOString()}, Current time: ${now.toISOString()}`)
-
-        const supabase = getSupabaseAdmin()
-
-        // Update subscription status to expired
-        const { error: updateError } = await supabase
-          .from('user_subscriptions')
-          .update({
-            status: 'expired',
-            updated_at: now.toISOString()
-          })
-          .eq('user_id', userId)
-
-        if (updateError) {
-          console.error('❌ Failed to auto-expire trial:', updateError)
-        } else {
-          // Revoke subscription credits
-          await revokeSubscriptionAccess(userId)
-
-          // Update the subscription object to reflect new status
-          subscription.status = 'expired'
-
-          console.log(`✅ Trial auto-expired for user ${userId}`)
-        }
-      }
-    }
-
     return NextResponse.json({
       success: true,
-      subscription: subscription || null
+      subscription: result.subscription || null
     })
   } catch (error) {
     console.error('Get subscription status error:', error)
