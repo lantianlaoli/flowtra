@@ -67,6 +67,7 @@ type QuickPhrase = { id: string; text: string };
 
 const SESSION_KEY = "flowtra:ecommerce-listing-studio";
 const QUICK_PHRASES_STORAGE_KEY = "flowtra:ecommerce-listing-studio:quick-phrases";
+const MAX_QUICK_PHRASE_LENGTH = 300;
 const MAX_SOURCE_IMAGE_COUNT = 6;
 const VERCEL_FUNCTION_BODY_LIMIT_BYTES = 4.5 * 1024 * 1024;
 const REQUEST_SIZE_BUFFER_BYTES = 350 * 1024;
@@ -108,6 +109,10 @@ const DEFAULT_QUICK_PHRASES: QuickPhrase[] = [
   { id: "material-texture", text: "Emphasize material texture" },
   { id: "clean-marketplace", text: "Clean marketplace-ready composition" },
 ];
+
+function normalizeQuickPhraseText(text: string) {
+  return text.trim().slice(0, MAX_QUICK_PHRASE_LENGTH);
+}
 
 function estimateDataUrlRequestSize(fileSize: number, mimeType: string) {
   const dataUrlPrefixLength = `data:${mimeType || "image/jpeg"};base64,`.length;
@@ -288,7 +293,9 @@ export default function EcommerceListingStudioPage() {
       if (!saved) return;
       const parsed = JSON.parse(saved) as QuickPhrase[];
       const valid = Array.isArray(parsed)
-        ? parsed.filter((phrase) => typeof phrase?.id === "string" && typeof phrase?.text === "string" && phrase.text.trim())
+        ? parsed
+            .filter((phrase) => typeof phrase?.id === "string" && typeof phrase?.text === "string" && phrase.text.trim())
+            .map((phrase) => ({ ...phrase, text: normalizeQuickPhraseText(phrase.text) }))
         : [];
       if (valid.length > 0) setQuickPhrases(valid.slice(0, 12));
     } catch {
@@ -463,7 +470,7 @@ export default function EcommerceListingStudioPage() {
   }
 
   function saveQuickPhrase() {
-    const text = quickPhraseDraft.trim();
+    const text = normalizeQuickPhraseText(quickPhraseDraft);
     if (!text) return;
     if (editingPhraseId) {
       setQuickPhrases((current) =>
@@ -491,7 +498,7 @@ export default function EcommerceListingStudioPage() {
 
   function editQuickPhrase(phrase: QuickPhrase) {
     setIsAddingPhrase(false);
-    setQuickPhraseDraft(phrase.text);
+    setQuickPhraseDraft(normalizeQuickPhraseText(phrase.text));
     setEditingPhraseId(phrase.id);
   }
 
@@ -928,58 +935,49 @@ export default function EcommerceListingStudioPage() {
 
               <div className="mt-5 rounded-2xl border border-[#E5E5E5] bg-[#FAFAFA] p-3 sm:p-4">
                 <div className="mb-3 flex flex-wrap items-center gap-2">
-                  {quickPhrases.map((phrase) => (
-                    <span key={phrase.id} className="group inline-flex items-center gap-1 rounded-full border border-[#E5E5E5] bg-white px-2.5 py-1 text-xs font-medium text-black">
-                      <button type="button" disabled={isBusy} onClick={() => applyQuickPhrase(phrase.text)} className="disabled:opacity-50">
-                        {phrase.text}
-                      </button>
-                      <button type="button" disabled={isBusy} onClick={() => editQuickPhrase(phrase)} className="text-[#999999] hover:text-black disabled:opacity-50" aria-label="Edit quick phrase">
-                        <Settings2 className="h-3 w-3" />
-                      </button>
-                      <button type="button" disabled={isBusy} onClick={() => deleteQuickPhrase(phrase.id)} className="text-[#999999] hover:text-black disabled:opacity-50" aria-label="Delete quick phrase">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
-                  {isAddingPhrase ? (
-                    <span className="inline-flex items-center gap-2 rounded-full border border-[#E5E5E5] bg-white py-1 pl-2.5 pr-1 text-xs font-medium text-black focus-within:border-[#E5E5E5]">
-                      <input
-                        autoFocus
+                  {quickPhrases.map((phrase) =>
+                    editingPhraseId === phrase.id ? (
+                      <QuickPhraseEditor
+                        key={phrase.id}
                         value={quickPhraseDraft}
-                        onChange={(event) => setQuickPhraseDraft(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            saveQuickPhrase();
-                          } else if (event.key === "Escape") {
-                            event.preventDefault();
-                            cancelQuickPhraseEdit();
-                          }
-                        }}
                         disabled={isBusy}
-                        placeholder="New phrase"
-                        style={{ outline: "none", boxShadow: "none" }}
-                        className="w-32 border-0 bg-transparent text-xs text-black placeholder:text-[#999999] focus:border-0 focus:outline-none focus:ring-0 disabled:opacity-50"
+                        placeholder="Edit phrase"
+                        onChange={setQuickPhraseDraft}
+                        onSave={saveQuickPhrase}
+                        onCancel={cancelQuickPhraseEdit}
                       />
-                      <button
-                        type="button"
-                        disabled={isBusy || !quickPhraseDraft.trim()}
-                        onClick={saveQuickPhrase}
-                        className="flex h-5 w-5 items-center justify-center rounded-full text-[#999999] transition hover:bg-[#F2F2F2] hover:text-black disabled:opacity-50"
-                        aria-label="Save phrase"
+                    ) : (
+                      <span
+                        key={phrase.id}
+                        className="group inline-flex max-w-full items-center gap-1 rounded-full border border-[#E5E5E5] bg-white px-2.5 py-1 text-xs font-medium text-black sm:max-w-[340px]"
                       >
-                        <Check className="h-3 w-3" />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isBusy}
-                        onClick={cancelQuickPhraseEdit}
-                        className="flex h-5 w-5 items-center justify-center rounded-full text-[#999999] transition hover:bg-[#F2F2F2] hover:text-black disabled:opacity-50"
-                        aria-label="Cancel"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => applyQuickPhrase(phrase.text)}
+                          title={phrase.text}
+                          className="min-w-0 truncate disabled:opacity-50"
+                        >
+                          {phrase.text}
+                        </button>
+                        <button type="button" disabled={isBusy} onClick={() => editQuickPhrase(phrase)} className="shrink-0 text-[#999999] hover:text-black disabled:opacity-50" aria-label="Edit quick phrase">
+                          <Settings2 className="h-3 w-3" />
+                        </button>
+                        <button type="button" disabled={isBusy} onClick={() => deleteQuickPhrase(phrase.id)} className="shrink-0 text-[#999999] hover:text-black disabled:opacity-50" aria-label="Delete quick phrase">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    )
+                  )}
+                  {isAddingPhrase ? (
+                    <QuickPhraseEditor
+                      value={quickPhraseDraft}
+                      disabled={isBusy}
+                      placeholder="New phrase"
+                      onChange={setQuickPhraseDraft}
+                      onSave={saveQuickPhrase}
+                      onCancel={cancelQuickPhraseEdit}
+                    />
                   ) : (
                     <button
                       type="button"
@@ -1122,6 +1120,67 @@ export default function EcommerceListingStudioPage() {
       />
       <Footer />
     </>
+  );
+}
+
+function QuickPhraseEditor({
+  value,
+  disabled,
+  placeholder,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  value: string;
+  disabled: boolean;
+  placeholder: string;
+  onChange: (value: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  const remaining = MAX_QUICK_PHRASE_LENGTH - value.length;
+
+  return (
+    <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-[#E5E5E5] bg-white py-1 pl-2.5 pr-1 text-xs font-medium text-black focus-within:border-[#E5E5E5] sm:max-w-[420px]">
+      <input
+        autoFocus
+        value={value}
+        maxLength={MAX_QUICK_PHRASE_LENGTH}
+        onChange={(event) => onChange(event.target.value.slice(0, MAX_QUICK_PHRASE_LENGTH))}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            onSave();
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            onCancel();
+          }
+        }}
+        disabled={disabled}
+        placeholder={placeholder}
+        style={{ outline: "none", boxShadow: "none" }}
+        className="w-44 min-w-0 border-0 bg-transparent text-xs text-black placeholder:text-[#999999] focus:border-0 focus:outline-none focus:ring-0 disabled:opacity-50 sm:w-72"
+      />
+      <span className="shrink-0 text-[10px] font-medium text-[#999999]">{remaining}</span>
+      <button
+        type="button"
+        disabled={disabled || !value.trim()}
+        onClick={onSave}
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#999999] transition hover:bg-[#F2F2F2] hover:text-black disabled:opacity-50"
+        aria-label="Save phrase"
+      >
+        <Check className="h-3 w-3" />
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onCancel}
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#999999] transition hover:bg-[#F2F2F2] hover:text-black disabled:opacity-50"
+        aria-label="Cancel"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </span>
   );
 }
 
@@ -1809,7 +1868,7 @@ function ResultsPanel({
 
   return (
     <div className="space-y-6">
-      <AssetSection title="Carousel Images" subtitle="Marketplace listing visuals" slots={carousel} aspectRatio={imageAspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} onCopy={onCopy} onRegenerate={onRegenerate} onPreview={onPreview} />
+      <AssetSection title="Carousel Images" subtitle="Marketplace listing visuals" slots={carousel} aspectRatio={imageAspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} exportEnabled exportFileName="ecommerce-carousel-images.zip" onCopy={onCopy} onRegenerate={onRegenerate} onPreview={onPreview} />
       <AssetSection title="Detail Images" subtitle="Benefit, material, usage, and trust visuals" slots={detail} aspectRatio={imageAspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} onCopy={onCopy} onRegenerate={onRegenerate} onPreview={onPreview} />
       <VideoSection video={video} aspectRatio={videoAspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} onCopy={onCopy} onRetry={onRetryVideo} isRetrying={isRetryingVideo} />
       {manualCopyUrl ? (
@@ -1830,6 +1889,8 @@ function AssetSection({
   primaryButtonClass,
   secondaryButtonClass,
   copiedUrl,
+  exportEnabled = false,
+  exportFileName = "ecommerce-images.zip",
   onCopy,
   onRegenerate,
   onPreview,
@@ -1841,10 +1902,62 @@ function AssetSection({
   primaryButtonClass: string;
   secondaryButtonClass: string;
   copiedUrl: string | null;
+  exportEnabled?: boolean;
+  exportFileName?: string;
   onCopy: (url: string) => void;
   onRegenerate: (slot: EcommerceListingImageSlot) => void;
   onPreview?: (url: string) => void;
 }) {
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const exportableSlots = slots.filter((slot) => slot.status === "success" && slot.resultUrl);
+  const completedCount = slots.filter((slot) => slot.status === "success" || slot.status === "fail").length;
+
+  async function exportAllImages() {
+    if (isExporting || exportableSlots.length === 0) return;
+    setIsExporting(true);
+    setExportError(null);
+
+    try {
+      const response = await fetch("/api/tools/ecommerce-listing-studio/export-carousel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: exportFileName,
+          images: exportableSlots.map((slot, index) => ({
+            url: slot.resultUrl,
+            fileName: slot.id || `carousel-${index + 1}`,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error || "Unable to export images. Please try saving them individually.");
+      }
+
+      const zipBlob = await response.blob();
+      const objectUrl = URL.createObjectURL(zipBlob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = exportFileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+
+      const skippedCount = Number(response.headers.get("X-Skipped-Count") ?? "0");
+      const exportedCount = Number(response.headers.get("X-Exported-Count") ?? exportableSlots.length);
+      if (skippedCount > 0) {
+        setExportError(`Exported ${exportedCount} of ${exportableSlots.length} images.`);
+      }
+    } catch (exportError) {
+      setExportError(exportError instanceof Error ? exportError.message : "Unable to export images. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   if (slots.length === 0) return null;
   return (
     <section className="rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-[0_24px_60px_rgba(0,0,0,0.06)] sm:p-5">
@@ -1853,10 +1966,29 @@ function AssetSection({
           <h2 className="text-base font-semibold text-black">{title}</h2>
           <p className="mt-1 text-sm text-[#666666]">{subtitle}</p>
         </div>
-        <span className="rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] px-2.5 py-1 text-xs font-mono text-[#666666]">
-          {slots.filter((slot) => slot.status === "success" || slot.status === "fail").length}/{slots.length}
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          {exportEnabled ? (
+            <button
+              type="button"
+              onClick={() => void exportAllImages()}
+              disabled={isExporting || exportableSlots.length === 0}
+              className={`${secondaryButtonClass} h-8 justify-center text-xs ${isExporting || exportableSlots.length === 0 ? "opacity-50" : ""}`}
+              aria-label="Export all carousel images"
+            >
+              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              <span>{isExporting ? "Exporting..." : "Export All"}</span>
+            </button>
+          ) : null}
+          <span className="rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] px-2.5 py-1 text-xs font-mono text-[#666666]">
+            {completedCount}/{slots.length}
+          </span>
+        </div>
       </div>
+      {exportError ? (
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          {exportError}
+        </div>
+      ) : null}
       <div className="grid gap-3 md:grid-cols-3">
         {slots.map((slot) => (
           <ResultCard key={slot.id} slot={slot} aspectRatio={aspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} onCopy={onCopy} onRegenerate={onRegenerate} onPreview={onPreview} />
