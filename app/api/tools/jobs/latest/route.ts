@@ -8,6 +8,7 @@ const TOOL_KEYS: ToolKey[] = [
   'image-clone-bulk',
   'ad-short-film',
   'ecommerce-listing-studio',
+  'social-cover-generator',
 ];
 
 export async function GET(request: NextRequest) {

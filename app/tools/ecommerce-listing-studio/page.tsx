@@ -30,13 +30,13 @@ import {
   X,
 } from "lucide-react";
 import { ByteDance, Gemini } from "@lobehub/icons";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
+import ToolPageShell from "@/components/tools/ToolPageShell";
 import CreatePetModal from "@/components/CreatePetModal";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
 import { cn } from "@/lib/utils";
 import { useToolUsageAccess } from "@/lib/tools/use-tool-usage-access";
 import { useToolGenerationRealtime } from "@/lib/tools/use-tool-generation-realtime";
+import { getToolCreditBalanceHeroState, useToolCreditBalance } from "@/lib/tools/use-tool-credit-balance";
 import {
   IMAGE_GENERATION_CREDIT_COST,
   getEcommerceListingStudioCreditCost,
@@ -167,6 +167,8 @@ function userFriendlyError(error?: string): string {
 
 export default function EcommerceListingStudioPage() {
   const { isLoading: isToolAccessLoading, hasUnlimitedAccess } = useToolUsageAccess();
+  const creditBalance = useToolCreditBalance();
+  const heroCreditState = getToolCreditBalanceHeroState(creditBalance);
   const primaryButtonClass = "landing-press-button landing-press-button--compact text-sm font-medium";
   const secondaryButtonClass =
     "landing-press-button landing-press-button--secondary landing-press-button--compact text-sm font-medium";
@@ -783,18 +785,12 @@ export default function EcommerceListingStudioPage() {
 
   return (
     <>
-      <Header />
-      <main className="bg-white">
-        <section className="mx-auto max-w-[1280px] px-4 py-14 sm:px-6 md:py-20">
-          <div className="mb-8 space-y-2">
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#666666]">Tools</p>
-            <h1 className="text-3xl font-semibold tracking-tight text-black sm:text-5xl">
-              Ecommerce Listing Studio
-            </h1>
-            <p className="max-w-3xl text-sm leading-6 text-[#666666]">
-              Generate marketplace listing images, detail images, and product ad videos from product photos for Temu-style ecommerce workflows.
-            </p>
-          </div>
+      <ToolPageShell
+        title="Ecommerce Listing Studio"
+        description="Generate marketplace listing images, detail images, and product ad videos from product photos for Temu-style ecommerce workflows."
+        statusLabel={heroCreditState.label}
+        statusTone={heroCreditState.tone}
+      >
 
           <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
             <div className="space-y-6">
@@ -1091,8 +1087,7 @@ export default function EcommerceListingStudioPage() {
                 isRetryingVideo={isRetryingVideo}
               />
             </div>
-        </section>
-      </main>
+      </ToolPageShell>
       {regenerateSlot ? (
         <RegenerateImageModal
           slot={regenerateSlot}
@@ -1118,7 +1113,6 @@ export default function EcommerceListingStudioPage() {
         onClose={() => setShowCreatePetModal(false)}
         onPetCreated={(pet) => void handlePetCreated(pet)}
       />
-      <Footer />
     </>
   );
 }

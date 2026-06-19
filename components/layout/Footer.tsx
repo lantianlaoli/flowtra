@@ -2,9 +2,29 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import {
+  Calculator,
+  Presentation,
+  Rotate3D,
+  ScanSearch,
+  Sparkles,
+  Store,
+  UploadCloud,
+  type LucideIcon,
+} from 'lucide-react';
 import { getSocialMediaLinks } from '@/lib/social-links';
 import { useI18n } from '@/providers/I18nProvider';
 import { trackLandingToolClick } from '@/lib/analytics/landing-tools';
+
+const TOOL_ICON_BY_HREF: Record<string, LucideIcon> = {
+  '/tools/upload-assets': UploadCloud,
+  '/tools/roas-calculator': Calculator,
+  '/tools/ai-angle-generator': Rotate3D,
+  '/tools/image-clone': ScanSearch,
+  '/tools/ecommerce-listing-studio': Store,
+  '/tools/social-cover-generator': Presentation,
+};
+const FREE_TOOL_HREFS = new Set(['/tools/upload-assets', '/tools/roas-calculator']);
 
 export default function Footer() {
   const { messages } = useI18n();
@@ -93,17 +113,26 @@ export default function Footer() {
             >
               <h3 id="footer-tools" className="mb-3 text-[13px] font-bold uppercase tracking-wider text-black">{footerMessages.tools}</h3>
               <ul className="space-y-3">
-              {footerMessages.toolItems.map((item) => (
+              {footerMessages.toolItems.map((item) => {
+                const Icon = TOOL_ICON_BY_HREF[item.href] ?? Sparkles;
+                return (
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    className="text-[13px] leading-5 text-[#666666] transition-colors hover:text-black"
+                    className="group inline-flex items-center gap-2 text-[13px] leading-5 text-[#666666] transition-colors hover:text-black"
                     onClick={() => trackLandingToolClick(item.href, 'landing_footer_tools')}
                   >
-                    {item.label}
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-[#888888] transition-colors group-hover:text-black" aria-hidden="true" />
+                    <span>{item.label}</span>
+                    {FREE_TOOL_HREFS.has(item.href) ? (
+                      <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-emerald-700">
+                        Free
+                      </span>
+                    ) : null}
                   </Link>
                 </li>
-              ))}
+                );
+              })}
               </ul>
             </nav>
 

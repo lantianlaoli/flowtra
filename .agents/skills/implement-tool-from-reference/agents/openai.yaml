@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Tool From Reference"
+  short_description: "Build a tool feature from a reference implementation"
+  default_prompt: "Use $implement-tool-from-reference when implementing, porting, syncing, or refactoring a tool feature from another project or existing reference. Follow the source inventory, target tool architecture, UI, Redis job, KIE webhook, billing, Supabase, SEO, navigation, and testing checklist."

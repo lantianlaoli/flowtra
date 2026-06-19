@@ -632,6 +632,11 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
             title: 'Ecommerce Listing Studio',
             description: 'Generate marketplace listing images, detail images, and product ad videos from product photos.',
           },
+          {
+            href: '/tools/social-cover-generator',
+            title: 'Social Cover Generator',
+            description: 'Generate bilingual social media covers from a portrait and product or logo reference.',
+          },
         ],
       },
       aiAngleGenerator: {
@@ -1156,6 +1161,11 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
             href: '/tools/ecommerce-listing-studio',
             title: 'Ecommerce Listing Studio',
             description: '从产品照片生成电商平台商品图、详情图和广告短片。',
+          },
+          {
+            href: '/tools/social-cover-generator',
+            title: 'Social Cover Generator',
+            description: '从人物图和产品或 Logo 参考图生成中英文社媒封面。',
           },
         ],
       },

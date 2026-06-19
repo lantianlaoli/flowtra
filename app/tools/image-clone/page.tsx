@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import imageCompression from "browser-image-compression";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
+import ToolPageShell from "@/components/tools/ToolPageShell";
 import {
   AlertCircle,
   ArrowLeft,
@@ -33,11 +32,11 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { OpenAI } from "@lobehub/icons";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
 import { useI18n } from "@/providers/I18nProvider";
 import { useToolUsageAccess } from "@/lib/tools/use-tool-usage-access";
 import { useToolGenerationRealtime } from "@/lib/tools/use-tool-generation-realtime";
+import { getToolCreditBalanceHeroState, useToolCreditBalance } from "@/lib/tools/use-tool-credit-balance";
 import type { ToolGenerationJob } from "@/lib/tools/job-store";
 import {
   IMAGE_GENERATION_CREDIT_COST,
@@ -428,6 +427,8 @@ export default function ImageClonePage() {
   const { messages } = useI18n();
   const toolMessages = messages.tools.imageClone;
   const { isLoading: isToolAccessLoading, hasUnlimitedAccess } = useToolUsageAccess();
+  const creditBalance = useToolCreditBalance();
+  const heroCreditState = getToolCreditBalanceHeroState(creditBalance);
 
   const primaryButtonClass = "landing-press-button landing-press-button--compact text-sm font-medium";
   const secondaryButtonClass =
@@ -1167,20 +1168,13 @@ export default function ImageClonePage() {
 
   return (
     <>
-      <Header />
-      <main className="bg-white">
-        <section className="mx-auto max-w-[1280px] px-4 py-14 sm:px-6 md:py-20">
-          <div className="relative mb-8 space-y-2">
-            <div className="static mb-4 inline-flex items-center gap-1.5 rounded-full border border-[#E5E5E5] bg-[#F7F7F7] px-3 py-1 text-[11px] font-semibold text-[#666666] shadow-sm sm:absolute sm:right-0 sm:top-0 sm:mb-0">
-              <OpenAI className="h-3.5 w-3.5" />
-              <span>Powered by GPT Image 2</span>
-            </div>
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#666666]">{toolMessages.eyebrow}</p>
-            <h1 className="text-3xl font-semibold tracking-tight text-black sm:text-5xl">Image Clone</h1>
-            <p className="max-w-2xl text-sm leading-6 text-[#666666]">
-              Clone one ecommerce image quickly, or upload a workbook to generate a batch.
-            </p>
-          </div>
+      <ToolPageShell
+        eyebrow={toolMessages.eyebrow}
+        title="Image Clone"
+        description="Clone one ecommerce image quickly, or upload a workbook to generate a batch."
+        statusLabel={heroCreditState.label}
+        statusTone={heroCreditState.tone}
+      >
 
           {pageMode === "landing" ? (
             <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_36px_minmax(0,1fr)]">
@@ -1409,8 +1403,7 @@ export default function ImageClonePage() {
               </button>
             </section>
           ) : null}
-        </section>
-      </main>
+      </ToolPageShell>
       {isBulkExampleOpen ? (
         <BulkWorkbookExampleModal
           secondaryButtonClass={secondaryButtonClass}
@@ -1472,7 +1465,6 @@ export default function ImageClonePage() {
           }
         />
       ) : null}
-      <Footer />
     </>
   );
 }

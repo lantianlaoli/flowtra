@@ -4,14 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import imageCompression from "browser-image-compression";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
+import ToolPageShell from "@/components/tools/ToolPageShell";
 import { Check, Coins, Copy, Download, Loader2, Upload } from "lucide-react";
-import { OpenAI } from "@lobehub/icons";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
 import { useI18n } from "@/providers/I18nProvider";
 import { useToolUsageAccess } from "@/lib/tools/use-tool-usage-access";
 import { useToolGenerationRealtime } from "@/lib/tools/use-tool-generation-realtime";
+import { getToolCreditBalanceHeroState, useToolCreditBalance } from "@/lib/tools/use-tool-credit-balance";
 import {
   getImageGenerationCreditCost,
 } from "@/lib/tools/billing-constants";
@@ -85,6 +84,8 @@ function AngleSkeletonCard({ label }: { label: string }) {
 export default function AiAngleGeneratorPage() {
   const { messages } = useI18n();
   const { isLoading: isToolAccessLoading, hasUnlimitedAccess } = useToolUsageAccess();
+  const creditBalance = useToolCreditBalance();
+  const heroCreditState = getToolCreditBalanceHeroState(creditBalance);
   const toolMessages = messages.tools.aiAngleGenerator;
   const imageInputId = "tool-angle-image-upload";
   const primaryButtonClass =
@@ -390,19 +391,13 @@ export default function AiAngleGeneratorPage() {
   const needsSignIn = error === "Please sign in to use this tool.";
 
   return (
-    <>
-      <Header />
-      <main className="bg-white">
-        <section className="mx-auto max-w-[1040px] px-4 py-14 sm:px-6 md:py-20">
-          <div className="relative space-y-4">
-            <div className="absolute right-0 top-0 inline-flex items-center gap-1.5 rounded-full border border-yellow-200 bg-yellow-50 px-3 py-1 text-[11px] font-semibold text-yellow-800 shadow-sm sm:text-xs">
-              <OpenAI className="h-3.5 w-3.5" />
-              <span>Powered by GPT Image 2</span>
-            </div>
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#666666]">{toolMessages.eyebrow}</p>
-            <h1 className="text-3xl font-semibold tracking-tight text-black sm:text-5xl">{toolMessages.title}</h1>
-            <p className="max-w-2xl text-base text-[#666666]">{toolMessages.description}</p>
-          </div>
+    <ToolPageShell
+      eyebrow={toolMessages.eyebrow}
+      title={toolMessages.title}
+      description={toolMessages.description}
+      statusLabel={heroCreditState.label}
+      statusTone={heroCreditState.tone}
+    >
 
           <section className="mt-6 rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-[0_24px_60px_rgba(0,0,0,0.08)] sm:mt-8 sm:p-6">
             <input
@@ -587,9 +582,6 @@ export default function AiAngleGeneratorPage() {
               </div>
             )}
           </section>
-        </section>
-      </main>
-      <Footer />
-    </>
+    </ToolPageShell>
   );
 }

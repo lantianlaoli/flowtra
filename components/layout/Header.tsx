@@ -14,13 +14,17 @@ import {
   UserCircle,
   Copy,
   RefreshCw,
-  Upload,
+  UploadCloud,
   Calculator,
   Sparkles,
   LayoutDashboard,
   BookOpen,
   MessageSquare,
-  Files,
+  Rotate3D,
+  ScanSearch,
+  Store,
+  Presentation,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 import { useI18n } from "@/providers/I18nProvider";
@@ -35,10 +39,19 @@ type HeaderNavItem = {
   title: string;
   icon: LucideIcon;
   isNew?: boolean;
+  badgeLabel?: string;
 };
 
 const FEATURE_ICONS: LucideIcon[] = [Bot, UserCircle, Copy, RefreshCw];
-const TOOL_ICONS: LucideIcon[] = [Upload, Calculator, Sparkles, Files];
+const TOOL_ICON_BY_HREF: Record<string, LucideIcon> = {
+  "/tools/upload-assets": UploadCloud,
+  "/tools/roas-calculator": Calculator,
+  "/tools/ai-angle-generator": Rotate3D,
+  "/tools/image-clone": ScanSearch,
+  "/tools/ecommerce-listing-studio": Store,
+  "/tools/social-cover-generator": Presentation,
+};
+const FREE_TOOL_HREFS = new Set(["/tools/upload-assets", "/tools/roas-calculator"]);
 
 function HeaderMenuItem({
   href,
@@ -61,7 +74,13 @@ function HeaderMenuItem({
         <div className="flex items-center gap-2">
           <div className="landing-dropdown-item__title">{title}</div>
           {isNew ? (
-            <span className="landing-dropdown-item__badge">
+            <span
+              className={
+                badgeLabel === "Free"
+                  ? "inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-emerald-700"
+                  : "landing-dropdown-item__badge"
+              }
+            >
               {badgeLabel}
             </span>
           ) : null}
@@ -103,7 +122,13 @@ function HeaderMobileTileItem({
             {title}
           </div>
           {isNew ? (
-            <span className="landing-dropdown-item__badge">
+            <span
+              className={
+                badgeLabel === "Free"
+                  ? "inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-emerald-700"
+                  : "landing-dropdown-item__badge"
+              }
+            >
               {badgeLabel}
             </span>
           ) : null}
@@ -111,6 +136,10 @@ function HeaderMobileTileItem({
       </div>
     </Link>
   );
+}
+
+function DesktopNavIcon({ icon: Icon }: { icon: LucideIcon }) {
+  return <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />;
 }
 
 export default function Header({
@@ -143,9 +172,11 @@ export default function Header({
     return item;
   });
 
-  const toolItems: HeaderNavItem[] = headerMessages.toolItems.map((item, index) => ({
+  const toolItems: HeaderNavItem[] = headerMessages.toolItems.map((item) => ({
     ...item,
-    icon: TOOL_ICONS[index] ?? Sparkles,
+    icon: TOOL_ICON_BY_HREF[item.href] ?? Sparkles,
+    isNew: FREE_TOOL_HREFS.has(item.href),
+    badgeLabel: FREE_TOOL_HREFS.has(item.href) ? "Free" : undefined,
   }));
 
   const mobileToolItems: HeaderNavItem[] = toolItems.map((item) => {
@@ -157,6 +188,9 @@ export default function Header({
     }
     if (item.href === "/tools/roas-calculator") {
       return { ...item, title: locale === "zh" ? "ROAS" : "ROAS" };
+    }
+    if (item.href === "/tools/social-cover-generator") {
+      return { ...item, title: locale === "zh" ? "社媒封面" : "Social Cover" };
     }
     return item;
   });
@@ -261,7 +295,7 @@ export default function Header({
           <div className="flex items-center justify-start">
             <Link
               href="/"
-              className="flex items-center gap-2 rounded-[20px] px-1 py-1 transition-opacity hover:opacity-80"
+              className="group flex items-center gap-2.5 rounded-[20px] px-1 py-1 transition-opacity hover:opacity-80"
             >
               <Image
                 src="/logo.svg"
@@ -270,6 +304,9 @@ export default function Header({
                 height={95}
                 className="logo-theme h-[52px] w-[52px] sm:h-[58px] sm:w-[58px]"
               />
+              <span className="hidden origin-left -skew-x-6 text-[1.45rem] font-black leading-none tracking-[-0.04em] text-black sm:inline lg:text-[1.65rem]">
+                flowtra
+              </span>
             </Link>
           </div>
 
@@ -280,6 +317,7 @@ export default function Header({
             >
               <div className="relative group">
                 <button className={`${navButtonClass} gap-1`}>
+                  <DesktopNavIcon icon={Sparkles} />
                   {headerMessages.features}
                   <ChevronDownIcon className="w-3.5 h-3.5" />
                 </button>
@@ -297,6 +335,7 @@ export default function Header({
               </div>
               <div className="relative group">
                 <button className={`${navButtonClass} gap-1`}>
+                  <DesktopNavIcon icon={Settings} />
                   {headerMessages.tools}
                   <ChevronDownIcon className="w-3.5 h-3.5" />
                 </button>
@@ -315,15 +354,19 @@ export default function Header({
                 </div>
               </div>
               <Link href="/select-plan" className={navButtonClass}>
+                <DesktopNavIcon icon={Calculator} />
                 {headerMessages.pricing}
               </Link>
               <Link href="/academy" className={navButtonClass}>
+                <DesktopNavIcon icon={BookOpen} />
                 {headerMessages.academy}
               </Link>
               <Link href="/blog" className={navButtonClass}>
+                <DesktopNavIcon icon={Sparkles} />
                 {headerMessages.blog}
               </Link>
               <Link href="/#faq" className={navButtonClass}>
+                <DesktopNavIcon icon={MessageSquare} />
                 {headerMessages.faq}
               </Link>
             </nav>
@@ -343,6 +386,7 @@ export default function Header({
                   {!isSignedIn ? (
                     <SignInButton mode="modal" forceRedirectUrl="/dashboard">
                       <button className="landing-press-button landing-press-button--compact inline-flex items-center justify-center px-3 text-[12px] font-medium sm:px-5 sm:text-[14px]">
+                        <UserCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
                         <span className="hidden sm:inline">{headerMessages.signUpDesktop}</span>
                         <span className="sm:hidden">{headerMessages.signUpMobile}</span>
                       </button>

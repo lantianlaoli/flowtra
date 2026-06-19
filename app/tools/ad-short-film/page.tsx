@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import imageCompression from "browser-image-compression";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
+import ToolPageShell from "@/components/tools/ToolPageShell";
 import { Check, Coins, Copy, Download, Loader2, Upload, Video, X, Play } from "lucide-react";
 import { getAcceptedImageFormats, validateImageFormat } from "@/lib/image-validation";
 import { useI18n } from "@/providers/I18nProvider";
 import { useToolUsageAccess } from "@/lib/tools/use-tool-usage-access";
 import { useToolGenerationRealtime } from "@/lib/tools/use-tool-generation-realtime";
+import { getToolCreditBalanceHeroState, useToolCreditBalance } from "@/lib/tools/use-tool-credit-balance";
 import { AD_SHORT_FILM_TOTAL_CREDIT_COST } from "@/lib/tools/billing-constants";
 
 type GenerationStatus =
@@ -54,6 +54,8 @@ export default function AdShortFilmPage() {
   const { messages } = useI18n();
   const toolMessages = messages.tools.adShortFilm || {};
   const { isLoading: isToolAccessLoading, hasUnlimitedAccess } = useToolUsageAccess();
+  const creditBalance = useToolCreditBalance();
+  const heroCreditState = getToolCreditBalanceHeroState(creditBalance);
 
   const primaryButtonClass = "landing-press-button landing-press-button--compact text-sm font-medium";
   const secondaryButtonClass = "landing-press-button landing-press-button--secondary landing-press-button--compact text-sm font-medium";
@@ -256,22 +258,13 @@ export default function AdShortFilmPage() {
   const isError = status === "error";
 
   return (
-    <>
-      <Header />
-      <main className="bg-white">
-        <section className="mx-auto max-w-[980px] px-4 py-14 sm:px-6 md:py-20">
-          <div className="relative mb-6 space-y-2">
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#666666]">
-              {toolMessages.eyebrow || "Tools"}
-            </p>
-            <h1 className="text-3xl font-semibold tracking-tight text-black sm:text-4xl">
-              {toolMessages.title || "AI Ad Short Film"}
-            </h1>
-            <p className="max-w-2xl text-sm text-[#666666]">
-              {toolMessages.description ||
-                "Upload a product photo and generate a 15-second cinematic ad video."}
-            </p>
-          </div>
+    <ToolPageShell
+      eyebrow={toolMessages.eyebrow || "Tools"}
+      title={toolMessages.title || "AI Ad Short Film"}
+      description={toolMessages.description || "Upload a product photo and generate a 15-second cinematic ad video."}
+      statusLabel={heroCreditState.label}
+      statusTone={heroCreditState.tone}
+    >
 
           <section className="rounded-xl border border-[#E5E5E5] bg-white p-2 shadow-[0_16px_40px_rgba(0,0,0,0.06)] sm:p-3">
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -454,9 +447,6 @@ export default function AdShortFilmPage() {
               }
             `}</style>
           </section>
-        </section>
-      </main>
-      <Footer />
-    </>
+    </ToolPageShell>
   );
 }

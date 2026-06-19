@@ -15,6 +15,7 @@ const TOOL_FEATURE_BY_HREF: Record<string, string> = {
   '/tools/ai-angle-generator': 'ai_angle_generator',
   '/tools/image-clone': 'image_clone',
   '/tools/ecommerce-listing-studio': 'ecommerce_listing_studio',
+  '/tools/social-cover-generator': 'social_cover_generator',
 };
 
 export function trackLandingToolClick(

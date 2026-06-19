@@ -14,6 +14,7 @@ import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import {
   buildWebhookJobUpdate,
   buildEcommerceListingFailureUpdate,
+  buildSocialCoverFailureUpdate,
   shouldCreateAdShortFilmVideoTask,
   shouldCreateEcommerceListingVideoTask,
 } from '@/lib/tools/kie-webhook-state';
@@ -241,6 +242,14 @@ export async function POST(request: NextRequest) {
               webhookReceivedAt,
             })
           : null;
+        const socialCoverFailureUpdate = job
+          ? buildSocialCoverFailureUpdate({
+              job,
+              task,
+              errorMessage,
+              webhookReceivedAt,
+            })
+          : null;
         if (job && job.billed_credits > 0 && !job.billing_refunded_at) {
           await refundToolGenerationCredits({
             userId: job.user_id,
@@ -249,7 +258,7 @@ export async function POST(request: NextRequest) {
             historyId: job.id,
           });
           await updateToolGenerationJob(task.job_id, {
-            ...(ecommerceFailureUpdate ?? {
+            ...(ecommerceFailureUpdate ?? socialCoverFailureUpdate ?? {
               status: 'failed',
               error_message: errorMessage,
               webhook_received_at: webhookReceivedAt,
@@ -258,7 +267,7 @@ export async function POST(request: NextRequest) {
           });
         } else if (job) {
           await updateToolGenerationJob(task.job_id, {
-            ...(ecommerceFailureUpdate ?? {
+            ...(ecommerceFailureUpdate ?? socialCoverFailureUpdate ?? {
               status: 'failed',
               error_message: errorMessage,
               webhook_received_at: webhookReceivedAt,

@@ -230,6 +230,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/ai-angle-generator', title: 'Multi-Angle Photo' },
         { href: '/tools/image-clone', title: 'Image Clone' },
         { href: '/tools/ecommerce-listing-studio', title: 'Ecommerce Listing Studio' },
+        { href: '/tools/social-cover-generator', title: 'Social Cover Generator' },
       ],
     },
     hero: {
@@ -516,6 +517,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/ai-angle-generator', label: 'Multi-Angle Photo' },
         { href: '/tools/image-clone', label: 'Image Clone' },
         { href: '/tools/ecommerce-listing-studio', label: 'Ecommerce Listing Studio' },
+        { href: '/tools/social-cover-generator', label: 'Social Cover Generator' },
       ],
     },
   },
@@ -550,6 +552,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/ai-angle-generator', title: 'AI 多角度图片' },
         { href: '/tools/image-clone', title: '图片复刻' },
         { href: '/tools/ecommerce-listing-studio', title: 'Ecommerce Listing Studio' },
+        { href: '/tools/social-cover-generator', title: 'Social Cover Generator' },
       ],
     },
     hero: {
@@ -836,6 +839,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/ai-angle-generator', label: 'AI 多角度图片' },
         { href: '/tools/image-clone', label: '图片复刻' },
         { href: '/tools/ecommerce-listing-studio', label: 'Ecommerce Listing Studio' },
+        { href: '/tools/social-cover-generator', label: 'Social Cover Generator' },
       ],
     },
   },

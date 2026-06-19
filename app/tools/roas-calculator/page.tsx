@@ -3,8 +3,8 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { Calculator, CircleDollarSign, DollarSign, Package, ShoppingBag, TrendingUp } from "lucide-react";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
+import ToolPageShell from "@/components/tools/ToolPageShell";
+import { getToolCreditBalanceHeroState, useToolCreditBalance } from "@/lib/tools/use-tool-credit-balance";
 
 type Inputs = {
   adSpend: string;
@@ -86,6 +86,8 @@ function InputField({
 export default function RoasCalculatorPage() {
   const { isLoaded, isSignedIn } = useUser();
   const { openSignIn } = useClerk();
+  const creditBalance = useToolCreditBalance();
+  const heroCreditState = getToolCreditBalanceHeroState(creditBalance);
   const [currency, setCurrency] = useState<string>("USD");
   const [inputs, setInputs] = useState<Inputs>(DEFAULT_INPUTS);
 
@@ -132,20 +134,13 @@ export default function RoasCalculatorPage() {
   };
 
   return (
-    <>
-      <Header />
-      <main className="bg-white">
-        <section className="mx-auto max-w-[1040px] px-4 sm:px-6 py-14 md:py-20">
-          <div className="space-y-4">
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#666666]">Tools</p>
-            <h1 className="text-3xl sm:text-5xl font-semibold text-black tracking-tight">
-              TikTok Dropshipping ROAS Calculator
-            </h1>
-            <p className="max-w-2xl text-base text-[#666666]">
-              This calculator is optimized for TikTok dropshipping campaigns only. Enter your spend,
-              sales, and order economics to evaluate profitability quickly.
-            </p>
-          </div>
+    <ToolPageShell
+      title="TikTok Dropshipping ROAS Calculator"
+      titleBadge="Free"
+      description="This calculator is optimized for TikTok dropshipping campaigns only. Enter your spend, sales, and order economics to evaluate profitability quickly."
+      statusLabel={heroCreditState.label}
+      statusTone={heroCreditState.tone}
+    >
 
           {isLoaded && !isSignedIn ? (
             <section className="mt-8 rounded-2xl border border-[#E5E5E5] bg-white p-6 text-center shadow-[0_24px_60px_rgba(0,0,0,0.08)] sm:p-8">
@@ -296,10 +291,7 @@ export default function RoasCalculatorPage() {
             </section>
           </div>
           )}
-        </section>
-      </main>
-      <Footer />
-    </>
+    </ToolPageShell>
   );
 }
 

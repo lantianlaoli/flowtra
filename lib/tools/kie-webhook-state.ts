@@ -9,6 +9,12 @@ import {
   type EcommerceListingImageSlot,
   type EcommerceListingMetadata,
 } from '@/lib/tools/ecommerce-listing-studio';
+import {
+  calculateSocialCoverProgress,
+  isSocialCoverComplete,
+  updateSocialCoverSlot,
+  type SocialCoverMetadata,
+} from '@/lib/tools/social-cover-generator';
 
 type JobLike = {
   tool_key: ToolKey;
@@ -155,6 +161,35 @@ export function buildEcommerceListingFailureUpdate(input: {
   };
 }
 
+export function buildSocialCoverFailureUpdate(input: {
+  job: JobLike;
+  task: TaskLike;
+  errorMessage: string;
+  webhookReceivedAt: string;
+}): ToolGenerationJobUpdate | null {
+  if (input.job.tool_key !== 'social-cover-generator') return null;
+
+  const metadata = (input.job.metadata ?? {}) as SocialCoverMetadata;
+  const taskMetadata = input.task.metadata ?? {};
+  const nextMetadata: SocialCoverMetadata = {
+    ...metadata,
+    slots: updateSocialCoverSlot(metadata.slots, taskMetadata.slot_id, {
+      status: 'fail',
+      error: input.errorMessage,
+    }),
+  };
+  const progress = calculateSocialCoverProgress(nextMetadata);
+  nextMetadata.completed_outputs = progress.completed;
+  nextMetadata.total_outputs = progress.total;
+
+  return {
+    webhook_received_at: input.webhookReceivedAt,
+    status: 'failed',
+    error_message: input.errorMessage,
+    metadata: nextMetadata,
+  };
+}
+
 export function buildWebhookJobUpdate(input: {
   job: JobLike;
   task: TaskLike;
@@ -282,6 +317,29 @@ export function buildWebhookJobUpdate(input: {
         metadata: nextMetadata,
       };
     }
+  }
+
+  if (input.job.tool_key === 'social-cover-generator') {
+    const socialCoverMetadata = metadata as SocialCoverMetadata;
+    const nextMetadata: SocialCoverMetadata = {
+      ...socialCoverMetadata,
+      slots: updateSocialCoverSlot(socialCoverMetadata.slots, taskMetadata.slot_id, {
+        status: 'success',
+        resultUrl: input.resultUrl,
+        error: undefined,
+      }),
+    };
+    const progress = calculateSocialCoverProgress(nextMetadata);
+    nextMetadata.completed_outputs = progress.completed;
+    nextMetadata.total_outputs = progress.total;
+
+    return {
+      ...baseUpdate,
+      metadata: nextMetadata,
+      ...(isSocialCoverComplete(nextMetadata)
+        ? { status: 'completed' as const, result_url: input.resultUrl }
+        : {}),
+    };
   }
 
   return baseUpdate;

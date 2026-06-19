@@ -20,7 +20,8 @@ export type ToolKey =
   | 'image-clone'
   | 'image-clone-bulk'
   | 'ad-short-film'
-  | 'ecommerce-listing-studio';
+  | 'ecommerce-listing-studio'
+  | 'social-cover-generator';
 
 export interface ToolGenerationJob {
   id: string;
@@ -74,6 +75,7 @@ const TOOL_KEYS: ToolKey[] = [
   'image-clone-bulk',
   'ad-short-film',
   'ecommerce-listing-studio',
+  'social-cover-generator',
 ];
 
 function jobKey(jobId: string) {

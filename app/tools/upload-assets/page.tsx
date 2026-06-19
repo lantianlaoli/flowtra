@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useClerk, useUser } from "@clerk/nextjs";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
+import ToolPageShell from "@/components/tools/ToolPageShell";
 import { Check, Copy, ExternalLink, Image as ImageIcon, Upload, Video } from "lucide-react";
+import { getToolCreditBalanceHeroState, useToolCreditBalance } from "@/lib/tools/use-tool-credit-balance";
 
 type UploadResult = {
   downloadUrl: string;
@@ -24,6 +24,8 @@ export default function ToolsPage() {
 
   const { isLoaded, isSignedIn } = useUser();
   const { openSignIn } = useClerk();
+  const creditBalance = useToolCreditBalance();
+  const heroCreditState = getToolCreditBalanceHeroState(creditBalance);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<UploadResult | null>(null);
@@ -243,19 +245,14 @@ export default function ToolsPage() {
   };
 
   return (
-    <>
-      <Header />
-      <main className="bg-white">
-        <section className="mx-auto max-w-[980px] px-4 sm:px-6 py-14 md:py-20 space-y-10 md:space-y-16">
-          <div className="space-y-4">
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#666666]">Tools</p>
-            <h1 className="text-3xl sm:text-5xl font-semibold text-black tracking-tight">
-              Upload Assets to URL
-            </h1>
-            <p className="text-base text-[#666666] max-w-2xl">
-              Upload a video or image and get a temporary download URL. Files are stored for up to 3 days.
-            </p>
-          </div>
+    <ToolPageShell
+      title="Upload Assets to URL"
+      titleBadge="Free"
+      description="Upload a video or image and get a temporary download URL. Files are stored for up to 3 days."
+      statusLabel={heroCreditState.label}
+      statusTone={heroCreditState.tone}
+      contentClassName="space-y-10 md:space-y-16"
+    >
 
           <div className="rounded-2xl border border-[#E5E5E5] bg-white p-5 sm:p-8 shadow-[0_24px_60px_rgba(0,0,0,0.08)]">
             <div className="flex flex-col gap-6">
@@ -448,9 +445,6 @@ export default function ToolsPage() {
               )}
             </div>
           </div>
-        </section>
-      </main>
-      <Footer />
-    </>
+    </ToolPageShell>
   );
 }
