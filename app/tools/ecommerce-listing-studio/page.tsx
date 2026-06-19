@@ -1017,6 +1017,10 @@ export default function EcommerceListingStudioPage() {
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Generating...
+                        <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-white/15 px-1.5 py-0.5 text-[11px] font-semibold leading-none">
+                          <Coins className="h-3 w-3" aria-hidden="true" />
+                          {creditCost}
+                        </span>
                       </>
                     ) : (
                       <>
@@ -1085,6 +1089,7 @@ export default function EcommerceListingStudioPage() {
                 onPreview={setPreviewImageUrl}
                 onRetryVideo={() => void retryVideo()}
                 isRetryingVideo={isRetryingVideo}
+                videoRetryCreditCost={0}
               />
             </div>
       </ToolPageShell>
@@ -1681,7 +1686,11 @@ function SettingSelect({
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        onClick={() => setIsOpen((open) => !open)}
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setIsOpen((open) => !open);
+        }}
         className={cn(
           "group/select flex min-h-9 w-full items-center justify-between gap-3 rounded-lg border border-[#E3E3E3] bg-[linear-gradient(180deg,#FFFFFF_0%,#FAFAFA_100%)] px-3 py-1.5 text-left text-sm text-black shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_1px_2px_rgba(0,0,0,0.04)]",
           "transition-[border-color,box-shadow,background-color] duration-200 ease-out hover:border-[#C9C9C9] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_18px_rgba(0,0,0,0.07)]",
@@ -1698,7 +1707,7 @@ function SettingSelect({
           ) : null}
           <span className="truncate">{selectedOption?.label}</span>
         </span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-[#666666] transition-transform duration-200", isOpen && "rotate-180")} />
+        <ChevronDown className={cn("pointer-events-none h-4 w-4 shrink-0 text-[#666666] transition-transform duration-200", isOpen && "rotate-180")} />
       </button>
 
       {isOpen ? (
@@ -1830,6 +1839,7 @@ function ResultsPanel({
   onPreview,
   onRetryVideo,
   isRetryingVideo,
+  videoRetryCreditCost,
 }: {
   job: ToolGenerationJob | null;
   metadata: EcommerceListingMetadata;
@@ -1844,6 +1854,7 @@ function ResultsPanel({
   onPreview?: (url: string) => void;
   onRetryVideo?: () => void;
   isRetryingVideo?: boolean;
+  videoRetryCreditCost: number;
 }) {
   const carousel = metadata.carousel_images ?? [];
   const detail = metadata.detail_images ?? [];
@@ -1864,7 +1875,7 @@ function ResultsPanel({
     <div className="space-y-6">
       <AssetSection title="Carousel Images" subtitle="Marketplace listing visuals" slots={carousel} aspectRatio={imageAspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} exportEnabled exportFileName="ecommerce-carousel-images.zip" onCopy={onCopy} onRegenerate={onRegenerate} onPreview={onPreview} />
       <AssetSection title="Detail Images" subtitle="Benefit, material, usage, and trust visuals" slots={detail} aspectRatio={imageAspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} onCopy={onCopy} onRegenerate={onRegenerate} onPreview={onPreview} />
-      <VideoSection video={video} aspectRatio={videoAspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} onCopy={onCopy} onRetry={onRetryVideo} isRetrying={isRetryingVideo} />
+      <VideoSection video={video} aspectRatio={videoAspectRatio} primaryButtonClass={primaryButtonClass} secondaryButtonClass={secondaryButtonClass} copiedUrl={copiedUrl} onCopy={onCopy} onRetry={onRetryVideo} isRetrying={isRetryingVideo} retryCreditCost={videoRetryCreditCost} />
       {manualCopyUrl ? (
         <div className="rounded-lg border border-[#E5E5E5] bg-white px-3 py-2 text-xs text-[#666666]">
           <p className="mb-1">Browser blocked clipboard access. Select and copy this URL:</p>
@@ -2125,7 +2136,7 @@ function RegenerateImageModal({
                 rows={5}
                 disabled={isRegenerating}
                 placeholder="Describe what should change, for example: make the background brighter, remove extra text, emphasize the material texture..."
-                className="w-full resize-none rounded-xl border border-[#E5E5E5] bg-white px-3 py-2.5 text-sm leading-6 text-black outline-none placeholder:text-[#999999] focus:border-black disabled:opacity-50"
+                className="w-full resize-none rounded-xl border border-[#E5E5E5] bg-white px-3 py-2.5 text-sm leading-6 text-black outline-none placeholder:text-[#999999] focus:border-[#D7D7D7] disabled:opacity-50"
               />
             </div>
 
@@ -2188,11 +2199,19 @@ function RegenerateImageModal({
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Regenerating...
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-1 text-xs font-semibold leading-none">
+                    <Coins className="h-3.5 w-3.5" aria-hidden="true" />
+                    {IMAGE_GENERATION_CREDIT_COST}
+                  </span>
                 </>
               ) : (
                 <>
                   <RefreshCw className="h-4 w-4" />
                   Regenerate Image
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-1 text-xs font-semibold leading-none">
+                    <Coins className="h-3.5 w-3.5" aria-hidden="true" />
+                    {IMAGE_GENERATION_CREDIT_COST}
+                  </span>
                 </>
               )}
             </button>
@@ -2247,6 +2266,7 @@ function VideoSection({
   onCopy,
   onRetry,
   isRetrying,
+  retryCreditCost,
 }: {
   video: EcommerceListingMetadata["video"];
   aspectRatio: EcommerceListingVideoAspectRatio;
@@ -2256,6 +2276,7 @@ function VideoSection({
   onCopy: (url: string) => void;
   onRetry?: () => void;
   isRetrying?: boolean;
+  retryCreditCost: number;
 }) {
   if (!video) return null;
   return (
@@ -2287,11 +2308,19 @@ function VideoSection({
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       <span>Retrying...</span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-1 text-[11px] font-semibold leading-none">
+                        <Coins className="h-3 w-3" aria-hidden="true" />
+                        {retryCreditCost}
+                      </span>
                     </>
                   ) : (
                     <>
                       <RefreshCw className="h-4 w-4" />
                       <span>Retry</span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-1 text-[11px] font-semibold leading-none">
+                        <Coins className="h-3 w-3" aria-hidden="true" />
+                        {retryCreditCost}
+                      </span>
                     </>
                   )}
                 </button>

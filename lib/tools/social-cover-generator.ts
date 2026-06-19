@@ -25,6 +25,11 @@ export type SocialCoverStylePreset = {
   prompt: string;
 };
 
+export type SocialCoverStyleAnalysis = {
+  name: string;
+  prompt: string;
+};
+
 export type SocialCoverTitleSet = Record<SocialCoverLanguage, string>;
 
 export type SocialCoverOptions = {
@@ -327,6 +332,61 @@ export async function buildSocialCoverTitleSet(
     );
     return { titles: fallbackTitleSet(title), fallback: true };
   }
+}
+
+function normalizeStyleAnalysis(value: Partial<SocialCoverStyleAnalysis> | null): SocialCoverStyleAnalysis {
+  const name = typeof value?.name === 'string' && value.name.trim()
+    ? value.name.trim().slice(0, 60)
+    : 'AI Extracted Cover Style';
+  const prompt = typeof value?.prompt === 'string' ? value.prompt.trim().slice(0, 1800) : '';
+  if (!prompt) {
+    throw new Error('AI did not return a usable cover style.');
+  }
+  return { name, prompt };
+}
+
+export async function analyzeSocialCoverStyleFromImage(imageDataUrl: string): Promise<SocialCoverStyleAnalysis> {
+  const response = await sendOpenRouterChat(
+    {
+      model: process.env.OPENROUTER_MODEL || process.env.AI_GATEWAY_MODEL || 'google/gemini-2.5-flash',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You reverse-engineer social media cover design systems. Return JSON only. Do not mention copyrighted brands or identifiable people.',
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: [
+                'Analyze this uploaded social media cover image and infer a reusable generation style preset.',
+                'Return ONLY JSON with keys: name, prompt.',
+                'name: short English preset name, 2-5 words.',
+                'prompt: one compact English style guide for generating similar covers. Describe layout structure, subject/product hierarchy, composition grid, typography treatment, color palette, lighting, background, shapes, accents, spacing, depth, texture, and export polish.',
+                'The prompt must be reusable with different portraits, products, logos, titles, languages, and aspect ratios.',
+                'Do not copy exact text from the image. Do not ask for the same person, brand, logo, or copyrighted character. Focus on transferable design structure and visual system.',
+              ].join('\n'),
+            },
+            {
+              type: 'image_url',
+              image_url: { url: imageDataUrl },
+            },
+          ],
+        },
+      ],
+      response_format: { type: 'json_object' },
+      http_referer: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+      x_title: 'Flowtra',
+    },
+    { transport: 'fetch', maxRetries: 1, timeoutMs: 60000 }
+  );
+
+  const parsed = extractOpenRouterJsonContent<Partial<SocialCoverStyleAnalysis>>(
+    response?.choices?.[0]?.message?.content
+  );
+  return normalizeStyleAnalysis(parsed);
 }
 
 function languageInstruction(language: SocialCoverLanguage) {

@@ -174,7 +174,7 @@ export default function RoasCalculatorPage() {
                   <select
                     value={currency}
                     onChange={(event) => setCurrency(event.target.value)}
-                    className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none transition-colors focus:border-black focus:bg-white"
+                    className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none transition-colors focus:border-[#D7D7D7] focus:bg-white"
                   >
                     {CURRENCIES.map((item) => (
                       <option key={item.code} value={item.code}>
@@ -192,7 +192,7 @@ export default function RoasCalculatorPage() {
                     inputMode="decimal"
                     value={inputs.adSpend}
                     onChange={(event) => setField("adSpend", event.target.value)}
-                    className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none transition-colors focus:border-black focus:bg-white"
+                    className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none transition-colors focus:border-[#D7D7D7] focus:bg-white"
                   />
                 </InputField>
 
@@ -204,7 +204,7 @@ export default function RoasCalculatorPage() {
                     inputMode="decimal"
                     value={inputs.revenue}
                     onChange={(event) => setField("revenue", event.target.value)}
-                    className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none transition-colors focus:border-black focus:bg-white"
+                    className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none transition-colors focus:border-[#D7D7D7] focus:bg-white"
                   />
                 </InputField>
 
@@ -216,7 +216,7 @@ export default function RoasCalculatorPage() {
                     inputMode="numeric"
                     value={inputs.conversions}
                     onChange={(event) => setField("conversions", event.target.value)}
-                    className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none transition-colors focus:border-black focus:bg-white"
+                    className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none transition-colors focus:border-[#D7D7D7] focus:bg-white"
                   />
                 </InputField>
 
@@ -228,7 +228,7 @@ export default function RoasCalculatorPage() {
                     inputMode="decimal"
                     value={inputs.avgCostPerProduct}
                     onChange={(event) => setField("avgCostPerProduct", event.target.value)}
-                    className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none transition-colors focus:border-black focus:bg-white"
+                    className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none transition-colors focus:border-[#D7D7D7] focus:bg-white"
                   />
                 </InputField>
 
@@ -240,7 +240,7 @@ export default function RoasCalculatorPage() {
                     inputMode="decimal"
                     value={inputs.extraCosts}
                     onChange={(event) => setField("extraCosts", event.target.value)}
-                    className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none transition-colors focus:border-black focus:bg-white"
+                    className="w-full rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-4 py-3 text-sm text-black outline-none transition-colors focus:border-[#D7D7D7] focus:bg-white"
                   />
                 </InputField>
               </div>

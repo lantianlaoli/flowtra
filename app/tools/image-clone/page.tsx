@@ -1268,7 +1268,7 @@ export default function ImageClonePage() {
                       onChange={(event) => setCopyText(event.target.value)}
                       placeholder={toolMessages.copyTextPlaceholder}
                       disabled={isQuickBusy}
-                      className="w-full flex-1 resize-none rounded-xl border border-[#E5E5E5] bg-[#F8F8F8] px-3 py-2 text-sm text-black placeholder-[#888888] focus:border-black focus:outline-none disabled:opacity-50"
+                      className="w-full flex-1 resize-none rounded-xl border border-[#E5E5E5] bg-[#F8F8F8] px-3 py-2 text-sm text-black placeholder-[#888888] focus:border-[#D7D7D7] focus:outline-none disabled:opacity-50"
                     />
                   </div>
 
@@ -1342,6 +1342,10 @@ export default function ImageClonePage() {
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
                         {toolMessages.generating}
+                        <span className="inline-flex items-center gap-1">
+                          <Coins className="h-4 w-4" />
+                          {IMAGE_GENERATION_CREDIT_COST}
+                        </span>
                       </>
                     ) : (
                       <>
@@ -1777,7 +1781,7 @@ function BulkRegenerationModal({
                   onChange={(event) => onRefinementChange(event.target.value)}
                   disabled={isRegenerating}
                   placeholder="Describe what to change in this generated image."
-                  className="min-h-32 w-full resize-none rounded-xl border border-[#E5E5E5] bg-[#F8F8F8] px-3 py-2 text-sm leading-6 text-black placeholder-[#888888] focus:border-black focus:outline-none disabled:opacity-50"
+                  className="min-h-32 w-full resize-none rounded-xl border border-[#E5E5E5] bg-[#F8F8F8] px-3 py-2 text-sm leading-6 text-black placeholder-[#888888] focus:border-[#D7D7D7] focus:outline-none disabled:opacity-50"
                 />
               </div>
             ) : (
@@ -1806,7 +1810,7 @@ function BulkRegenerationModal({
                           value={editedTexts[block.id] ?? block.text}
                           onChange={(event) => onEditedTextChange(block.id, event.target.value)}
                           disabled={isRegenerating}
-                          className="h-9 w-full rounded-md border border-[#E5E5E5] bg-[#F8F8F8] px-2 text-sm text-black focus:border-black focus:outline-none"
+                          className="h-9 w-full rounded-md border border-[#E5E5E5] bg-[#F8F8F8] px-2 text-sm text-black focus:border-[#D7D7D7] focus:outline-none"
                         />
                       </div>
                     ))
@@ -2195,12 +2199,16 @@ function BulkWorkspace({
               onClick={onStartGeneration}
               className={`${primaryButtonClass} w-full justify-center ${isBusy || isAccessLoading || !rows.length ? "opacity-50" : ""}`}
             >
-              {isBusy ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Starting
-                </>
-              ) : (
+            {isBusy ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Starting
+                <span className="inline-flex items-center gap-1">
+                  <Coins className="h-4 w-4" />
+                  {bulkCreditCost}
+                </span>
+              </>
+            ) : (
                 <>
                   <Play className="h-4 w-4" />
                   <span>Generate Bulk Images</span>

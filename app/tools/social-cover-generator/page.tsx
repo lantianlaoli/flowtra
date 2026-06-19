@@ -3,11 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import imageCompression from "browser-image-compression";
 import { useUser } from "@clerk/nextjs";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
   BadgeCheck,
   Check,
   ChevronDown,
+  Coins,
+  Coffee,
   Download,
   Image as ImageIcon,
   Languages,
@@ -20,11 +23,15 @@ import {
   Save,
   Sparkles,
   Trash2,
+  UploadCloud,
   UserRound,
   X,
 } from "lucide-react";
+import CreateAvatarModal from "@/components/CreateAvatarModal";
+import CreateProductModal from "@/components/CreateProductModal";
 import ToolPageShell from "@/components/tools/ToolPageShell";
 import { cn } from "@/lib/utils";
+import type { UserAvatar, UserProduct } from "@/lib/supabase";
 import { IMAGE_GENERATION_CREDIT_COST } from "@/lib/tools/billing-constants";
 import { useToolGenerationRealtime } from "@/lib/tools/use-tool-generation-realtime";
 import type { ToolGenerationJob } from "@/lib/tools/job-store";
@@ -158,6 +165,22 @@ function nameFromFile(fileName: string) {
   return fileName.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim() || "Untitled";
 }
 
+function WaveLoadingOverlay() {
+  return (
+    <motion.div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 overflow-hidden rounded-md bg-white/70"
+    >
+      <motion.div
+        className="h-full w-1/2 bg-gradient-to-r from-transparent via-[#E9E9E9]/90 to-transparent"
+        initial={{ x: "-120%" }}
+        animate={{ x: "240%" }}
+        transition={{ duration: 1.15, ease: "easeInOut", repeat: Infinity }}
+      />
+    </motion.div>
+  );
+}
+
 async function imageUrlToLocalImage(imageUrl: string, fileName: string): Promise<LocalImage> {
   const response = await fetch(imageUrl);
   if (!response.ok) {
@@ -214,8 +237,7 @@ function AssetPicker({
   isLoading,
   uploadLabel,
   onSelect,
-  onUpload,
-  onRemove,
+  onAdd,
 }: {
   title: string;
   subtitle: string;
@@ -227,11 +249,8 @@ function AssetPicker({
   isLoading: boolean;
   uploadLabel: string;
   onSelect: (asset: SocialCoverAsset) => void;
-  onUpload: (file: File) => void;
-  onRemove: () => void;
+  onAdd: () => void;
 }) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
   return (
     <section className="rounded-lg border border-[#E5E5E5] bg-white p-4">
       <div className="mb-3 flex items-start justify-between gap-3">
@@ -242,17 +261,6 @@ function AssetPicker({
           </h2>
           <p className="mt-1 text-xs leading-5 text-[#666666]">{subtitle}</p>
         </div>
-        {image ? (
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={disabled}
-            className="flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E5E5] text-[#666666] transition hover:border-red-200 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label={`Remove ${title}`}
-          >
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-          </button>
-        ) : null}
       </div>
       <div className="grid grid-cols-3 gap-2">
         {isLoading ? (
@@ -294,7 +302,7 @@ function AssetPicker({
         <button
           type="button"
           disabled={disabled}
-          onClick={() => inputRef.current?.click()}
+          onClick={onAdd}
           className="flex aspect-square flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[#D4D4D4] bg-[#F7F7F7] p-2 text-center text-xs font-semibold text-[#666666] transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[#E5E5E5] bg-white">
@@ -311,17 +319,6 @@ function AssetPicker({
           </div>
         </div>
       ) : null}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        className="hidden"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          event.currentTarget.value = "";
-          if (file) onUpload(file);
-        }}
-      />
     </section>
   );
 }
@@ -454,7 +451,17 @@ function CoverCard({
             ) : (
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
             )}
-            {accessWarning ? accessWarningLabel : "Retry"}
+            {accessWarning ? (
+              accessWarningLabel
+            ) : (
+              <>
+                <span>{isRetrying ? "Retrying..." : "Retry"}</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/60 px-1.5 py-0.5 text-[11px] leading-none">
+                  <Coins className="h-3 w-3" aria-hidden="true" />
+                  {IMAGE_GENERATION_CREDIT_COST}
+                </span>
+              </>
+            )}
           </button>
         </>
       ) : (
@@ -479,7 +486,8 @@ export default function SocialCoverGeneratorPage() {
   const [selectedPersonAssetId, setSelectedPersonAssetId] = useState<string | null>(null);
   const [selectedProductAssetId, setSelectedProductAssetId] = useState<string | null>(null);
   const [isLoadingAssets, setIsLoadingAssets] = useState(false);
-  const [uploadingAssetKind, setUploadingAssetKind] = useState<"person" | "product" | null>(null);
+  const [isCreateAvatarOpen, setIsCreateAvatarOpen] = useState(false);
+  const [isCreateProductOpen, setIsCreateProductOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [languages, setLanguages] = useState<SocialCoverLanguage[]>(["zh", "en"]);
   const [aspectRatiosByLanguage, setAspectRatiosByLanguage] = useState<Record<SocialCoverLanguage, SocialCoverAspectRatio[]>>(
@@ -509,6 +517,12 @@ export default function SocialCoverGeneratorPage() {
   const [regenerateError, setRegenerateError] = useState<string | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isAnalyzingStyle, setIsAnalyzingStyle] = useState(false);
+  const [styleAnalysisComplete, setStyleAnalysisComplete] = useState(false);
+  const [styleAnalysisError, setStyleAnalysisError] = useState<string | null>(null);
+  const styleAnalysisInputRef = useRef<HTMLInputElement | null>(null);
+  const presetMenuRef = useRef<HTMLDivElement | null>(null);
+  const [isPresetMenuOpen, setIsPresetMenuOpen] = useState(false);
 
   const { job } = useToolGenerationRealtime(jobId);
   const metadata = useMemo(
@@ -550,6 +564,7 @@ export default function SocialCoverGeneratorPage() {
       slots,
     });
   }, [currentJob, metadata.source_title, slots]);
+  const selectedPreset = presets.find((preset) => preset.id === selectedPresetId) ?? presets[0] ?? null;
   const heroCreditState = !isUserLoaded || (Boolean(isSignedIn) && creditStatus.isLoading)
     ? { icon: "loading" as const, label: "Checking..." }
     : !isSignedIn
@@ -564,6 +579,24 @@ export default function SocialCoverGeneratorPage() {
     if (typeof window === "undefined") return;
     writeStoredSocialCoverStylePresets(window.localStorage, presets);
   }, [presets]);
+
+  useEffect(() => {
+    if (!isPresetMenuOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!presetMenuRef.current?.contains(event.target as Node)) {
+        setIsPresetMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsPresetMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isPresetMenuOpen]);
 
   useEffect(() => {
     if (!isUserLoaded) return;
@@ -701,22 +734,6 @@ export default function SocialCoverGeneratorPage() {
     };
   }, []);
 
-  async function handleImageUpload(kind: "person" | "product", file: File) {
-    setStatus("reading");
-    setError(null);
-    try {
-      const image = await readImageFile(file);
-      if (kind === "person") setPersonImage(image);
-      else setProductImage(image);
-      if (kind === "person") setSelectedPersonAssetId(null);
-      else setSelectedProductAssetId(null);
-      setStatus(currentJob && !terminalJob(currentJob) ? "processing" : "idle");
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Failed to read image.");
-      setStatus("error");
-    }
-  }
-
   async function selectAsset(kind: "person" | "product", asset: SocialCoverAsset) {
     setStatus("reading");
     setError(null);
@@ -736,65 +753,18 @@ export default function SocialCoverGeneratorPage() {
     }
   }
 
-  async function uploadPersistentAsset(kind: "person" | "product", file: File) {
-    setUploadingAssetKind(kind);
-    await handleImageUpload(kind, file);
+  function handleAvatarCreated(avatar: UserAvatar) {
+    const asset = avatarToAsset(avatar as unknown as Record<string, unknown>);
+    if (!asset) return;
+    setPersonAssets((current) => [asset, ...current.filter((item) => item.id !== asset.id)]);
+    void selectAsset("person", asset);
+  }
 
-    if (!isSignedIn) {
-      setUploadingAssetKind(null);
-      return;
-    }
-
-    try {
-      if (kind === "person") {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("avatarName", nameFromFile(file.name));
-        const response = await fetch("/api/user-avatars", { method: "POST", body: formData });
-        const payload = await response.json();
-        if (!response.ok || !payload.avatar) throw new Error(payload.error || "Failed to save portrait.");
-        const asset = avatarToAsset(payload.avatar as Record<string, unknown>);
-        if (asset) {
-          setPersonAssets((current) => [asset, ...current.filter((item) => item.id !== asset.id)]);
-          setSelectedPersonAssetId(asset.id);
-        }
-      } else {
-        const createResponse = await fetch("/api/user-products", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ product_name: nameFromFile(file.name) }),
-        });
-        const createPayload = await createResponse.json();
-        if (!createResponse.ok || !createPayload.product?.id) {
-          throw new Error(createPayload.error || "Failed to create product.");
-        }
-
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("photo_role", "frontal");
-        const photoResponse = await fetch(`/api/user-products/${createPayload.product.id}/photos`, {
-          method: "POST",
-          body: formData,
-        });
-        const photoPayload = await photoResponse.json();
-        if (!photoResponse.ok || !photoPayload.photo) {
-          throw new Error(photoPayload.error || "Failed to save product image.");
-        }
-
-        const asset = productToAsset({
-          ...createPayload.product,
-          user_product_photos: [photoPayload.photo],
-        });
-        if (asset) {
-          setProductAssets((current) => [asset, ...current.filter((item) => item.id !== asset.id)]);
-          setSelectedProductAssetId(asset.id);
-        }
-      }
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Asset saved failed, but the uploaded image is selected.");
-    } finally {
-      setUploadingAssetKind(null);
-    }
+  function handleProductCreated(product: UserProduct) {
+    const asset = productToAsset(product as unknown as Record<string, unknown>);
+    if (!asset) return;
+    setProductAssets((current) => [asset, ...current.filter((item) => item.id !== asset.id)]);
+    void selectAsset("product", asset);
   }
 
   function toggleLanguage(value: SocialCoverLanguage) {
@@ -837,17 +807,37 @@ export default function SocialCoverGeneratorPage() {
     }
   }
 
+  function openPresetEditor() {
+    const preset = presets.find((item) => item.id === selectedPresetId) ?? presets[0];
+    if (preset) {
+      setSelectedPresetId(preset.id);
+      setPresetName(preset.name);
+      setStyleGuide(preset.prompt);
+    }
+    setStyleAnalysisError(null);
+    setStyleAnalysisComplete(false);
+    setIsConfigOpen(true);
+  }
+
   function savePreset() {
     const name = presetName.trim() || "Custom Style";
     const prompt = styleGuide.trim();
     if (!prompt) return;
     if (selectedPresetId && presets.some((item) => item.id === selectedPresetId)) {
       setPresets((current) => current.map((item) => item.id === selectedPresetId ? { ...item, name, prompt } : item));
+      setPresetName(name);
+      setStyleGuide(prompt);
+      setStyleAnalysisError(null);
+      setIsConfigOpen(false);
       return;
     }
     const preset = { id: `style_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, name, prompt };
     setPresets((current) => [...current, preset]);
     setSelectedPresetId(preset.id);
+    setPresetName(name);
+    setStyleGuide(prompt);
+    setStyleAnalysisError(null);
+    setIsConfigOpen(false);
   }
 
   function deletePreset() {
@@ -858,6 +848,36 @@ export default function SocialCoverGeneratorPage() {
     setSelectedPresetId(fallback[0]?.id ?? "");
     setPresetName(fallback[0]?.name ?? "");
     setStyleGuide(fallback[0]?.prompt ?? "");
+  }
+
+  async function analyzeStyleCover(file: File) {
+    setIsAnalyzingStyle(true);
+    setStyleAnalysisError(null);
+    setStyleAnalysisComplete(false);
+    try {
+      const image = await readImageFile(file);
+      const response = await fetch("/api/tools/social-cover-generator/analyze-style", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ imageDataUrl: image.dataUrl }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || "Failed to analyze cover style.");
+      }
+      const nextName = typeof payload.analysis?.name === "string" ? payload.analysis.name.trim() : "";
+      const nextPrompt = typeof payload.analysis?.prompt === "string" ? payload.analysis.prompt.trim() : "";
+      if (!nextPrompt) throw new Error("AI did not return a usable cover style.");
+      setSelectedPresetId("");
+      setPresetName(nextName || "AI Extracted Cover Style");
+      setStyleGuide(nextPrompt);
+      setStyleAnalysisComplete(true);
+    } catch (nextError) {
+      setStyleAnalysisError(nextError instanceof Error ? nextError.message : "Failed to analyze cover style.");
+      setStyleAnalysisComplete(false);
+    } finally {
+      setIsAnalyzingStyle(false);
+    }
   }
 
   async function startJob() {
@@ -994,15 +1014,11 @@ export default function SocialCoverGeneratorPage() {
                   assets={personAssets}
                   selectedAssetId={selectedPersonAssetId}
                   image={personImage}
-                  disabled={isBusy || uploadingAssetKind === "person"}
+                  disabled={isBusy}
                   isLoading={isLoadingAssets}
-                  uploadLabel={uploadingAssetKind === "person" ? "Saving..." : "New portrait"}
+                  uploadLabel="New portrait"
                   onSelect={(asset) => void selectAsset("person", asset)}
-                  onUpload={(file) => void uploadPersistentAsset("person", file)}
-                  onRemove={() => {
-                    setPersonImage(null);
-                    setSelectedPersonAssetId(null);
-                  }}
+                  onAdd={() => setIsCreateAvatarOpen(true)}
                 />
                 <AssetPicker
                   title="Product or logo"
@@ -1011,15 +1027,11 @@ export default function SocialCoverGeneratorPage() {
                   assets={productAssets}
                   selectedAssetId={selectedProductAssetId}
                   image={productImage}
-                  disabled={isBusy || uploadingAssetKind === "product"}
+                  disabled={isBusy}
                   isLoading={isLoadingAssets}
-                  uploadLabel={uploadingAssetKind === "product" ? "Saving..." : "New product"}
+                  uploadLabel="New product"
                   onSelect={(asset) => void selectAsset("product", asset)}
-                  onUpload={(file) => void uploadPersistentAsset("product", file)}
-                  onRemove={() => {
-                    setProductImage(null);
-                    setSelectedProductAssetId(null);
-                  }}
+                  onAdd={() => setIsCreateProductOpen(true)}
                 />
               </div>
 
@@ -1035,7 +1047,7 @@ export default function SocialCoverGeneratorPage() {
                       onChange={(event) => setTitle(event.target.value)}
                       placeholder="Launch title, hook, or campaign headline"
                       disabled={isBusy}
-                      className="mt-2 h-11 w-full rounded-md border border-[#E5E5E5] bg-white px-3 text-sm text-black outline-none transition placeholder:text-[#999999] focus:border-black disabled:opacity-60"
+                      className="mt-2 h-11 w-full rounded-md border border-[#E5E5E5] bg-white px-3 text-sm text-black outline-none transition placeholder:text-[#999999] focus:border-[#D7D7D7] disabled:opacity-60"
                     />
                   </label>
 
@@ -1045,22 +1057,64 @@ export default function SocialCoverGeneratorPage() {
                       Style preset
                     </div>
                     <div className="grid grid-cols-[1fr_auto_auto] gap-2">
-                      <div className="relative min-w-0">
-                        <select
-                          value={selectedPresetId}
-                          onChange={(event) => choosePreset(event.target.value)}
+                      <div ref={presetMenuRef} className="relative min-w-0">
+                        <button
+                          type="button"
                           disabled={isBusy}
-                          className="h-11 w-full appearance-none rounded-md border border-[#E5E5E5] bg-white px-3 pr-10 text-sm text-black outline-none focus:border-black disabled:opacity-60"
+                          aria-haspopup="listbox"
+                          aria-expanded={isPresetMenuOpen}
+                          onPointerDown={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setIsPresetMenuOpen((open) => !open);
+                          }}
+                          className={cn(
+                            "flex h-11 w-full items-center justify-between gap-3 rounded-md border border-[#E5E5E5] bg-white px-3 text-left text-sm text-black outline-none transition disabled:opacity-60",
+                            isPresetMenuOpen ? "border-[#D7D7D7]" : "hover:border-[#D7D7D7]"
+                          )}
                         >
-                          {presets.map((preset) => (
-                            <option key={preset.id} value={preset.id}>{preset.name}</option>
-                          ))}
-                        </select>
-                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#666666]" aria-hidden="true" />
+                          <span className="truncate">{selectedPreset?.name ?? "Choose preset"}</span>
+                          <ChevronDown className={cn("pointer-events-none h-4 w-4 shrink-0 text-[#666666] transition-transform duration-200", isPresetMenuOpen && "rotate-180")} aria-hidden="true" />
+                        </button>
+                        <AnimatePresence>
+                          {isPresetMenuOpen ? (
+                            <motion.div
+                              role="listbox"
+                              initial={{ opacity: 0, y: -4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -4 }}
+                              transition={{ duration: 0.16, ease: "easeOut" }}
+                              className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-lg border border-[#E5E5E5] bg-white p-1.5 shadow-[0_16px_36px_rgba(0,0,0,0.12)]"
+                            >
+                              {presets.map((preset) => {
+                                const selected = preset.id === selectedPresetId;
+                                return (
+                                  <button
+                                    key={preset.id}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={selected}
+                                    onClick={() => {
+                                      choosePreset(preset.id);
+                                      setIsPresetMenuOpen(false);
+                                    }}
+                                    className={cn(
+                                      "flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-2 text-left text-sm transition hover:bg-[#F7F7F7]",
+                                      selected ? "bg-[#F7F7F7] text-black" : "text-[#555555]"
+                                    )}
+                                  >
+                                    <span className="truncate">{preset.name}</span>
+                                    {selected ? <Check className="h-4 w-4 shrink-0 text-black" aria-hidden="true" /> : null}
+                                  </button>
+                                );
+                              })}
+                            </motion.div>
+                          ) : null}
+                        </AnimatePresence>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setIsConfigOpen(true)}
+                        onClick={openPresetEditor}
                         disabled={isBusy}
                         className="flex h-11 w-11 items-center justify-center rounded-md border border-[#E5E5E5] bg-[#F7F7F7] text-black transition hover:border-black disabled:cursor-not-allowed disabled:opacity-60"
                         aria-label="Edit style preset"
@@ -1073,6 +1127,8 @@ export default function SocialCoverGeneratorPage() {
                           setSelectedPresetId("");
                           setPresetName("");
                           setStyleGuide("");
+                          setStyleAnalysisComplete(false);
+                          setStyleAnalysisError(null);
                           setIsConfigOpen(true);
                         }}
                         disabled={isBusy}
@@ -1136,22 +1192,33 @@ export default function SocialCoverGeneratorPage() {
                                 <ChevronDown className={cn("h-4 w-4 text-[#666666] transition", isCollapsed && "-rotate-90")} aria-hidden="true" />
                               </span>
                             </button>
-                            {!isCollapsed ? (
-                              <div className="mt-2 grid grid-cols-3 gap-1.5">
-                              {SOCIAL_COVER_ASPECT_RATIOS.map((aspectRatio) => (
-                                <ToggleButton
-                                  key={`${language}-${aspectRatio}`}
-                                  value={aspectRatio}
-                                  selected={selectedRatios.includes(aspectRatio)}
-                                  disabled={isBusy}
-                                  showCheck
-                                  onToggle={(value) => toggleAspectRatio(language, value)}
+                            <AnimatePresence initial={false}>
+                              {!isCollapsed ? (
+                                <motion.div
+                                  key={`${language}-sizes`}
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: "auto", opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                                  className="overflow-hidden"
                                 >
-                                  {ASPECT_LABELS[aspectRatio]}
-                                </ToggleButton>
-                              ))}
-                              </div>
-                            ) : null}
+                                  <div className="mt-2 grid grid-cols-3 gap-1.5">
+                                    {SOCIAL_COVER_ASPECT_RATIOS.map((aspectRatio) => (
+                                      <ToggleButton
+                                        key={`${language}-${aspectRatio}`}
+                                        value={aspectRatio}
+                                        selected={selectedRatios.includes(aspectRatio)}
+                                        disabled={isBusy}
+                                        showCheck
+                                        onToggle={(value) => toggleAspectRatio(language, value)}
+                                      >
+                                        {ASPECT_LABELS[aspectRatio]}
+                                      </ToggleButton>
+                                    ))}
+                                  </div>
+                                </motion.div>
+                              ) : null}
+                            </AnimatePresence>
                           </div>
                           );
                         })}
@@ -1179,7 +1246,17 @@ export default function SocialCoverGeneratorPage() {
                     ) : (
                       <Sparkles className="h-4 w-4" aria-hidden="true" />
                     )}
-                    {accessWarning || accessChecking ? accessWarningLabel : "Generate covers"}
+                    {accessWarning || accessChecking ? (
+                      accessWarningLabel
+                    ) : (
+                      <>
+                        <span>{status === "starting" ? "Starting..." : "Generate covers"}</span>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-1 text-xs font-semibold leading-none">
+                          <Coins className="h-3.5 w-3.5" aria-hidden="true" />
+                          {estimatedCredits}
+                        </span>
+                      </>
+                    )}
                   </button>
                 </div>
               </section>
@@ -1235,54 +1312,174 @@ export default function SocialCoverGeneratorPage() {
             </section>
       </ToolPageShell>
 
-      {isConfigOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6">
-          <div className="w-full max-w-md rounded-lg border border-[#E5E5E5] bg-white shadow-2xl">
+      <AnimatePresence>
+        {isConfigOpen ? (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+          >
+            <motion.div
+              className="w-full max-w-md rounded-lg border border-[#E5E5E5] bg-white shadow-2xl"
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.98 }}
+              transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+            >
             <div className="flex items-center justify-between gap-3 border-b border-[#E5E5E5] px-4 py-3">
               <div>
                 <h2 className="text-sm font-semibold text-black">Style presets</h2>
                 <p className="mt-1 text-xs text-[#666666]">Save, update, or remove reusable cover styles.</p>
               </div>
-              <button type="button" onClick={() => setIsConfigOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-md border border-[#E5E5E5] text-black transition hover:border-black" aria-label="Close style presets">
+              <button
+                type="button"
+                onClick={() => setIsConfigOpen(false)}
+                disabled={isAnalyzingStyle}
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-[#E5E5E5] text-black transition hover:border-black disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Close style presets"
+              >
                 <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
             <div className="space-y-3 p-4">
+              <section className="rounded-md border border-[#E5E5E5] bg-[#F7F7F7] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="flex min-h-4 items-center gap-2 text-xs font-semibold text-black">
+                      <AnimatePresence mode="wait" initial={false}>
+                        {isAnalyzingStyle ? (
+                          <motion.span
+                            key="coffee"
+                            className="flex min-w-0 items-center gap-2"
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.18, ease: "easeOut" }}
+                          >
+                            <motion.span
+                              animate={{ rotate: [0, -4, 4, 0], y: [0, -1, 0] }}
+                              transition={{ duration: 1.4, ease: "easeInOut", repeat: Infinity }}
+                              className="flex h-4 w-4 shrink-0 items-center justify-center"
+                            >
+                              <Coffee className="h-4 w-4" aria-hidden="true" />
+                            </motion.span>
+                            <span className="truncate">Coffee break · take a few sips</span>
+                          </motion.span>
+                        ) : styleAnalysisComplete ? (
+                          <motion.span
+                            key="complete"
+                            className="flex min-w-0 items-center gap-2 text-emerald-700"
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.18, ease: "easeOut" }}
+                          >
+                            <BadgeCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            <span className="truncate">Style extracted · ready to save</span>
+                          </motion.span>
+                        ) : (
+                          <motion.span
+                            key="extract"
+                            className="flex min-w-0 items-center gap-2"
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.18, ease: "easeOut" }}
+                          >
+                            <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            <span className="truncate">AI cover style extraction</span>
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isBusy || isAnalyzingStyle}
+                    onClick={() => styleAnalysisInputRef.current?.click()}
+                    className="flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-[#E5E5E5] bg-white px-3 text-xs font-semibold text-black transition hover:border-black disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isAnalyzingStyle ? (
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <UploadCloud className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    {isAnalyzingStyle ? "Analyzing" : "Upload"}
+                  </button>
+                  <input
+                    ref={styleAnalysisInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.currentTarget.value = "";
+                      if (file) void analyzeStyleCover(file);
+                    }}
+                  />
+                </div>
+                {styleAnalysisError ? (
+                  <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">
+                    {styleAnalysisError}
+                  </p>
+                ) : null}
+              </section>
               <label className="block">
                 <span className="text-xs font-semibold text-black">Preset name</span>
-                <input
-                  value={presetName}
-                  onChange={(event) => setPresetName(event.target.value)}
-                  placeholder="Preset name"
-                  disabled={isBusy}
-                  className="mt-2 h-10 w-full rounded-md border border-[#E5E5E5] bg-white px-3 text-sm text-black outline-none focus:border-black disabled:opacity-60"
-                />
+                <span className="relative mt-2 block">
+                  <input
+                    value={presetName}
+                    onChange={(event) => setPresetName(event.target.value)}
+                    placeholder="Preset name"
+                    disabled={isBusy || isAnalyzingStyle}
+                    className="h-10 w-full rounded-md border border-[#E5E5E5] bg-white px-3 text-sm text-black outline-none focus:border-[#D7D7D7] disabled:opacity-60"
+                  />
+                  {isAnalyzingStyle ? <WaveLoadingOverlay /> : null}
+                </span>
               </label>
               <label className="block">
                 <span className="text-xs font-semibold text-black">Style guidance</span>
-                <textarea
-                  value={styleGuide}
-                  onChange={(event) => setStyleGuide(event.target.value)}
-                  placeholder="Describe the cover style"
-                  disabled={isBusy}
-                  rows={5}
-                  className="mt-2 w-full resize-none rounded-md border border-[#E5E5E5] bg-white px-3 py-3 text-sm leading-6 text-black outline-none transition placeholder:text-[#999999] focus:border-black disabled:opacity-60"
-                />
+                <span className="relative mt-2 block">
+                  <textarea
+                    value={styleGuide}
+                    onChange={(event) => setStyleGuide(event.target.value)}
+                    placeholder="Describe the cover style"
+                    disabled={isBusy || isAnalyzingStyle}
+                    rows={5}
+                    className="w-full resize-none rounded-md border border-[#E5E5E5] bg-white px-3 py-3 text-sm leading-6 text-black outline-none transition placeholder:text-[#999999] focus:border-[#D7D7D7] disabled:opacity-60"
+                  />
+                  {isAnalyzingStyle ? <WaveLoadingOverlay /> : null}
+                </span>
               </label>
               <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={savePreset} disabled={isBusy || !styleGuide.trim()} className="flex h-10 items-center justify-center gap-2 rounded-md border border-black bg-black text-xs font-semibold text-white transition hover:bg-[#222222] disabled:cursor-not-allowed disabled:opacity-60">
+                <button type="button" onClick={savePreset} disabled={isBusy || isAnalyzingStyle || !styleGuide.trim()} className="flex h-10 items-center justify-center gap-2 rounded-md border border-black bg-black text-xs font-semibold text-white transition hover:bg-[#222222] disabled:cursor-not-allowed disabled:opacity-60">
                   <Save className="h-4 w-4" aria-hidden="true" />
                   Save
                 </button>
-                <button type="button" onClick={deletePreset} disabled={isBusy || !selectedPresetId} className="flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 text-xs font-semibold text-red-700 transition hover:border-red-300 disabled:cursor-not-allowed disabled:opacity-60">
+                <button type="button" onClick={deletePreset} disabled={isBusy || isAnalyzingStyle || !selectedPresetId} className="flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 text-xs font-semibold text-red-700 transition hover:border-red-300 disabled:cursor-not-allowed disabled:opacity-60">
                   <Trash2 className="h-4 w-4" aria-hidden="true" />
                   Delete
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      ) : null}
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <CreateAvatarModal
+        isOpen={isCreateAvatarOpen}
+        onClose={() => setIsCreateAvatarOpen(false)}
+        onAvatarCreated={handleAvatarCreated}
+      />
+
+      <CreateProductModal
+        isOpen={isCreateProductOpen}
+        onClose={() => setIsCreateProductOpen(false)}
+        onProductCreated={handleProductCreated}
+      />
 
       {regenerateSlot ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6">
@@ -1303,7 +1500,7 @@ export default function SocialCoverGeneratorPage() {
                 placeholder="Describe what should change"
                 disabled={isRegenerating}
                 rows={5}
-                className="w-full resize-none rounded-md border border-[#E5E5E5] bg-white px-3 py-3 text-sm leading-6 text-black outline-none transition placeholder:text-[#999999] focus:border-black disabled:opacity-60"
+                className="w-full resize-none rounded-md border border-[#E5E5E5] bg-white px-3 py-3 text-sm leading-6 text-black outline-none transition placeholder:text-[#999999] focus:border-[#D7D7D7] disabled:opacity-60"
               />
               {regenerateError ? (
                 <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">{regenerateError}</p>
@@ -1324,7 +1521,17 @@ export default function SocialCoverGeneratorPage() {
                 ) : (
                   <Sparkles className="h-4 w-4" aria-hidden="true" />
                 )}
-                {accessWarning ? accessWarningLabel : "Start edit"}
+                {accessWarning ? (
+                  accessWarningLabel
+                ) : (
+                  <>
+                    <span>{isRegenerating ? "Starting..." : "Start edit"}</span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-1 text-xs font-semibold leading-none">
+                      <Coins className="h-3.5 w-3.5" aria-hidden="true" />
+                      {IMAGE_GENERATION_CREDIT_COST}
+                    </span>
+                  </>
+                )}
               </button>
             </div>
           </div>

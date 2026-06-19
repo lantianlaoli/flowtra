@@ -20,8 +20,14 @@ import {
 } from '@/lib/tools/kie-webhook-state';
 import {
   ECOMMERCE_LISTING_VIDEO_DURATION_SECONDS,
+  calculateEcommerceListingProgress,
   type EcommerceListingMetadata,
 } from '@/lib/tools/ecommerce-listing-studio';
+import {
+  calculateSocialCoverProgress,
+  updateSocialCoverSlot,
+  type SocialCoverMetadata,
+} from '@/lib/tools/social-cover-generator';
 import { refundToolGenerationCredits } from '@/lib/tools/billing';
 import { assertKieCreditsAvailable } from '@/lib/kie-credits-check';
 
@@ -41,6 +47,8 @@ interface KIEWebhookPayload {
     resultJson?: string;
     failCode?: string;
     failMsg?: string;
+    model?: string;
+    param?: string;
     response?: {
       resultUrls?: string[];
     };
@@ -74,6 +82,137 @@ function getKieApiKey(): string {
   const apiKey = process.env.KIE_API_KEY;
   if (!apiKey) throw new Error('KIE_API_KEY is not configured.');
   return apiKey;
+}
+
+const MAX_KIE_IMAGE_SYSTEM_RETRIES = 2;
+
+type KieRetryRequest = {
+  model: string;
+  input: Record<string, unknown>;
+  callBackUrl?: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseKieRetryRequest(data: KIEWebhookPayload['data']): KieRetryRequest | null {
+  if (typeof data.param !== 'string') return null;
+
+  try {
+    const parsed = JSON.parse(data.param) as Record<string, unknown>;
+    const model = typeof parsed.model === 'string' ? parsed.model : typeof data.model === 'string' ? data.model : '';
+    const rawInput = parsed.input;
+    const input = typeof rawInput === 'string' ? JSON.parse(rawInput) : rawInput;
+
+    if (!model || !isRecord(input)) return null;
+    return {
+      model,
+      input,
+      callBackUrl: typeof parsed.callBackUrl === 'string' ? parsed.callBackUrl : undefined,
+    };
+  } catch (error) {
+    console.warn('[KIE Webhook] Failed to parse retry request from KIE param:', error);
+    return null;
+  }
+}
+
+function isKieSystemImageFailure(input: {
+  code: number;
+  msg: string;
+  failCode?: string;
+  failMsg?: string;
+  model?: string;
+}) {
+  const failureText = `${input.msg} ${input.failCode ?? ''} ${input.failMsg ?? ''}`.toLowerCase();
+  const modelText = (input.model ?? '').toLowerCase();
+  const isImageModel = modelText.includes('image') || modelText.includes('gpt-image');
+  const isSystemFailure =
+    input.code === 501 ||
+    input.failCode === '500' ||
+    failureText.includes('internal error') ||
+    failureText.includes('server error') ||
+    failureText.includes('system error');
+
+  return isImageModel && isSystemFailure;
+}
+
+function getAutoRetryCount(metadata: Record<string, unknown> | null | undefined) {
+  const count = metadata?.auto_retry_count;
+  return typeof count === 'number' && Number.isFinite(count) ? count : 0;
+}
+
+function updateEcommerceImageSlotForRetry(
+  slots: EcommerceListingMetadata['carousel_images'] | EcommerceListingMetadata['detail_images'],
+  slotId: unknown,
+  taskId: string
+) {
+  return (slots ?? []).map((slot) =>
+    slot.id === slotId
+      ? { ...slot, taskId, status: 'processing' as const, error: undefined, resultUrl: undefined }
+      : slot
+  );
+}
+
+function buildAutoRetryJobMetadata(input: {
+  jobMetadata: Record<string, unknown>;
+  toolKey: string;
+  taskMetadata: Record<string, unknown>;
+  nextTaskId: string;
+}) {
+  if (input.toolKey === 'social-cover-generator') {
+    const metadata = input.jobMetadata as SocialCoverMetadata;
+    const nextMetadata: SocialCoverMetadata = {
+      ...metadata,
+      slots: updateSocialCoverSlot(metadata.slots, input.taskMetadata.slot_id, {
+        taskId: input.nextTaskId,
+        status: 'processing',
+        error: undefined,
+        resultUrl: undefined,
+      }),
+    };
+    const progress = calculateSocialCoverProgress(nextMetadata);
+    nextMetadata.completed_outputs = progress.completed;
+    nextMetadata.total_outputs = progress.total;
+    return nextMetadata as unknown as Record<string, unknown>;
+  }
+
+  if (input.toolKey === 'ecommerce-listing-studio') {
+    const metadata = input.jobMetadata as EcommerceListingMetadata;
+    let nextMetadata: EcommerceListingMetadata = { ...metadata };
+
+    if (input.taskMetadata.stage === 'image') {
+      nextMetadata = {
+        ...nextMetadata,
+        carousel_images: updateEcommerceImageSlotForRetry(nextMetadata.carousel_images, input.taskMetadata.slot_id, input.nextTaskId),
+        detail_images: updateEcommerceImageSlotForRetry(nextMetadata.detail_images, input.taskMetadata.slot_id, input.nextTaskId),
+      };
+    } else if (input.taskMetadata.stage === 'storyboard_image') {
+      nextMetadata = {
+        ...nextMetadata,
+        video: {
+          ...(nextMetadata.video ?? { status: 'processing', prompt: '' }),
+          status: 'processing',
+          storyboardTaskId: input.nextTaskId,
+          error: undefined,
+        },
+      };
+    }
+
+    const progress = calculateEcommerceListingProgress(nextMetadata);
+    nextMetadata.completed_outputs = progress.completed;
+    nextMetadata.total_outputs = progress.total;
+    return nextMetadata as unknown as Record<string, unknown>;
+  }
+
+  if (input.toolKey === 'ad-short-film') {
+    return {
+      ...input.jobMetadata,
+      storyboard_image_task_id: input.nextTaskId,
+    };
+  }
+
+  return input.jobMetadata;
 }
 
 function buildSeedanceVideoPrompt(storyboardPrompt: string): string {
@@ -227,13 +366,107 @@ export async function POST(request: NextRequest) {
       const errorMessage = failMsg || msg || (failCode ? `KIE task failed with code ${failCode}` : 'Generation failed');
 
       if (state === 'fail') {
+        const job = await getToolGenerationJob(task.job_id);
+        const taskMetadata = task.metadata ?? {};
+        const retryRequest = parseKieRetryRequest(data);
+        const retryCount = getAutoRetryCount(taskMetadata);
+        const canAutoRetry =
+          job &&
+          retryRequest &&
+          retryCount < MAX_KIE_IMAGE_SYSTEM_RETRIES &&
+          isKieSystemImageFailure({
+            code,
+            msg,
+            failCode,
+            failMsg,
+            model: retryRequest.model || data.model,
+          });
+
+        if (canAutoRetry) {
+          try {
+            const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+            const callBackUrl = siteUrl
+              ? `${siteUrl}/api/tools/webhooks/kie`
+              : retryRequest.callBackUrl;
+            if (!callBackUrl) {
+              throw new Error('NEXT_PUBLIC_SITE_URL is required for KIE auto retry callbacks.');
+            }
+
+            await assertKieCreditsAvailable();
+            const retryResponse = await fetchWithRetry(KIE_CREATE_TASK_URL, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${getKieApiKey()}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: retryRequest.model,
+                input: retryRequest.input,
+                callBackUrl,
+              }),
+            }, 5, 30000);
+
+            if (!retryResponse.ok) {
+              throw new Error(`KIE image auto retry task creation failed: ${retryResponse.status} ${await retryResponse.text()}`);
+            }
+
+            const retryPayload = await retryResponse.json();
+            const nextTaskId = retryPayload?.data?.taskId;
+            if (retryPayload?.code !== 200 || typeof nextTaskId !== 'string') {
+              throw new Error(retryPayload?.msg || 'KIE image auto retry did not return a taskId.');
+            }
+
+            await updateToolGenerationTask(taskId, {
+              status: 'failed',
+              error_message: `${errorMessage} Auto retry ${retryCount + 1}/${MAX_KIE_IMAGE_SYSTEM_RETRIES} started.`,
+              webhook_received_at: webhookReceivedAt,
+              metadata: {
+                ...taskMetadata,
+                auto_retry_replaced_by_task_id: nextTaskId,
+              },
+            });
+
+            await createToolGenerationTask({
+              jobId: job.id,
+              kieTaskId: nextTaskId,
+              toolKey: job.tool_key,
+              metadata: {
+                ...taskMetadata,
+                auto_retry_count: retryCount + 1,
+                auto_retry_from_task_id: taskId,
+              },
+            });
+
+            await updateToolGenerationJob(job.id, {
+              status: job.status === 'failed' ? 'processing' : job.status,
+              error_message: null,
+              metadata: buildAutoRetryJobMetadata({
+                jobMetadata: job.metadata ?? {},
+                toolKey: job.tool_key,
+                taskMetadata,
+                nextTaskId,
+              }),
+            });
+
+            console.warn(
+              `[KIE Webhook] Auto retried image task after provider system error: old=${taskId}, new=${nextTaskId}, attempt=${retryCount + 1}`
+            );
+
+            return NextResponse.json(
+              { success: true, autoRetried: true, previousTaskId: taskId, taskId: nextTaskId },
+              { status: 200 }
+            );
+          } catch (retryError) {
+            console.error('[KIE Webhook] KIE image auto retry failed, falling back to normal failure handling:', retryError);
+          }
+        }
+
         await updateToolGenerationTask(taskId, {
           status: 'failed',
           error_message: errorMessage,
           webhook_received_at: webhookReceivedAt,
         });
 
-        const job = await getToolGenerationJob(task.job_id);
         const ecommerceFailureUpdate = job
           ? buildEcommerceListingFailureUpdate({
               job,

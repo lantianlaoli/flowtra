@@ -368,6 +368,10 @@ export default function AdShortFilmPage() {
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   {toolMessages.generating || "Generating..."}
+                  <span className="inline-flex items-center gap-1">
+                    <Coins className="h-4 w-4" />
+                    {AD_SHORT_FILM_TOTAL_CREDIT_COST}
+                  </span>
                 </>
               ) : isCompleted ? (
                 <>
