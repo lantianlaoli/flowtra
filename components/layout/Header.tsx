@@ -274,7 +274,7 @@ export default function Header({
     >
       {mobileMenuOpen ? (
         <div
-          className="fixed inset-0 z-[50] bg-black/18 backdrop-blur-[1px] md:hidden"
+          className="fixed inset-0 z-[50] bg-black/18 backdrop-blur-[1px] xl:hidden"
           onClick={() => setMobileMenuOpen(false)}
           aria-hidden="true"
         />
@@ -282,11 +282,7 @@ export default function Header({
 
       <div className="relative mx-auto w-full max-w-[1280px]">
         <div
-          className={`relative z-[70] flex w-full items-center border border-[#E5E5E5] bg-white/92 px-4 sm:px-6 lg:px-7 backdrop-blur-xl transition-all duration-300 ${
-            mobileMenuOpen
-              ? "rounded-t-[28px] rounded-b-none md:rounded-[28px]"
-              : "rounded-[28px]"
-          } ${
+          className={`relative z-[70] flex w-full items-center rounded-[28px] border border-[#E5E5E5] bg-white/92 px-4 sm:px-6 lg:px-7 backdrop-blur-xl transition-all duration-300 ${
             compact
               ? "min-h-[62px] shadow-[0_12px_30px_rgba(0,0,0,0.07)]"
               : "min-h-[70px] shadow-[0_18px_44px_rgba(0,0,0,0.06)]"
@@ -312,7 +308,7 @@ export default function Header({
 
           <div className="ml-auto flex items-center gap-3 sm:gap-4 lg:gap-6">
             <nav
-              className="hidden md:flex items-center gap-2"
+              className="hidden xl:flex items-center gap-2"
               aria-label={headerMessages.mainNavLabel}
             >
               <div className="relative group">
@@ -399,7 +395,7 @@ export default function Header({
 
               <button
                 type="button"
-                className="rounded-[16px] p-2 text-black transition-colors hover:bg-white md:hidden"
+                className="rounded-[16px] p-2 text-black transition-colors hover:bg-white xl:hidden"
                 onClick={(event) => {
                   event.stopPropagation();
                   setMobileMenuOpen((current) => !current);
@@ -416,13 +412,13 @@ export default function Header({
           </div>
         </div>
         <div
-          className={`absolute inset-x-0 top-full z-[65] transition-all duration-300 md:hidden ${
+          className={`absolute inset-x-0 top-full z-[65] mt-2 transition-all duration-300 xl:hidden ${
             mobileMenuOpen
               ? "visible translate-y-0 opacity-100"
               : "invisible -translate-y-2 opacity-0 pointer-events-none"
           }`}
         >
-          <div className="flex w-full flex-col gap-4 overflow-hidden rounded-b-[28px] rounded-t-none border border-t-0 border-[#E5E5E5] bg-white px-4 py-5 shadow-[0_20px_52px_rgba(0,0,0,0.08)] sm:px-5 sm:py-6">
+          <div className="flex w-full flex-col gap-4 overflow-hidden rounded-[28px] border border-[#E5E5E5] bg-white px-4 py-5 shadow-[0_20px_52px_rgba(0,0,0,0.08)] sm:px-5 sm:py-6">
             <div className="max-h-[calc(100vh-8.25rem)] overflow-y-auto overscroll-contain touch-pan-y pr-1 [-webkit-overflow-scrolling:touch]">
               <div className="text-[12px] font-medium uppercase tracking-[0.2em] text-[#666666]">
                 {headerMessages.features}

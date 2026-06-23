@@ -12,7 +12,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
-import { Gemini, Kling, OpenAI } from "@lobehub/icons";
+import { ByteDance, Gemini, OpenAI } from "@lobehub/icons";
 import TikTokInputHero from "@/components/pages/landing/TikTokInputHero";
 import { LazyVideoPlayer } from "@/components/pages/landing/LazyVideoPlayer";
 import BlackFridayBadge from "@/components/landing/BlackFridayBadge";
@@ -68,7 +68,7 @@ export default function HeroSection() {
             className="inline-flex rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
           >
             <LiveModelBadge
-              icon={<Kling className="w-3.5 h-3.5 text-[#37352f]" />}
+              icon={<ByteDance className="w-3.5 h-3.5 text-[#37352f]" />}
               label={heroMessages.badges.klingLive}
             />
           </a>
