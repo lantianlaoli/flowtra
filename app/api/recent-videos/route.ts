@@ -75,6 +75,8 @@ export async function GET() {
             return 'Seedance 2 Fast';
           case 'seedance_2':
             return 'Seedance 2';
+          case 'seedance_2_mini':
+            return 'Seedance 2 Mini';
           case 'kling_3':
             return 'Kling 3.0';
           default:

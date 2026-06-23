@@ -16,8 +16,8 @@ export type ProjectAgentCloneExecutionMode =
   | 'clone_manual'
   | 'edit_video';
 
-export function isSeedanceCloneModel(model?: VideoModel | null): model is 'seedance_2' | 'seedance_2_fast' {
-  return model === 'seedance_2' || model === 'seedance_2_fast';
+export function isSeedanceCloneModel(model?: VideoModel | null): model is 'seedance_2' | 'seedance_2_fast' | 'seedance_2_mini' {
+  return model === 'seedance_2' || model === 'seedance_2_fast' || model === 'seedance_2_mini';
 }
 
 export function normalizeCloneDurationSeconds(value?: string | number | null): number | null {

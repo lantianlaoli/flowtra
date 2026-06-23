@@ -50,14 +50,6 @@ export default function CreateAvatarModal({
   const referenceInputRef = useRef<HTMLInputElement | null>(null);
   const processedGenerationJobIdsRef = useRef<Set<string>>(new Set());
 
-  const triggerReferenceRequirementHint = () => {
-    setHighlightReferenceRequirement(false);
-    requestAnimationFrame(() => {
-      setHighlightReferenceRequirement(true);
-      window.setTimeout(() => setHighlightReferenceRequirement(false), 1100);
-    });
-  };
-
   useEffect(() => {
     if (isOpen) {
       setAvatarName('');
@@ -282,12 +274,6 @@ export default function CreateAvatarModal({
       return;
     }
 
-    if (referenceImages.length < 1) {
-      setError(createAvatarMessages.errors.referenceRequired);
-      triggerReferenceRequirementHint();
-      return;
-    }
-
     setIsCreating(true);
     setError(null);
 
@@ -455,7 +441,7 @@ export default function CreateAvatarModal({
               requiredLabel={createFieldsMessages.required}
               referenceColumns={2}
               referenceGenerateDisabled={referenceImages.length >= 3 || isCreating || isUploadingRefs || isGeneratingReferences}
-              referenceMinimumLabel={createFieldsMessages.minimumOne}
+              referenceMinimumLabel="Optional"
               referenceHelpAriaLabel={createAvatarMessages.referencesHelpLabel}
               referenceHelpContent={(
                 <p className="text-xs text-gray-700">

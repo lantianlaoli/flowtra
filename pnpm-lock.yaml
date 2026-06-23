@@ -26,6 +26,9 @@ importers:
       '@lobehub/icons':
         specifier: ^5.8.0
         version: 5.8.0(@lobehub/ui@4.28.1)(@types/react@19.2.15)(antd@6.2.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@openrouter/agent':
+        specifier: ^0.7.2
+        version: 0.7.2
       '@openrouter/sdk':
         specifier: ^0.12.35
         version: 0.12.35
@@ -1026,8 +1029,14 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
+  '@openrouter/agent@0.7.2':
+    resolution: {integrity: sha512-G3Rp4iPKP7RQSJ+k7ea2+fDOJXUhsZNmiKoz8Ddlo7fY9KDdNiP4xKA0IA/9Y27FJjb2kagHvP9Dw2ycEwlzmA==}
+
   '@openrouter/sdk@0.12.35':
     resolution: {integrity: sha512-s4QVLLnG1AmfW3TjnnHUqGfsCkzwVK+kboGcZmKbde09m1DPqgzl4RUFt/HJ5v97MX8aEaN0UG3mKv2S+qj2Gw==}
+
+  '@openrouter/sdk@0.13.7':
+    resolution: {integrity: sha512-/QGoYdbFC2lqnVoCwtBX1+3Z5v6SF5hS1/dQisY0so3DzNAIQLHShA0OQVeAg20X0RG3CSKSCK0Ijnkt2rHDXA==}
 
   '@opentelemetry/api-logs@0.208.0':
     resolution: {integrity: sha512-CjruKY9V6NMssL/T1kAFgzosF1v9o6oeN+aX5JB/C/xPNtmgIJqcXHG7fA82Ou1zCpWGl4lROQUKwUNE1pMCyg==}
@@ -6181,7 +6190,16 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
+  '@openrouter/agent@0.7.2':
+    dependencies:
+      '@openrouter/sdk': 0.13.7
+      zod: 4.4.3
+
   '@openrouter/sdk@0.12.35':
+    dependencies:
+      zod: 4.4.3
+
+  '@openrouter/sdk@0.13.7':
     dependencies:
       zod: 4.4.3
 

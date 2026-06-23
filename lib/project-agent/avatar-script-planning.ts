@@ -33,7 +33,7 @@ type BuildAvatarGeneratedPromptsInput = {
   productName?: string | null;
 };
 
-export type AvatarDurationModel = 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27';
+export type AvatarDurationModel = 'seedance_2_fast' | 'seedance_2' | 'seedance_2_mini' | 'kling_3' | 'wan_27';
 
 const DEFAULT_VISUAL_PROMPT = {
   subject: 'Confident spokesperson from the selected avatar',

@@ -11,6 +11,7 @@ import {
   normalizeCloneVideoQualityForModel,
   type LanguageCode,
   type PersistedVideoQuality,
+  type VideoModel,
 } from '@/lib/constants';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { buildKieGptImageTaskPayload, createKieGptImageTask } from '@/lib/kie-image-generation';
@@ -38,6 +39,7 @@ import {
 // Events table removed: no tracking imports
 
 const DEFAULT_VIDEO_MODEL = 'seedance_2_fast' as const;
+type AvatarAdsVideoModel = VideoModel;
 
 type AvatarPromptActionBeat = {
   time: string;
@@ -232,7 +234,14 @@ export const resolveAvatarAdsVideoModel = (project: Pick<AvatarAdsProject, 'vide
   if (project.video_model === 'wan_27') return 'wan_27';
   if (project.video_model === 'kling_3') return 'kling_3';
   if (project.video_model === 'seedance_2') return 'seedance_2';
+  if (project.video_model === 'seedance_2_mini') return 'seedance_2_mini';
   return DEFAULT_VIDEO_MODEL;
+};
+
+const getSeedanceKieVideoModelId = (model: 'seedance_2_fast' | 'seedance_2' | 'seedance_2_mini') => {
+  if (model === 'seedance_2') return 'bytedance/seedance-2';
+  if (model === 'seedance_2_mini') return 'bytedance/seedance-2-mini';
+  return 'bytedance/seedance-2-fast';
 };
 
 const isAvatarAdsKlingProject = (project: Pick<AvatarAdsProject, 'video_model'>) => (
@@ -283,7 +292,7 @@ export const buildWanAvatarAdsVideoInput = (input: {
 });
 
 const getAvatarAdsModelSceneDurationRule = (
-  model: 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27'
+  model: AvatarAdsVideoModel
 ) => {
   if (model === 'kling_3') return 'between 3 and 15 seconds';
   if (model === 'wan_27') return 'between 2 and 15 seconds';
@@ -291,7 +300,7 @@ const getAvatarAdsModelSceneDurationRule = (
 };
 
 const getAvatarAdsTargetSceneDuration = (
-  model: 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27'
+  model: AvatarAdsVideoModel
 ) => {
   if (model === 'wan_27') return 15;
   if (model === 'kling_3') return KLING_MAX_TASK_DURATION_SECONDS;
@@ -317,7 +326,7 @@ export const getAvatarPlannedSceneDurations = (
 
 export const getAvatarSceneDurationSeconds = (
   prompt: Record<string, unknown> | null | undefined,
-  model: 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27',
+  model: AvatarAdsVideoModel,
   options?: {
     plannedDurationSeconds?: number | null;
     totalScenes?: number;
@@ -392,7 +401,7 @@ export const getAvatarSceneDurationSeconds = (
 
 export const getAvatarPlannedTotalDurationSeconds = (
   generatedPrompts: Record<string, unknown> | null | undefined,
-  model: 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27',
+  model: AvatarAdsVideoModel,
   fallbackDurationSeconds: number,
   language?: string | null
 ) => {
@@ -819,7 +828,7 @@ const normalizeAvatarGeneratedScenePrompt = (input: {
   prompt: AvatarScenePromptShape | undefined;
   sceneIndex: number;
   resolvedLanguage: LanguageCode;
-  model: 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27';
+  model: AvatarAdsVideoModel;
   hasProductContext: boolean;
   fallbackDialogueText: string;
 }) => {
@@ -860,7 +869,7 @@ const normalizeAvatarPromptGenerationResult = (input: {
   parsed: AvatarPromptResponseShape;
   languageCode: LanguageCode;
   languageName: string;
-  model: 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27';
+  model: AvatarAdsVideoModel;
   avatarName?: string | null;
   productName?: string | null;
   fallbackScriptSource?: string | null;
@@ -950,7 +959,7 @@ async function generatePrompts(
   videoDurationSeconds: number,
   language?: string,
   userDialogue?: string,
-  options?: { talkingHeadMode?: boolean; model?: 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27'; avatarName?: string | null }
+  options?: { talkingHeadMode?: boolean; model?: AvatarAdsVideoModel; avatarName?: string | null }
 ): Promise<Record<string, unknown>> {
   const result = await _generatePromptsInternal(
     productContext,
@@ -975,7 +984,7 @@ async function _generatePromptsInternal(
   videoDurationSeconds: number,
   language?: string,
   userDialogue?: string,
-  options?: { talkingHeadMode?: boolean; model?: 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27'; avatarName?: string | null }
+  options?: { talkingHeadMode?: boolean; model?: AvatarAdsVideoModel; avatarName?: string | null }
 ): Promise<Record<string, unknown>> {
   // Get language name for prompts
   const languageCode = resolveAvatarSpokenLanguage({
@@ -988,9 +997,11 @@ async function _generatePromptsInternal(
     ? 'kling_3'
     : options?.model === 'seedance_2'
       ? 'seedance_2'
-      : options?.model === 'wan_27'
-        ? 'wan_27'
-        : DEFAULT_VIDEO_MODEL;
+      : options?.model === 'seedance_2_mini'
+        ? 'seedance_2_mini'
+        : options?.model === 'wan_27'
+          ? 'wan_27'
+          : DEFAULT_VIDEO_MODEL;
   const estimatedDialogueDurationSeconds = userDialogue
     ? estimateAvatarAdsDialogueSeconds(userDialogue, resolvedModel, languageCode)
     : 0;
@@ -1316,7 +1327,7 @@ export async function generateVideoWithKIE(
   language?: string,
   options?: {
     hasProductContext?: boolean;
-    model?: 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27';
+    model?: AvatarAdsVideoModel;
     durationSeconds?: number;
     avatarGender?: 'male' | 'female' | null;
     sceneNumber?: number;
@@ -1415,9 +1426,11 @@ export async function generateVideoWithKIE(
     ? 'kling_3'
     : options?.model === 'seedance_2'
       ? 'seedance_2'
-      : options?.model === 'wan_27'
-        ? 'wan_27'
-        : DEFAULT_VIDEO_MODEL;
+      : options?.model === 'seedance_2_mini'
+        ? 'seedance_2_mini'
+        : options?.model === 'wan_27'
+          ? 'wan_27'
+          : DEFAULT_VIDEO_MODEL;
   const basePrompt = videoPromptText.trim();
   const promptLanguage = language || (
     typeof (prompt as { resolved_spoken_language?: unknown }).resolved_spoken_language === 'string'
@@ -1516,7 +1529,7 @@ export async function generateVideoWithKIE(
       };
     }
     return {
-      model: resolvedModel === 'seedance_2_fast' ? 'bytedance/seedance-2-fast' : 'bytedance/seedance-2',
+      model: getSeedanceKieVideoModelId(resolvedModel),
       ...(callBackUrl ? { callBackUrl } : {}),
       input: buildSeedanceAvatarAdsVideoInput({
         prompt: finalPrompt,
@@ -1659,7 +1672,7 @@ async function checkKIEImageTaskStatus(taskId: string): Promise<{
 
 export async function checkKIEVideoTaskStatus(
   taskId: string,
-  model: 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27' = DEFAULT_VIDEO_MODEL
+  model: AvatarAdsVideoModel = DEFAULT_VIDEO_MODEL
 ): Promise<{
   status: string;
   result_url?: string;

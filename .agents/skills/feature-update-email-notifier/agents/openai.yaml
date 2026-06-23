@@ -1,0 +1,4 @@
+interface:
+  display_name: "Feature Update Email Notifier"
+  short_description: "Draft safe feature-update emails to Flowtra users"
+  default_prompt: "Use $feature-update-email-notifier to draft a safe Flowtra feature update email."

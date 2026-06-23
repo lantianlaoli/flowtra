@@ -9,6 +9,7 @@ import { useI18n } from '@/providers/I18nProvider';
 import {
   KLING_QUALITY_COSTS,
   SEEDANCE_2_FAST_QUALITY_COSTS,
+  SEEDANCE_2_MINI_QUALITY_COSTS,
   SEEDANCE_2_QUALITY_COSTS,
   WAN_27_QUALITY_COSTS,
 } from '@/lib/constants';
@@ -49,6 +50,15 @@ const MODEL_CARDS: ModelCard[] = [
     name: 'Seedance 2',
     unit: 'sec',
     qualities: Object.entries(SEEDANCE_2_QUALITY_COSTS).map(([label, credits]) => ({
+      label,
+      credits,
+    })),
+    icon: ByteDance,
+  },
+  {
+    name: 'Seedance 2 Mini',
+    unit: 'sec',
+    qualities: Object.entries(SEEDANCE_2_MINI_QUALITY_COSTS).map(([label, credits]) => ({
       label,
       credits,
     })),

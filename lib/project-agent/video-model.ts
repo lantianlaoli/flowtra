@@ -5,9 +5,9 @@ import {
 } from '@/lib/project-agent/video-clone-mode';
 
 export type ProjectAgentIntent = 'avatar_ads' | 'video_clone' | 'motion_clone';
-export type ProjectAgentVideoModel = 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27';
+export type ProjectAgentVideoModel = 'seedance_2_fast' | 'seedance_2' | 'seedance_2_mini' | 'kling_3' | 'wan_27';
 
-export const PROJECT_AGENT_VIDEO_MODELS: ProjectAgentVideoModel[] = ['seedance_2', 'kling_3', 'seedance_2_fast'];
+export const PROJECT_AGENT_VIDEO_MODELS: ProjectAgentVideoModel[] = ['seedance_2', 'seedance_2_mini', 'kling_3', 'seedance_2_fast'];
 
 export function getProjectAgentVideoModels(
   intent?: ProjectAgentIntent,
@@ -17,7 +17,7 @@ export function getProjectAgentVideoModels(
     return getProjectAgentVideoCloneAllowedModels(cloneMode);
   }
   if (intent === 'avatar_ads') {
-    return ['seedance_2_fast', 'seedance_2', 'kling_3', 'wan_27'];
+    return ['seedance_2_fast', 'seedance_2_mini', 'seedance_2', 'kling_3', 'wan_27'];
   }
   if (intent === 'motion_clone') {
     return ['kling_3'];

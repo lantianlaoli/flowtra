@@ -85,7 +85,7 @@ export type ProjectAgentFeatureNodeConfig = {
   aspectRatio?: '16:9' | '9:16';
   language?: string;
   videoDuration?: VideoDuration;
-  videoModel?: 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27';
+  videoModel?: 'seedance_2_fast' | 'seedance_2' | 'seedance_2_mini' | 'kling_3' | 'wan_27';
   videoQuality?: '480p' | '720p' | '1080p';
   runCount?: 1 | 2 | 3;
 };

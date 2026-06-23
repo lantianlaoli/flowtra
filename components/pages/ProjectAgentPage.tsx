@@ -13,12 +13,13 @@ import VideoImportModal from '@/components/VideoImportModal';
 import AssetsManager from '@/components/AssetsManager';
 import HistoryPage from '@/components/pages/HistoryPage';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
-import { PromptInputBox, type PromptCommand, type PromptSubmitPayload, type PromptTemplatePart } from '@/components/ui/ai-prompt-box';
+import { type PromptCommand, type PromptSubmitPayload, type PromptTemplatePart } from '@/components/ui/ai-prompt-box';
 import {
   ProjectAgentWelcomeTourModal,
   isProjectAgentWelcomeTourDismissed,
 } from '@/components/project-agent/ProjectAgentWelcomeTourModal';
 import CanvasBoard from '@/components/project-agent/canvas/CanvasBoard';
+import ChatDrawer from '@/components/project-agent/canvas/ChatDrawer';
 import InsertToolbar from '@/components/project-agent/canvas/InsertToolbar';
 import NodeDetailsDialog from '@/components/project-agent/canvas/NodeDetailsDialog';
 import FloatingWorkspacePanel from '@/components/project-agent/canvas/FloatingWorkspacePanel';
@@ -223,24 +224,6 @@ const toVideoAssets = (payload: Record<string, unknown>) => (
 
 const quoteCommandAssetName = (name: string) => name.replace(/"/g, '\\"');
 
-const createPromptCommandForAsset = (
-  assetType: 'avatar' | 'product' | 'video',
-  asset: ProjectAgentCanvasAssetRef
-): PromptCommand => {
-  const typeLabel = assetType === 'avatar' ? 'Avatar' : assetType === 'product' ? 'Product' : 'Video';
-  return {
-    id: `${assetType}:${asset.id}`,
-    label: asset.name,
-    chipLabel: `${typeLabel}: ${asset.name}`,
-    prompt: `Add ${assetType} "${quoteCommandAssetName(asset.name)}" to the canvas.`,
-    kind: 'asset',
-    groupLabel: `${typeLabel}s`,
-    assetType,
-    assetId: asset.id,
-    imageUrl: asset.imageUrl,
-  };
-};
-
 const getDefaultNodePlacement = (canvas: ProjectAgentCanvasState) => ({
   x: 240 - canvas.viewport.x / canvas.viewport.zoom,
   y: 180 - canvas.viewport.y / canvas.viewport.zoom,
@@ -316,9 +299,7 @@ export default function ProjectAgentPage() {
   const [showCreateAvatarModal, setShowCreateAvatarModal] = useState(false);
   const [showCreateProductModal, setShowCreateProductModal] = useState(false);
   const [showVideoImportModal, setShowVideoImportModal] = useState(false);
-  const [pendingPromptAssetType, setPendingPromptAssetType] = useState<'avatar' | 'product' | 'video' | null>(null);
-  const [injectedPromptCommandToken, setInjectedPromptCommandToken] = useState<{ nonce: string; command: PromptCommand } | null>(null);
-  const [injectedPromptTemplate, setInjectedPromptTemplate] = useState<{ nonce: string; parts: PromptTemplatePart[] } | null>(null);
+  const [chatOpen, setChatOpen] = useState(true);
   const [avatars, setAvatars] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [products, setProducts] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [videos, setVideos] = useState<ProjectAgentCanvasAssetRef[]>([]);
@@ -1129,20 +1110,6 @@ export default function ProjectAgentPage() {
   }, [applyCanvasActions, pendingUiRequest]);
 
   const handleQuickUploadRequest = useCallback((assetType: 'avatar' | 'product' | 'video') => {
-    setPendingPromptAssetType(null);
-    if (assetType === 'avatar') {
-      setShowCreateAvatarModal(true);
-      return;
-    }
-    if (assetType === 'video') {
-      setShowVideoImportModal(true);
-      return;
-    }
-    setShowCreateProductModal(true);
-  }, []);
-
-  const handlePromptAssetCreateRequest = useCallback((assetType: 'avatar' | 'product' | 'video') => {
-    setPendingPromptAssetType(assetType);
     if (assetType === 'avatar') {
       setShowCreateAvatarModal(true);
       return;
@@ -1174,19 +1141,11 @@ export default function ProjectAgentPage() {
     void loadAssets();
     setShowCreateAvatarModal(false);
 
-    if (pendingPromptAssetType === 'avatar') {
-      setInjectedPromptCommandToken({
-        nonce: `avatar:${createdAsset.id}:${Date.now()}`,
-        command: createPromptCommandForAsset('avatar', createdAsset),
-      });
-      setPendingPromptAssetType(null);
-    }
-
     if (pendingUiRequest?.type === 'asset_selection' && pendingUiRequest.assetType === 'avatar') {
       handleToolbarAssetSelect('avatar', createdAsset);
       setToolbarOpenKey(null);
     }
-  }, [handleToolbarAssetSelect, loadAssets, pageMessages.defaults.avatar, pendingPromptAssetType, pendingUiRequest]);
+  }, [handleToolbarAssetSelect, loadAssets, pageMessages.defaults.avatar, pendingUiRequest]);
 
   const handleProductCreated = useCallback((product: UserProduct) => {
     const photoUrls = Array.isArray(product.user_product_photos)
@@ -1209,19 +1168,11 @@ export default function ProjectAgentPage() {
     void loadAssets();
     setShowCreateProductModal(false);
 
-    if (pendingPromptAssetType === 'product') {
-      setInjectedPromptCommandToken({
-        nonce: `product:${createdAsset.id}:${Date.now()}`,
-        command: createPromptCommandForAsset('product', createdAsset),
-      });
-      setPendingPromptAssetType(null);
-    }
-
     if (pendingUiRequest?.type === 'asset_selection' && pendingUiRequest.assetType === 'product') {
       handleToolbarAssetSelect('product', createdAsset);
       setToolbarOpenKey(null);
     }
-  }, [handleToolbarAssetSelect, loadAssets, pageMessages.defaults.product, pendingPromptAssetType, pendingUiRequest]);
+  }, [handleToolbarAssetSelect, loadAssets, pageMessages.defaults.product, pendingUiRequest]);
 
   const handleVideosImported = useCallback<ProjectAgentVideoImportHandler>((newVideos, options) => {
     const importedAssets = toProjectAgentVideoAssets(newVideos);
@@ -1239,15 +1190,6 @@ export default function ProjectAgentPage() {
       void loadAssets();
     }
 
-    if (importedAssets.length > 0 && pendingPromptAssetType === 'video') {
-      const importedAsset = importedAssets[0];
-      setInjectedPromptCommandToken({
-        nonce: `video:${importedAsset.id}:${Date.now()}`,
-        command: createPromptCommandForAsset('video', importedAsset),
-      });
-      setPendingPromptAssetType(null);
-    }
-
     if (
       importedAssets.length > 0 &&
       pendingUiRequest?.type === 'asset_selection' &&
@@ -1256,7 +1198,7 @@ export default function ProjectAgentPage() {
       handleToolbarAssetSelect('video', importedAssets[0]);
       setToolbarOpenKey(null);
     }
-  }, [handleToolbarAssetSelect, loadAssets, pendingPromptAssetType, pendingUiRequest]);
+  }, [handleToolbarAssetSelect, loadAssets, pendingUiRequest]);
 
   const handleVideoUpdated = useCallback<NonNullable<ComponentProps<typeof VideoImportModal>['onVideoUpdated']>>((updatedVideo) => {
     const [updatedAsset] = toProjectAgentVideoAssets([updatedVideo]);
@@ -2406,6 +2348,16 @@ export default function ProjectAgentPage() {
     ].filter((template) => template.parts.some((part) => part.type === 'command'));
   }, [promptCommands]);
 
+  const chatPromptTemplates = useMemo(() => (
+    promptTemplateChips.slice(0, 3).map((template) => ({
+      id: template.id,
+      label: template.label,
+      text: template.parts.map((part) => (
+        part.type === 'text' ? part.text : part.command.prompt
+      )).join('').replace(/\s+/g, ' ').trim(),
+    }))
+  ), [promptTemplateChips]);
+
   if (!isLoaded || isPageLoading) {
     return <FlowtraLoading />;
   }
@@ -2544,40 +2496,25 @@ export default function ProjectAgentPage() {
                   onAssetSelect={handleToolbarAssetSelect}
                 />
               </div>
-              <div data-canvas-ui="true" className="pointer-events-none absolute bottom-5 left-1/2 z-30 flex w-full -translate-x-1/2 justify-center px-6">
-                <div className="pointer-events-auto relative w-full max-w-[720px]">
-                  <div className="absolute bottom-[calc(100%+12px)] left-1/2 z-10 flex w-[min(720px,calc(100vw-3rem))] -translate-x-1/2 flex-wrap justify-center gap-2 px-1 pb-1">
-                    {promptTemplateChips.map((template) => (
-                      <button
-                        key={template.id}
-                        type="button"
-                        aria-label={`Use prompt template: ${template.label}`}
-                        onClick={() => {
-                          setInjectedPromptTemplate({
-                            nonce: `${template.id}:${Date.now()}`,
-                            parts: template.parts,
-                          });
-                        }}
-                        className="inline-flex h-9 shrink-0 items-center rounded-full border border-[#ddd7ca] bg-white px-3 text-xs font-semibold text-[#2d2b26] shadow-[0_8px_20px_rgba(30,24,14,0.10)] transition-colors hover:bg-[#f7f7f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
-                      >
-                        {template.label}
-                      </button>
-                    ))}
-                  </div>
-                  <PromptInputBox
-                    value={draft}
-                    onValueChange={setDraft}
-                    onSend={(message, payload) => {
-                      void handleSend(message, payload);
+              <div data-canvas-ui="true" className="pointer-events-none absolute bottom-5 right-5 z-40 max-[760px]:bottom-4 max-[760px]:right-3">
+                <div className="pointer-events-auto">
+                  <ChatDrawer
+                    draft={draft}
+                    messages={messages}
+                    onAssetCreateRequest={handleQuickUploadRequest}
+                    onDraftChange={setDraft}
+                    onSubmit={() => {
+                      void handleSend();
                     }}
-                    isLoading={isStreaming}
-                    placeholder="Describe what to add or change on the canvas..."
+                    onToggle={() => setChatOpen((open) => !open)}
+                    onUseTemplate={(text) => {
+                      setDraft(text);
+                      setChatOpen(true);
+                    }}
+                    open={chatOpen}
+                    promptTemplates={chatPromptTemplates}
+                    status={status}
                     statusNote={statusNote}
-                    commands={promptCommands}
-                    onAssetCreateRequest={handlePromptAssetCreateRequest}
-                    injectedCommandToken={injectedPromptCommandToken}
-                    injectedPromptTemplate={injectedPromptTemplate}
-                    className="z-30 max-w-none"
                   />
                 </div>
               </div>
@@ -2595,9 +2532,6 @@ export default function ProjectAgentPage() {
         isOpen={showCreateAvatarModal}
         onClose={() => {
           setShowCreateAvatarModal(false);
-          if (pendingPromptAssetType === 'avatar') {
-            setPendingPromptAssetType(null);
-          }
         }}
         onAvatarCreated={handleAvatarCreated}
       />
@@ -2605,9 +2539,6 @@ export default function ProjectAgentPage() {
         isOpen={showCreateProductModal}
         onClose={() => {
           setShowCreateProductModal(false);
-          if (pendingPromptAssetType === 'product') {
-            setPendingPromptAssetType(null);
-          }
         }}
         onProductCreated={handleProductCreated}
       />
@@ -2615,9 +2546,6 @@ export default function ProjectAgentPage() {
         isOpen={showVideoImportModal}
         onClose={() => {
           setShowVideoImportModal(false);
-          if (pendingPromptAssetType === 'video') {
-            setPendingPromptAssetType(null);
-          }
         }}
         onImported={handleVideosImported}
         onVideoUpdated={handleVideoUpdated}

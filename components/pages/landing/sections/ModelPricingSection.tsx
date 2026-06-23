@@ -3,7 +3,7 @@
 import { OpenAI, ByteDance, Gemini, Kling, Qwen } from '@lobehub/icons';
 import { BadgeDollarSign, Boxes, Coins, ScanLine } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
-import { WAN_27_QUALITY_COSTS } from '@/lib/constants';
+import { SEEDANCE_2_MINI_QUALITY_COSTS, WAN_27_QUALITY_COSTS } from '@/lib/constants';
 
 export default function ModelPricingSection() {
   const { messages } = useI18n();
@@ -51,6 +51,18 @@ export default function ModelPricingSection() {
         { resolution: '720p', credits: 2460 },
         { resolution: '1080p', credits: 6120 },
       ] as PricingOption[],
+    },
+    {
+      name: 'Seedance 2 Mini',
+      description: 'Lower-cost Seedance generation for ecommerce videos and lightweight motion tasks',
+      icon: ByteDance,
+      badge: pricingMessages.newBadge,
+      durationRange: '4-15s',
+      billingType: 'generation' as const,
+      pricingOptions: Object.entries(SEEDANCE_2_MINI_QUALITY_COSTS).map(([resolution, credits]) => ({
+        resolution,
+        credits: credits * 60,
+      })) as PricingOption[],
     },
     {
       name: 'GPT Image 2',

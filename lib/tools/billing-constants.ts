@@ -1,4 +1,4 @@
-import { GENERATION_COSTS, SEEDANCE_2_FAST_QUALITY_COSTS, SEEDANCE_2_QUALITY_COSTS } from '@/lib/constants';
+import { GENERATION_COSTS, SEEDANCE_2_FAST_QUALITY_COSTS, SEEDANCE_2_MINI_QUALITY_COSTS, SEEDANCE_2_QUALITY_COSTS } from '@/lib/constants';
 
 export const IMAGE_GENERATION_CREDIT_COST = 3;
 export const AD_SHORT_FILM_DURATION_SECONDS = 15;
@@ -24,7 +24,7 @@ export function getEcommerceListingStudioCreditCost(params: {
   carousel?: boolean;
   detail?: boolean;
   video?: boolean;
-  videoModel?: 'gemini_omni_video' | 'seedance_2_fast' | 'seedance_2';
+  videoModel?: 'gemini_omni_video' | 'seedance_2_fast' | 'seedance_2' | 'seedance_2_mini';
   videoResolution?: '480p' | '720p' | '1080p' | '4k';
 }) {
   const imageCount = (params.carousel ? 6 : 0) + (params.detail ? 6 : 0);
@@ -36,7 +36,9 @@ export function getEcommerceListingStudioCreditCost(params: {
     }
     const videoPerSecondCost = params.videoModel === 'seedance_2'
       ? SEEDANCE_2_QUALITY_COSTS[params.videoResolution === '480p' || params.videoResolution === '1080p' ? params.videoResolution : '720p']
-      : SEEDANCE_2_FAST_QUALITY_COSTS[params.videoResolution === '480p' ? '480p' : '720p'];
+      : params.videoModel === 'seedance_2_mini'
+        ? SEEDANCE_2_MINI_QUALITY_COSTS[params.videoResolution === '480p' ? '480p' : '720p']
+        : SEEDANCE_2_FAST_QUALITY_COSTS[params.videoResolution === '480p' ? '480p' : '720p'];
     return Math.ceil(ECOMMERCE_LISTING_VIDEO_DURATION_SECONDS * videoPerSecondCost);
   })();
   return (

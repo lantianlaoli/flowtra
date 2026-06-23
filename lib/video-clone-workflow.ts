@@ -81,6 +81,14 @@ async function retryAsync<T>(fn: () => Promise<T>, options?: { maxAttempts?: num
 }
 
 const KIE_PROMPT_LIMIT = 5000;
+type SeedanceVideoModel = 'seedance_2_fast' | 'seedance_2' | 'seedance_2_mini';
+
+const getSeedanceKieVideoModelId = (model: SeedanceVideoModel) => {
+  if (model === 'seedance_2') return 'bytedance/seedance-2';
+  if (model === 'seedance_2_mini') return 'bytedance/seedance-2-mini';
+  return 'bytedance/seedance-2-fast';
+};
+
 const truncateText = (value: string | undefined | null, limit: number) => {
   if (!value) return '';
   if (value.length <= limit) return value;
@@ -511,7 +519,8 @@ export const isProjectAgentSeedanceReferenceImageMode = (input: {
   executionMode?: string | null;
 }) => (
   input.requestSource === 'project_agent_clone' &&
-  (input.resolvedVideoModel || input.videoModel) === 'seedance_2_fast' &&
+  ((input.resolvedVideoModel || input.videoModel) === 'seedance_2_fast' ||
+    (input.resolvedVideoModel || input.videoModel) === 'seedance_2_mini') &&
   input.executionMode === 'clone_direct_reference'
 );
 
@@ -521,7 +530,7 @@ export const isProjectAgentSeedanceReferenceImageProject = (
   const selectedInputs = project.selected_inputs && typeof project.selected_inputs === 'object'
     ? project.selected_inputs as Record<string, unknown>
     : null;
-  return project.video_model === 'seedance_2_fast' &&
+  return (project.video_model === 'seedance_2_fast' || project.video_model === 'seedance_2_mini') &&
     selectedInputs?.workflowSource === 'project_agent_clone' &&
     selectedInputs?.executionMode === 'clone_direct_reference';
 };
@@ -2233,6 +2242,7 @@ async function startAIWorkflow(
         parsedTimeline.videoDurationSeconds &&
         (request.resolvedVideoModel === 'seedance_2' ||
           request.resolvedVideoModel === 'seedance_2_fast' ||
+          request.resolvedVideoModel === 'seedance_2_mini' ||
           request.resolvedVideoModel === 'kling_3')
       ) {
         const snappedDuration = snapDurationToModel(request.resolvedVideoModel, parsedTimeline.videoDurationSeconds);
@@ -4179,9 +4189,9 @@ export async function startSegmentVideoTask(
     compile_mode: promptCompilation.compileMode
   });
 
-  const supportedSegmentModels: VideoModel[] = ['seedance_2_fast', 'seedance_2', 'kling_3'];
+  const supportedSegmentModels: VideoModel[] = ['seedance_2_fast', 'seedance_2', 'seedance_2_mini', 'kling_3'];
   if (!supportedSegmentModels.includes(videoModel)) {
-    throw new Error(`Segmented workflow only supports Seedance 2 Fast, Seedance 2, or Kling 3.0. Received ${videoModel}`);
+    throw new Error(`Segmented workflow only supports Seedance 2 Fast, Seedance 2, Seedance 2 Mini, or Kling 3.0. Received ${videoModel}`);
   }
   await assertKieCreditsAvailable();
 
@@ -4210,7 +4220,7 @@ export async function startSegmentVideoTask(
     music
   );
 
-  if (videoModel === 'seedance_2_fast' || videoModel === 'seedance_2') {
+  if (videoModel === 'seedance_2_fast' || videoModel === 'seedance_2' || videoModel === 'seedance_2_mini') {
     return await startSegmentVideoTaskSeedance(
       project,
       compiledSegmentPrompt,
@@ -5046,7 +5056,7 @@ function buildKlingVideoRequestBody(input: {
 function buildSeedanceVideoRequestBody(input: {
   projectId: string;
   segmentIndex: number;
-  model: 'seedance_2_fast' | 'seedance_2';
+  model: SeedanceVideoModel;
   prompt: string;
   inputUrls: string[];
   referenceImageUrls?: string[];
@@ -5055,7 +5065,7 @@ function buildSeedanceVideoRequestBody(input: {
   duration: number;
 }) {
   const referenceImageUrls = collectDistinctUrls(input.referenceImageUrls || [], 9);
-  const useReferenceImageMode = input.model === 'seedance_2_fast' && referenceImageUrls.length > 0;
+  const useReferenceImageMode = (input.model === 'seedance_2_fast' || input.model === 'seedance_2_mini') && referenceImageUrls.length > 0;
   const inputUrls = collectDistinctUrls(input.inputUrls || [], 2);
   const requestInput: Record<string, unknown> = {
     prompt: input.prompt,
@@ -5074,7 +5084,7 @@ function buildSeedanceVideoRequestBody(input: {
   }
 
   return {
-    model: input.model === 'seedance_2_fast' ? 'bytedance/seedance-2-fast' : 'bytedance/seedance-2',
+    model: getSeedanceKieVideoModelId(input.model),
     input: requestInput,
     callBackUrl: buildSegmentVideoWebhookUrl(input.projectId, input.segmentIndex)
   };
@@ -5082,7 +5092,7 @@ function buildSeedanceVideoRequestBody(input: {
 
 function buildSeedanceEditVideoRequestBody(input: {
   projectId: string;
-  model: 'seedance_2_fast' | 'seedance_2';
+  model: SeedanceVideoModel;
   prompt: string;
   referenceVideoUrl: string;
   referenceImageUrls?: string[];
@@ -5092,7 +5102,7 @@ function buildSeedanceEditVideoRequestBody(input: {
 }) {
   const referenceImageUrls = collectDistinctUrls(input.referenceImageUrls || [], 9);
   return {
-    model: input.model === 'seedance_2_fast' ? 'bytedance/seedance-2-fast' : 'bytedance/seedance-2',
+    model: getSeedanceKieVideoModelId(input.model),
     input: {
       prompt: input.prompt,
       aspect_ratio: input.aspectRatio,
@@ -5133,7 +5143,7 @@ function buildWanEditVideoRequestBody(input: {
 async function startEditVideoTaskSeedance(input: {
   projectId: string;
   userId: string;
-  model: 'seedance_2_fast' | 'seedance_2';
+  model: SeedanceVideoModel;
   prompt: string;
   referenceVideoUrl: string;
   referenceImageUrls?: string[];
@@ -5218,7 +5228,7 @@ async function startEditVideoTaskWan(input: {
 
 async function startDirectReferenceCloneWorkflow(input: {
   request: StartWorkflowRequest;
-  model: 'seedance_2' | 'seedance_2_fast';
+  model: SeedanceVideoModel;
   quality: PersistedVideoQuality;
   durationSeconds: number;
   referenceSourceVideoUrl: string;
@@ -5499,7 +5509,7 @@ async function startEditVideoWorkflow(request: StartWorkflowRequest): Promise<Wo
     };
   }
 
-  if (model !== 'seedance_2' && model !== 'seedance_2_fast' && model !== 'wan_27') {
+  if (model !== 'seedance_2' && model !== 'seedance_2_fast' && model !== 'seedance_2_mini' && model !== 'wan_27') {
     return {
       success: false,
       error: 'Invalid edit-video model',
@@ -5690,14 +5700,14 @@ async function startSegmentVideoTaskSeedance(
   closingFrameUrl: string | null | undefined,
   segmentIndex: number,
   totalSegments: number,
-  model: 'seedance_2_fast' | 'seedance_2'
+  model: SeedanceVideoModel
 ): Promise<string> {
   const KIE_API_KEY = process.env.KIE_API_KEY;
   if (!KIE_API_KEY) {
     throw new Error('KIE_API_KEY environment variable is not configured');
   }
 
-  const referenceImageUrls = model === 'seedance_2_fast'
+  const referenceImageUrls = model === 'seedance_2_fast' || model === 'seedance_2_mini'
     ? getProjectAgentSeedanceReferenceImageUrls(project)
     : [];
   const useReferenceImageMode = referenceImageUrls.length > 0;
@@ -5723,9 +5733,7 @@ async function startSegmentVideoTaskSeedance(
   console.log(`🎬 Seedance Segment ${segmentIndex + 1}/${totalSegments}: Images count = ${useReferenceImageMode ? referenceImageUrls.length : inputUrls.length} ${useReferenceImageMode ? '(reference images)' : hasClosingFrame ? '(first + closing)' : '(first only)'}`);
 
   const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
-  const resolution = model === 'seedance_2_fast'
-    ? '720p'
-    : mapCloneQualityToSeedanceResolution(project.video_quality);
+  const resolution = normalizeCloneVideoQualityForModel(model, project.video_quality) as '480p' | '720p' | '1080p';
 
   // Build prompt text from segment fields
   const promptParts: string[] = [];

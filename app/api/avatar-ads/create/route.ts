@@ -24,7 +24,7 @@ import { estimateAvatarAdsSingleSceneDurationSeconds } from '@/lib/avatar-ads-du
 
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const AVATAR_ADS_PERSISTED_IMAGE_MODEL = GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL;
-const PUBLIC_AVATAR_ADS_VIDEO_MODELS: VideoModel[] = ['seedance_2_fast', 'kling_3', 'wan_27'];
+const PUBLIC_AVATAR_ADS_VIDEO_MODELS: VideoModel[] = ['seedance_2_fast', 'seedance_2_mini', 'kling_3', 'wan_27'];
 
 export async function POST(request: NextRequest) {
   try {

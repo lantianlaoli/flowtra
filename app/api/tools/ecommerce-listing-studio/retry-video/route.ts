@@ -20,7 +20,14 @@ export const maxDuration = 300;
 const KIE_CREATE_TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const SEEDANCE_MODEL = 'bytedance/seedance-2-fast';
 const SEEDANCE_2_MODEL = 'bytedance/seedance-2';
+const SEEDANCE_2_MINI_MODEL = 'bytedance/seedance-2-mini';
 const GEMINI_OMNI_VIDEO_MODEL = 'gemini-omni-video';
+
+const getSeedanceModelId = (videoModel: 'seedance_2_fast' | 'seedance_2' | 'seedance_2_mini') => {
+  if (videoModel === 'seedance_2') return SEEDANCE_2_MODEL;
+  if (videoModel === 'seedance_2_mini') return SEEDANCE_2_MINI_MODEL;
+  return SEEDANCE_MODEL;
+};
 
 function getKieApiKey(): string {
   const apiKey = process.env.KIE_API_KEY;
@@ -76,7 +83,7 @@ export async function POST(request: NextRequest) {
     const prompt = metadata.video.prompt || 'Create a 10-second ecommerce marketplace product ad video.';
     const storyboardUrl = metadata.video.storyboardUrl;
     const videoModel =
-      metadata.video_model === 'seedance_2' || metadata.video_model === 'seedance_2_fast'
+      metadata.video_model === 'seedance_2' || metadata.video_model === 'seedance_2_fast' || metadata.video_model === 'seedance_2_mini'
         ? metadata.video_model
         : 'gemini_omni_video';
 
@@ -88,6 +95,10 @@ export async function POST(request: NextRequest) {
         : videoModel === 'seedance_2'
         ? metadata.video_resolution === '480p' || metadata.video_resolution === '1080p'
           ? metadata.video_resolution
+          : '720p'
+        : videoModel === 'seedance_2_mini'
+        ? metadata.video_resolution === '480p'
+          ? '480p'
           : '720p'
         : metadata.video_resolution === '480p'
         ? '480p'
@@ -118,7 +129,7 @@ export async function POST(request: NextRequest) {
           callBackUrl: `${siteUrl}/api/tools/webhooks/kie`,
         }
       : {
-          model: videoModel === 'seedance_2' ? SEEDANCE_2_MODEL : SEEDANCE_MODEL,
+          model: getSeedanceModelId(videoModel),
           input: {
             prompt,
             reference_image_urls: [...productImageUrls, storyboardUrl].filter(Boolean).slice(0, 9),

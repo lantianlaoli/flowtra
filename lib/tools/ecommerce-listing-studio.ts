@@ -17,7 +17,7 @@ export type EcommerceListingTextLanguage =
 export type EcommerceListingAssetScope = 'carousel' | 'detail' | 'video';
 export type EcommerceListingImageAspectRatio = '1:1' | '4:3' | '3:4' | '16:9' | '9:16';
 export type EcommerceListingImageResolution = '1K' | '2K' | '4K';
-export type EcommerceListingVideoModel = 'gemini_omni_video' | 'seedance_2_fast' | 'seedance_2';
+export type EcommerceListingVideoModel = 'gemini_omni_video' | 'seedance_2_fast' | 'seedance_2' | 'seedance_2_mini';
 export type EcommerceListingVideoAspectRatio = '1:1' | '4:3' | '3:4' | '16:9' | '9:16';
 export type EcommerceListingVideoResolution = '480p' | '720p' | '1080p' | '4k';
 export type EcommerceListingSourceMode = 'product-photos' | 'manufacturer-promos';
@@ -167,7 +167,7 @@ export function normalizeImageResolution(value: unknown): EcommerceListingImageR
 }
 
 export function normalizeVideoModel(value: unknown): EcommerceListingVideoModel {
-  if (value === 'seedance_2_fast' || value === 'seedance_2') return value;
+  if (value === 'seedance_2_fast' || value === 'seedance_2' || value === 'seedance_2_mini') return value;
   return 'gemini_omni_video';
 }
 
@@ -190,6 +190,9 @@ export function normalizeVideoResolution(
   }
   if (videoModel === 'seedance_2') {
     return value === '480p' || value === '1080p' ? value : '720p';
+  }
+  if (videoModel === 'seedance_2_mini') {
+    return value === '480p' ? '480p' : '720p';
   }
   return value === '480p' ? '480p' : '720p';
 }

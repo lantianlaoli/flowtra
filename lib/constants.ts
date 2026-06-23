@@ -1,11 +1,12 @@
 // ===== VERSION 2.0: UNIFIED GENERATION-TIME BILLING =====
-// Active dashboard model selection: Seedance 2 Fast, Seedance 2, Kling 3.0
+// Active dashboard model selection: Seedance 2 Fast, Seedance 2, Seedance 2 Mini, Kling 3.0
 // ALL models: PAID generation, FREE download
 
 // Generation costs (ALL models charge at generation time)
 export const GENERATION_COSTS = {
   'seedance_2_fast': 33, // Seedance 2 Fast: 33 credits per second
   'seedance_2': 41, // Seedance 2: 41 credits per second
+  'seedance_2_mini': 20.5, // Seedance 2 Mini: 20.5 credits per second at 720p
   'kling_3': 27, // Kling 3.0 Pro (1080p + audio): 27 credits per second
   'wan_27': 24 // Wan 2.7 (1080p): 24 credits per second
 } as const;
@@ -32,6 +33,16 @@ export const SEEDANCE_2_FAST_WITH_VIDEO_INPUT_QUALITY_COSTS = {
   '720p': 20,
 } as const;
 
+export const SEEDANCE_2_MINI_QUALITY_COSTS = {
+  '480p': 9.5,
+  '720p': 20.5,
+} as const;
+
+export const SEEDANCE_2_MINI_WITH_VIDEO_INPUT_QUALITY_COSTS = {
+  '480p': 6,
+  '720p': 12.5,
+} as const;
+
 export const KLING_QUALITY_COSTS = {
   '720p': 20,
   '1080p': 27
@@ -52,7 +63,8 @@ export const MOTION_CLONE_QUALITY_COSTS = {
 // DEPRECATED: Legacy CREDIT_COSTS for backwards compatibility
 export const CREDIT_COSTS = {
   'seedance_2_fast': 33,
-  'seedance_2': 41
+  'seedance_2': 41,
+  'seedance_2_mini': 20.5
 } as const;
 
 export const HIGH_RES_DOWNLOAD_COSTS = {
@@ -73,6 +85,7 @@ export const NON_AGENT_IMAGE_MODEL = GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL;
 export const VIDEO_ASPECT_RATIO_OPTIONS = {
   'seedance_2_fast': ['16:9', '9:16'],
   'seedance_2': ['16:9', '9:16'],
+  'seedance_2_mini': ['16:9', '9:16'],
   'kling_3': ['16:9', '9:16'],
   'wan_27': ['16:9', '9:16']
 } as const
@@ -80,6 +93,7 @@ export const VIDEO_ASPECT_RATIO_OPTIONS = {
 export const MODEL_PROCESSING_TIMES = {
   'seedance_2_fast': '1-2 min',
   'seedance_2': '2-4 min',
+  'seedance_2_mini': '1-2 min',
   'kling_3': '2-4 min',            // Kling 3.0 Pro: 2-4 minutes processing time
   'wan_27': '2-4 min'              // Wan 2.7: 2-4 minutes processing time
 } as const
@@ -203,6 +217,18 @@ export function getGenerationCost(
     return Math.ceil(Math.ceil(duration) * perSecondCost);
   }
 
+  if (model === 'seedance_2_mini') {
+    if (!Number.isFinite(duration) || duration <= 0) {
+      return 0;
+    }
+    const priceTable = options?.hasVideoInput
+      ? SEEDANCE_2_MINI_WITH_VIDEO_INPUT_QUALITY_COSTS
+      : SEEDANCE_2_MINI_QUALITY_COSTS;
+    const perSecondCost = priceTable[normalizedCloneQuality as keyof typeof priceTable]
+      ?? priceTable['720p'];
+    return Math.ceil(Math.ceil(duration) * perSecondCost);
+  }
+
   if (!Number.isFinite(duration) || duration <= 0) {
     return 0;
   }
@@ -235,7 +261,7 @@ export function getSegmentVideoGenerationCost(
     return Math.ceil(duration) * perSecondCost;
   }
 
-  if (model === 'seedance_2_fast' || model === 'seedance_2' || model === 'wan_27') {
+  if (model === 'seedance_2_fast' || model === 'seedance_2' || model === 'seedance_2_mini' || model === 'wan_27') {
     return getCloneSegmentVideoGenerationCost(model, segmentDurationSeconds, normalizedCloneQuality);
   }
 
@@ -331,12 +357,13 @@ export type VideoQuality = 'standard' | 'high';
 export type CloneVideoQuality = '480p' | '720p' | '1080p' | '4k';
 export type PersistedVideoQuality = VideoQuality | CloneVideoQuality;
 export type VideoDuration = `${number}`;
-export type VideoModel = 'seedance_2_fast' | 'seedance_2' | 'kling_3' | 'wan_27';
+export type VideoModel = 'seedance_2_fast' | 'seedance_2' | 'seedance_2_mini' | 'kling_3' | 'wan_27';
 
 // Video model display names for UI
 export const VIDEO_MODEL_DISPLAY_NAMES: Record<VideoModel, string> = {
   'seedance_2_fast': 'Seedance 2 Fast',
   'seedance_2': 'Seedance 2',
+  'seedance_2_mini': 'Seedance 2 Mini',
   'kling_3': 'Kling 3.0',
   'wan_27': 'Wan 2.7'
 } as const;
@@ -348,6 +375,7 @@ export function getVideoModelDisplayName(model: VideoModel): string {
 export const LANDING_PRICING_VIDEO_MODELS: readonly VideoModel[] = [
   'seedance_2_fast',
   'seedance_2',
+  'seedance_2_mini',
   'kling_3',
   'wan_27'
 ] as const;
@@ -419,7 +447,7 @@ export function getDefaultCloneVideoQuality(model: VideoModel): CloneVideoQualit
   if (model === 'seedance_2') {
     return '720p';
   }
-  if (model === 'kling_3' || model === 'seedance_2_fast') {
+  if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2_mini') {
     return '720p';
   }
   return '720p';
@@ -450,6 +478,12 @@ export function normalizeCloneVideoQualityForModel(
   }
 
   if (model === 'seedance_2_fast') {
+    return normalized === '480p' || normalized === '720p'
+      ? normalized
+      : '720p';
+  }
+
+  if (model === 'seedance_2_mini') {
     return normalized === '480p' || normalized === '720p'
       ? normalized
       : '720p';
@@ -512,6 +546,16 @@ export function getCloneSegmentVideoGenerationCost(
     return Math.ceil(effectiveDuration * perSecondCost);
   }
 
+  if (model === 'seedance_2_mini') {
+    const duration = Number(segmentDurationSeconds);
+    const effectiveDuration = Number.isFinite(duration) && duration > 0
+      ? Math.ceil(duration)
+      : 0;
+    const perSecondCost = SEEDANCE_2_MINI_QUALITY_COSTS[normalizedQuality as keyof typeof SEEDANCE_2_MINI_QUALITY_COSTS]
+      ?? SEEDANCE_2_MINI_QUALITY_COSTS['720p'];
+    return Math.ceil(effectiveDuration * perSecondCost);
+  }
+
   if (model === 'wan_27') {
     const duration = Number(segmentDurationSeconds);
     const effectiveDuration = Number.isFinite(duration) && duration > 0
@@ -562,6 +606,11 @@ export const MODEL_CAPABILITIES: ModelCapabilities[] = [
   },
   {
     model: 'seedance_2',
+    supportedQualities: ['standard'],
+    supportedDurations: Array.from({ length: 12 }, (_, index) => String(index + 4) as VideoDuration)
+  },
+  {
+    model: 'seedance_2_mini',
     supportedQualities: ['standard'],
     supportedDurations: Array.from({ length: 12 }, (_, index) => String(index + 4) as VideoDuration)
   },
@@ -659,7 +708,7 @@ export const SEEDANCE_MAX_TASK_DURATION_SECONDS = 15;
 export const SEEDANCE_MAX_PROJECT_DURATION_SECONDS = 60;
 
 export function getSegmentDurationForModel(model?: VideoModel | null): number {
-  if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2') {
+  if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2' || model === 'seedance_2_mini') {
     return KLING_MAX_TASK_DURATION_SECONDS;
   }
   if (model === 'wan_27') {
@@ -669,7 +718,7 @@ export function getSegmentDurationForModel(model?: VideoModel | null): number {
 }
 
 export function getSegmentCountFromDuration(videoDuration?: string | null, model?: VideoModel): number {
-  if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2') {
+  if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2' || model === 'seedance_2_mini') {
     const klingDuration = Number(videoDuration);
     if (!Number.isFinite(klingDuration) || klingDuration <= 0) {
       return 0;
@@ -696,7 +745,7 @@ export function getSegmentCountFromDuration(videoDuration?: string | null, model
 }
 
 export function snapDurationToModel(model: VideoModel, targetSeconds: number): VideoDuration {
-  if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2') {
+  if (model === 'kling_3' || model === 'seedance_2_fast' || model === 'seedance_2' || model === 'seedance_2_mini') {
     const normalized = Math.round(targetSeconds);
     const minDuration = model === 'kling_3' ? KLING_MIN_TASK_DURATION_SECONDS : SEEDANCE_MIN_TASK_DURATION_SECONDS;
     const bounded = Math.max(minDuration, Math.min(KLING_MAX_PROJECT_DURATION_SECONDS, normalized));

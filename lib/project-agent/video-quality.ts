@@ -11,6 +11,10 @@ export function getProjectAgentAllowedVideoQualities(
     return ['480p', '720p'];
   }
 
+  if (model === 'seedance_2_mini') {
+    return ['480p', '720p'];
+  }
+
   if (model === 'seedance_2') {
     return ['480p', '720p', '1080p'];
   }

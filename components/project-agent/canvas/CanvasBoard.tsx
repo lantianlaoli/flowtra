@@ -33,6 +33,7 @@ import {
 import { ByteDance, Kling, Qwen } from '@lobehub/icons';
 import {
   GENERATION_COSTS,
+  SEEDANCE_2_MINI_QUALITY_COSTS,
   SEEDANCE_2_QUALITY_COSTS,
   getGenerationCost,
   getMotionCloneGenerationCost,
@@ -379,6 +380,12 @@ const PROJECT_AGENT_VIDEO_CLONE_MODELS = [
     label: 'Seedance 2',
     Icon: ByteDance,
     creditsPerSecond: SEEDANCE_2_QUALITY_COSTS['1080p'],
+  },
+  {
+    value: 'seedance_2_mini' as const,
+    label: 'Seedance 2 Mini',
+    Icon: ByteDance,
+    creditsPerSecond: SEEDANCE_2_MINI_QUALITY_COSTS['720p'],
   },
   {
     value: 'kling_3' as const,

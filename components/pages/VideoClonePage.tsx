@@ -210,6 +210,7 @@ const getStageLabel = (
 const ALL_VIDEO_MODELS: VideoModel[] = [
   "seedance_2_fast",
   "seedance_2",
+  "seedance_2_mini",
   "kling_3",
 ];
 const SESSION_STORAGE_KEY = "flowtra_video_clone_generations";

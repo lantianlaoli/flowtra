@@ -26,8 +26,8 @@ export const getProjectAgentVideoCloneAllowedModels = (
   mode: ProjectAgentVideoCloneMode
 ): ProjectAgentVideoModel[] => (
   mode === 'edit_video'
-    ? ['seedance_2', 'seedance_2_fast', 'wan_27']
-    : ['seedance_2', 'seedance_2_fast', 'kling_3']
+    ? ['seedance_2', 'seedance_2_mini', 'seedance_2_fast', 'wan_27']
+    : ['seedance_2', 'seedance_2_mini', 'seedance_2_fast', 'kling_3']
 );
 
 export const normalizeProjectAgentVideoCloneModel = (

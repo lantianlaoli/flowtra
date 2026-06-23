@@ -116,7 +116,7 @@ const resolveCoverAspectRatio = (ratio?: string | null): SupportedAspectRatio | 
   return normalizeAspectRatio(ratio);
 };
 
-const ALLOWED_VIDEO_CLONE_MODELS: VideoModel[] = ['seedance_2_fast', 'seedance_2', 'kling_3'];
+const ALLOWED_VIDEO_CLONE_MODELS: VideoModel[] = ['seedance_2_fast', 'seedance_2', 'seedance_2_mini', 'kling_3'];
 
 const normalizeVideoCloneModel = (model?: string | null): VideoModel => {
   if (ALLOWED_VIDEO_CLONE_MODELS.includes(model as VideoModel)) {
@@ -256,7 +256,7 @@ export async function GET() {
         }
         const storedVideoModel = item.video_model as CharacterAdsItem['videoModel'];
         const resolvedVideoModel: VideoModel =
-          storedVideoModel === 'seedance_2' || storedVideoModel === 'seedance_2_fast' || storedVideoModel === 'kling_3'
+          storedVideoModel === 'seedance_2' || storedVideoModel === 'seedance_2_fast' || storedVideoModel === 'seedance_2_mini' || storedVideoModel === 'kling_3'
             ? storedVideoModel
             : 'seedance_2_fast';
 

@@ -35,13 +35,15 @@ function LiveModelBadge({
       <span className="text-xs font-semibold text-[#37352f]">{label}</span>
       <span
         aria-hidden="true"
-        className="relative ml-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center"
-      >
-        <span className="absolute inset-0 rounded-full bg-emerald-400/35 blur-[2px] motion-safe:animate-pulse motion-reduce:animate-none" />
-        <span className="absolute h-3.5 w-3.5 rounded-full border border-emerald-400/45 bg-emerald-400/10" />
-        <span className="absolute h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(34,197,94,0.55)]" />
-        <span className="absolute h-1.5 w-1.5 rounded-full bg-white/75" />
-      </span>
+        className="ml-0.5 h-3.5 w-3.5 shrink-0 rounded-full motion-safe:animate-pulse motion-reduce:animate-none"
+        style={{
+          animationDuration: "1.25s",
+          background:
+            "radial-gradient(circle at 50% 48%, #16a34a 0%, #15803d 44%, #166534 68%, #052e16 100%)",
+          boxShadow:
+            "inset 0 1px 2px rgba(134,239,172,0.42), inset 0 -2px 4px rgba(1,22,11,0.82), 0 0 8px rgba(21,128,61,0.98), 0 0 18px rgba(22,101,52,0.72)",
+        }}
+      />
     </div>
   );
 }

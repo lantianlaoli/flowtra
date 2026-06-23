@@ -7,6 +7,7 @@ import { ByteDance, Kling, Qwen } from '@lobehub/icons';
 import { cn } from '@/lib/utils';
 import {
   GENERATION_COSTS,
+  SEEDANCE_2_MINI_QUALITY_COSTS,
   SEEDANCE_2_QUALITY_COSTS,
   WAN_27_QUALITY_COSTS,
   getProcessingTime,
@@ -75,6 +76,12 @@ export default function VideoModelSelector({
           ? SEEDANCE_2_QUALITY_COSTS['1080p']
           : SEEDANCE_2_QUALITY_COSTS['720p'];
       }
+      if (model === 'seedance_2_mini') {
+        const quality = normalizeCloneVideoQualityForModel(model, videoQuality);
+        return quality === '480p'
+          ? SEEDANCE_2_MINI_QUALITY_COSTS['480p']
+          : SEEDANCE_2_MINI_QUALITY_COSTS['720p'];
+      }
       if (model === 'wan_27') {
         const quality = normalizeCloneVideoQualityForModel(model, videoQuality);
         return quality === '720p'
@@ -134,6 +141,18 @@ export default function VideoModelSelector({
         badge: '专业'
       },
       {
+        value: 'seedance_2_mini' as const,
+        label: getVideoModelDisplayName('seedance_2_mini'),
+        description: '更省积分的字节跳动生成',
+        icon: ByteDance,
+        cost: calculateDurationCost('seedance_2_mini'),
+        creditsPerSecond: getCreditsPerSecond('seedance_2_mini'),
+        processingTime: getProcessingTime('seedance_2_mini'),
+        features: '480p 或 720p，4-15 秒',
+        supported: isModelSupported('seedance_2_mini'),
+        badge: '经济'
+      },
+      {
         value: 'kling_3' as const,
         label: getVideoModelDisplayName('kling_3'),
         description: '按分辨率计费的音频生成',
@@ -182,6 +201,18 @@ export default function VideoModelSelector({
         features: '720p or 1080p, richer motion',
         supported: isModelSupported('seedance_2'),
         badge: 'Pro'
+      },
+      {
+        value: 'seedance_2_mini' as const,
+        label: getVideoModelDisplayName('seedance_2_mini'),
+        description: 'Lower-cost ByteDance generation',
+        icon: ByteDance,
+        cost: calculateDurationCost('seedance_2_mini'),
+        creditsPerSecond: getCreditsPerSecond('seedance_2_mini'),
+        processingTime: getProcessingTime('seedance_2_mini'),
+        features: '480p or 720p, 4-15s',
+        supported: isModelSupported('seedance_2_mini'),
+        badge: 'Value'
       },
       {
         value: 'kling_3' as const,

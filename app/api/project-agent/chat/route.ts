@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import {
-  convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
   generateText,
-  jsonSchema,
   type LanguageModel,
-  stepCountIs,
-  streamText,
-  tool,
   type UIMessage
 } from 'ai';
+import { OpenRouter, callModel, fromChatMessages, stepCountIs, tool as openRouterTool } from '@openrouter/agent';
+import { z } from 'zod';
 import { getSupabaseAdmin, normalizeAvatarPhotoSet } from '@/lib/supabase';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
 import {
@@ -126,8 +123,82 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const model = (process.env.AI_GATEWAY_MODEL || 'bytedance-seed/seed-1.6-flash') as LanguageModel;
+const projectAgentModel = process.env.PROJECT_AGENT_MODEL || 'bytedance-seed/seed-1.6-flash';
 
-const emptySchema = jsonSchema({ type: 'object', properties: {}, required: [] });
+let projectAgentOpenRouterClient: OpenRouter | null = null;
+
+const getProjectAgentOpenRouterClient = () => {
+  if (projectAgentOpenRouterClient) {
+    return projectAgentOpenRouterClient;
+  }
+
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error('OPENROUTER_API_KEY is not configured.');
+  }
+
+  projectAgentOpenRouterClient = new OpenRouter({ apiKey });
+  return projectAgentOpenRouterClient;
+};
+
+type ProjectAgentToolConfig = {
+  description: string;
+  inputSchema: z.ZodObject<z.ZodRawShape>;
+  execute: (input: any) => unknown | Promise<unknown>;
+};
+
+const schemaPropertyToZod = (property: Record<string, unknown>) => {
+  const enumValues = Array.isArray(property.enum)
+    ? property.enum.filter((item): item is string => typeof item === 'string')
+    : [];
+  if (enumValues.length > 0) {
+    const [first, ...rest] = enumValues;
+    return z.enum([first, ...rest]);
+  }
+
+  switch (property.type) {
+    case 'string':
+      return z.string();
+    case 'integer':
+      return z.number().int();
+    case 'number':
+      return z.number();
+    case 'boolean':
+      return z.boolean();
+    case 'array':
+      return z.array(z.unknown());
+    case 'object':
+      return z.object({}).passthrough();
+    default:
+      return z.unknown();
+  }
+};
+
+const jsonSchema = (schema: unknown) => {
+  if (!schema || typeof schema !== 'object') {
+    return z.object({}).passthrough();
+  }
+
+  const record = schema as Record<string, unknown>;
+  const properties = record.properties && typeof record.properties === 'object'
+    ? record.properties as Record<string, Record<string, unknown>>
+    : {};
+  const required = new Set(
+    Array.isArray(record.required)
+      ? record.required.filter((item): item is string => typeof item === 'string')
+      : []
+  );
+  const shape = Object.fromEntries(
+    Object.entries(properties).map(([key, property]) => {
+      const value = schemaPropertyToZod(property);
+      return [key, required.has(key) ? value : value.optional()];
+    })
+  );
+
+  return z.object(shape).passthrough();
+};
+const tool = <T extends ProjectAgentToolConfig>(config: T) => config;
+const emptySchema = z.object({}).passthrough();
 const CHINESE_SCENE_NUMERALS: Record<string, number> = {
   '一': 1,
   '二': 2,
@@ -1442,6 +1513,20 @@ const messageText = (message: UIMessage) =>
     .join('')
     .trim();
 
+const buildOpenRouterAgentInput = (system: string, messages: UIMessage[]) => {
+  const chatMessages = [
+    { role: 'system' as const, content: system },
+    ...messages
+      .map((message) => ({
+        role: message.role === 'assistant' ? 'assistant' as const : 'user' as const,
+        content: messageText(message),
+      }))
+      .filter((message) => message.content.length > 0),
+  ];
+
+  return fromChatMessages(chatMessages) as any;
+};
+
 const dedupeMessages = (messages: UIMessage[]) => {
   // Keep latest payload per id so streamed final chunks are not lost.
   const byIdMap = new Map<string, UIMessage>();
@@ -1572,7 +1657,7 @@ export async function POST(request: Request) {
     }
 
     const supabase = getSupabaseAdmin();
-    // Schema verified via Supabase MCP (2026-01-13):
+    // Schema verified via Supabase MCP (2026-06-23):
     // project_agent_sessions columns: id, user_id, project_id, intent, status, state, messages, created_at, updated_at
     const { data: existingSession, error: fetchError } = await supabase
       .from('project_agent_sessions')
@@ -2010,15 +2095,35 @@ export async function POST(request: Request) {
             return;
           }
 
-          // Ultimate fallback: let the LLM respond naturally via streamText
-          writer.merge(
-            streamText({
-              model,
-              system: buildSystemPrompt(sessionState),
-              messages: modelMessages,
-              stopWhen: stepCountIs(5),
-            }).toUIMessageStream(),
-          );
+          const fallbackResult = callModel(getProjectAgentOpenRouterClient(), {
+            model: projectAgentModel,
+            input: buildOpenRouterAgentInput(
+              buildSystemPrompt(sessionState),
+              conversationMessages.slice(-MODEL_CONTEXT_WINDOW_MESSAGES)
+            ),
+            stopWhen: stepCountIs(5),
+            allowFinalResponse: true,
+          });
+          let fallbackText = '';
+          writer.write({ type: 'text-start', id: msgId });
+          for await (const delta of fallbackResult.getTextStream()) {
+            fallbackText += delta;
+            writer.write({ type: 'text-delta', id: msgId, delta });
+          }
+          writer.write({ type: 'text-end', id: msgId });
+
+          if (fallbackText.trim()) {
+            await persistMessagesOnly(
+              dedupeMessages([
+                ...conversationMessages,
+                {
+                  id: msgId,
+                  role: 'assistant',
+                  parts: [{ type: 'text', text: fallbackText.trim() }],
+                },
+              ])
+            );
+          }
         },
       });
 
@@ -5148,7 +5253,6 @@ export async function POST(request: Request) {
     }
 
     const modelContextMessages = conversationMessages.slice(-MODEL_CONTEXT_WINDOW_MESSAGES);
-    const modelMessages = await convertToModelMessages(modelContextMessages);
     const inferredSceneIndexFromTurn = parseSceneIndexFromUserTurn(latestUserTurnText);
     let forcedToolChoice: ForcedToolChoice;
     try {
@@ -5214,13 +5318,7 @@ export async function POST(request: Request) {
       return motionCloneExplicitCommandReply;
     }
 
-    const result = await streamText({
-      model,
-      system: buildSystemPrompt(sessionState),
-      messages: modelMessages,
-      stopWhen: stepCountIs(5),
-      ...(forcedToolChoice ? { toolChoice: forcedToolChoice } : {}),
-      tools: {
+    const projectAgentToolConfigs = {
         inspectCanvas: tool({
           description: 'Inspect the current canvas graph, selection, and pending UI request before planning canvas edits.',
           inputSchema: emptySchema,
@@ -5325,7 +5423,7 @@ export async function POST(request: Request) {
           description: 'List available avatars for the user',
           inputSchema: emptySchema,
           execute: async () => {
-            // Schema verified via Supabase MCP (2026-01-13):
+            // Schema verified via Supabase MCP (2026-06-23):
             // user_avatars columns include id, avatar_name, photo_url, file_name, photo_set_json
             const userAvatars = await fetchUserAvatarOptions();
             const avatars = mergeAvatarOptions(userAvatars);
@@ -5337,7 +5435,7 @@ export async function POST(request: Request) {
           description: 'List products for the user',
           inputSchema: emptySchema,
           execute: async () => {
-            // Schema verified via Supabase MCP (2026-01-13):
+            // Schema verified via Supabase MCP (2026-06-23):
             // user_products columns: id, user_id, product_name, created_at, updated_at
             const { data: products, error: productsError } = await supabase
               .from('user_products')
@@ -7869,61 +7967,89 @@ export async function POST(request: Request) {
             return { success: true, project: payload.project };
           }
         })
-      }
-    });
-
-    const finalizeNonce = Date.now().toString(36);
-    let finalMessagesFromStream: UIMessage[] = [];
-    let streamedAssistantTextVisible = false;
-    let resolveStreamFinish: (() => void) | null = null;
-    const streamFinished = new Promise<void>((resolve) => {
-      resolveStreamFinish = resolve;
-    });
-
-    const mergedStream = result.toUIMessageStream<UIMessage>({
-      onFinish: ({ messages: finalMessages }) => {
-        finalMessagesFromStream = dedupeMessages(
-          finalMessages.map((message, index) => normalizeUIMessage(message, `final-${finalizeNonce}-${index}`))
-        );
-        resolveStreamFinish?.();
-      }
-    });
+      } satisfies Record<string, ProjectAgentToolConfig>;
 
     const stream = createUIMessageStream<UIMessage>({
       execute: async ({ writer }) => {
-        const reader = mergedStream.getReader();
+        let assistantText = '';
+        let streamedAssistantTextVisible = false;
+        let assistantTextStarted = false;
+        const assistantMessageId = `assistant-agent-${Date.now().toString(36)}`;
+        const canvasToolNames = new Set([
+          'planCanvasEdit',
+          'requestAssetSelection',
+          'confirmDestructiveCanvasAction',
+        ]);
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        const agentTools = Object.entries(projectAgentToolConfigs).map(([name, config]) => openRouterTool({
+          name,
+          description: config.description,
+          inputSchema: config.inputSchema,
+          execute: async (params: Record<string, unknown>) => {
+            const input = params && typeof params === 'object' ? params : {};
+            const output = await config.execute(input);
 
-          if (value.type === 'text-delta' && typeof value.delta === 'string' && value.delta.trim().length > 0) {
+            if (canvasToolNames.has(name)) {
+              const toolCallId = `agent-tool-${name}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+              writer.write({
+                type: 'tool-input-available',
+                toolCallId,
+                toolName: name,
+                input,
+              });
+              writer.write({
+                type: 'tool-output-available',
+                toolCallId,
+                output,
+              });
+            }
+
+            return output;
+          },
+        }));
+
+        const result = callModel(getProjectAgentOpenRouterClient(), {
+          model: projectAgentModel,
+          input: buildOpenRouterAgentInput(
+            buildSystemPrompt(sessionState),
+            modelContextMessages
+          ),
+          tools: agentTools as never,
+          stopWhen: stepCountIs(5),
+          allowFinalResponse: true,
+          ...(forcedToolChoice ? {
+            toolChoice: {
+              type: 'function',
+              name: forcedToolChoice.toolName,
+            },
+          } : {}),
+        });
+
+        for await (const delta of result.getTextStream()) {
+          if (!assistantTextStarted) {
+            writer.write({ type: 'text-start', id: assistantMessageId });
+            assistantTextStarted = true;
+          }
+
+          assistantText += delta;
+          if (delta.trim().length > 0) {
             streamedAssistantTextVisible = true;
           }
-
-          writer.write(value);
+          writer.write({ type: 'text-delta', id: assistantMessageId, delta });
         }
 
-        await streamFinished;
-
-        // Preserve existing timeline exactly as-is, and only append genuinely new
-        // streamed messages. Never overwrite prior history by id.
-        const existingIds = new Set(conversationMessages.map((message) => message.id));
         const messagesToPersist = [...conversationMessages];
-        for (const message of finalMessagesFromStream) {
-          if (existingIds.has(message.id)) {
-            continue;
-          }
 
-          const previous = messagesToPersist[messagesToPersist.length - 1];
-          const previousText = previous ? messageText(previous) : '';
-          const nextText = messageText(message);
-          if (previous && previous.role === message.role && previousText && previousText === nextText) {
-            continue;
-          }
+        if (assistantTextStarted) {
+          writer.write({ type: 'text-end', id: assistantMessageId });
+        }
 
-          messagesToPersist.push(message);
-          existingIds.add(message.id);
+        if (assistantText.trim()) {
+          messagesToPersist.push({
+            id: assistantMessageId,
+            role: 'assistant',
+            parts: [{ type: 'text', text: assistantText.trim() }],
+          });
         }
 
         // Guardrail: certain tool-heavy turns may finish without a visible assistant text.

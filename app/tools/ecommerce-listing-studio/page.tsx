@@ -81,6 +81,7 @@ const VIDEO_MODEL_OPTIONS: Array<{ value: EcommerceListingVideoModel; label: str
   { value: "gemini_omni_video", label: "Gemini Omni", icon: <Gemini className="h-4 w-4 text-black" /> },
   { value: "seedance_2_fast", label: "Seedance 2 Fast", icon: <ByteDance className="h-4 w-4 text-black" /> },
   { value: "seedance_2", label: "Seedance 2", icon: <ByteDance className="h-4 w-4 text-black" /> },
+  { value: "seedance_2_mini", label: "Seedance 2 Mini", icon: <ByteDance className="h-4 w-4 text-black" /> },
 ];
 const ALL_SCOPES: EcommerceListingAssetScope[] = ["carousel", "detail", "video"];
 const ASSET_SCOPE_OPTIONS: { scope: EcommerceListingAssetScope; label: string; icon: ReactNode; description: string }[] = [
@@ -136,6 +137,7 @@ function videoRatioOptionsForModel(videoModel: EcommerceListingVideoModel): Ecom
 function videoResolutionOptionsForModel(videoModel: EcommerceListingVideoModel): EcommerceListingVideoResolution[] {
   if (videoModel === "gemini_omni_video") return ["720p", "1080p", "4k"];
   if (videoModel === "seedance_2") return ["480p", "720p", "1080p"];
+  if (videoModel === "seedance_2_mini") return ["480p", "720p"];
   return ["480p", "720p"];
 }
 

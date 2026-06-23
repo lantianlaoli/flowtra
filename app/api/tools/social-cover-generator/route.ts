@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL } from '@/lib/constants';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
@@ -7,7 +7,9 @@ import {
   buildSocialCoverTitleSet,
   calculateSocialCoverProgress,
   normalizeSocialCoverOptions,
+  SOCIAL_COVER_LANGUAGE_OPTIONS,
   type SocialCoverMetadata,
+  type SocialCoverTitleSet,
 } from '@/lib/tools/social-cover-generator';
 import {
   IMAGE_GENERATION_CREDIT_COST,
@@ -114,6 +116,110 @@ async function createKieImageTask(input: {
   return taskId;
 }
 
+function buildFallbackTitleSet(title: string): SocialCoverTitleSet {
+  return Object.fromEntries(
+    SOCIAL_COVER_LANGUAGE_OPTIONS.map((option) => [option.value, title])
+  ) as SocialCoverTitleSet;
+}
+
+async function startSocialCoverTasksInBackground(input: {
+  jobId: string;
+  userId: string;
+  personImageDataUrl: string;
+  productOrLogoImageDataUrl: string;
+  title: string;
+  styleGuide?: string;
+  options: ReturnType<typeof normalizeSocialCoverOptions>;
+  billedCredits: number;
+  siteUrl: string;
+}) {
+  try {
+    const timestamp = Date.now();
+    const [personImageUrl, productOrLogoImageUrl] = await Promise.all([
+      uploadKieImage(input.personImageDataUrl, `person-${timestamp}.jpg`),
+      uploadKieImage(input.productOrLogoImageDataUrl, `product-logo-${timestamp}.png`),
+    ]);
+    const titleResult = await buildSocialCoverTitleSet(input.title, input.options.languages);
+    const slotCount = input.options.languages.reduce(
+      (count, language) => count + input.options.aspectRatiosByLanguage[language].length * input.options.variantsPerGroup,
+      0
+    );
+    const slots = buildSocialCoverSlots({
+      options: input.options,
+      titles: titleResult.titles,
+      sourceTitle: input.title,
+      styleGuide: input.styleGuide,
+      taskIds: new Array(slotCount).fill(''),
+    }).map((slot) => ({ ...slot, status: 'processing' as const }));
+    const progress = calculateSocialCoverProgress({ slots });
+
+    let nextSlots = slots;
+    let nextMetadata: SocialCoverMetadata = {
+      source_title: input.title,
+      titles: titleResult.titles,
+      title_fallback: titleResult.fallback,
+      style_guide: input.styleGuide,
+      options: input.options,
+      person_image_url: personImageUrl,
+      product_or_logo_image_url: productOrLogoImageUrl,
+      slots: nextSlots,
+      completed_outputs: progress.completed,
+      total_outputs: progress.total,
+      resolution: input.options.resolution,
+    };
+
+    await updateToolGenerationJob(input.jobId, {
+      status: 'processing',
+      error_message: null,
+      metadata: nextMetadata,
+    });
+
+    for (const slot of slots) {
+      const taskId = await createKieImageTask({
+        prompt: slot.prompt,
+        inputUrls: [personImageUrl, productOrLogoImageUrl],
+        aspectRatio: slot.aspectRatio,
+        resolution: input.options.resolution,
+        callBackUrl: `${input.siteUrl}/api/tools/webhooks/kie`,
+      });
+      await createToolGenerationTask({
+        jobId: input.jobId,
+        kieTaskId: taskId,
+        toolKey: 'social-cover-generator',
+        metadata: {
+          stage: 'image',
+          slot_id: slot.id,
+          language: slot.language,
+          aspect_ratio: slot.aspectRatio,
+        },
+      });
+
+      nextSlots = nextSlots.map((candidate) =>
+        candidate.id === slot.id ? { ...candidate, taskId, status: 'processing' as const } : candidate
+      );
+      nextMetadata = {
+        ...nextMetadata,
+        slots: nextSlots,
+      };
+      await updateToolGenerationJob(input.jobId, { metadata: nextMetadata });
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to start social cover generation.';
+    console.error('[tools/social-cover-generator] Background generation failed:', error);
+    await refundToolGenerationCredits({
+      userId: input.userId,
+      amount: input.billedCredits,
+      reason: 'Social Cover Generator failed to start',
+      historyId: input.jobId,
+    });
+    await updateToolGenerationJob(input.jobId, {
+      status: 'failed',
+      error_message: errorMessage,
+      billing_refunded_at: new Date().toISOString(),
+    });
+  }
+}
+
 export async function POST(request: NextRequest) {
   let jobIdForRollback: string | null = null;
   let chargedCredits = 0;
@@ -163,87 +269,50 @@ export async function POST(request: NextRequest) {
     }
     chargedCredits = charge.chargedCredits;
 
-    try {
-      const timestamp = Date.now();
-      const [personImageUrl, productOrLogoImageUrl] = await Promise.all([
-        uploadKieImage(body.personImageDataUrl, `person-${timestamp}.jpg`),
-        uploadKieImage(body.productOrLogoImageDataUrl, `product-logo-${timestamp}.png`),
-      ]);
-      const titleResult = await buildSocialCoverTitleSet(title, options.languages);
-      const styleGuide = typeof body.styleGuide === 'string' ? body.styleGuide.trim().slice(0, 2000) : undefined;
-      const slots = buildSocialCoverSlots({
-        options,
-        titles: titleResult.titles,
-        sourceTitle: title,
-        styleGuide,
-        taskIds: new Array(slotCount).fill(''),
-      });
-      const progress = calculateSocialCoverProgress({ slots });
-      const metadata: SocialCoverMetadata = {
-        source_title: title,
-        titles: titleResult.titles,
-        title_fallback: titleResult.fallback,
-        style_guide: styleGuide,
-        options,
-        person_image_url: personImageUrl,
-        product_or_logo_image_url: productOrLogoImageUrl,
-        slots,
-        completed_outputs: progress.completed,
-        total_outputs: progress.total,
-        resolution: options.resolution,
-      };
+    const styleGuide = typeof body.styleGuide === 'string' ? body.styleGuide.trim().slice(0, 2000) : undefined;
+    const fallbackTitles = buildFallbackTitleSet(title);
+    const optimisticSlots = buildSocialCoverSlots({
+      options,
+      titles: fallbackTitles,
+      sourceTitle: title,
+      styleGuide,
+      taskIds: new Array(slotCount).fill(''),
+    }).map((slot) => ({ ...slot, status: 'processing' as const }));
+    const progress = calculateSocialCoverProgress({ slots: optimisticSlots });
+    const metadata: SocialCoverMetadata = {
+      source_title: title,
+      titles: fallbackTitles,
+      title_fallback: true,
+      style_guide: styleGuide,
+      options,
+      slots: optimisticSlots,
+      completed_outputs: progress.completed,
+      total_outputs: progress.total,
+      resolution: options.resolution,
+    };
 
-      const job = await createToolGenerationJob({
-        userId,
-        toolKey: 'social-cover-generator',
-        status: 'processing',
-        metadata,
-        billedCredits: charge.chargedCredits,
-      });
-      jobIdForRollback = job.id;
+    const job = await createToolGenerationJob({
+      userId,
+      toolKey: 'social-cover-generator',
+      status: 'processing',
+      metadata,
+      billedCredits: charge.chargedCredits,
+    });
+    jobIdForRollback = job.id;
 
-      const nextSlots = [];
-      for (const slot of slots) {
-        const taskId = await createKieImageTask({
-          prompt: slot.prompt,
-          inputUrls: [personImageUrl, productOrLogoImageUrl],
-          aspectRatio: slot.aspectRatio,
-          resolution: options.resolution,
-          callBackUrl: `${siteUrl}/api/tools/webhooks/kie`,
-        });
-        await createToolGenerationTask({
-          jobId: job.id,
-          kieTaskId: taskId,
-          toolKey: 'social-cover-generator',
-          metadata: { stage: 'image', slot_id: slot.id, language: slot.language, aspect_ratio: slot.aspectRatio },
-        });
-        nextSlots.push({ ...slot, taskId, status: 'processing' as const });
-      }
+    after(() => startSocialCoverTasksInBackground({
+      jobId: job.id,
+      userId,
+      personImageDataUrl: body.personImageDataUrl,
+      productOrLogoImageDataUrl: body.productOrLogoImageDataUrl,
+      title,
+      styleGuide,
+      options,
+      billedCredits: charge.chargedCredits,
+      siteUrl,
+    }));
 
-      const nextMetadata: SocialCoverMetadata = {
-        ...metadata,
-        slots: nextSlots,
-      };
-      const nextJob = await updateToolGenerationJob(job.id, { metadata: nextMetadata });
-
-      return NextResponse.json({ success: true, jobId: job.id, job: nextJob ?? job }, { status: 202 });
-    } catch (error) {
-      await refundToolGenerationCredits({
-        userId,
-        amount: charge.chargedCredits,
-        reason: 'Social Cover Generator failed to start',
-        historyId: jobIdForRollback ?? undefined,
-      });
-      chargedCredits = 0;
-      if (jobIdForRollback) {
-        await updateToolGenerationJob(jobIdForRollback, {
-          status: 'failed',
-          error_message: error instanceof Error ? error.message : 'Failed to start social cover generation.',
-          billing_refunded_at: new Date().toISOString(),
-        });
-      }
-      throw error;
-    }
+    return NextResponse.json({ success: true, jobId: job.id, job }, { status: 202 });
   } catch (error) {
     if (chargedCredits > 0 && userIdForRollback && !jobIdForRollback) {
       await refundToolGenerationCredits({

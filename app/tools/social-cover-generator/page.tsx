@@ -157,6 +157,30 @@ function statusBadgeClass(status?: SocialCoverSlotStatus) {
   return "border-[#E5E5E5] bg-[#F7F7F7] text-[#666666]";
 }
 
+function buildOptimisticSlots(input: {
+  title: string;
+  languages: SocialCoverLanguage[];
+  aspectRatiosByLanguage: Record<SocialCoverLanguage, SocialCoverAspectRatio[]>;
+}): SocialCoverSlot[] {
+  const sourceTitle = input.title.trim();
+  const slots: SocialCoverSlot[] = [];
+  for (const language of input.languages) {
+    for (const aspectRatio of input.aspectRatiosByLanguage[language] ?? []) {
+      slots.push({
+        id: `cover-${language}-${aspectRatio}-1`,
+        language,
+        aspectRatio,
+        variantIndex: 1,
+        title: sourceTitle,
+        taskId: "",
+        status: "processing",
+        prompt: "",
+      });
+    }
+  }
+  return slots;
+}
+
 function terminalJob(job: ToolGenerationJob | null) {
   return job?.status === "completed" || job?.status === "failed";
 }
@@ -252,8 +276,8 @@ function AssetPicker({
   onAdd: () => void;
 }) {
   return (
-    <section className="rounded-lg border border-[#E5E5E5] bg-white p-4">
-      <div className="mb-3 flex items-start justify-between gap-3">
+    <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#E5E5E5] bg-white p-4">
+      <div className="mb-3 flex shrink-0 items-start justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-sm font-semibold text-black">
             {icon}
@@ -262,7 +286,7 @@ function AssetPicker({
           <p className="mt-1 text-xs leading-5 text-[#666666]">{subtitle}</p>
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-3 content-start gap-2 overflow-y-auto pr-1">
         {isLoading ? (
           <div className="col-span-3 flex h-24 items-center justify-center rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] text-xs font-medium text-[#666666]">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
@@ -465,10 +489,17 @@ function CoverCard({
           </button>
         </>
       ) : (
-        <div className={cn(ASPECT_CLASS[slot.aspectRatio], "flex items-center justify-center rounded-md border border-dashed border-[#E5E5E5] bg-[#F7F7F7] p-4 text-center text-xs text-[#666666]")}>
-          <div className="flex flex-col items-center gap-2">
-            <ImageIcon className="h-6 w-6" aria-hidden="true" />
-            <span>{statusLabel(slot.status)}</span>
+        <div className={cn(ASPECT_CLASS[slot.aspectRatio], "relative flex items-center justify-center overflow-hidden rounded-md border border-dashed border-[#E5E5E5] bg-[#F7F7F7] p-4 text-center text-xs text-[#666666]")}>
+          {slot.status === "processing" || slot.status === "waiting" ? (
+            <div className="absolute inset-0 -translate-x-full animate-shimmer bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.92)_50%,transparent_100%)] bg-[length:200%_100%]" />
+          ) : null}
+          <div className="relative z-10 flex flex-col items-center gap-2">
+            {slot.status === "processing" || slot.status === "waiting" ? (
+              <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
+            ) : (
+              <ImageIcon className="h-6 w-6" aria-hidden="true" />
+            )}
+            <span>{slot.status === "waiting" ? "Generating" : statusLabel(slot.status)}</span>
           </div>
         </div>
       )}
@@ -509,6 +540,7 @@ export default function SocialCoverGeneratorPage() {
   const [status, setStatus] = useState<PageStatus>("idle");
   const [jobId, setJobId] = useState<string | null>(null);
   const [currentJob, setCurrentJob] = useState<ToolGenerationJob | null>(null);
+  const [optimisticSlots, setOptimisticSlots] = useState<SocialCoverSlot[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [retryingSlotId, setRetryingSlotId] = useState<string | null>(null);
@@ -529,10 +561,12 @@ export default function SocialCoverGeneratorPage() {
     () => (currentJob?.metadata ?? {}) as Partial<SocialCoverMetadata>,
     [currentJob?.metadata]
   );
-  const slots = useMemo(() => metadata.slots ?? [], [metadata.slots]);
+  const slots = useMemo(() => metadata.slots ?? optimisticSlots, [metadata.slots, optimisticSlots]);
   const completed = metadata.completed_outputs ?? slots.filter((slot) => slot.status === "success").length;
   const total = metadata.total_outputs ?? (slots.length || languages.reduce((count, language) => count + (aspectRatiosByLanguage[language]?.length ?? 0), 0));
-  const isBusy = status === "reading" || status === "starting" || status === "processing";
+  const isReadingImage = status === "reading";
+  const isGenerating = status === "starting" || status === "processing";
+  const controlsDisabled = isReadingImage;
   const selectedOutputCount = languages.reduce((count, language) => count + (aspectRatiosByLanguage[language]?.length ?? 0), 0);
   const estimatedCredits = selectedOutputCount * IMAGE_GENERATION_CREDIT_COST;
   const accessChecking = !isUserLoaded || (Boolean(isSignedIn) && creditStatus.isLoading);
@@ -555,7 +589,7 @@ export default function SocialCoverGeneratorPage() {
           : insufficientCredits
             ? "Not enough credits"
             : "Generate covers";
-  const generateDisabled = isBusy || !personImage || !productImage || !title.trim() || accessChecking || accessWarning;
+  const generateDisabled = isReadingImage || isGenerating || !personImage || !productImage || !title.trim() || accessChecking || accessWarning;
   const fileNameMap = useMemo(() => {
     if (!currentJob || !metadata.source_title) return {};
     return buildSocialCoverFileNameMap({
@@ -650,6 +684,7 @@ export default function SocialCoverGeneratorPage() {
   useEffect(() => {
     if (!job) return;
     setCurrentJob(job);
+    setOptimisticSlots([]);
     if (terminalJob(job)) {
       setStatus(job.status === "completed" ? "completed" : "error");
     } else {
@@ -890,6 +925,7 @@ export default function SocialCoverGeneratorPage() {
     setError(null);
     setCurrentJob(null);
     setJobId(null);
+    setOptimisticSlots(buildOptimisticSlots({ title, languages, aspectRatiosByLanguage }));
     try {
       const response = await fetch("/api/tools/social-cover-generator", {
         method: "POST",
@@ -911,6 +947,7 @@ export default function SocialCoverGeneratorPage() {
       if (typeof window !== "undefined") window.sessionStorage.setItem(SESSION_KEY, payload.jobId);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Failed to start generation.");
+      setOptimisticSlots([]);
       setStatus("error");
     }
   }
@@ -997,6 +1034,23 @@ export default function SocialCoverGeneratorPage() {
     }
   }
 
+  function resetGenerationState() {
+    setJobId(null);
+    setCurrentJob(null);
+    setOptimisticSlots([]);
+    setError(null);
+    setRetryingSlotId(null);
+    setRegenerateSlot(null);
+    setRegenerateError(null);
+    setRefinementText("");
+    setIsRegenerating(false);
+    setIsExporting(false);
+    setStatus("idle");
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(SESSION_KEY);
+    }
+  }
+
   return (
     <>
       <ToolPageShell
@@ -1005,8 +1059,8 @@ export default function SocialCoverGeneratorPage() {
         statusLabel={heroCreditState.label}
         statusTone={heroCreditState.icon === "loading" ? "loading" : heroCreditState.icon === "warning" ? "warning" : "credits"}
       >
-            <section className="grid gap-5 rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] p-4 lg:grid-cols-[minmax(260px,0.42fr)_minmax(0,0.58fr)]">
-              <div className="grid gap-4">
+            <section className="grid gap-5 rounded-lg border border-[#E5E5E5] bg-[#F7F7F7] p-4 lg:h-[820px] lg:grid-cols-[minmax(260px,0.42fr)_minmax(0,0.58fr)] lg:items-stretch xl:h-[920px]">
+              <div className="grid min-h-0 gap-4 lg:grid-rows-2">
                 <AssetPicker
                   title="Portrait"
                   subtitle="Founder, creator, model, or talking-head reference."
@@ -1014,7 +1068,7 @@ export default function SocialCoverGeneratorPage() {
                   assets={personAssets}
                   selectedAssetId={selectedPersonAssetId}
                   image={personImage}
-                  disabled={isBusy}
+                  disabled={controlsDisabled}
                   isLoading={isLoadingAssets}
                   uploadLabel="New portrait"
                   onSelect={(asset) => void selectAsset("person", asset)}
@@ -1027,7 +1081,7 @@ export default function SocialCoverGeneratorPage() {
                   assets={productAssets}
                   selectedAssetId={selectedProductAssetId}
                   image={productImage}
-                  disabled={isBusy}
+                  disabled={controlsDisabled}
                   isLoading={isLoadingAssets}
                   uploadLabel="New product"
                   onSelect={(asset) => void selectAsset("product", asset)}
@@ -1035,7 +1089,7 @@ export default function SocialCoverGeneratorPage() {
                 />
               </div>
 
-              <section data-social-cover-config-card className="flex h-[720px] min-h-0 flex-col overflow-hidden rounded-lg border border-[#E5E5E5] bg-white lg:h-[820px] xl:h-[920px]">
+              <section data-social-cover-config-card className="flex h-[720px] min-h-0 flex-col overflow-hidden rounded-lg border border-[#E5E5E5] bg-white lg:h-full">
                 <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4">
                   <label className="block shrink-0">
                     <span className="flex items-center gap-2 text-sm font-semibold text-black">
@@ -1046,7 +1100,7 @@ export default function SocialCoverGeneratorPage() {
                       value={title}
                       onChange={(event) => setTitle(event.target.value)}
                       placeholder="Launch title, hook, or campaign headline"
-                      disabled={isBusy}
+                      disabled={controlsDisabled}
                       className="mt-2 h-11 w-full rounded-md border border-[#E5E5E5] bg-white px-3 text-sm text-black outline-none transition placeholder:text-[#999999] focus:border-[#D7D7D7] disabled:opacity-60"
                     />
                   </label>
@@ -1060,7 +1114,7 @@ export default function SocialCoverGeneratorPage() {
                       <div ref={presetMenuRef} className="relative min-w-0">
                         <button
                           type="button"
-                          disabled={isBusy}
+                          disabled={controlsDisabled}
                           aria-haspopup="listbox"
                           aria-expanded={isPresetMenuOpen}
                           onPointerDown={(event) => {
@@ -1115,7 +1169,7 @@ export default function SocialCoverGeneratorPage() {
                       <button
                         type="button"
                         onClick={openPresetEditor}
-                        disabled={isBusy}
+                        disabled={controlsDisabled}
                         className="flex h-11 w-11 items-center justify-center rounded-md border border-[#E5E5E5] bg-[#F7F7F7] text-black transition hover:border-black disabled:cursor-not-allowed disabled:opacity-60"
                         aria-label="Edit style preset"
                       >
@@ -1131,7 +1185,7 @@ export default function SocialCoverGeneratorPage() {
                           setStyleAnalysisError(null);
                           setIsConfigOpen(true);
                         }}
-                        disabled={isBusy}
+                        disabled={controlsDisabled}
                         className="flex h-11 w-11 items-center justify-center rounded-md border border-[#E5E5E5] bg-[#F7F7F7] text-black transition hover:border-black disabled:cursor-not-allowed disabled:opacity-60"
                         aria-label="Add style preset"
                       >
@@ -1152,7 +1206,7 @@ export default function SocialCoverGeneratorPage() {
                             key={option.value}
                             value={option.value}
                             selected={languages.includes(option.value)}
-                            disabled={isBusy}
+                            disabled={controlsDisabled}
                             showCheck
                             className="h-11 w-full justify-start"
                             onToggle={toggleLanguage}
@@ -1208,7 +1262,7 @@ export default function SocialCoverGeneratorPage() {
                                         key={`${language}-${aspectRatio}`}
                                         value={aspectRatio}
                                         selected={selectedRatios.includes(aspectRatio)}
-                                        disabled={isBusy}
+                                        disabled={controlsDisabled}
                                         showCheck
                                         onToggle={(value) => toggleAspectRatio(language, value)}
                                       >
@@ -1270,15 +1324,26 @@ export default function SocialCoverGeneratorPage() {
                     {metadata.title_fallback ? "Localized title generation used the original title as fallback." : "Results update automatically when KIE webhooks arrive."}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={downloadZip}
-                  disabled={!currentJob || completed === 0 || isExporting}
-                  className="flex h-10 items-center justify-center gap-2 rounded-md border border-[#E5E5E5] bg-white px-3 text-xs font-semibold text-black transition hover:border-black disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isExporting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
-                  Export ZIP
-                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={resetGenerationState}
+                    disabled={!currentJob && optimisticSlots.length === 0}
+                    className="flex h-10 items-center justify-center gap-2 rounded-md border border-[#E5E5E5] bg-white px-3 text-xs font-semibold text-black transition hover:border-black disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                    Reset
+                  </button>
+                  <button
+                    type="button"
+                    onClick={downloadZip}
+                    disabled={!currentJob || completed === 0 || isExporting}
+                    className="flex h-10 items-center justify-center gap-2 rounded-md border border-[#E5E5E5] bg-white px-3 text-xs font-semibold text-black transition hover:border-black disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isExporting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
+                    Export ZIP
+                  </button>
+                </div>
               </div>
               <div className="p-4">
                 {slots.length ? (
@@ -1397,7 +1462,7 @@ export default function SocialCoverGeneratorPage() {
                   </div>
                   <button
                     type="button"
-                    disabled={isBusy || isAnalyzingStyle}
+                    disabled={controlsDisabled || isAnalyzingStyle}
                     onClick={() => styleAnalysisInputRef.current?.click()}
                     className="flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-[#E5E5E5] bg-white px-3 text-xs font-semibold text-black transition hover:border-black disabled:cursor-not-allowed disabled:opacity-60"
                   >
@@ -1433,7 +1498,7 @@ export default function SocialCoverGeneratorPage() {
                     value={presetName}
                     onChange={(event) => setPresetName(event.target.value)}
                     placeholder="Preset name"
-                    disabled={isBusy || isAnalyzingStyle}
+                    disabled={controlsDisabled || isAnalyzingStyle}
                     className="h-10 w-full rounded-md border border-[#E5E5E5] bg-white px-3 text-sm text-black outline-none focus:border-[#D7D7D7] disabled:opacity-60"
                   />
                   {isAnalyzingStyle ? <WaveLoadingOverlay /> : null}
@@ -1446,7 +1511,7 @@ export default function SocialCoverGeneratorPage() {
                     value={styleGuide}
                     onChange={(event) => setStyleGuide(event.target.value)}
                     placeholder="Describe the cover style"
-                    disabled={isBusy || isAnalyzingStyle}
+                    disabled={controlsDisabled || isAnalyzingStyle}
                     rows={5}
                     className="w-full resize-none rounded-md border border-[#E5E5E5] bg-white px-3 py-3 text-sm leading-6 text-black outline-none transition placeholder:text-[#999999] focus:border-[#D7D7D7] disabled:opacity-60"
                   />
@@ -1454,11 +1519,11 @@ export default function SocialCoverGeneratorPage() {
                 </span>
               </label>
               <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={savePreset} disabled={isBusy || isAnalyzingStyle || !styleGuide.trim()} className="flex h-10 items-center justify-center gap-2 rounded-md border border-black bg-black text-xs font-semibold text-white transition hover:bg-[#222222] disabled:cursor-not-allowed disabled:opacity-60">
+                <button type="button" onClick={savePreset} disabled={controlsDisabled || isAnalyzingStyle || !styleGuide.trim()} className="flex h-10 items-center justify-center gap-2 rounded-md border border-black bg-black text-xs font-semibold text-white transition hover:bg-[#222222] disabled:cursor-not-allowed disabled:opacity-60">
                   <Save className="h-4 w-4" aria-hidden="true" />
                   Save
                 </button>
-                <button type="button" onClick={deletePreset} disabled={isBusy || isAnalyzingStyle || !selectedPresetId} className="flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 text-xs font-semibold text-red-700 transition hover:border-red-300 disabled:cursor-not-allowed disabled:opacity-60">
+                <button type="button" onClick={deletePreset} disabled={controlsDisabled || isAnalyzingStyle || !selectedPresetId} className="flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 text-xs font-semibold text-red-700 transition hover:border-red-300 disabled:cursor-not-allowed disabled:opacity-60">
                   <Trash2 className="h-4 w-4" aria-hidden="true" />
                   Delete
                 </button>

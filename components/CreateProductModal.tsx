@@ -46,14 +46,6 @@ export default function CreateProductModal({
   const referenceInputRef = useRef<HTMLInputElement | null>(null);
   const processedGenerationJobIdsRef = useRef<Set<string>>(new Set());
 
-  const triggerReferenceRequirementHint = () => {
-    setHighlightReferenceRequirement(false);
-    requestAnimationFrame(() => {
-      setHighlightReferenceRequirement(true);
-      window.setTimeout(() => setHighlightReferenceRequirement(false), 1100);
-    });
-  };
-
   useEffect(() => {
     if (isOpen) {
       setProductName('');
@@ -287,12 +279,6 @@ export default function CreateProductModal({
       return;
     }
 
-    if (referenceImages.length < 1) {
-      setFormError(createProductMessages.errors.referenceRequired);
-      triggerReferenceRequirementHint();
-      return;
-    }
-
     setIsCreating(true);
     setFormError(null);
 
@@ -438,7 +424,7 @@ export default function CreateProductModal({
               requiredLabel={createFieldsMessages.required}
               referenceColumns={2}
               referenceGenerateDisabled={referenceImages.length >= 3 || isCreating || isUploading || isGeneratingReferences}
-              referenceMinimumLabel={createFieldsMessages.minimumOne}
+              referenceMinimumLabel="Optional"
               referenceHelpAriaLabel={createProductMessages.referencesHelpLabel}
               referenceHelpContent={(
                 <p className="text-xs text-gray-700">
