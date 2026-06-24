@@ -211,7 +211,7 @@ export const normalizeProjectAgentPendingUiRequest = (
   const record = value as Record<string, unknown>;
   if (record.type === 'asset_selection') {
     if (
-      (record.assetType !== 'avatar' && record.assetType !== 'product' && record.assetType !== 'video') ||
+      (record.assetType !== 'avatar' && record.assetType !== 'product' && record.assetType !== 'video' && record.assetType !== 'pet') ||
       typeof record.nodeAlias !== 'string' ||
       typeof record.title !== 'string' ||
       typeof record.instructions !== 'string' ||

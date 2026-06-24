@@ -788,6 +788,7 @@ export default function VideoImportModal({
                 </div>
               </div>
               <button
+                type="button"
                 onClick={onClose}
                 className="assets-modal-close w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
                 disabled={isSubmitting}
@@ -800,6 +801,7 @@ export default function VideoImportModal({
               <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
                 <div className="grid w-full grid-cols-1 gap-5 md:grid-cols-2">
                   <button
+                    type="button"
                     onClick={() => setStep('link')}
                     className="assets-video-import-option group flex aspect-[4/3] flex-col justify-between rounded-2xl border border-gray-200 bg-white p-6 text-left transition-all hover:-translate-y-0.5 hover:border-black hover:shadow-[0_16px_40px_rgba(0,0,0,0.06)]"
                   >
@@ -819,6 +821,7 @@ export default function VideoImportModal({
                     </div>
                   </button>
                   <button
+                    type="button"
                     onClick={() => setStep('upload')}
                     className="assets-video-import-option group flex aspect-[4/3] flex-col justify-between rounded-2xl border border-gray-200 bg-white p-6 text-left transition-all hover:-translate-y-0.5 hover:border-black hover:shadow-[0_16px_40px_rgba(0,0,0,0.06)]"
                   >
@@ -844,6 +847,7 @@ export default function VideoImportModal({
             {(step === 'link' || step === 'upload') && (
               <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
                 <button
+                  type="button"
                   onClick={handleBackToChoose}
                   className="assets-video-import-back inline-flex items-center gap-2 rounded-full text-sm text-gray-500 hover:text-gray-700"
                 >
@@ -908,6 +912,7 @@ export default function VideoImportModal({
                             />
                           </div>
                           <button
+                            type="button"
                             onClick={handleImportLink}
                             disabled={isSubmitting}
                             className="assets-modal-primary w-full px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
@@ -948,6 +953,7 @@ export default function VideoImportModal({
             {step === 'creator' && (
               <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
                 <button
+                  type="button"
                   onClick={handleBackToChoose}
                   className="assets-video-import-back inline-flex items-center gap-2 rounded-full text-sm text-gray-500 hover:text-gray-700"
                 >
@@ -969,6 +975,7 @@ export default function VideoImportModal({
                       />
                     </div>
                     <button
+                      type="button"
                       onClick={handlePreviewCreator}
                       disabled={isPreviewLoading}
                       className="assets-modal-secondary px-4 py-2 text-sm font-medium border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
@@ -984,6 +991,7 @@ export default function VideoImportModal({
             {step === 'creator-preview' && (
               <div className="assets-modal-body min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
                 <button
+                  type="button"
                   onClick={() => setStep('creator')}
                   className="assets-video-import-back inline-flex items-center gap-2 rounded-full text-sm text-gray-500 hover:text-gray-700"
                 >
@@ -996,6 +1004,7 @@ export default function VideoImportModal({
                     Select videos to import ({selectedVideos.length} selected)
                   </p>
                   <button
+                    type="button"
                     onClick={handleImportCreatorVideos}
                     disabled={isSubmitting || selectedVideos.length === 0}
                     className="assets-modal-primary px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-60"
@@ -1008,6 +1017,7 @@ export default function VideoImportModal({
                   <div className="assets-video-import-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                     {previewVideos.map(video => (
                       <button
+                        type="button"
                         key={video.platform_video_id}
                         onClick={() => toggleSelected(video.platform_video_id)}
                         className={`assets-video-import-tile group text-left border rounded-lg overflow-hidden transition-colors ${selectedVideoIds.has(video.platform_video_id) ? 'border-black ring-1 ring-black' : 'border-gray-200 hover:border-gray-400'}`}

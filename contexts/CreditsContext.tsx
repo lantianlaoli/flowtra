@@ -34,7 +34,7 @@ interface CreditsProviderProps {
 
 const CREDITS_CACHE_PREFIX = 'flowtra:credits:';
 const CREDITS_CACHE_TTL_MS = 5 * 60 * 1000;
-const CREDITS_FETCH_TIMEOUT_MS = process.env.NODE_ENV === 'development' ? 1500 : 4000;
+const CREDITS_FETCH_TIMEOUT_MS = process.env.NODE_ENV === 'development' ? 6000 : 4000;
 
 interface CachedCredits {
   credits_remaining: number;
@@ -234,6 +234,7 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
 
           if (payload.new && isMountedRef.current) {
             const newCredits = payload.new as UserCredits;
+            writeCachedCredits(user.id, newCredits.credits_remaining);
             setCreditsData({
               credits_remaining: newCredits.credits_remaining,
             });
@@ -264,6 +265,10 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
   };
 
   const updateCredits = (newCredits: number) => {
+    if (user?.id) {
+      writeCachedCredits(user.id, newCredits);
+    }
+    setCreditsData({ credits_remaining: newCredits });
     setCredits(newCredits);
   };
 

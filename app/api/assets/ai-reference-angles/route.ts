@@ -61,7 +61,9 @@ export async function POST(request: NextRequest) {
         ? 'product'
         : body?.assetType === 'universal'
           ? 'universal'
-          : null;
+          : body?.assetType === 'pet'
+            ? 'pet'
+            : null;
     const sourceAspect = body?.sourceAspect === 'portrait' || body?.sourceAspect === 'square' || body?.sourceAspect === 'landscape'
       ? body.sourceAspect
       : undefined;
@@ -81,7 +83,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!assetType) {
-      return NextResponse.json({ error: 'assetType must be avatar, product, or universal' }, { status: 400 });
+      return NextResponse.json({ error: 'assetType must be avatar, product, universal, or pet' }, { status: 400 });
     }
 
     if (maxGeneratableCount <= 0) {

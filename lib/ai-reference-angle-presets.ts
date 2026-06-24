@@ -95,8 +95,32 @@ export const ANGLE_PRESETS: Record<AiReferenceAngleAssetType, AnglePreset[]> = {
         'Generate a centered rear-view image of the same subject, object, or entity. Preserve identity and all defining visual characteristics, including shape, proportions, colors, textures, fur or material detail, and distinguishing marks. Do not introduce new objects, products, logos, text, packaging, accessories, or props. Maintain a clean background and high detail.'
       )
     }
+  ],
+  pet: [
+    {
+      key: 'front_left_45',
+      label: '45° Front Left',
+      prompt: withStyleLock(
+        `Generate the same pet from a 45-degree front-left perspective. ${CAMERA_LEFT_DEFINITION} Preserve the exact pet identity: breed traits, coat color and pattern, fur texture, eye color, ear shape, body proportions, collar or accessories, and any distinguishing markings. Maintain a clean background and high visual fidelity.`
+      )
+    },
+    {
+      key: 'front_right_45',
+      label: '45° Front Right',
+      prompt: withStyleLock(
+        `Generate the same pet from a 45-degree front-right perspective. ${CAMERA_RIGHT_DEFINITION} Preserve the exact pet identity: breed traits, coat color and pattern, fur texture, eye color, ear shape, body proportions, collar or accessories, and any distinguishing markings. Maintain a clean background and high visual fidelity.`
+      )
+    },
+    {
+      key: 'back_view',
+      label: 'Back View',
+      prompt: withStyleLock(
+        'Generate the same pet from a centered rear view. Preserve the exact pet identity: breed traits, coat color and pattern, fur texture, body proportions, tail shape, and any distinguishing markings. Do not generate a front-facing or side-profile view. Maintain a clean background and high visual fidelity.'
+      )
+    }
   ]
 };
+;
 
 export function selectAnglePresets(
   assetType: AiReferenceAngleAssetType,
@@ -115,6 +139,6 @@ export function getReferenceAngleAspectRatio(
   sourceAspect?: SourceAspect
 ): '9:16' | '1:1' {
   if (assetType === 'avatar') return '9:16';
-  if (assetType === 'product') return '1:1';
+  if (assetType === 'product' || assetType === 'pet') return '1:1';
   return getUniversalImageSize(sourceAspect);
 }

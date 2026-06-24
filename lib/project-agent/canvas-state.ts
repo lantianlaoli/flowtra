@@ -10,7 +10,7 @@ export type ProjectAgentFeatureNodeType =
   | 'avatar_ads'
   | 'motion_clone';
 
-export type ProjectAgentAssetNodeType = 'avatar' | 'product' | 'video' | 'text';
+export type ProjectAgentAssetNodeType = 'avatar' | 'product' | 'video' | 'pet' | 'text';
 
 export type ProjectAgentOutputNodeType = 'output_video';
 export type ProjectAgentFeedbackProjectType = 'avatar-ads' | 'video-clone' | 'motion-clone';
@@ -61,6 +61,7 @@ export type ProjectAgentCanvasAssetRef = {
   videoCdnUrl?: string | null;
   analysisLanguage?: string | null;
   isSystem?: boolean;
+  kind?: ProjectAgentAssetNodeType;
 };
 
 export type ProjectAgentOutputFeedbackPayload = {
@@ -87,6 +88,7 @@ export type ProjectAgentFeatureNodeConfig = {
   videoDuration?: VideoDuration;
   videoModel?: 'seedance_2_fast' | 'seedance_2' | 'seedance_2_mini' | 'kling_3' | 'wan_27';
   videoQuality?: '480p' | '720p' | '1080p';
+  videoQualityManual?: boolean;
   runCount?: 1 | 2 | 3;
 };
 
@@ -258,7 +260,7 @@ export const PROJECT_AGENT_FEATURE_ANY_OF_INPUTS: Partial<Record<
   ProjectAgentFeatureNodeType,
   ProjectAgentAssetNodeType[]
 >> = {
-  video_clone: ['avatar', 'product'],
+  video_clone: ['avatar', 'product', 'pet'],
   motion_clone: ['avatar', 'product'],
 };
 
@@ -311,6 +313,8 @@ export const getProjectAgentAssetDisplayName = (
       return 'Product';
     case 'video':
       return 'Video';
+    case 'pet':
+      return 'Pet';
     case 'text':
       return 'Instruction';
     default:
@@ -327,7 +331,7 @@ export const isProjectAgentFeatureNode = (
 export const isProjectAgentAssetNode = (
   type: ProjectAgentCanvasNodeType
 ): type is ProjectAgentAssetNodeType => {
-  return type === 'avatar' || type === 'product' || type === 'video' || type === 'text';
+  return type === 'avatar' || type === 'product' || type === 'video' || type === 'pet' || type === 'text';
 };
 
 export const isProjectAgentOutputNode = (
@@ -453,7 +457,7 @@ export const getMissingFeatureInputs = (
 
   if (featureNode.type === 'video_clone') {
     const hasVideo = connected.has('video');
-    const hasCloneTarget = connected.has('avatar') || connected.has('product');
+    const hasCloneTarget = connected.has('avatar') || connected.has('product') || connected.has('pet');
     const hasEditPrompt = connected.has('text');
 
     if (hasVideo && (hasCloneTarget || hasEditPrompt)) {
@@ -461,14 +465,14 @@ export const getMissingFeatureInputs = (
     }
 
     if (!hasVideo && !hasCloneTarget && !hasEditPrompt) {
-      return ['video', 'avatar', 'product', 'text'];
+      return ['video', 'avatar', 'product', 'pet', 'text'];
     }
 
     if (!hasVideo) {
       return ['video'];
     }
 
-    return ['avatar', 'product', 'text'];
+    return ['avatar', 'product', 'pet', 'text'];
   }
 
   // Strict required inputs — ALL must be connected
@@ -496,7 +500,7 @@ export const formatMissingFeatureInputsLabel = (
       missingInputs.includes('text');
 
     if (needsVideo && needsCloneOrEdit) {
-      return 'video and avatar or product or edit instruction';
+      return 'video and avatar, product, pet, or edit instruction';
     }
 
     if (needsVideo) {
@@ -504,7 +508,7 @@ export const formatMissingFeatureInputsLabel = (
     }
 
     if (needsCloneOrEdit) {
-      return 'avatar or product or edit instruction';
+      return 'avatar, product, pet, or edit instruction';
     }
   }
 
@@ -515,10 +519,10 @@ export const formatMissingFeatureInputsLabel = (
   if (featureType === 'video_clone' || featureType === 'motion_clone') {
     const needsVideo = missingInputs.includes('video');
     const needsSwapTarget =
-      missingInputs.includes('avatar') && missingInputs.includes('product');
+      missingInputs.includes('avatar') && missingInputs.includes('product') && missingInputs.includes('pet');
 
     if (needsVideo && needsSwapTarget) {
-      return 'video and avatar or product';
+      return 'video and avatar, product, or pet';
     }
 
     if (needsVideo) {
@@ -526,7 +530,7 @@ export const formatMissingFeatureInputsLabel = (
     }
 
     if (needsSwapTarget) {
-      return 'avatar or product';
+      return 'avatar, product, or pet';
     }
   }
 
@@ -562,7 +566,7 @@ export const getFeatureStartBlockedReason = (
   if (featureNode.type === 'video_clone') {
     const hasVideo = connected.has('video');
     const hasText = connected.has('text');
-    const hasCloneTarget = connected.has('avatar') || connected.has('product');
+    const hasCloneTarget = connected.has('avatar') || connected.has('product') || connected.has('pet');
     const videoNode = connected.get('video');
     const durationSeconds = videoNode?.asset?.durationSeconds;
 

@@ -143,8 +143,10 @@ export interface SingleVideoProject {
 export interface VideoCloneSelectedInputs {
   primaryAvatarId?: string | null
   primaryProductId?: string | null
+  primaryPetId?: string | null
   avatarIds?: string[]
   productIds?: string[]
+  petIds?: string[]
   workflowSource?: 'project_agent_clone' | 'default' | string
   mergePolicy?: 'manual_confirm' | 'auto' | string
   referenceSourceType?: 'reference_video' | 'creator_source_video' | null
@@ -1014,6 +1016,113 @@ export const deleteUserPet = async (petId: string, userId: string): Promise<void
     }
   }
 }
+
+export const updatePetName = async (
+  petId: string,
+  userId: string,
+  newName: string
+): Promise<UserPet> => {
+  // Schema verified via Supabase MCP (2026-06-24): user_pets has pet_name and is_active.
+  const pet = await getUserPetById(petId, userId)
+  if (!pet) {
+    throw new Error('Pet not found or unauthorized')
+  }
+
+  const supabase = getSupabaseAdmin()
+  const { data, error } = await supabase
+    .from('user_pets')
+    .update({ pet_name: newName })
+    .eq('id', petId)
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .select('*')
+    .single()
+
+  if (error || !data) {
+    throw error ?? new Error('Failed to update pet name')
+  }
+
+  return data as UserPet
+}
+
+export const replacePetPhoto = async (
+  petId: string,
+  userId: string,
+  view: PetPhotoView,
+  file: File
+): Promise<UserPet> => {
+  // Schema verified via Supabase MCP (2026-06-24):
+  // user_pets has front/side/back URL, file, bucket, path columns plus is_active.
+  const pet = await getUserPetById(petId, userId)
+  if (!pet) {
+    throw new Error('Pet not found or unauthorized')
+  }
+
+  const supabase = getSupabaseAdmin()
+  const uploaded = await uploadPetPhotoToStorage(file, userId, { petId, view })
+
+  const viewColumns: Record<PetPhotoView, Record<string, string>> = {
+    front: {
+      photo_url: 'front_photo_url',
+      file_name: 'front_file_name',
+      storage_bucket: 'front_storage_bucket',
+      storage_path: 'front_storage_path'
+    },
+    side: {
+      photo_url: 'side_photo_url',
+      file_name: 'side_file_name',
+      storage_bucket: 'side_storage_bucket',
+      storage_path: 'side_storage_path'
+    },
+    back: {
+      photo_url: 'back_photo_url',
+      file_name: 'back_file_name',
+      storage_bucket: 'back_storage_bucket',
+      storage_path: 'back_storage_path'
+    }
+  }
+
+  const cols = viewColumns[view]
+  const oldBucket = pet[`${view}_storage_bucket` as keyof UserPet] as string | null | undefined
+  const oldPath = pet[`${view}_storage_path` as keyof UserPet] as string | null | undefined
+  const oldUrl = pet[`${view}_photo_url` as keyof UserPet] as string
+
+  const { data, error } = await supabase
+    .from('user_pets')
+    .update({
+      [cols.photo_url]: uploaded.publicUrl,
+      [cols.file_name]: uploaded.fileName,
+      [cols.storage_bucket]: uploaded.bucket,
+      [cols.storage_path]: uploaded.path
+    })
+    .eq('id', petId)
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .select('*')
+    .single()
+
+  if (error || !data) {
+    try {
+      await removeStorageObject(supabase, uploaded.bucket, uploaded.path)
+    } catch (cleanupError) {
+      console.warn('[replacePetPhoto] Failed to cleanup new upload:', cleanupError)
+    }
+    throw error ?? new Error('Failed to replace pet photo')
+  }
+
+  try {
+    await removeStorageObjectWithFallback(supabase, {
+      bucket: oldBucket || undefined,
+      path: oldPath || undefined,
+      publicUrl: oldUrl
+    })
+  } catch (storageError) {
+    console.warn('[replacePetPhoto] Failed to remove old pet photo:', storageError)
+  }
+
+  return data as UserPet
+}
+
 
 export const uploadAvatarFromUrl = async (imageUrl: string, userId: string, avatarName: string = 'Optimized Avatar') => {
   console.log(`[uploadAvatarFromUrl] Starting upload for user: ${userId}, url: ${imageUrl}`);

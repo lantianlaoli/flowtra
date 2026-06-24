@@ -1,4 +1,4 @@
-export type AiReferenceAngleAssetType = 'product' | 'avatar' | 'universal';
+export type AiReferenceAngleAssetType = 'product' | 'avatar' | 'universal' | 'pet';
 
 export type AiReferenceAngleJobStatus = 'pending' | 'processing' | 'completed' | 'failed';
 

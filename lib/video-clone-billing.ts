@@ -25,6 +25,10 @@ export function normalizeCloneDurationSeconds(value?: string | number | null): n
   if (!Number.isFinite(duration) || duration <= 0) {
     return null;
   }
+  const nearestSecond = Math.round(duration);
+  if (Math.abs(duration - nearestSecond) <= 0.25) {
+    return nearestSecond;
+  }
   return Math.ceil(duration);
 }
 

@@ -36,10 +36,9 @@ import { signInternalUserRequest } from '@/lib/security/internal-request';
 import { assertKieCreditsAvailable } from '@/lib/kie-credits-check';
 import { buildAvatarGeneratedPrompts } from '@/lib/project-agent/avatar-script-planning';
 import {
-  getProjectAgentVideoCloneDurationSeconds,
   getProjectAgentVideoCloneMode,
 } from '@/lib/project-agent/video-clone-mode';
-import { getProjectAgentCloneGenerationCost, normalizeCloneDurationSeconds } from '@/lib/video-clone-billing';
+import { getProjectAgentCloneGenerationCost } from '@/lib/video-clone-billing';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -278,39 +277,37 @@ const assertAvatarCredits = async (userId: string, body: CanvasRunRequestBody, r
 const assertVideoCloneCredits = async (userId: string, body: CanvasRunRequestBody, runCount = 1) => {
   const avatar = body.connectedAssets?.avatar || null;
   const product = body.connectedAssets?.product || null;
+  const pet = body.connectedAssets?.pet || null;
   const video = ensureAsset(body.connectedAssets?.video, 'Video');
 
   const cloneMode = getProjectAgentVideoCloneMode({
     avatar,
     product,
+    pet,
     video,
     text: body.connectedAssets?.text || null,
   });
 
-  if (cloneMode === 'clone' && !avatar && !product) {
-    throw new Error('Video Clone requires an avatar or product, or text for edit-video mode.');
+  if (cloneMode === 'clone' && !avatar && !product && !pet) {
+    throw new Error('Video Clone requires an avatar, product, or pet, or text for edit-video mode.');
   }
 
   const payload = buildVideoCloneStartPayload({
     avatar,
     product,
+    pet,
     video,
     text: body.connectedAssets?.text || null,
     config: body.config,
   });
 
-  const sourceDuration = getProjectAgentVideoCloneDurationSeconds({ video });
-  const duration = cloneMode === 'edit_video'
-    ? String(sourceDuration || '')
-    : String(normalizeCloneDurationSeconds(sourceDuration) || normalizeCloneDurationSeconds(payload.videoDuration) || 8);
-
   return ensureEnoughCredits(
     userId,
     getProjectAgentCloneGenerationCost({
       model: payload.videoModel,
-      durationSeconds: duration,
-      videoQuality: body.config?.videoQuality,
-      executionMode: cloneMode === 'edit_video' ? 'edit_video' : String(payload.executionMode),
+      durationSeconds: payload.videoDuration,
+      videoQuality: payload.videoQuality,
+      executionMode: payload.executionMode,
       hasReferenceVideoUrl: Boolean(payload.referenceSourceVideoUrl || payload.editVideoSourceUrl),
     }) * runCount
   );
@@ -552,22 +549,25 @@ const startAvatarAds = async (
 const startVideoClone = async (origin: string, userId: string, body: CanvasRunRequestBody) => {
   const avatar = body.connectedAssets?.avatar || null;
   const product = body.connectedAssets?.product || null;
+  const pet = body.connectedAssets?.pet || null;
   const video = ensureAsset(body.connectedAssets?.video, 'Video');
 
   const cloneMode = getProjectAgentVideoCloneMode({
     avatar,
     product,
+    pet,
     video,
     text: body.connectedAssets?.text || null,
   });
 
-  if (cloneMode === 'clone' && !avatar && !product) {
-    throw new Error('Video Clone requires an avatar or product, or text for edit-video mode.');
+  if (cloneMode === 'clone' && !avatar && !product && !pet) {
+    throw new Error('Video Clone requires an avatar, product, or pet, or text for edit-video mode.');
   }
 
   const payload = buildVideoCloneStartPayload({
     avatar,
     product,
+    pet,
     video,
     text: body.connectedAssets?.text || null,
     config: body.config,

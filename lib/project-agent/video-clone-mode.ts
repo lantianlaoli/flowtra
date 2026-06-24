@@ -6,7 +6,8 @@ export type ProjectAgentVideoCloneMode = 'clone' | 'edit_video';
 export const getProjectAgentVideoCloneMode = (
   inputs: ProjectAgentConnectedFeatureInputs
 ): ProjectAgentVideoCloneMode => {
-  if (inputs.video && inputs.text && !inputs.avatar && !inputs.product) {
+  const hasCloneTarget = Boolean(inputs.avatar || inputs.product || inputs.pet);
+  if (inputs.video && inputs.text && !hasCloneTarget) {
     return 'edit_video';
   }
 

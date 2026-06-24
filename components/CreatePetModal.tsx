@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Loader2, PawPrint, Upload, X } from 'lucide-react';
 import type { PetPhotoView, UserPet } from '@/lib/supabase';
-import { getAcceptedImageFormats, validateImageFormat } from '@/lib/image-validation';
+import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
 
 type PreviewFile = { file: File; preview: string };
 const PET_VIEWS: Array<{ view: PetPhotoView; label: string }> = [
@@ -38,7 +38,10 @@ export default function CreatePetModal({
   }, [isOpen]);
 
   const canSave = useMemo(
-    () => Boolean(petName.trim() && photos.front && photos.side && photos.back && !isSaving),
+    () => {
+      const trimmedName = petName.trim();
+      return Boolean(trimmedName && trimmedName.length <= 255 && photos.front && photos.side && photos.back && !isSaving);
+    },
     [isSaving, petName, photos]
   );
 
@@ -74,6 +77,27 @@ export default function CreatePetModal({
     }
   };
 
+  const renderErrorMessage = (message: string) => {
+    if (!message.includes(IMAGE_CONVERSION_LINK)) {
+      return message;
+    }
+    const [before, after] = message.split(IMAGE_CONVERSION_LINK);
+    return (
+      <>
+        {before}
+        <a
+          href={IMAGE_CONVERSION_LINK}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-red-800"
+        >
+          {IMAGE_CONVERSION_LINK}
+        </a>
+        {after}
+      </>
+    );
+  };
+
   const handleUpload = async (view: PetPhotoView, file: File) => {
     try {
       const preview = await validateAndLoadImage(file);
@@ -87,12 +111,17 @@ export default function CreatePetModal({
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!canSave || !photos.front || !photos.side || !photos.back) return;
+    const trimmedName = petName.trim();
+    if (trimmedName.length > 255) {
+      setError('Pet name is too long.');
+      return;
+    }
 
     setIsSaving(true);
     setError(null);
     try {
       const formData = new FormData();
-      formData.append('petName', petName.trim());
+      formData.append('petName', trimmedName);
       formData.append('front', photos.front.file);
       formData.append('side', photos.side.file);
       formData.append('back', photos.back.file);
@@ -132,13 +161,15 @@ export default function CreatePetModal({
 
         <form onSubmit={handleSubmit} className="space-y-5 p-5">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-900">Pet name</label>
+            <label htmlFor="create-pet-name-input" className="mb-1.5 block text-sm font-medium text-gray-900">Pet name</label>
             <input
+              id="create-pet-name-input"
               ref={nameInputRef}
               value={petName}
               onChange={(event) => setPetName(event.target.value)}
               disabled={isSaving}
               placeholder="e.g. Milo"
+              maxLength={255}
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-black disabled:opacity-50"
             />
           </div>
@@ -180,7 +211,7 @@ export default function CreatePetModal({
 
           {error ? (
             <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
+              {renderErrorMessage(error)}
             </div>
           ) : null}
 

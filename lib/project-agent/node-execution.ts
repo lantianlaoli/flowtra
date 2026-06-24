@@ -16,11 +16,29 @@ import { getEffectiveProjectAgentVideoModel } from '@/lib/project-agent/video-mo
 import {
   getProjectAgentCloneExecutionMode,
   normalizeCloneDurationSeconds,
+  type ProjectAgentCloneExecutionMode,
 } from '@/lib/video-clone-billing';
+
+const resolveVideoClonePayloadQuality = (input: {
+  videoModel: ReturnType<typeof normalizeProjectAgentVideoCloneModel>;
+  executionMode: ProjectAgentCloneExecutionMode;
+  config?: ProjectAgentFeatureNodeConfig | null;
+}) => {
+  if (
+    input.videoModel === 'seedance_2_mini' &&
+    input.executionMode === 'clone_direct_reference' &&
+    !input.config?.videoQualityManual
+  ) {
+    return '480p' as const;
+  }
+
+  return input.config?.videoQuality || (input.videoModel === 'seedance_2' ? '1080p' : '720p');
+};
 
 export type ProjectAgentConnectedFeatureInputs = {
   avatar?: ProjectAgentCanvasAssetRef | null;
   product?: ProjectAgentCanvasAssetRef | null;
+  pet?: ProjectAgentCanvasAssetRef | null;
   video?: ProjectAgentCanvasAssetRef | null;
   text?: ProjectAgentCanvasAssetRef | null;
 };
@@ -251,7 +269,7 @@ export const getProjectAgentCanvasErrorInfo = (
 
 const getMilestoneLabels = (
   nodeType: ProjectAgentFeatureNodeType,
-  options?: { skipCloneFrames?: boolean }
+  options?: { skipCloneFrames?: boolean; skipCloneMerge?: boolean }
 ) => {
   switch (nodeType) {
     case 'video_clone':
@@ -259,7 +277,7 @@ const getMilestoneLabels = (
         return [
           ['preparing_prompt', 'Preparing prompt'],
           ['generating_video', 'Generating video'],
-          ['merging', 'Merging video'],
+          ...(options.skipCloneMerge ? [] : [['merging', 'Merging video']] as const),
           ['completed', 'Completed'],
         ] as const;
       }
@@ -294,7 +312,7 @@ const buildMilestones = (
   nodeType: ProjectAgentFeatureNodeType,
   currentMilestoneKey: string,
   executionState: 'ready' | 'running' | 'completed' | 'failed',
-  options?: { skipCloneFrames?: boolean },
+  options?: { skipCloneFrames?: boolean; skipCloneMerge?: boolean },
 ): ProjectAgentCanvasMilestone[] => {
   const labels = getMilestoneLabels(nodeType, options);
   const currentIndex = Math.max(0, labels.findIndex(([key]) => key === currentMilestoneKey));
@@ -372,7 +390,7 @@ const getCurrentMilestoneForMotionClone = (status: string) => {
 
 export const createQueuedExecutionStatus = (
   nodeType: ProjectAgentFeatureNodeType,
-  options?: { skipCloneFrames?: boolean },
+  options?: { skipCloneFrames?: boolean; skipCloneMerge?: boolean },
 ): Pick<ProjectAgentCanvasExecutionStatus, 'phase' | 'progress' | 'statusLabel' | 'milestones' | 'currentMilestoneKey'> => ({
   phase: 'queued',
   progress: 5,
@@ -429,6 +447,7 @@ export const buildAvatarAdsStartPayload = (input: {
 export const buildVideoCloneStartPayload = (input: {
   avatar?: ProjectAgentCanvasAssetRef | null;
   product?: ProjectAgentCanvasAssetRef | null;
+  pet?: ProjectAgentCanvasAssetRef | null;
   video: ProjectAgentCanvasAssetRef;
   text?: ProjectAgentCanvasAssetRef | null;
   config?: ProjectAgentFeatureNodeConfig | null;
@@ -450,6 +469,11 @@ export const buildVideoCloneStartPayload = (input: {
         hasReferenceVideoUrl: Boolean(playableVideoUrl),
       })
     : mode;
+  const videoQuality = resolveVideoClonePayloadQuality({
+    videoModel,
+    executionMode,
+    config: input.config,
+  });
 
   return {
     executionMode,
@@ -458,6 +482,7 @@ export const buildVideoCloneStartPayload = (input: {
     referenceSourceVideoUrl: mode === 'clone' ? playableVideoUrl : undefined,
     selectedAvatarIds: mode === 'clone' && input.avatar?.id ? [input.avatar.id] : [],
     selectedProductIds: mode === 'clone' && input.product?.id ? [input.product.id] : [],
+    selectedPetIds: mode === 'clone' && input.pet?.id ? [input.pet.id] : [],
     supplementalText: mode === 'clone' ? input.text?.content?.trim() || undefined : undefined,
     editVideoPrompt: mode === 'edit_video' ? input.text?.content?.trim() || undefined : undefined,
     editVideoSourceUrl: mode === 'edit_video' ? playableVideoUrl : undefined,
@@ -466,7 +491,8 @@ export const buildVideoCloneStartPayload = (input: {
     videoDuration: mode === 'edit_video'
       ? String(executableEditVideoDurationSeconds || '')
       : String(cloneDurationSeconds || 8),
-    videoQuality: input.config?.videoQuality || (videoModel === 'seedance_2' ? '1080p' : '720p'),
+    videoQuality,
+    videoQualityManual: Boolean(input.config?.videoQualityManual),
     language: input.config?.language || input.video.analysisLanguage || 'en',
     shouldGenerateVideo: true,
     photoOnly: false,
@@ -576,6 +602,8 @@ export const normalizeCloneExecutionStatus = (
   const step = typeof payload.current_step === 'string' ? payload.current_step : '';
   const skipsFrameGeneration = data.workflowSource === 'project_agent_edit_video' ||
     data.executionMode === 'clone_direct_reference';
+  const skipsMerge = data.workflowSource === 'project_agent_edit_video' ||
+    data.executionMode === 'clone_direct_reference';
   const segments = Array.isArray(data.segments)
     ? data.segments as Array<Record<string, unknown>>
     : [];
@@ -623,6 +651,7 @@ export const normalizeCloneExecutionStatus = (
   const { retryable, userFacingError } = getProjectAgentCanvasErrorInfo(error);
   const milestones = buildMilestones('video_clone', currentMilestoneKey, executionState, {
     skipCloneFrames: skipsFrameGeneration,
+    skipCloneMerge: skipsMerge,
   }).map((milestone) => (
     awaitingManualVideoStart && milestone.state === 'active'
       ? { ...milestone, state: 'pending' as const }
@@ -726,5 +755,6 @@ export const getFeatureInputsFromConnectedAssets = (
 ) => ({
   avatar: connectedAssets.avatar || null,
   product: connectedAssets.product || null,
+  pet: connectedAssets.pet || null,
   video: connectedAssets.video || null,
 });

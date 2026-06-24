@@ -17,6 +17,7 @@ import {
   Keyboard,
   Loader2,
   Package,
+  PawPrint,
   Play,
   Plus,
   RefreshCcw,
@@ -41,7 +42,10 @@ import {
   type PersistedVideoQuality,
   type VideoModel,
 } from '@/lib/constants';
-import { getProjectAgentCloneGenerationCost, normalizeCloneDurationSeconds } from '@/lib/video-clone-billing';
+import {
+  getProjectAgentCloneGenerationCost,
+  normalizeCloneDurationSeconds,
+} from '@/lib/video-clone-billing';
 import {
   getProjectAgentCanvasNodeSize,
   getProjectAgentAssetDisplayName,
@@ -80,6 +84,7 @@ import {
   getProjectAgentVideoCloneMode,
   normalizeProjectAgentVideoCloneModel,
 } from '@/lib/project-agent/video-clone-mode';
+import { buildVideoCloneStartPayload } from '@/lib/project-agent/node-execution';
 import {
   getEffectiveProjectAgentVideoModel,
   getProjectAgentVideoModels,
@@ -350,6 +355,7 @@ const getBezierTangentAngleAtPoint = (
 const getAssetFallbackIcon = (type: ProjectAgentAssetNodeType) => {
   if (type === 'avatar') return User;
   if (type === 'product') return Package;
+  if (type === 'pet') return PawPrint;
   if (type === 'text') return Type;
   return VideoIcon;
 };
@@ -443,6 +449,7 @@ const getFeatureEstimatedCredits = (
     const inputs = {
       avatar: getConnectedAssetForFeature(canvas, node.id, 'avatar'),
       product: getConnectedAssetForFeature(canvas, node.id, 'product'),
+      pet: getConnectedAssetForFeature(canvas, node.id, 'pet'),
       video: getConnectedAssetForFeature(canvas, node.id, 'video'),
       text: getConnectedAssetForFeature(canvas, node.id, 'text'),
     };
@@ -450,21 +457,21 @@ const getFeatureEstimatedCredits = (
       return null;
     }
     const mode = getProjectAgentVideoCloneMode(inputs);
-    const model = normalizeProjectAgentVideoCloneModel(node.config?.videoModel, mode);
     const editVideoDuration = getProjectAgentVideoCloneDurationSeconds(inputs);
     if (mode === 'edit_video' && editVideoDuration === null) {
       return null;
     }
-    const effectiveDuration = mode === 'edit_video'
-      ? String(editVideoDuration)
-      : String(normalizeCloneDurationSeconds(editVideoDuration) || normalizeCloneDurationSeconds(duration) || 8);
-    const quality = getEffectiveProjectAgentVideoQuality('video_clone', model, node.config?.videoQuality);
+    const payload = buildVideoCloneStartPayload({
+      ...inputs,
+      video: inputs.video,
+      config: node.config,
+    });
     return getProjectAgentCloneGenerationCost({
-      model,
-      durationSeconds: effectiveDuration,
-      videoQuality: quality,
-      executionMode: mode === 'edit_video' ? 'edit_video' : undefined,
-      hasReferenceVideoUrl: Boolean(inputs.video.videoCdnUrl || inputs.video.videoUrl),
+      model: payload.videoModel,
+      durationSeconds: payload.videoDuration,
+      videoQuality: payload.videoQuality,
+      executionMode: payload.executionMode,
+      hasReferenceVideoUrl: Boolean(payload.referenceSourceVideoUrl || payload.editVideoSourceUrl),
     }) * runCount;
   }
 
@@ -764,6 +771,7 @@ export default function CanvasBoard({
             ? {
                 avatar: getConnectedAssetForFeature(canvas, node.id, 'avatar'),
                 product: getConnectedAssetForFeature(canvas, node.id, 'product'),
+                pet: getConnectedAssetForFeature(canvas, node.id, 'pet'),
                 video: getConnectedAssetForFeature(canvas, node.id, 'video'),
                 text: getConnectedAssetForFeature(canvas, node.id, 'text'),
               }
@@ -785,11 +793,21 @@ export default function CanvasBoard({
             : node.type === 'avatar_ads'
               ? 'avatar_ads'
               : 'motion_clone';
-          const selectedVideoQuality = getEffectiveProjectAgentVideoQuality(
-            qualityIntent,
-            selectedVideoModel,
-            node.config?.videoQuality,
-          );
+          const selectedVideoQuality = (() => {
+            if (node.type === 'video_clone' && connectedVideoCloneInputs?.video) {
+              return buildVideoCloneStartPayload({
+                ...connectedVideoCloneInputs,
+                video: connectedVideoCloneInputs.video,
+                config: node.config,
+              }).videoQuality;
+            }
+
+            return getEffectiveProjectAgentVideoQuality(
+              qualityIntent,
+              selectedVideoModel,
+              node.config?.videoQuality,
+            );
+          })();
           const allowedVideoQualities = getProjectAgentAllowedVideoQualities(
             qualityIntent,
             selectedVideoModel,
@@ -992,10 +1010,9 @@ export default function CanvasBoard({
                             preload="metadata"
                             src={playableVideoUrl}
                             onLoadedMetadata={(event) => {
-                              const durationSeconds = event.currentTarget.duration;
+                              const durationSeconds = normalizeCloneDurationSeconds(event.currentTarget.duration);
                               if (
-                                Number.isFinite(durationSeconds) &&
-                                durationSeconds > 0 &&
+                                durationSeconds !== null &&
                                 node.asset?.durationSeconds !== durationSeconds
                               ) {
                                 onUpdateAssetNodeMetadata(node.id, { durationSeconds });
@@ -1350,6 +1367,7 @@ export default function CanvasBoard({
                                         onUpdateFeatureNodeConfig(node.id, {
                                           videoModel: option.value,
                                           videoQuality: normalizedQuality,
+                                          videoQualityManual: false,
                                           videoDuration: snapDurationToModel(
                                             option.value,
                                             Number(node.config?.videoDuration || (node.type === 'avatar_ads' ? '16' : '8')),
@@ -1408,7 +1426,10 @@ export default function CanvasBoard({
                                     active ? 'bg-black text-white' : 'text-[#2a2a2a] hover:bg-white'
                                   }`}
                                   onClick={() => {
-                                    onUpdateFeatureNodeConfig(node.id, { videoQuality: quality });
+                                    onUpdateFeatureNodeConfig(node.id, {
+                                      videoQuality: quality,
+                                      videoQualityManual: true,
+                                    });
                                     setQualityMenuNodeId(null);
                                   }}
                                   type="button"

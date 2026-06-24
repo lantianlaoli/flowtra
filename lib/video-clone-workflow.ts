@@ -58,6 +58,7 @@ import {
 import { normalizeAnalysisToV2 } from '@/lib/video-analysis-schema';
 import {
   removeOriginalAvatarReferences,
+  removeOriginalPetReferences,
   removeOriginalProductReferences
 } from '@/lib/project-agent/clone-product-replacement';
 import { assertKieCreditsAvailable } from '@/lib/kie-credits-check';
@@ -105,6 +106,7 @@ const clampPromptLength = (value: string) => {
 const WEBHOOK_BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://flowtra.ai';
 const FRAME_WEBHOOK_URL = `${WEBHOOK_BASE_URL}/api/video-clone/webhooks/frame`;
 const VIDEO_WEBHOOK_URL = `${WEBHOOK_BASE_URL}/api/video-clone/webhooks/video`;
+const DIRECT_REFERENCE_PROMPT_VERSION = 2;
 
 function buildSegmentVideoWebhookUrl(projectId: string, segmentIndex: number): string {
   const url = new URL(VIDEO_WEBHOOK_URL);
@@ -119,8 +121,10 @@ export interface StartWorkflowRequest {
   creatorSourceVideoId?: string; // Asset video reference
   selectedAvatarId?: string;
   selectedProductId?: string;
+  selectedPetId?: string;
   selectedAvatarIds?: string[];
   selectedProductIds?: string[];
+  selectedPetIds?: string[];
   userId: string;
   videoModel: VideoModel;
   imageSize?: string;
@@ -136,6 +140,7 @@ export interface StartWorkflowRequest {
   // Generic video params (applies to all models)
   videoDuration?: VideoDuration;
   videoQuality?: PersistedVideoQuality;
+  videoQualityManual?: boolean;
   language?: string; // Language for AI-generated content
   // NEW: Custom Script mode
   customScript?: string; // User-provided video script for direct video generation
@@ -232,20 +237,26 @@ const removeOriginalReferenceEntitiesFromSegments = (
   replacements: {
     avatarName?: string | null;
     productName?: string | null;
+    petName?: string | null;
   }
 ): SegmentPrompt[] => {
   const normalizedAvatarName = replacements.avatarName?.trim();
   const normalizedProductName = replacements.productName?.trim();
-  if (!normalizedAvatarName && !normalizedProductName) return segments;
+  const normalizedPetName = replacements.petName?.trim();
+  if (!normalizedAvatarName && !normalizedProductName && !normalizedPetName) return segments;
 
   const clean = (text: string | undefined) => {
     const avatarCleaned = removeOriginalAvatarReferences({
       text: text || '',
       avatarName: normalizedAvatarName
     });
-    return removeOriginalProductReferences({
+    const productCleaned = removeOriginalProductReferences({
       text: avatarCleaned,
       productName: normalizedProductName
+    });
+    return removeOriginalPetReferences({
+      text: productCleaned,
+      petName: normalizedPetName
     });
   };
 
@@ -320,12 +331,16 @@ export type SegmentPrompt = {
 type CloneReferenceAssets = {
   selectedAvatarId?: string | null;
   selectedProductId?: string | null;
+  selectedPetId?: string | null;
   selectedAvatarIds?: string[];
   selectedProductIds?: string[];
+  selectedPetIds?: string[];
   avatarPhotoUrls: string[];
   productImageUrls: string[];
+  petPhotoUrls: string[];
   avatarName?: string | null;
   productName?: string | null;
+  petName?: string | null;
 };
 
 type CloneManualEditSeedInput = {
@@ -553,13 +568,133 @@ export const getProjectAgentSeedanceReferenceImageUrls = (
   const productImageUrls = Array.isArray(cloneAssets.productImageUrls)
     ? cloneAssets.productImageUrls
     : [];
+  const petPhotoUrls = Array.isArray(cloneAssets.petPhotoUrls)
+    ? cloneAssets.petPhotoUrls
+    : [];
 
   return collectDistinctUrls(
-    [...avatarPhotoUrls, ...productImageUrls].map((url) => (
+    [...avatarPhotoUrls, ...productImageUrls, ...petPhotoUrls].map((url) => (
       typeof url === 'string' ? url : null
     )),
     max
   );
+};
+
+type DirectReferenceImagePlan = {
+  referenceImageUrls: string[];
+  promptDirectives: string[];
+};
+
+const buildDirectReferenceImagePlan = (assets: {
+  avatarPhotoUrls?: string[] | null;
+  productImageUrls?: string[] | null;
+  petPhotoUrls?: string[] | null;
+  avatarName?: string | null;
+  productName?: string | null;
+  petName?: string | null;
+}): DirectReferenceImagePlan => {
+  const avatarImages = Array.isArray(assets.avatarPhotoUrls)
+    ? collectDistinctUrls(
+        assets.avatarPhotoUrls.map((url) => (typeof url === 'string' ? url : null)),
+        2
+      )
+    : [];
+  const productImages = Array.isArray(assets.productImageUrls)
+    ? collectDistinctUrls(
+        assets.productImageUrls.map((url) => (typeof url === 'string' ? url : null)),
+        2
+      )
+    : [];
+  const petImages = Array.isArray(assets.petPhotoUrls)
+    ? collectDistinctUrls(
+        assets.petPhotoUrls.map((url) => (typeof url === 'string' ? url : null)),
+        2
+      )
+    : [];
+
+  const referenceImageUrls = [...avatarImages, ...productImages, ...petImages];
+  const hasReplacementImages = referenceImageUrls.length > 0;
+  const promptDirectives: string[] = [
+    'Use the reference video as the primary source of truth for motion, timing, shot order, framing, pacing, camera movement, and scene progression.',
+    'Do not open on a static portrait or isolated packshot unless the source video itself opens that way.',
+    'Preserve the source video hand interactions, eyelines, object placement, and action beats.',
+    'If the source video includes an animal or pet interacting with the product, preserve that interaction while replacing only the intended person and product identities.',
+  ];
+
+  if (hasReplacementImages) {
+    promptDirectives.push(
+      'Use the replacement images only as identity anchors for the featured person, product, or pet, not as independent storyboard frames, cutaways, or slideshow images.'
+    );
+  } else {
+    promptDirectives.push(
+      'No replacement images were provided. Recreate the reference video structure, pacing, camera motion, framing, and commercial style directly from the source video.'
+    );
+  }
+
+  if (avatarImages.length > 0) {
+    promptDirectives.push(
+      'The featured person must match the replacement avatar reference images throughout the full video, including the opening shot, and should keep the clothing, hair, face, and overall styling shown in those reference images.'
+    );
+    promptDirectives.push(
+      'Do not leave the original presenter identity visible in any presenter-focused shot. The original presenter must be fully replaced by the replacement person.'
+    );
+  }
+
+  if (productImages.length > 0) {
+    promptDirectives.push(
+      'The featured product must match the replacement product reference images throughout the full video, including the opening shot, and should keep the packaging shape, label layout, brand colors, and material cues shown in those reference images.'
+    );
+    promptDirectives.push(
+      'Do not leave the original source product or packaging visible in any product-focused shot. The original product must be fully replaced by the replacement product.'
+    );
+  }
+
+  if (avatarImages.length > 0 || productImages.length > 0) {
+    promptDirectives.push(
+      'If there is any conflict between preserving the source subject identity and applying replacement identities, prioritize the replacement person and replacement product.'
+    );
+  }
+
+  if (petImages.length > 0) {
+    promptDirectives.push(
+      'If the source video includes a featured pet or animal (e.g., a cat, dog, or other on-screen companion), replace it with the replacement pet shown in the pet reference images. Preserve breed identity, fur color, coat pattern, markings, body plan, and overall silhouette, but swap the face, distinct markings, and personality cues so the on-screen pet matches the replacement pet across every shot.'
+    );
+    promptDirectives.push(
+      'Do not leave the original source pet visible in any pet-focused or co-star shot. Whenever the source video shows the original animal, the replacement pet must appear in the same position, with the same pose, action, and eyeline, but rendered with the replacement pet\'s identity.'
+    );
+  }
+
+  const referenceSegments: string[] = [];
+  let cursor = 0;
+  if (avatarImages.length > 0) {
+    const indexes = avatarImages.map((_, index) => `@Image ${cursor + index + 1}`).join(' and ');
+    referenceSegments.push(
+      `${indexes} show the same replacement featured person${assets.avatarName ? ` (${assets.avatarName})` : ''} from representative views.`
+    );
+    cursor += avatarImages.length;
+  }
+  if (productImages.length > 0) {
+    const indexes = productImages.map((_, index) => `@Image ${cursor + index + 1}`).join(' and ');
+    referenceSegments.push(
+      `${indexes} show the same replacement product or packaging${assets.productName ? ` (${assets.productName})` : ''} from representative views.`
+    );
+    cursor += productImages.length;
+  }
+  if (petImages.length > 0) {
+    const indexes = petImages.map((_, index) => `@Image ${cursor + index + 1}`).join(' and ');
+    referenceSegments.push(
+      `${indexes} show the same replacement featured pet or animal${assets.petName ? ` (${assets.petName})` : ''} from representative views.`
+    );
+    cursor += petImages.length;
+  }
+  if (referenceSegments.length > 0) {
+    promptDirectives.push(`Reference mapping: ${referenceSegments.join(' ')}`);
+  }
+
+  return {
+    referenceImageUrls,
+    promptDirectives,
+  };
 };
 
 async function resolveCloneReferenceAssets(
@@ -568,16 +703,21 @@ async function resolveCloneReferenceAssets(
 ): Promise<CloneReferenceAssets> {
   const selectedAvatarIds = normalizeSelectedIds(request.selectedAvatarId, request.selectedAvatarIds, 8);
   const selectedProductIds = normalizeSelectedIds(request.selectedProductId, request.selectedProductIds, 8);
+  const selectedPetIds = normalizeSelectedIds(request.selectedPetId, request.selectedPetIds, 8);
   const primaryAvatarId = selectedAvatarIds[0] || null;
   const primaryProductId = selectedProductIds[0] || null;
+  const primaryPetId = selectedPetIds[0] || null;
 
   const assets: CloneReferenceAssets = {
     selectedAvatarId: primaryAvatarId,
     selectedProductId: primaryProductId,
+    selectedPetId: primaryPetId,
     selectedAvatarIds,
     selectedProductIds,
+    selectedPetIds,
     avatarPhotoUrls: [],
-    productImageUrls: []
+    productImageUrls: [],
+    petPhotoUrls: []
   };
 
   if (selectedProductIds.length > 0) {
@@ -717,6 +857,48 @@ async function resolveCloneReferenceAssets(
 
     assets.avatarPhotoUrls = collectDistinctUrls(mergedAvatarUrls, 4);
     assets.avatarName = primaryAvatarName;
+  }
+
+  if (selectedPetIds.length > 0) {
+    const mergedPetUrls: Array<string | null> = [];
+    let primaryPetName: string | null = null;
+
+    for (let petIndex = 0; petIndex < selectedPetIds.length; petIndex++) {
+      const petId = selectedPetIds[petIndex];
+      const { data: petRow, error: petError } = await supabase
+        .from('user_pets')
+        .select('id,pet_name,front_photo_url,side_photo_url,back_photo_url')
+        .eq('id', petId)
+        .eq('user_id', request.userId)
+        .maybeSingle();
+
+      if (petError) {
+        console.warn('[Clone Assets] Failed to resolve selected pet:', petError.message || petError.code || 'unknown');
+        continue;
+      }
+      if (!petRow) {
+        console.warn('[Clone Assets] Selected pet id not found for user:', petId);
+        continue;
+      }
+
+      const petName = typeof petRow.pet_name === 'string' ? petRow.pet_name : null;
+      if (petIndex === 0) {
+        primaryPetName = petName;
+      }
+
+      mergedPetUrls.push(
+        typeof petRow.front_photo_url === 'string' ? petRow.front_photo_url : null,
+        typeof petRow.side_photo_url === 'string' ? petRow.side_photo_url : null,
+        typeof petRow.back_photo_url === 'string' ? petRow.back_photo_url : null,
+      );
+    }
+
+    if (mergedPetUrls.length === 0) {
+      console.warn('[Clone Assets] Selected pet ids not found for user:', selectedPetIds);
+    } else {
+      assets.petPhotoUrls = collectDistinctUrls(mergedPetUrls, 4);
+      assets.petName = primaryPetName;
+    }
   }
 
   return assets;
@@ -1461,7 +1643,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     const actualVideoModel: VideoModel = request.videoModel;
     const referenceDurationSeconds = Number(referenceVideoContext?.video_duration_seconds || 0);
     const projectAgentCloneSourceDuration = request.requestSource === 'project_agent_clone'
-      ? normalizeCloneDurationSeconds(referenceDurationSeconds) || normalizeCloneDurationSeconds(request.videoDuration)
+      ? normalizeCloneDurationSeconds(request.videoDuration) || normalizeCloneDurationSeconds(referenceDurationSeconds)
       : null;
     if (projectAgentCloneSourceDuration) {
       request.videoDuration = String(projectAgentCloneSourceDuration) as VideoDuration;
@@ -1516,7 +1698,12 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           details: 'Direct reference clone requires a source video duration between 2 and 15 seconds.'
         };
       }
-      const requestedQuality = request.videoQuality || getDefaultCloneVideoQuality(actualVideoModel);
+      const requestedQuality =
+        actualVideoModel === 'seedance_2_mini' &&
+        request.requestSource === 'project_agent_clone' &&
+        !request.videoQualityManual
+          ? '480p'
+          : request.videoQuality || getDefaultCloneVideoQuality(actualVideoModel);
       const quality = normalizeCloneVideoQualityForModel(actualVideoModel, requestedQuality);
       return startDirectReferenceCloneWorkflow({
         request,
@@ -1875,8 +2062,10 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     const selectedInputs: VideoCloneSelectedInputs = {
       primaryAvatarId: cloneReferenceAssets.selectedAvatarId || null,
       primaryProductId: cloneReferenceAssets.selectedProductId || null,
+      primaryPetId: cloneReferenceAssets.selectedPetId || null,
       avatarIds: cloneReferenceAssets.selectedAvatarIds || [],
       productIds: cloneReferenceAssets.selectedProductIds || [],
+      petIds: cloneReferenceAssets.selectedPetIds || [],
       workflowSource: request.requestSource || 'default',
       mergePolicy: 'auto',
       executionMode: request.executionMode || (request.requestSource === 'project_agent_clone' ? 'clone_segmented_auto' : 'clone'),
@@ -1974,8 +2163,11 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
               selectedProductId: cloneReferenceAssets.selectedProductId || request.selectedProductId || null,
               selectedAvatarIds: cloneReferenceAssets.selectedAvatarIds || [],
               selectedProductIds: cloneReferenceAssets.selectedProductIds || [],
+              selectedPetId: cloneReferenceAssets.selectedPetId || request.selectedPetId || null,
+              selectedPetIds: cloneReferenceAssets.selectedPetIds || [],
               avatarPhotoUrls: cloneReferenceAssets.avatarPhotoUrls,
-              productImageUrls: cloneReferenceAssets.productImageUrls
+              productImageUrls: cloneReferenceAssets.productImageUrls,
+              petPhotoUrls: cloneReferenceAssets.petPhotoUrls
             }
           }
         });
@@ -2347,6 +2539,7 @@ async function startAIWorkflow(
           segmentCount,
           request.resolvedVideoModel,
           productContext,
+          cloneReferenceAssets?.petName ? { pet_name: cloneReferenceAssets.petName } : undefined,
           referenceVideoDescription, // Pass reference video analysis result (not raw context)
           request.supplementalText,
         );
@@ -2383,7 +2576,8 @@ async function startAIWorkflow(
       plannedKlingSegments,
       collectDistinctUrls([
         ...(request.imageUrl ? [request.imageUrl] : []),
-        ...(cloneReferenceAssets?.productImageUrls || [])
+        ...(cloneReferenceAssets?.productImageUrls || []),
+        ...(cloneReferenceAssets?.petPhotoUrls || [])
       ], 8),
       productContext,
       referenceVideoContext ? 'video' : null, // Reference videos are video-only
@@ -2869,10 +3063,11 @@ async function generateImageBasedPrompts(
   segmentCount = 1,
   videoModel?: VideoModel,
   productContext?: { product_name?: string },
+  petContext?: { pet_name?: string },
   referenceVideoDescription?: Record<string, unknown>, // Changed: Now receives analysis result, not raw context
   supplementalText?: string,
 ): Promise<Record<string, unknown>> {
-  console.log(`[generateImageBasedPrompts] Step 2: Generating prompts for our product${referenceVideoDescription ? ' (reference-video mode)' : ' (traditional mode)'}${!imageUrl ? ' (no product image provided)' : ''}`);
+  console.log(`[generateImageBasedPrompts] Step 2: Generating prompts for our product${petContext?.pet_name ? ` (with pet: ${petContext.pet_name})` : ''}${referenceVideoDescription ? ' (reference-video mode)' : ' (traditional mode)'}${!imageUrl ? ' (no product image provided)' : ''}`);
 
 
   const duration = Number.isFinite(videoDurationSeconds) && videoDurationSeconds ? videoDurationSeconds : 0;
@@ -3022,21 +3217,28 @@ No other top-level keys or metadata.`;
 **REFERENCE VIDEO ANALYSIS**:
 ${JSON.stringify(referenceVideoDescription, null, 2)}
 
-Your task is to create a similar advertisement for OUR product${imageUrl ? ' (shown in the user\'s image)' : ''} by:
+Your task is to create a similar advertisement for OUR product${imageUrl ? ' (shown in the user\'s image)' : ''}${petContext?.pet_name ? ` and OUR pet (${petContext.pet_name})` : ''} by:
 1. CLONING the reference video's creative structure, style, and approach
-2. REPLACING the source product with our product
+2. REPLACING the source product with our product${petContext?.pet_name ? ` and the source pet or on-screen animal with our pet (${petContext.pet_name})` : ''}
 3. MAINTAINING the same narrative flow, visual style, and tone
 4. PRESERVING the camera work, composition, and ambiance
 5. MATCH EVERY SHOT EXACTLY: number of segments, graphic title cards, text overlays, and the final sign-off shot must appear in the same order as the reference video. Do not drop or rearrange any shots.
 
 **CRITICAL: For "first_frame_description" field:**
 - You MUST preserve the source video's detailed visual descriptions
-- ONLY replace product-specific details (product name, packaging, labels) with our product
+- ONLY replace product-specific details (product name, packaging, labels) with our product${petContext?.pet_name ? ` and pet-specific details (breed, fur color, coat pattern, distinct markings, body plan) with our pet (${petContext.pet_name})` : ''}
 - DO NOT simplify, shorten, or omit any environmental details, lighting, composition, or scene elements
 - Keep the same level of detail and specificity as the source analysis
 - Example: If the source has "A medium shot captures a woman with shoulder-length blonde wavy hair...", you should keep all those details but replace the product with ours
+${petContext?.pet_name ? `
+**CRITICAL: For "first_frame_description" pet replacement:**
+- Whenever the source video shows a featured pet or animal (e.g., a cat, dog, or other on-screen companion), the on-screen pet MUST be replaced with our pet (${petContext.pet_name}).
+- Preserve the original pet's pose, action, eyeline, position in frame, and interaction with the product or presenter, but render the on-screen animal as our pet.
+- Preserve breed identity (use our pet's breed), fur color, coat pattern, distinct markings, body plan, and overall silhouette so the result clearly reads as our pet, not the source animal.
+- If the source video shows multiple pets, every visible pet must be replaced with our pet (consistent identity throughout).
+- Do not leave the original source pet or animal visible in any pet-focused or co-star shot.` : ''}
 
-${imageUrl ? 'Remember: The user\'s image is OUR product - adapt the reference video to showcase OUR product instead.' : 'Note: No product image provided - use product context to adapt the reference video.'}
+${imageUrl ? 'Remember: The user\'s image is OUR product - adapt the reference video to showcase OUR product instead.' : 'Note: No product image provided - use product context to adapt the reference video.'}${petContext?.pet_name ? `\nRemember: Our pet (${petContext.pet_name}) must replace any featured animal in the source video, with the same pose and interactions.` : ''}
 
 ${supplementalInstruction ? `${supplementalInstruction}` : ''}`
           },
@@ -3050,17 +3252,18 @@ ${supplementalInstruction ? `${supplementalInstruction}` : ''}`
                   },
                   {
                     type: 'text',
-                    text: `📸 OUR PRODUCT IMAGE (above)
+                    text: `📸 OUR PRODUCT IMAGE (above)${petContext?.pet_name ? `\n🐾 OUR PET (${petContext.pet_name}) — will replace any featured animal in the source video` : ''}
 
 Use the reference video analysis provided in the system message to recreate the same storyboard for OUR product. Replace the featured product, labels, and packaging while keeping framing, movement, pacing, and energy identical.
 
 **CRITICAL REQUIREMENTS:**
 - For each segment's "first_frame_description", you MUST preserve the source video's detailed visual descriptions
 - ONLY replace the source product-specific details with our product
+${petContext?.pet_name ? `- ALSO replace the source pet or on-screen animal with our pet (${petContext.pet_name}); keep the pose, position, eyeline, and interaction with the product or presenter identical` : ''}
 - DO NOT simplify or shorten scene descriptions - maintain the same level of detail
 - Example transformation: "Woman applying source lotion..." → "Woman applying ${productContext?.product_name || 'our product'}..." (keep all other details unchanged)
 
-${productContext?.product_name ? `Product Context:\nProduct Name: ${productContext.product_name}\n(Use this to ensure accurate product replacement)\n` : ''}
+${productContext?.product_name ? `Product Context:\nProduct Name: ${productContext.product_name}\n(Use this to ensure accurate product replacement)\n` : ''}${petContext?.pet_name ? `\nPet Context:\nPet Name: ${petContext.pet_name}\n(Use this to ensure accurate pet replacement — describe our pet consistently in every shot that shows an animal)\n` : ''}
 
 ${supplementalInstruction ? `${supplementalInstruction}\n\n` : ''}
 
@@ -3075,10 +3278,11 @@ ${strictSegmentFormat}`
 **CRITICAL REQUIREMENTS:**
 - For each segment's "first_frame_description", you MUST preserve the source video's detailed visual descriptions
 - ONLY replace the source product-specific details with our product
+${petContext?.pet_name ? `- ALSO replace the source pet or on-screen animal with our pet (${petContext.pet_name}); keep the pose, position, eyeline, and interaction with the product or presenter identical` : ''}
 - DO NOT simplify or shorten scene descriptions - maintain the same level of detail
 - Keep all environmental details, lighting descriptions, composition specifics unchanged
 
-${productContext?.product_name ? `Product Context:\nProduct Name: ${productContext.product_name}\n(Use this context when replacing subjects or props)\n` : ''}
+${productContext?.product_name ? `Product Context:\nProduct Name: ${productContext.product_name}\n(Use this context when replacing subjects or props)\n` : ''}${petContext?.pet_name ? `\nPet Context:\nPet Name: ${petContext.pet_name}\n(Use this to ensure accurate pet replacement — describe our pet consistently in every shot that shows an animal)\n` : ''}
 
 ${supplementalInstruction ? `${supplementalInstruction}\n\n` : ''}
 
@@ -3261,14 +3465,16 @@ async function startSegmentedWorkflow(
     })),
     {
       avatarName: cloneReferenceAssets?.avatarName,
-      productName: cloneReferenceAssets?.productName || productContext?.product_name
+      productName: cloneReferenceAssets?.productName || productContext?.product_name,
+      petName: cloneReferenceAssets?.petName
     }
   );
   const normalizedAvatarPhotoUrls = collectDistinctUrls(cloneReferenceAssets?.avatarPhotoUrls || [], 4);
   const normalizedProductImageUrls = collectDistinctUrls(
     [
       ...(productImageUrls || []),
-      ...(cloneReferenceAssets?.productImageUrls || [])
+      ...(cloneReferenceAssets?.productImageUrls || []),
+      ...(cloneReferenceAssets?.petPhotoUrls || [])
     ],
     8
   );
@@ -3276,21 +3482,27 @@ async function startSegmentedWorkflow(
   const useSeedanceReferenceImages = isProjectAgentSeedanceReferenceImageMode({
     requestSource: request.requestSource,
     videoModel: request.videoModel,
-    resolvedVideoModel: request.resolvedVideoModel
+    resolvedVideoModel: request.resolvedVideoModel,
+    executionMode: request.executionMode
   });
     const metadataSource = {
       ...(prompts as Record<string, unknown>),
       clone_reference_assets: {
         selectedAvatarId: cloneReferenceAssets?.selectedAvatarId || request.selectedAvatarId || null,
         selectedProductId: cloneReferenceAssets?.selectedProductId || request.selectedProductId || null,
-        selectedAvatarIds:
+      selectedAvatarIds:
           cloneReferenceAssets?.selectedAvatarIds ||
           normalizeSelectedIds(request.selectedAvatarId, request.selectedAvatarIds, 8),
         selectedProductIds:
           cloneReferenceAssets?.selectedProductIds ||
           normalizeSelectedIds(request.selectedProductId, request.selectedProductIds, 8),
+        selectedPetId: cloneReferenceAssets?.selectedPetId || request.selectedPetId || null,
+        selectedPetIds:
+          cloneReferenceAssets?.selectedPetIds ||
+          normalizeSelectedIds(request.selectedPetId, request.selectedPetIds, 8),
         avatarPhotoUrls: normalizedAvatarPhotoUrls,
-        productImageUrls: normalizedProductImageUrls
+        productImageUrls: normalizedProductImageUrls,
+        petPhotoUrls: cloneReferenceAssets?.petPhotoUrls || []
       }
     } satisfies Record<string, unknown>;
   const storedVideoPrompts = buildStoredVideoPromptsPayload(normalizedSegments, metadataSource);
@@ -5244,18 +5456,15 @@ async function startDirectReferenceCloneWorkflow(input: {
 }): Promise<WorkflowResult> {
   const supabase = getSupabaseAdmin();
   const { request, model, quality, durationSeconds, referenceSourceVideoUrl, cloneReferenceAssets, referenceVideoContext } = input;
-  const referenceImageUrls = collectDistinctUrls([
-    ...cloneReferenceAssets.avatarPhotoUrls,
-    ...cloneReferenceAssets.productImageUrls,
-  ], 9);
-
-  if (referenceImageUrls.length === 0) {
-    return {
-      success: false,
-      error: 'Replacement assets required',
-      details: 'Direct reference clone requires at least one avatar or product image.',
-    };
-  }
+  const directReferencePlan = buildDirectReferenceImagePlan({
+    avatarPhotoUrls: cloneReferenceAssets.avatarPhotoUrls,
+    productImageUrls: cloneReferenceAssets.productImageUrls,
+    petPhotoUrls: cloneReferenceAssets.petPhotoUrls,
+    avatarName: cloneReferenceAssets.avatarName || null,
+    productName: cloneReferenceAssets.productName || null,
+    petName: cloneReferenceAssets.petName || null,
+  });
+  const referenceImageUrls = directReferencePlan.referenceImageUrls;
 
   const generationCost = getProjectAgentCloneGenerationCost({
     model,
@@ -5282,11 +5491,12 @@ async function startDirectReferenceCloneWorkflow(input: {
   const replacementSummary = [
     cloneReferenceAssets.avatarName ? `avatar/person: ${cloneReferenceAssets.avatarName}` : null,
     cloneReferenceAssets.productName ? `product: ${cloneReferenceAssets.productName}` : null,
+    cloneReferenceAssets.petName ? `pet/animal: ${cloneReferenceAssets.petName}` : null,
     normalizeSupplementalText(request.supplementalText) ? `notes: ${normalizeSupplementalText(request.supplementalText)}` : null,
   ].filter(Boolean).join('; ');
   const prompt = [
-    'Use the provided reference video as the source for timing, motion, shot order, framing, camera movement, pacing, and overall UGC ad structure.',
-    'Use the provided reference images as canonical replacement assets. Replace the original featured person and/or product with these assets while preserving the source video structure.',
+    ...directReferencePlan.promptDirectives,
+    'Replace the original featured person and/or product with the provided replacement assets while preserving the source video structure.',
     replacementSummary ? `Replacement context: ${replacementSummary}.` : '',
     'Keep the result commercially usable, natural, and free of watermarks or text overlays unless they are part of the replacement product packaging.',
   ].filter(Boolean).join(' ');
@@ -5294,8 +5504,10 @@ async function startDirectReferenceCloneWorkflow(input: {
   const selectedInputs: VideoCloneSelectedInputs = {
     primaryAvatarId: cloneReferenceAssets.selectedAvatarId || null,
     primaryProductId: cloneReferenceAssets.selectedProductId || null,
+    primaryPetId: cloneReferenceAssets.selectedPetId || null,
     avatarIds: cloneReferenceAssets.selectedAvatarIds || [],
     productIds: cloneReferenceAssets.selectedProductIds || [],
+    petIds: cloneReferenceAssets.selectedPetIds || [],
     workflowSource: 'project_agent_clone',
     mergePolicy: 'auto',
     executionMode: 'clone_direct_reference',
@@ -5334,6 +5546,7 @@ async function startDirectReferenceCloneWorkflow(input: {
       selected_inputs: selectedInputs,
       video_prompts: {
         mode: 'clone_direct_reference',
+        direct_reference_prompt_version: DIRECT_REFERENCE_PROMPT_VERSION,
         prompt,
         referenceVideoName: referenceVideoContext?.reference_name || null,
         clone_reference_assets: {
@@ -5341,8 +5554,12 @@ async function startDirectReferenceCloneWorkflow(input: {
           selectedProductId: cloneReferenceAssets.selectedProductId || request.selectedProductId || null,
           selectedAvatarIds: cloneReferenceAssets.selectedAvatarIds || [],
           selectedProductIds: cloneReferenceAssets.selectedProductIds || [],
+          selectedPetId: cloneReferenceAssets.selectedPetId || request.selectedPetId || null,
+          selectedPetIds: cloneReferenceAssets.selectedPetIds || [],
           avatarPhotoUrls: cloneReferenceAssets.avatarPhotoUrls,
           productImageUrls: cloneReferenceAssets.productImageUrls,
+          petPhotoUrls: cloneReferenceAssets.petPhotoUrls,
+          directReferenceImageUrls: referenceImageUrls,
         },
       },
       segment_plan: { segments: [{ prompt, duration: durationSeconds, mode: 'clone_direct_reference' }] },
@@ -5415,6 +5632,14 @@ async function startDirectReferenceCloneWorkflow(input: {
   }
 
   try {
+    console.log('[Direct Reference Clone] Seedance edit-video request', {
+      promptVersion: DIRECT_REFERENCE_PROMPT_VERSION,
+      model,
+      durationSeconds,
+      referenceVideoUrl: referenceSourceVideoUrl,
+      referenceImageCount: referenceImageUrls.length,
+      referenceImageUrls,
+    });
     const taskId = await startEditVideoTaskSeedance({
       projectId: project.id,
       userId: request.userId,

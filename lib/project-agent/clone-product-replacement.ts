@@ -71,8 +71,66 @@ export function removeOriginalAvatarReferences(input: {
   return cleanupReplacementText(cleaned);
 }
 
+const ORIGINAL_PET_PATTERNS = [
+  /\btabby\s+cat\b/gi,
+  /\btuxedo\s+cat\b/gi,
+  /\bcalico\s+cat\b/gi,
+  /\bsiamese\s+cat\b/gi,
+  /\bpersian\s+cat\b/gi,
+  /\bmaine\s+coon\s+cat\b/gi,
+  /\bbritish\s+shorthair\s+cat\b/gi,
+  /\bragdoll\s+cat\b/gi,
+  /\bgolden\s+retriever\s+dog\b/gi,
+  /\blabrador\s+retriever\s+dog\b/gi,
+  /\bfrench\s+bulldog\b/gi,
+  /\bcorgi\s+dog\b/gi,
+  /\bborder\s+collie\s+dog\b/gi,
+  /\bpomeranian\s+dog\b/gi,
+  /\bhusky\s+dog\b/gi,
+  /\bstray\s+cat\b/gi,
+  /\bstray\s+dog\b/gi,
+  /\borange\s+tabby\s+cat\b/gi,
+  /\bgray\s+tabby\s+cat\b/gi,
+  /\bwhite\s+cat\b/gi,
+  /\borange\s+cat\b/gi,
+  /\bblack\s+cat\b/gi,
+  /\bblack\s+dog\b/gi,
+  /\byellow\s+lab\b/gi,
+  /\blittle\s+cat\b/gi,
+  /\bsmall\s+cat\b/gi,
+  /\bkitten\b/gi,
+  /\bpuppy\b/gi,
+  /\bthe\s+cat\b/gi,
+  /\bthe\s+dog\b/gi,
+  /\bthe\s+puppy\b/gi,
+  /\bthe\s+kitten\b/gi,
+  /\bcat\b/gi,
+  /\bdog\b/gi,
+  /\bpet\b/gi,
+  /\banimal\b/gi,
+];
+
+export function removeOriginalPetReferences(input: {
+  text: string;
+  petName?: string | null;
+  petToken?: string | null;
+}) {
+  const petReplacement = input.petToken?.trim() || input.petName?.trim() || '';
+  const source = input.text.trim();
+  if (!source || !petReplacement) return source;
+  if (source.includes(petReplacement)) return source;
+
+  let cleaned = source;
+  for (const pattern of ORIGINAL_PET_PATTERNS) {
+    cleaned = cleaned.replace(pattern, petReplacement);
+  }
+
+  return cleanupReplacementText(cleaned);
+}
+
 export const __test__ = {
   ORIGINAL_AVATAR_PATTERNS,
   ORIGINAL_PRODUCT_PATTERNS,
+  ORIGINAL_PET_PATTERNS,
   cleanupReplacementText
 };

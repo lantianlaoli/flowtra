@@ -9,6 +9,7 @@ import { AlertTriangle, CopyPlus, Sparkles, Type, User, X } from 'lucide-react';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import CreateAvatarModal from '@/components/CreateAvatarModal';
 import CreateProductModal from '@/components/CreateProductModal';
+import CreatePetModal from '@/components/CreatePetModal';
 import VideoImportModal from '@/components/VideoImportModal';
 import AssetsManager from '@/components/AssetsManager';
 import HistoryPage from '@/components/pages/HistoryPage';
@@ -89,6 +90,7 @@ import {
   type ProjectAgentSelectableAssetType,
   type ProjectAgentPendingUiRequest,
 } from '@/lib/project-agent/canvas-actions';
+import type { UserPet } from '@/lib/supabase';
 import type { UserAvatar, UserProduct } from '@/lib/supabase';
 import { applyDashboardTheme, DASHBOARD_THEME_STORAGE_KEY, getPreferredDashboardTheme } from '@/lib/theme';
 import {
@@ -218,6 +220,25 @@ const toProductAssets = (payload: Record<string, unknown>) => {
     }) as ProjectAgentCanvasAssetRef[];
 };
 
+const toPetAssets = (payload: Record<string, unknown>) => {
+  const pets = Array.isArray(payload.pets) ? payload.pets : [];
+  return pets
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map((item) => {
+      return {
+        id: String(item.id),
+        name: typeof item.pet_name === 'string' ? item.pet_name : 'Pet',
+        imageUrl: typeof item.front_photo_url === 'string' ? item.front_photo_url : null,
+        photos: (
+          [typeof item.front_photo_url === 'string' ? item.front_photo_url : null,
+           typeof item.side_photo_url === 'string' ? item.side_photo_url : null,
+           typeof item.back_photo_url === 'string' ? item.back_photo_url : null]
+        ).filter((url): url is string => typeof url === 'string'),
+        isSystem: item.isSystem === true,
+      };
+    }) as ProjectAgentCanvasAssetRef[];
+};
+
 const toVideoAssets = (payload: Record<string, unknown>) => (
   toProjectAgentVideoAssets(payload.videos) as ProjectAgentCanvasAssetRef[]
 );
@@ -252,6 +273,7 @@ const getProjectAgentPageMessages = (locale: string) => {
       defaults: {
         avatar: '头像',
         product: '产品',
+        pet: '宠物',
         text: 'Instruction',
       },
       history: {
@@ -268,6 +290,7 @@ const getProjectAgentPageMessages = (locale: string) => {
     defaults: {
       avatar: 'Avatar',
       product: 'Product',
+      pet: 'Pet',
       text: 'Instruction',
     },
     history: {
@@ -295,13 +318,15 @@ export default function ProjectAgentPage() {
   const [canvasNotice, setCanvasNotice] = useState<ProjectAgentCanvasNotice | null>(null);
   const [pendingUiRequest, setPendingUiRequest] = useState<ProjectAgentPendingUiRequest | null>(null);
   const [appliedCanvasActionCallIds, setAppliedCanvasActionCallIds] = useState<string[]>([]);
-  const [toolbarOpenKey, setToolbarOpenKey] = useState<'avatar' | 'product' | 'video' | 'feature' | null>(null);
+  const [toolbarOpenKey, setToolbarOpenKey] = useState<'avatar' | 'product' | 'video' | 'pet' | 'feature' | null>(null);
   const [showCreateAvatarModal, setShowCreateAvatarModal] = useState(false);
   const [showCreateProductModal, setShowCreateProductModal] = useState(false);
+  const [showCreatePetModal, setShowCreatePetModal] = useState(false);
   const [showVideoImportModal, setShowVideoImportModal] = useState(false);
   const [chatOpen, setChatOpen] = useState(true);
   const [avatars, setAvatars] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [products, setProducts] = useState<ProjectAgentCanvasAssetRef[]>([]);
+  const [pets, setPets] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [videos, setVideos] = useState<ProjectAgentCanvasAssetRef[]>([]);
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
@@ -503,13 +528,15 @@ export default function ProjectAgentPage() {
   const isStreaming = (status === 'submitted' || status === 'streaming') && settledPromptRequestNonce < promptRequestNonce;
 
   const loadAssets = useCallback(async () => {
-    const [avatarsResponse, assetsResponse] = await Promise.all([
+    const [avatarsResponse, assetsResponse, petsResponse] = await Promise.all([
       fetch('/api/user-avatars', { cache: 'no-store' }),
       fetch('/api/assets', { cache: 'no-store' }),
+      fetch('/api/user-pets', { cache: 'no-store' }),
     ]);
 
     let freshAvatars: ProjectAgentCanvasAssetRef[] = [];
     let freshProducts: ProjectAgentCanvasAssetRef[] = [];
+    let freshPets: ProjectAgentCanvasAssetRef[] = [];
     let freshVideos: ProjectAgentCanvasAssetRef[] = [];
 
     if (avatarsResponse.ok) {
@@ -526,8 +553,14 @@ export default function ProjectAgentPage() {
       setVideos(freshVideos);
     }
 
+    if (petsResponse.ok) {
+      const petsPayload = await petsResponse.json() as Record<string, unknown>;
+      freshPets = toPetAssets(petsPayload);
+      setPets(freshPets);
+    }
+
     // Sync photos into existing canvas asset nodes so cards show all angles
-    const allFresh = [...freshAvatars, ...freshProducts, ...freshVideos];
+    const allFresh = [...freshAvatars, ...freshProducts, ...freshPets, ...freshVideos];
     if (allFresh.length > 0) {
       updateCanvas((current) => {
         let changed = false;
@@ -1109,13 +1142,17 @@ export default function ProjectAgentPage() {
     applyCanvasActions(actions, asset);
   }, [applyCanvasActions, pendingUiRequest]);
 
-  const handleQuickUploadRequest = useCallback((assetType: 'avatar' | 'product' | 'video') => {
+  const handleQuickUploadRequest = useCallback((assetType: 'avatar' | 'product' | 'video' | 'pet') => {
     if (assetType === 'avatar') {
       setShowCreateAvatarModal(true);
       return;
     }
     if (assetType === 'video') {
       setShowVideoImportModal(true);
+      return;
+    }
+    if (assetType === 'pet') {
+      setShowCreatePetModal(true);
       return;
     }
     setShowCreateProductModal(true);
@@ -1886,6 +1923,7 @@ export default function ProjectAgentPage() {
     return {
       avatar: inputs.get('avatar')?.asset || null,
       product: inputs.get('product')?.asset || null,
+      pet: inputs.get('pet')?.asset || null,
       video: inputs.get('video')?.asset || null,
       text: inputs.get('text')?.asset || null,
     };
@@ -1972,6 +2010,7 @@ export default function ProjectAgentPage() {
       const nextNode = getProjectAgentCanvasNodeById(current, nodeId);
       if (!nextNode || !isProjectAgentFeatureNode(nextNode.type)) return current;
       const skipCloneFrames = shouldSkipCloneFrameMilestone(nextNode.type, connectedAssets, nextNode.config);
+      const skipCloneMerge = skipCloneFrames && nextNode.type === 'video_clone';
       return upsertCanvasNode(current, {
         ...nextNode,
         runtime: {
@@ -1979,7 +2018,7 @@ export default function ProjectAgentPage() {
           projectId: null,
           outputUrl: null,
           previewUrl: null,
-          ...createQueuedExecutionStatus(nextNode.type, { skipCloneFrames }),
+          ...createQueuedExecutionStatus(nextNode.type, { skipCloneFrames, skipCloneMerge }),
           error: null,
           userFacingError: null,
           retryable: false,
@@ -2049,12 +2088,13 @@ export default function ProjectAgentPage() {
       const nextNode = getProjectAgentCanvasNodeById(current, nodeId);
       if (!nextNode || !isProjectAgentFeatureNode(nextNode.type)) return current;
       const skipCloneFrames = shouldSkipCloneFrameMilestone(nextNode.type, connectedAssets, nextNode.config);
+      const skipCloneMerge = skipCloneFrames && nextNode.type === 'video_clone';
       return upsertCanvasNode(current, {
         ...nextNode,
         runtime: {
           ...(nextNode.runtime || {}),
           executionState: 'running',
-          ...createQueuedExecutionStatus(nextNode.type, { skipCloneFrames }),
+          ...createQueuedExecutionStatus(nextNode.type, { skipCloneFrames, skipCloneMerge }),
           statusLabel: 'Retrying',
           userFacingError: null,
           error: null,
@@ -2484,6 +2524,7 @@ export default function ProjectAgentPage() {
                   avatars={avatars}
                   products={products}
                   videos={videos}
+                  pets={pets}
                   orientation="vertical"
                   openKey={toolbarOpenKey}
                   onOpenKeyChange={setToolbarOpenKey}

@@ -59,6 +59,9 @@ export async function POST(request: NextRequest) {
     const selectedProductIds = Array.isArray(requestData.selectedProductIds)
       ? requestData.selectedProductIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
       : [];
+    const selectedPetIds = Array.isArray(requestData.selectedPetIds)
+      ? requestData.selectedPetIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+      : [];
     requestData.selectedAvatarIds = Array.from(new Set([
       ...(requestData.selectedAvatarId ? [requestData.selectedAvatarId] : []),
       ...selectedAvatarIds
@@ -67,8 +70,13 @@ export async function POST(request: NextRequest) {
       ...(requestData.selectedProductId ? [requestData.selectedProductId] : []),
       ...selectedProductIds
     ]));
+    requestData.selectedPetIds = Array.from(new Set([
+      ...(requestData.selectedPetId ? [requestData.selectedPetId] : []),
+      ...selectedPetIds
+    ]));
     requestData.selectedAvatarId = requestData.selectedAvatarId || requestData.selectedAvatarIds[0];
     requestData.selectedProductId = requestData.selectedProductId || requestData.selectedProductIds[0];
+    requestData.selectedPetId = requestData.selectedPetId || requestData.selectedPetIds[0];
 
     if (requestData.executionMode === 'edit_video') {
       const prompt = requestData.editVideoPrompt?.trim();
@@ -155,6 +163,8 @@ export async function POST(request: NextRequest) {
       selectedProductId: requestData.selectedProductId,
       selectedAvatarIds: requestData.selectedAvatarIds,
       selectedProductIds: requestData.selectedProductIds,
+      selectedPetId: requestData.selectedPetId,
+      selectedPetIds: requestData.selectedPetIds,
       userId: requestData.userId,
       videoModel: requestData.videoModel,
       elementsCount: requestData.elementsCount,

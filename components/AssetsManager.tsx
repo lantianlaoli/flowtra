@@ -15,6 +15,7 @@ import EditAvatarModal from './EditAvatarModal';
 import AvatarCard from './AvatarCard';
 import PetCard from './PetCard';
 import CreatePetModal from './CreatePetModal';
+import EditPetModal from './EditPetModal';
 import SystemAvatarDetailsModal from './SystemAvatarDetailsModal';
 import SystemProductDetailsModal from './SystemProductDetailsModal';
 import VideoImportModal from './VideoImportModal';
@@ -111,6 +112,7 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
   type AvatarItem = UserAvatar | SystemAvatar;
   const [avatars, setAvatars] = useState<AvatarItem[]>([]);
   const [pets, setPets] = useState<UserPet[]>([]);
+  const [editingPet, setEditingPet] = useState<UserPet | null>(null);
   const [activeTab, setActiveTab] = useState<'products' | 'avatars' | 'pets' | 'videos'>('products');
 
   // Modal states
@@ -404,7 +406,18 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
 
   const handlePetCreated = (newPet: UserPet) => {
     setPets((prev) => [newPet, ...prev]);
+    void loadPets();
     showSuccess('Pet saved successfully');
+  };
+
+  const handleEditPet = (pet: UserPet) => {
+    setEditingPet(pet);
+  };
+
+  const handlePetUpdated = (updatedPet: UserPet) => {
+    setPets((prev) => prev.map((p) => p.id === updatedPet.id ? updatedPet : p));
+    void loadPets();
+    showSuccess('Pet updated successfully');
   };
 
   const handleDeletePet = async (petId: string) => {
@@ -418,6 +431,7 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
         return;
       }
       setPets((prev) => prev.filter((pet) => pet.id !== petId));
+      void loadPets();
       showSuccess('Pet deleted successfully');
     } catch (error) {
       console.error('Error deleting pet:', error);
@@ -607,6 +621,20 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
       );
     }
 
+    if (editingPet) {
+      return (
+        <EditPetModal
+          isOpen
+          embedded
+          pet={editingPet}
+          onClose={() => setEditingPet(null)}
+          onPetUpdated={handlePetUpdated}
+          onDelete={handleDeletePet}
+          isDeleting={deletingPetId === editingPet.id}
+        />
+      );
+    }
+
     if (editingAvatar) {
       return (
         <EditAvatarModal
@@ -785,6 +813,7 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
                 <PetCard
                   key={pet.id}
                   pet={pet}
+                  onEdit={handleEditPet}
                   onDelete={handleDeletePet}
                   isDeleting={deletingPetId === pet.id}
                 />
@@ -910,6 +939,15 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
         isOpen={showCreatePetModal}
         onClose={() => setShowCreatePetModal(false)}
         onPetCreated={handlePetCreated}
+      />
+
+      <EditPetModal
+        isOpen={!!editingPet}
+        pet={editingPet}
+        onClose={() => setEditingPet(null)}
+        onPetUpdated={handlePetUpdated}
+        onDelete={handleDeletePet}
+        isDeleting={deletingPetId === editingPet?.id}
       />
 
       <EditAvatarModal

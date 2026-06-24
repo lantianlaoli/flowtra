@@ -26,15 +26,19 @@ import SegmentInspector, {
 import {
   getDefaultCloneVideoQuality,
   getGenerationCost,
-  getModelSupportedDurations,
   getSegmentCountFromDuration,
   normalizeCloneVideoQualityForModel,
-  snapDurationToModel,
   type VideoModel,
   type CloneVideoQuality,
   type VideoDuration,
   getReplicaPhotoCredits,
 } from "@/lib/constants";
+import {
+  getDashboardDirectReferenceRequestOptions,
+  getDashboardVideoCloneDuration,
+  getPlayableReferenceVideoUrl,
+  isDashboardDirectReferenceCandidate,
+} from "@/lib/video-clone-direct-reference";
 import { Format } from "@/components/ui/FormatSelector";
 import { LanguageCode } from "@/components/ui/LanguageSelector";
 import type {
@@ -392,13 +396,35 @@ export default function VideoClonePage() {
     );
   }, [selectedModel]);
 
-  const effectiveVideoDuration = useMemo<VideoDuration>(() => {
-    const targetDurationSeconds = selectedReferenceVideo?.duration_seconds || 0;
-    if (!targetDurationSeconds) {
-      return getModelSupportedDurations(selectedModel)[0];
-    }
-    return snapDurationToModel(selectedModel, Math.min(targetDurationSeconds, 64));
-  }, [selectedReferenceVideo?.duration_seconds, selectedModel]);
+  const directReferenceRequestOptions = useMemo(
+    () =>
+      getDashboardDirectReferenceRequestOptions({
+        model: selectedModel,
+        durationSeconds: selectedReferenceVideo?.duration_seconds ?? null,
+        videoUrl: selectedReferenceVideo?.video_url ?? null,
+        videoCdnUrl: selectedReferenceVideo?.video_cdn_url ?? null,
+      }),
+    [
+      selectedModel,
+      selectedReferenceVideo?.duration_seconds,
+      selectedReferenceVideo?.video_cdn_url,
+      selectedReferenceVideo?.video_url,
+    ],
+  );
+
+  const effectiveVideoDuration = useMemo<VideoDuration>(
+    () =>
+      getDashboardVideoCloneDuration({
+        model: selectedModel,
+        referenceDurationSeconds: selectedReferenceVideo?.duration_seconds || 0,
+        directReferenceOptions: directReferenceRequestOptions,
+      }),
+    [
+      directReferenceRequestOptions,
+      selectedModel,
+      selectedReferenceVideo?.duration_seconds,
+    ],
+  );
 
   // Check for showcase TikTok analysis and preselect matching asset video
   useEffect(() => {
@@ -1765,6 +1791,26 @@ export default function VideoClonePage() {
       selectedReferenceVideo.duration_seconds || 0,
     );
     if (
+      shouldGenerateVideo &&
+      !isReferencePhotoMode &&
+      !directReferenceRequestOptions &&
+      isDashboardDirectReferenceCandidate({
+        model: selectedModel,
+        durationSeconds: referenceDurationSeconds,
+      }) &&
+      !getPlayableReferenceVideoUrl({
+        videoUrl: selectedReferenceVideo.video_url,
+        videoCdnUrl: selectedReferenceVideo.video_cdn_url,
+      })
+    ) {
+      setValidationMessage(
+        "This short Seedance clone needs a playable reference video URL. Re-import or re-upload the video, then try again.",
+      );
+      setShowValidationModal(true);
+      return;
+    }
+
+    if (
       selectedModel === "kling_3" &&
       Number.isFinite(referenceDurationSeconds) &&
       referenceDurationSeconds > 60
@@ -1872,6 +1918,9 @@ export default function VideoClonePage() {
             ? selectedReferenceVideo.reference_video_id ||
               selectedReferenceVideo.id
             : undefined,
+        directReferenceOptions: shouldGenerateVideo
+          ? directReferenceRequestOptions
+          : null,
         replicaOptions: replicaPayload,
       });
 

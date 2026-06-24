@@ -1,7 +1,7 @@
 'use client';
 
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { Box, ChevronDown, CopyPlus, Package2, Sparkles, Type, User, Video } from 'lucide-react';
+import { Box, ChevronDown, CopyPlus, Package2, PawPrint, Sparkles, Type, User, Video } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
 import {
   getProjectAgentFeatureDisplayName,
@@ -10,16 +10,17 @@ import {
 } from '@/lib/project-agent/canvas-state';
 import type { ProjectAgentSelectableAssetType } from '@/lib/project-agent/canvas-actions';
 
-type InsertToolbarKey = 'avatar' | 'product' | 'video' | 'feature';
+type InsertToolbarKey = 'avatar' | 'product' | 'video' | 'pet' | 'feature';
 
 type InsertToolbarProps = {
   avatars: ProjectAgentCanvasAssetRef[];
   products: ProjectAgentCanvasAssetRef[];
   videos: ProjectAgentCanvasAssetRef[];
+  pets: ProjectAgentCanvasAssetRef[];
   orientation?: 'horizontal' | 'vertical';
   openKey?: InsertToolbarKey | null;
   onOpenKeyChange?: (next: InsertToolbarKey | null) => void;
-  onQuickUploadRequest?: (assetType: Extract<ProjectAgentSelectableAssetType, 'avatar' | 'product' | 'video'>) => void;
+  onQuickUploadRequest?: (assetType: Extract<ProjectAgentSelectableAssetType, 'avatar' | 'product' | 'video' | 'pet'>) => void;
   selectionMode?: {
     assetType: ProjectAgentSelectableAssetType;
     title: string;
@@ -64,12 +65,14 @@ const getToolbarIcon = (key: string) => {
   if (key === 'avatar') return User;
   if (key === 'product') return Box;
   if (key === 'video') return Video;
+  if (key === 'pet') return PawPrint;
   return Sparkles;
 };
 
 const getAssetFallbackIcon = (type: ProjectAgentSelectableAssetType) => {
   if (type === 'avatar') return User;
   if (type === 'product') return Package2;
+  if (type === 'pet') return PawPrint;
   return Video;
 };
 
@@ -86,6 +89,7 @@ const getToolbarMessages = (locale: string) => {
         avatar: '头像',
         product: '产品',
         video: '视频',
+        pet: '宠物',
         feature: '功能',
       },
       text: 'Instruction',
@@ -93,11 +97,13 @@ const getToolbarMessages = (locale: string) => {
         avatar: '上传头像',
         product: '上传产品',
         video: 'Upload video',
+        pet: '上传宠物',
       },
       empty: {
         avatar: '还没有头像资源。',
         product: '还没有产品资源。',
         video: '还没有视频资源。',
+        pet: '还没有宠物资源。',
       },
     };
   }
@@ -107,21 +113,24 @@ const getToolbarMessages = (locale: string) => {
       avatar: 'Avatar',
       product: 'Product',
       video: 'Video',
+      pet: 'Pet',
       feature: 'Feature',
     },
     text: 'Instruction',
-    quickUpload: {
-      avatar: 'Upload avatar',
-      product: 'Upload product',
-      video: 'Upload video',
-    },
-    empty: {
-      avatar: 'No avatar assets yet.',
-      product: 'No product assets yet.',
-      video: 'No video assets yet.',
-    },
+      quickUpload: {
+        avatar: 'Upload avatar',
+        product: 'Upload product',
+        video: 'Upload video',
+        pet: 'Upload pet',
+      },
+      empty: {
+        avatar: 'No avatar assets yet.',
+        product: 'No product assets yet.',
+        video: 'No video assets yet.',
+        pet: 'No pet assets yet.',
+      },
+    };
   };
-};
 
 const DragItem = ({
   label,
@@ -167,11 +176,11 @@ const QuickUploadTile = ({
   onClick,
   label,
 }: {
-  assetType: Extract<ProjectAgentSelectableAssetType, 'avatar' | 'product' | 'video'>;
+  assetType: Extract<ProjectAgentSelectableAssetType, 'avatar' | 'product' | 'video' | 'pet'>;
   onClick: () => void;
   label: string;
 }) => {
-  const Icon = assetType === 'avatar' ? User : assetType === 'product' ? Package2 : Video;
+  const Icon = assetType === 'avatar' ? User : assetType === 'product' ? Package2 : assetType === 'pet' ? PawPrint : Video;
 
   return (
     <button
@@ -203,7 +212,7 @@ const AssetList = ({
   onQuickUploadRequest?: InsertToolbarProps['onQuickUploadRequest'];
   locale: string;
 }) => {
-  const hasQuickUpload = (type === 'avatar' || type === 'product' || type === 'video') && Boolean(onQuickUploadRequest);
+  const hasQuickUpload = (type === 'avatar' || type === 'product' || type === 'video' || type === 'pet') && Boolean(onQuickUploadRequest);
   const messages = getToolbarMessages(locale);
 
   return (
@@ -220,7 +229,7 @@ const AssetList = ({
               <DragItem
                 key={`${type}-${item.id}`}
                 label={item.name}
-                payload={{ kind: 'asset', type, asset: item }}
+                payload={{ kind: 'asset', type: item.kind || type, asset: item }}
                 onClick={selectionMode?.assetType === type && onAssetSelect ? () => onAssetSelect(type, item) : undefined}
                 isSystem={item.isSystem === true}
                 leading={
@@ -239,9 +248,9 @@ const AssetList = ({
       {hasQuickUpload && onQuickUploadRequest ? (
         <div className="project-agent-insert-footer sticky bottom-0 mt-2 w-full border-t border-[#d9d9d6] bg-[#f1f1ef] pt-2">
           <QuickUploadTile
-            assetType={type as 'avatar' | 'product' | 'video'}
-            label={messages.quickUpload[type as 'avatar' | 'product' | 'video']}
-            onClick={() => onQuickUploadRequest(type as 'avatar' | 'product' | 'video')}
+            assetType={type as 'avatar' | 'product' | 'video' | 'pet'}
+            label={messages.quickUpload[type as 'avatar' | 'product' | 'video' | 'pet']}
+            onClick={() => onQuickUploadRequest(type as 'avatar' | 'product' | 'video' | 'pet')}
           />
         </div>
       ) : null}
@@ -253,6 +262,7 @@ export default function InsertToolbar({
   avatars,
   products,
   videos,
+  pets,
   orientation = 'horizontal',
   openKey: controlledOpenKey,
   onOpenKeyChange,
@@ -267,6 +277,7 @@ export default function InsertToolbar({
     avatar: null,
     product: null,
     video: null,
+    pet: null,
     feature: null,
   });
   const [dropdownOffset, setDropdownOffset] = useState(0);
@@ -327,6 +338,7 @@ export default function InsertToolbar({
     if (openKey === 'avatar') return <AssetList items={avatars} type="avatar" locale={locale} selectionMode={selectionMode} onAssetSelect={onAssetSelect} onQuickUploadRequest={onQuickUploadRequest} />;
     if (openKey === 'product') return <AssetList items={products} type="product" locale={locale} selectionMode={selectionMode} onAssetSelect={onAssetSelect} onQuickUploadRequest={onQuickUploadRequest} />;
     if (openKey === 'video') return <AssetList items={videos} type="video" locale={locale} selectionMode={selectionMode} onAssetSelect={onAssetSelect} onQuickUploadRequest={onQuickUploadRequest} />;
+    if (openKey === 'pet') return <AssetList items={pets} type="pet" locale={locale} selectionMode={selectionMode} onAssetSelect={onAssetSelect} onQuickUploadRequest={onQuickUploadRequest} />;
     if (openKey === 'feature') {
       return (
         <div className="flex flex-col items-start gap-2">
@@ -373,6 +385,7 @@ export default function InsertToolbar({
           { key: 'avatar', label: messages.categories.avatar },
           { key: 'product', label: messages.categories.product },
           { key: 'video', label: messages.categories.video },
+          { key: 'pet', label: messages.categories.pet },
           { key: 'feature', label: messages.categories.feature },
         ] as const).map((entry) => {
           const EntryIcon = getToolbarIcon(entry.key);

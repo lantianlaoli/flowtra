@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { type CloneVideoQuality, type VideoDuration, type VideoModel } from '@/lib/constants';
+import type { DashboardDirectReferenceRequestOptions } from '@/lib/video-clone-direct-reference';
 
 export type WorkflowStep = 'describing' | 'generating_prompts' | 'generating_cover' | 'generating_video' | 'complete';
 export type WorkflowStatus = 'started' | 'uploaded_waiting_config' | 'workflow_initiated' | 'in_progress' | 'completed' | 'failed';
@@ -203,6 +204,7 @@ export const useVideoCloneWorkflow = (
     generateVideo = true,
     referenceVideoId,
     creatorSourceVideoId,
+    directReferenceOptions,
     replicaOptions
   }: {
     elementsCountOverride?: number;
@@ -210,6 +212,7 @@ export const useVideoCloneWorkflow = (
     generateVideo?: boolean;
     referenceVideoId?: string;
     creatorSourceVideoId?: string;
+    directReferenceOptions?: DashboardDirectReferenceRequestOptions | null;
     replicaOptions?: {
       photoOnly?: boolean;
       replicaMode?: boolean;
@@ -246,17 +249,20 @@ export const useVideoCloneWorkflow = (
         shouldGenerateVideo: generateVideo,
         photoOnly: normalizedPhotoOnly,
         videoAspectRatio: videoAspectRatio,
-        videoDuration,
         videoQuality: selectedVideoQuality,
         referenceVideoId: referenceVideoId || undefined,
         creatorSourceVideoId: creatorSourceVideoId || undefined,
+        requestSource: directReferenceOptions?.requestSource,
+        executionMode: directReferenceOptions?.executionMode,
+        referenceSourceVideoUrl: directReferenceOptions?.referenceSourceVideoUrl,
         language: selectedLanguage,
         useCustomScript: useCustomScript,
         customScript: customScript?.trim() ? customScript.trim() : undefined,
         referenceImageUrls: replicaOptions?.referenceImageUrls,
         photoResolution: replicaOptions?.photoResolution,
         photoOutputFormat: replicaOptions?.photoOutputFormat,
-        replicaMode: replicaOptions?.replicaMode
+        replicaMode: replicaOptions?.replicaMode,
+        videoDuration: directReferenceOptions?.videoDuration || videoDuration
       };
 
       console.log('🔍 useWorkflow startWorkflowWithSelectedProduct requestData:', requestData);
