@@ -392,6 +392,7 @@ export default function AiAngleGeneratorPage() {
 
   return (
     <ToolPageShell
+      toolSlug="ai-angle-generator"
       eyebrow={toolMessages.eyebrow}
       title={toolMessages.title}
       description={toolMessages.description}

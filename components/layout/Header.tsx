@@ -20,6 +20,7 @@ import {
   LayoutDashboard,
   BookOpen,
   MessageSquare,
+  MessageSquarePlus,
   Rotate3D,
   ScanSearch,
   Store,
@@ -29,6 +30,7 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/providers/I18nProvider";
 import { trackLandingToolClick } from "@/lib/analytics/landing-tools";
+import FeedbackDialog from "@/components/feedback/FeedbackDialog";
 
 interface HeaderProps {
   showAuthButtons?: boolean;
@@ -50,6 +52,7 @@ const TOOL_ICON_BY_HREF: Record<string, LucideIcon> = {
   "/tools/image-clone": ScanSearch,
   "/tools/ecommerce-listing-studio": Store,
   "/tools/social-cover-generator": Presentation,
+  "#feedback": MessageSquarePlus,
 };
 const FREE_TOOL_HREFS = new Set(["/tools/upload-assets", "/tools/roas-calculator"]);
 
@@ -60,13 +63,14 @@ function HeaderMenuItem({
   isNew = false,
   badgeLabel = "New",
   onClick,
-}: HeaderNavItem & { onClick?: () => void; badgeLabel?: string }) {
-  return (
-    <Link
-      href={href}
-      className="landing-dropdown-item landing-press-button landing-press-button--secondary landing-press-button--compact"
-      onClick={onClick}
-    >
+  as = "link",
+}: HeaderNavItem & {
+  onClick?: () => void;
+  badgeLabel?: string;
+  as?: "link" | "button";
+}) {
+  const innerContent = (
+    <>
       <div className="landing-dropdown-item__icon" aria-hidden="true">
         <Icon className="h-5 w-5" />
       </div>
@@ -86,6 +90,28 @@ function HeaderMenuItem({
           ) : null}
         </div>
       </div>
+    </>
+  );
+
+  if (as === "button") {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="landing-dropdown-item landing-press-button landing-press-button--secondary landing-press-button--compact w-full text-left"
+      >
+        {innerContent}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      className="landing-dropdown-item landing-press-button landing-press-button--secondary landing-press-button--compact"
+      onClick={onClick}
+    >
+      {innerContent}
     </Link>
   );
 }
@@ -97,7 +123,12 @@ function HeaderMobileTileItem({
   isNew = false,
   badgeLabel = "New",
   onClick,
-}: HeaderNavItem & { onClick?: () => void; badgeLabel?: string }) {
+  as = "link",
+}: HeaderNavItem & {
+  onClick?: () => void;
+  badgeLabel?: string;
+  as?: "link" | "button";
+}) {
   const titleSizeClass =
     title.length > 14
       ? "text-[0.72rem]"
@@ -105,13 +136,8 @@ function HeaderMobileTileItem({
         ? "text-[0.78rem]"
         : "text-[0.84rem]";
 
-  return (
-    <Link
-      href={href}
-      onClick={onClick}
-      className="landing-press-button landing-press-button--secondary flex min-h-[82px] items-center gap-2 rounded-[22px] px-2 py-2.5 text-left"
-      style={{ boxShadow: "none" }}
-    >
+  const innerContent = (
+    <>
       <Icon className="h-4.5 w-4.5 shrink-0 text-black" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
@@ -134,6 +160,30 @@ function HeaderMobileTileItem({
           ) : null}
         </div>
       </div>
+    </>
+  );
+
+  if (as === "button") {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="landing-press-button landing-press-button--secondary flex min-h-[82px] items-center gap-2 rounded-[22px] px-2 py-2.5 text-left w-full"
+        style={{ boxShadow: "none" }}
+      >
+        {innerContent}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      className="landing-press-button landing-press-button--secondary flex min-h-[82px] items-center gap-2 rounded-[22px] px-2 py-2.5 text-left"
+      style={{ boxShadow: "none" }}
+    >
+      {innerContent}
     </Link>
   );
 }
@@ -150,6 +200,7 @@ export default function Header({
   const headerMessages = messages.landing.header;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [compact, setCompact] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const featureItems: HeaderNavItem[] = headerMessages.featureItems.map((item, index) => ({
     ...item,
@@ -337,15 +388,27 @@ export default function Header({
                 </button>
                 <div className="landing-floating-panel absolute left-1/2 top-full z-50 mt-4 min-w-[15.5rem] w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-[22px] border border-[#E5E5E5] bg-white p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.12)] invisible opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
                   <div className="flex flex-col gap-2 py-2">
-                    {toolItems.map((item) => (
-                      <HeaderMenuItem
-                        key={item.href}
-                        {...item}
-                        onClick={() =>
-                          trackLandingToolClick(item.href, "landing_header_desktop_tools")
-                        }
-                      />
-                    ))}
+                    {toolItems.map((item) =>
+                      item.href === "#feedback" ? (
+                        <HeaderMenuItem
+                          key={item.href}
+                          {...item}
+                          as="button"
+                          onClick={() => {
+                            trackLandingToolClick(item.href, "landing_header_desktop_tools");
+                            setFeedbackOpen(true);
+                          }}
+                        />
+                      ) : (
+                        <HeaderMenuItem
+                          key={item.href}
+                          {...item}
+                          onClick={() =>
+                            trackLandingToolClick(item.href, "landing_header_desktop_tools")
+                          }
+                        />
+                      )
+                    )}
                   </div>
                 </div>
               </div>
@@ -440,16 +503,29 @@ export default function Header({
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {mobileToolItems.map((item) => (
-                  <HeaderMobileTileItem
-                    key={item.href}
-                    {...item}
-                    onClick={() => {
-                      trackLandingToolClick(item.href, "landing_header_mobile_tools");
-                      setMobileMenuOpen(false);
-                    }}
-                  />
-                ))}
+                {mobileToolItems.map((item) =>
+                  item.href === "#feedback" ? (
+                    <HeaderMobileTileItem
+                      key={item.href}
+                      {...item}
+                      as="button"
+                      onClick={() => {
+                        trackLandingToolClick(item.href, "landing_header_mobile_tools");
+                        setMobileMenuOpen(false);
+                        setFeedbackOpen(true);
+                      }}
+                    />
+                  ) : (
+                    <HeaderMobileTileItem
+                      key={item.href}
+                      {...item}
+                      onClick={() => {
+                        trackLandingToolClick(item.href, "landing_header_mobile_tools");
+                        setMobileMenuOpen(false);
+                      }}
+                    />
+                  )
+                )}
               </div>
 
               <div className="mt-5 text-[12px] font-medium uppercase tracking-[0.2em] text-[#666666]">
@@ -469,6 +545,12 @@ export default function Header({
           </div>
         </div>
       </div>
+      <FeedbackDialog
+        variant="suggest_tool"
+        source="landing_header_tools"
+        open={feedbackOpen}
+        onOpenChange={setFeedbackOpen}
+      />
     </header>
   );
 }

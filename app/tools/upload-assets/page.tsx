@@ -246,6 +246,7 @@ export default function ToolsPage() {
 
   return (
     <ToolPageShell
+      toolSlug="upload-assets"
       title="Upload Assets to URL"
       titleBadge="Free"
       description="Upload a video or image and get a temporary download URL. Files are stored for up to 3 days."

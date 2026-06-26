@@ -1169,6 +1169,7 @@ export default function ImageClonePage() {
   return (
     <>
       <ToolPageShell
+        toolSlug="image-clone"
         eyebrow={toolMessages.eyebrow}
         title="Image Clone"
         description="Clone one ecommerce image quickly, or upload a workbook to generate a batch."

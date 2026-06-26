@@ -1054,6 +1054,7 @@ export default function SocialCoverGeneratorPage() {
   return (
     <>
       <ToolPageShell
+        toolSlug="social-cover-generator"
         title="Social Cover Generator"
         description="Upload a portrait and product or logo reference to generate bilingual social covers for thumbnails, launches, and creator campaigns."
         statusLabel={heroCreditState.label}

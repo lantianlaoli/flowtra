@@ -259,6 +259,7 @@ export default function AdShortFilmPage() {
 
   return (
     <ToolPageShell
+      toolSlug="ad-short-film"
       eyebrow={toolMessages.eyebrow || "Tools"}
       title={toolMessages.title || "AI Ad Short Film"}
       description={toolMessages.description || "Upload a product photo and generate a 15-second cinematic ad video."}

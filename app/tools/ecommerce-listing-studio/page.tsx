@@ -788,6 +788,7 @@ export default function EcommerceListingStudioPage() {
   return (
     <>
       <ToolPageShell
+        toolSlug="ecommerce-listing-studio"
         title="Ecommerce Listing Studio"
         description="Generate marketplace listing images, detail images, and product ad videos from product photos for Temu-style ecommerce workflows."
         statusLabel={heroCreditState.label}

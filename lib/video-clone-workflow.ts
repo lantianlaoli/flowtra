@@ -618,7 +618,6 @@ const buildDirectReferenceImagePlan = (assets: {
     'Use the reference video as the primary source of truth for motion, timing, shot order, framing, pacing, camera movement, and scene progression.',
     'Do not open on a static portrait or isolated packshot unless the source video itself opens that way.',
     'Preserve the source video hand interactions, eyelines, object placement, and action beats.',
-    'If the source video includes an animal or pet interacting with the product, preserve that interaction while replacing only the intended person and product identities.',
   ];
 
   if (hasReplacementImages) {
@@ -649,9 +648,19 @@ const buildDirectReferenceImagePlan = (assets: {
     );
   }
 
-  if (avatarImages.length > 0 || productImages.length > 0) {
+  if (avatarImages.length > 0 || productImages.length > 0 || petImages.length > 0) {
     promptDirectives.push(
-      'If there is any conflict between preserving the source subject identity and applying replacement identities, prioritize the replacement person and replacement product.'
+      'If there is any conflict between preserving the source subject identity and applying replacement identities, prioritize the replacement person, replacement product, and replacement pet.'
+    );
+  }
+
+  if (petImages.length === 0) {
+    promptDirectives.push(
+      'If the source video includes an animal or pet interacting with the product, preserve that interaction while replacing only the intended person and product identities.'
+    );
+  } else {
+    promptDirectives.push(
+      'If the source video includes an animal or pet interacting with the product, preserve that interaction while replacing the intended person, product, and pet identities.'
     );
   }
 
@@ -5494,9 +5503,26 @@ async function startDirectReferenceCloneWorkflow(input: {
     cloneReferenceAssets.petName ? `pet/animal: ${cloneReferenceAssets.petName}` : null,
     normalizeSupplementalText(request.supplementalText) ? `notes: ${normalizeSupplementalText(request.supplementalText)}` : null,
   ].filter(Boolean).join('; ');
+  const replacementTargets: string[] = [];
+  if (cloneReferenceAssets.avatarPhotoUrls && cloneReferenceAssets.avatarPhotoUrls.length > 0) {
+    replacementTargets.push('person');
+  }
+  if (cloneReferenceAssets.productImageUrls && cloneReferenceAssets.productImageUrls.length > 0) {
+    replacementTargets.push('product');
+  }
+  if (cloneReferenceAssets.petPhotoUrls && cloneReferenceAssets.petPhotoUrls.length > 0) {
+    replacementTargets.push('pet');
+  }
+  const targetList = replacementTargets.length === 0
+    ? 'person and/or product'
+    : replacementTargets.length === 1
+      ? replacementTargets[0]
+      : replacementTargets.length === 2
+        ? `${replacementTargets[0]} and ${replacementTargets[1]}`
+        : `${replacementTargets[0]}, ${replacementTargets[1]}, and ${replacementTargets[2]}`;
   const prompt = [
     ...directReferencePlan.promptDirectives,
-    'Replace the original featured person and/or product with the provided replacement assets while preserving the source video structure.',
+    `Replace the original featured ${targetList} with the provided replacement assets while preserving the source video structure.`,
     replacementSummary ? `Replacement context: ${replacementSummary}.` : '',
     'Keep the result commercially usable, natural, and free of watermarks or text overlays unless they are part of the replacement product packaging.',
   ].filter(Boolean).join(' ');

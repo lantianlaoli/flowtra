@@ -29,6 +29,25 @@ export type LandingMessages = {
       title: string;
     }>;
   };
+  feedback: {
+    triggerLabel: string;
+    triggerHelper: string;
+    titleSuggest: string;
+    descriptionSuggest: string;
+    placeholderSuggest: string;
+    titleFeedback: string;
+    descriptionFeedback: string;
+    placeholderFeedback: string;
+    submit: string;
+    submitting: string;
+    success: string;
+    signInToSend: string;
+    errorEmpty: string;
+    errorGeneric: string;
+    hintLabel: string;
+    hintExamplesSuggest: string[];
+    hintExamplesFeedback: string[];
+  };
   hero: {
     badges: {
       blackFriday: string;
@@ -231,6 +250,36 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/image-clone', title: 'Image Clone' },
         { href: '/tools/ecommerce-listing-studio', title: 'Ecommerce Listing Studio' },
         { href: '/tools/social-cover-generator', title: 'Social Cover Generator' },
+        { href: '#feedback', title: 'Suggest a new tool' },
+      ],
+    },
+    feedback: {
+      triggerLabel: 'Something off? Tell us',
+      triggerHelper: 'We read every reply',
+      titleSuggest: 'Suggest a new tool',
+      descriptionSuggest: 'Tell us what tool you wish we had. We read every reply.',
+      placeholderSuggest: 'Describe the tool you want...',
+      titleFeedback: 'Send us feedback',
+      descriptionFeedback: 'Bugs, ideas, or just say hi — we read every reply.',
+      placeholderFeedback: 'What is on your mind?',
+      submit: 'Send feedback',
+      submitting: 'Sending...',
+      success: 'Thanks! Your feedback is on its way.',
+      signInToSend: 'Sign in to send feedback',
+      errorEmpty: 'Please enter a message before sending.',
+      errorGeneric: 'Failed to send feedback. Please try again.',
+      hintLabel: 'Need inspiration? Try:',
+      hintExamplesSuggest: [
+        'A tool to remove video backgrounds',
+        'Bulk-generate product photos for Amazon',
+        'Auto-translate my UGC ads to Spanish',
+        'Create shoppable TikTok videos from a product URL',
+      ],
+      hintExamplesFeedback: [
+        'Found a bug on the video clone page',
+        'Loved the new image clone feature',
+        'A pricing suggestion',
+        'Something is not working for me',
       ],
     },
     hero: {
@@ -553,6 +602,36 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/image-clone', title: '图片复刻' },
         { href: '/tools/ecommerce-listing-studio', title: 'Ecommerce Listing Studio' },
         { href: '/tools/social-cover-generator', title: 'Social Cover Generator' },
+        { href: '#feedback', title: '建议新工具' },
+      ],
+    },
+    feedback: {
+      triggerLabel: '有什么问题？告诉我们',
+      triggerHelper: '我们会一一查看',
+      titleSuggest: '建议新工具',
+      descriptionSuggest: '告诉我们你想要什么工具，我们会逐一阅读。',
+      placeholderSuggest: '描述你想要的工具...',
+      titleFeedback: '发送反馈',
+      descriptionFeedback: 'Bug、想法、或者只是打个招呼 — 我们会逐一阅读。',
+      placeholderFeedback: '你想说点什么？',
+      submit: '发送反馈',
+      submitting: '发送中...',
+      success: '感谢！你的反馈已发送。',
+      signInToSend: '登录后发送反馈',
+      errorEmpty: '请输入内容后再发送。',
+      errorGeneric: '发送失败，请稍后重试。',
+      hintLabel: '需要灵感？试试：',
+      hintExamplesSuggest: [
+        '自动去除视频背景的工具',
+        '批量生成亚马逊商品主图',
+        '自动把 UGC 广告翻译成西班牙语',
+        '从商品链接一键生成 TikTok 种草视频',
+      ],
+      hintExamplesFeedback: [
+        '在视频克隆页发现了一个 Bug',
+        '很喜欢新的图片复刻功能',
+        '一个关于价格的建议',
+        '某个功能在我这里不工作',
       ],
     },
     hero: {

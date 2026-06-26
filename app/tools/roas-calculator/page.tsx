@@ -135,6 +135,7 @@ export default function RoasCalculatorPage() {
 
   return (
     <ToolPageShell
+      toolSlug="roas-calculator"
       title="TikTok Dropshipping ROAS Calculator"
       titleBadge="Free"
       description="This calculator is optimized for TikTok dropshipping campaigns only. Enter your spend, sales, and order economics to evaluate profitability quickly."
