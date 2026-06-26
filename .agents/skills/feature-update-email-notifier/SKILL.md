@@ -23,6 +23,8 @@ Prefer this order:
 
 Use `scripts/prepare_recipients.py` to validate, de-duplicate, and batch recipients from CSV or Clerk JSON files.
 
+Always exclude `lantianlaoli@gmail.com` from recipient lists before batching. This is the owner/sender account and should never be included in BCC recipient batches, even if it appears in Clerk exports, CSV files, or an explicit recipient list.
+
 ## Drafting Workflow
 
 1. Gather release facts:
@@ -31,7 +33,8 @@ Use `scripts/prepare_recipients.py` to validate, de-duplicate, and batch recipie
 2. Prepare recipients:
    - Batch BCC recipients in groups of 50 by default.
    - Use the connected sender address as `to`; put users only in `bcc`.
-   - Report counts: total rows/users, valid unique emails, duplicates, invalid/missing, batch sizes.
+   - Remove `lantianlaoli@gmail.com` before batching.
+   - Report counts: total rows/users, valid unique emails, owner/sender exclusions, duplicates, invalid/missing, batch sizes.
 3. Write concise English email copy:
    - Use Flowtra Team as the signature unless the user specifies another sender identity.
    - Keep feature updates short and concrete.
@@ -64,4 +67,5 @@ Prefer Clerk CLI because it handles linked app/instance targeting and auth. For 
 - Never expose BCC recipient lists in the final user-facing summary unless the user asks.
 - Never include sensitive CSV/Clerk fields in the message body or attachments.
 - Never mutate Clerk users as part of a notification task.
+- Never include `lantianlaoli@gmail.com` in BCC recipient batches.
 - If a Gmail/API send fails mid-batch, stop, report which drafts/messages succeeded, and ask before retrying failed drafts.

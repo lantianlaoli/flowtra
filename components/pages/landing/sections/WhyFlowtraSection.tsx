@@ -94,19 +94,9 @@ const MODEL_CARDS: ModelCard[] = [
   },
 ];
 
-const STACK_STYLES = [
-  'lg:left-0 lg:top-14 lg:-rotate-7',
-  'lg:left-[15%] lg:top-5 lg:-rotate-4',
-  'lg:left-[30%] lg:top-0 lg:-rotate-1',
-  'lg:left-[45%] lg:top-4 lg:rotate-2',
-  'lg:left-[60%] lg:top-6 lg:rotate-5',
-  'lg:left-[75%] lg:top-14 lg:rotate-8',
-];
-
 function formatUsd(credits: number) {
   return (credits * CREDIT_TO_USD).toFixed(2);
 }
-
 
 function RollingValue({
   value,
@@ -144,28 +134,29 @@ function RollingValue({
 
 function ModelPricingCard({
   model,
-  stackClassName,
 }: {
   model: ModelCard;
-  stackClassName: string;
 }) {
   const [selectedQuality, setSelectedQuality] = useState(model.qualities[0]);
   const Icon = model.icon;
 
   return (
     <article
-      className={`group rounded-[24px] border border-[#E7E7E7] bg-white p-5 shadow-[0_18px_40px_rgba(0,0,0,0.06)] will-change-transform transition-[transform,box-shadow,border-color] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] hover:z-10 hover:-translate-y-2 hover:scale-[1.035] hover:border-[#D8D8D8] hover:shadow-[0_30px_64px_rgba(0,0,0,0.16)] motion-reduce:transform-none motion-reduce:transition-none lg:absolute lg:w-[220px] ${stackClassName}`}
+      className="group flex min-h-[156px] flex-col rounded-[18px] border border-[#E6E6E2] bg-white p-4 shadow-[0_12px_28px_rgba(0,0,0,0.05)] transition-[transform,box-shadow,border-color] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1 hover:border-[#D2D2CC] hover:shadow-[0_18px_40px_rgba(0,0,0,0.10)] motion-reduce:transform-none motion-reduce:transition-none"
     >
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-[17px] font-bold tracking-tight text-black">{model.name}</h3>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="truncate text-[15px] font-bold leading-tight tracking-tight text-black">{model.name}</h3>
+          <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.08em] text-[#8A8A84]">
+            per {model.unit === 'sec' ? 'second' : 'image'}
+          </p>
         </div>
-        <div className="rounded-2xl border border-[#E8E8E8] bg-[#F7F7F7] p-2.5 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:-translate-y-0.5 group-hover:scale-110 motion-reduce:transform-none motion-reduce:transition-none">
-          <Icon className="h-4 w-4 text-black" />
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#E8E8E4] bg-[#F7F7F4] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:-translate-y-0.5 motion-reduce:transform-none motion-reduce:transition-none">
+          <Icon className="h-[18px] w-[18px] text-black" />
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-1.5">
+      <div className="mb-3 flex flex-wrap gap-1">
         {model.qualities.map((quality) => {
           const isSelected = quality.label === selectedQuality.label;
           return (
@@ -174,7 +165,7 @@ function ModelPricingCard({
               type="button"
               aria-pressed={isSelected}
               onClick={() => setSelectedQuality(quality)}
-              className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors ${
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] transition-colors ${
                 isSelected
                   ? 'bg-black text-white'
                   : 'border border-[#E5E5E5] bg-[#F7F7F7] text-[#666666] hover:text-black'
@@ -186,11 +177,14 @@ function ModelPricingCard({
         })}
       </div>
 
-      <div className="border-t border-[#ECECEC] pt-4 text-black">
-        <div className="flex items-center gap-5">
-          <div className="flex items-center gap-2">
-            <Coins className="h-4 w-4 flex-shrink-0 text-[#666666]" />
-            <div className="flex items-center text-[20px] font-bold leading-none tracking-tight">
+      <div className="mt-auto border-t border-[#ECECEC] pt-3 text-black">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-xl bg-[#F7F7F4] px-3 py-2">
+            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7A7A74]">
+              <Coins className="h-3 w-3 flex-shrink-0" />
+              Credits
+            </div>
+            <div className="flex items-center text-[18px] font-bold leading-none tracking-tight">
               <RollingValue
                 value={selectedQuality.credits}
                 decimals={Number.isInteger(selectedQuality.credits) ? 0 : 1}
@@ -198,9 +192,12 @@ function ModelPricingCard({
               />
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <DollarSign className="h-4 w-4 flex-shrink-0 text-[#666666]" />
-            <div className="flex items-center text-[20px] font-bold leading-none tracking-tight">
+          <div className="rounded-xl bg-[#F7F7F4] px-3 py-2">
+            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7A7A74]">
+              <DollarSign className="h-3 w-3 flex-shrink-0" />
+              USD
+            </div>
+            <div className="flex items-center text-[18px] font-bold leading-none tracking-tight">
               <RollingValue
                 value={Number(formatUsd(selectedQuality.credits))}
                 decimals={2}
@@ -225,9 +222,9 @@ export default function WhyFlowtraSection() {
           <h2 className="mb-4 text-[32px] font-bold tracking-tight text-black md:text-[40px]">{copy.title}</h2>
           <p className="text-base text-[#666666] md:text-lg">{copy.description}</p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:relative lg:block lg:h-[250px]">
-          {MODEL_CARDS.map((model, index) => (
-            <ModelPricingCard key={model.name} model={model} stackClassName={STACK_STYLES[index]} />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {MODEL_CARDS.map((model) => (
+            <ModelPricingCard key={model.name} model={model} />
           ))}
         </div>
 
