@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { Eye, Trash2 } from 'lucide-react';
+import { Eye, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { UserAvatar } from '@/lib/supabase';
 import type { SystemAvatar } from '@/lib/default-avatars';
 import { motion } from 'framer-motion';
@@ -21,6 +21,7 @@ interface AvatarCardProps {
 export default function AvatarCard({
   avatar,
   onEdit,
+  onDelete,
   isDeleting = false,
   mode = 'full',
   onSelect,
@@ -63,7 +64,7 @@ export default function AvatarCard({
   return (
     <motion.div
         className={`
-          assets-avatar-card relative bg-white rounded-xl border overflow-hidden transition-all duration-200
+          assets-avatar-card relative flex h-full flex-col bg-white rounded-xl border overflow-hidden transition-all duration-200
           ${isSelectableMode ? 'cursor-pointer hover:border-gray-300 hover:shadow-sm' : 'hover:border-gray-300 hover:shadow-sm'}
           ${isSelected ? 'border-gray-900 ring-2 ring-gray-900' : 'border-gray-200'}
           ${isDeleting ? 'pointer-events-none' : ''}
@@ -93,24 +94,33 @@ export default function AvatarCard({
           )}
         </div>
 
-        <div className="assets-avatar-card-body p-3 bg-white border-t border-gray-100">
-          <p className="assets-avatar-card-title text-sm font-medium text-gray-900 truncate" title={avatar.avatar_name}>
+        <div className="assets-avatar-card-body flex flex-col gap-2 p-3 bg-white border-t border-gray-100">
+          <p className="assets-avatar-card-title text-sm font-medium leading-tight text-gray-900 line-clamp-2" title={avatar.avatar_name}>
             {avatar.avatar_name}
           </p>
-          <div className="mt-3 flex items-center gap-2">
-            {isFullMode && (
-              <>
-                <button
-                  onClick={handleEditClick}
-                  className="assets-avatar-card-action w-full min-h-[42px] inline-flex items-center justify-center gap-2 rounded-lg border border-black bg-black px-3 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
-                  title={isSystemAvatar ? 'View system avatar details' : 'View details'}
-                >
-                  <Eye className="w-4 h-4" />
-                  <span>View Details</span>
-                </button>
-              </>
-            )}
-          </div>
+          {isFullMode && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleEditClick}
+                className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-black bg-black px-3 text-xs font-semibold text-white transition hover:bg-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+                title={isSystemAvatar ? 'View system avatar details' : 'Edit'}
+                aria-label="Edit avatar"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                <span>Edit</span>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDelete(avatar.id); }}
+                disabled={isSystemAvatar || isDeleting}
+                className="inline-flex h-9 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label={isSystemAvatar ? 'System avatar cannot be deleted' : 'Delete avatar'}
+                title={isSystemAvatar ? 'System avatar cannot be deleted' : 'Delete avatar'}
+              >
+                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              </button>
+            </div>
+          )}
         </div>
         {deletingOverlay}
       </motion.div>

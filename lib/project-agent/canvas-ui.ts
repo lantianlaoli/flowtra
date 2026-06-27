@@ -1,5 +1,6 @@
 import {
   formatMissingFeatureInputsLabel,
+  getProjectAgentAssetDisplayName,
   type ProjectAgentAssetNodeType,
   type ProjectAgentFeatureNodeType,
 } from '@/lib/project-agent/canvas-state';
@@ -14,8 +15,8 @@ export type ProjectAgentCanvasNotice = {
 
 export const getPendingConnectionPathTarget = (
   cursorPoint: { x: number; y: number },
-  _snappedTargetPoint?: { x: number; y: number } | null,
-) => cursorPoint;
+  snappedTargetPoint?: { x: number; y: number } | null,
+) => snappedTargetPoint ?? cursorPoint;
 
 export const getFeatureStartActionTitle = (input: {
   blockedReason?: string | null;
@@ -66,7 +67,20 @@ export const getProjectAgentFeaturePlaceholderCopy = (input: {
   }
 
   if (input.missingInputs.length > 0) {
-    return `Connect ${formatMissingFeatureInputsLabel(input.featureType, input.missingInputs).replace(', ', ' and ')} to start`;
+    const labels = input.missingInputs.map((type) =>
+      getProjectAgentAssetDisplayName(type)
+    );
+    const joiner =
+      labels.length === 1
+        ? ''
+        : labels.length === 2
+          ? ' and '
+          : `, and `;
+    const joined =
+      labels.length <= 2
+        ? labels.join(joiner)
+        : `${labels.slice(0, -1).join(', ')}${joiner}${labels[labels.length - 1]}`;
+    return `Connect ${joined} to start`;
   }
 
   if (input.featureType === 'video_clone') {

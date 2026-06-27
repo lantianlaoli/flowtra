@@ -5,7 +5,7 @@ import { DefaultChatTransport } from 'ai';
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import { useUser } from '@clerk/nextjs';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { AlertTriangle, CopyPlus, Sparkles, Type, User, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CopyPlus, Sparkles, Type, User, X } from 'lucide-react';
 import DashboardContentTransition from '@/components/layout/DashboardContentTransition';
 import CreateAvatarModal from '@/components/CreateAvatarModal';
 import CreateProductModal from '@/components/CreateProductModal';
@@ -1007,7 +1007,7 @@ export default function ProjectAgentPage() {
       distance: number;
       errorMessage: string | null;
     } | null>((closest, node) => {
-      const targetPoint = getProjectAgentCanvasTargetHandlePosition(node);
+      const targetPoint = getProjectAgentCanvasTargetHandlePosition(node, assetType);
       const distance = Math.hypot(point.x - targetPoint.x, point.y - targetPoint.y);
       if (distance > 50) return closest;
       if (!closest || distance < closest.distance) {
@@ -1945,6 +1945,21 @@ export default function ProjectAgentPage() {
     }).executionMode === 'clone_direct_reference';
   }, []);
 
+  const shouldUseStoryboardCloneMilestone = useCallback((
+    nodeType: ProjectAgentFeatureNodeType,
+    connectedAssets: ReturnType<typeof buildNodeConnectedAssetsPayload>,
+    config?: ProjectAgentFeatureNodeConfig | null
+  ) => {
+    if (nodeType !== 'video_clone' || !connectedAssets.video) return false;
+    const mode = getProjectAgentVideoCloneMode(connectedAssets);
+    if (mode !== 'clone') return false;
+    return buildVideoCloneStartPayload({
+      ...connectedAssets,
+      video: connectedAssets.video,
+      config,
+    }).executionMode === 'clone_storyboard_reference';
+  }, []);
+
   const handleRunNode = useCallback(async (nodeId: string) => {
     const node = getProjectAgentCanvasNodeById(canvas, nodeId);
     if (!node || !isProjectAgentFeatureNode(node.type)) return;
@@ -2011,6 +2026,7 @@ export default function ProjectAgentPage() {
       if (!nextNode || !isProjectAgentFeatureNode(nextNode.type)) return current;
       const skipCloneFrames = shouldSkipCloneFrameMilestone(nextNode.type, connectedAssets, nextNode.config);
       const skipCloneMerge = skipCloneFrames && nextNode.type === 'video_clone';
+      const storyboardClone = shouldUseStoryboardCloneMilestone(nextNode.type, connectedAssets, nextNode.config);
       return upsertCanvasNode(current, {
         ...nextNode,
         runtime: {
@@ -2018,7 +2034,7 @@ export default function ProjectAgentPage() {
           projectId: null,
           outputUrl: null,
           previewUrl: null,
-          ...createQueuedExecutionStatus(nextNode.type, { skipCloneFrames, skipCloneMerge }),
+          ...createQueuedExecutionStatus(nextNode.type, { skipCloneFrames, skipCloneMerge, storyboardClone }),
           error: null,
           userFacingError: null,
           retryable: false,
@@ -2071,7 +2087,7 @@ export default function ProjectAgentPage() {
     }
 
     updateNodeRuntime(nodeId, payload.execution);
-  }, [buildNodeConnectedAssetsPayload, canvas, shouldSkipCloneFrameMilestone, updateCanvas, updateNodeRuntime]);
+  }, [buildNodeConnectedAssetsPayload, canvas, shouldSkipCloneFrameMilestone, shouldUseStoryboardCloneMilestone, updateCanvas, updateNodeRuntime]);
 
   const handleRetryNode = useCallback(async (nodeId: string) => {
     const node = getProjectAgentCanvasNodeById(canvas, nodeId);
@@ -2089,12 +2105,13 @@ export default function ProjectAgentPage() {
       if (!nextNode || !isProjectAgentFeatureNode(nextNode.type)) return current;
       const skipCloneFrames = shouldSkipCloneFrameMilestone(nextNode.type, connectedAssets, nextNode.config);
       const skipCloneMerge = skipCloneFrames && nextNode.type === 'video_clone';
+      const storyboardClone = shouldUseStoryboardCloneMilestone(nextNode.type, connectedAssets, nextNode.config);
       return upsertCanvasNode(current, {
         ...nextNode,
         runtime: {
           ...(nextNode.runtime || {}),
           executionState: 'running',
-          ...createQueuedExecutionStatus(nextNode.type, { skipCloneFrames, skipCloneMerge }),
+          ...createQueuedExecutionStatus(nextNode.type, { skipCloneFrames, skipCloneMerge, storyboardClone }),
           statusLabel: 'Retrying',
           userFacingError: null,
           error: null,
@@ -2147,7 +2164,7 @@ export default function ProjectAgentPage() {
     }
 
     updateNodeRuntime(nodeId, payload.execution);
-  }, [buildNodeConnectedAssetsPayload, canvas, handleRunNode, shouldSkipCloneFrameMilestone, updateCanvas, updateNodeRuntime]);
+  }, [buildNodeConnectedAssetsPayload, canvas, handleRunNode, shouldSkipCloneFrameMilestone, shouldUseStoryboardCloneMilestone, updateCanvas, updateNodeRuntime]);
 
   const handleRegenerateFeatureNode = useCallback(async (nodeId: string) => {
     await handleRunNode(nodeId);
@@ -2504,7 +2521,12 @@ export default function ProjectAgentPage() {
               {workspacePanelVisibility.myAdsMounted ? (
                 <FloatingWorkspacePanel
                   title="My Ads"
-                  description="Ads expire after 14 days."
+                  headerExtra={
+                    <>
+                      <AlertCircle className="h-3 w-3 shrink-0" />
+                      <span>Videos expire after 14 days.</span>
+                    </>
+                  }
                   onClose={() => setActiveWorkspacePanel(null)}
                   visible={workspacePanelVisibility.myAdsVisible}
                 >

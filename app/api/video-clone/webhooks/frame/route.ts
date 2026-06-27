@@ -4,6 +4,7 @@ import {
   buildSegmentStatusPayload,
   createSmartSegmentFrame,
   hydrateSerializedSegmentPrompt,
+  isSeedanceStoryboardReferenceProject,
   resolveCloneModeFromProject,
   serializeSegmentPrompt,
   startSegmentVideoTask,
@@ -55,17 +56,29 @@ const normalizeStringArray = (value: unknown, max = 10): string[] => {
 const readCloneReferenceAssets = (projectData: Record<string, unknown> | null | undefined) => {
   const videoPrompts = projectData?.video_prompts;
   if (!videoPrompts || typeof videoPrompts !== 'object') {
-    return { avatarPhotoUrls: [] as string[], productImageUrls: [] as string[] };
+    return { avatarPhotoUrls: [] as string[], productImageUrls: [] as string[], petPhotoUrls: [] as string[] };
   }
   const assets = (videoPrompts as Record<string, unknown>).clone_reference_assets;
   if (!assets || typeof assets !== 'object') {
-    return { avatarPhotoUrls: [] as string[], productImageUrls: [] as string[] };
+    return { avatarPhotoUrls: [] as string[], productImageUrls: [] as string[], petPhotoUrls: [] as string[] };
   }
   const parsed = assets as Record<string, unknown>;
   return {
     avatarPhotoUrls: normalizeStringArray(parsed.avatarPhotoUrls, 4),
-    productImageUrls: normalizeStringArray(parsed.productImageUrls, 8)
+    productImageUrls: normalizeStringArray(parsed.productImageUrls, 8),
+    petPhotoUrls: normalizeStringArray(parsed.petPhotoUrls, 4)
   };
+};
+
+const parseImageResultUrl = (resultJson?: string): string | undefined => {
+  if (!resultJson) return undefined;
+  try {
+    const parsed = JSON.parse(resultJson);
+    return parsed.resultUrls?.[0];
+  } catch (parseError) {
+    console.error('[UGC Frame Webhook] Failed to parse resultJson:', parseError);
+    return undefined;
+  }
 };
 
 const isProjectAgentAutoCloneProject = (projectData: Record<string, unknown> | null | undefined): boolean => {
@@ -123,6 +136,191 @@ function resolveSegmentPromptForIndex(
   return null;
 }
 
+async function handleStoryboardImageWebhook(input: {
+  supabase: ReturnType<typeof getSupabaseAdmin>;
+  request: NextRequest;
+  taskId: string;
+  code: number;
+  state: KIEImageWebhookPayload['data']['state'];
+  msg: string;
+  failMsg?: string;
+  resultJson?: string;
+}) {
+  const { supabase, taskId, code, state, msg, failMsg, resultJson } = input;
+  const { data: project, error: projectError } = await supabase
+    .from('video_clone_projects')
+    .select('*')
+    .filter('video_prompts->storyboard_mode->>storyboard_task_id', 'eq', taskId)
+    .limit(1)
+    .maybeSingle();
+
+  if (projectError || !project) {
+    if (projectError) {
+      console.warn('[UGC Frame Webhook] Storyboard task lookup failed:', projectError.message);
+    }
+    return null;
+  }
+
+  const projectRecord = project as SingleVideoProject;
+  if (!isSeedanceStoryboardReferenceProject(projectRecord)) {
+    return NextResponse.json({ success: false, error: 'Storyboard mode mismatch' }, { status: 200 });
+  }
+
+  const now = new Date().toISOString();
+  const imageUrl = parseImageResultUrl(resultJson);
+  if (code === 200 && state === 'success' && imageUrl) {
+    const prompts = projectRecord.video_prompts && typeof projectRecord.video_prompts === 'object'
+      ? projectRecord.video_prompts as Record<string, unknown>
+      : {};
+    const storyboardMode = prompts.storyboard_mode && typeof prompts.storyboard_mode === 'object'
+      ? prompts.storyboard_mode as Record<string, unknown>
+      : {};
+    const updatedPrompts = {
+      ...prompts,
+      storyboard_mode: {
+        ...storyboardMode,
+        storyboard_image_url: imageUrl
+      }
+    };
+
+    await supabase
+      .from('video_clone_projects')
+      .update({
+        video_prompts: updatedPrompts,
+        current_step: 'generating_segment_videos',
+        progress_percentage: 70,
+        video_generation_requested: true,
+        last_processed_at: now
+      })
+      .eq('id', projectRecord.id);
+
+    const { data: segmentRows } = await supabase
+      .from('video_clone_segments')
+      .select('*')
+      .eq('project_id', projectRecord.id)
+      .order('segment_index', { ascending: true });
+    const segments = Array.isArray(segmentRows) ? segmentRows as VideoCloneSegment[] : [];
+    let started = 0;
+    const startErrors: string[] = [];
+    const normalizedProject = {
+      ...projectRecord,
+      video_prompts: updatedPrompts,
+      current_step: 'generating_segment_videos',
+      progress_percentage: 70,
+      video_generation_requested: true
+    } as SingleVideoProject;
+
+    for (const segment of segments) {
+      if (segment.video_task_id || segment.video_url) continue;
+      const segmentPrompt = resolveSegmentPromptForIndex(
+        segment.prompt,
+        { ...projectRecord, video_prompts: updatedPrompts } as ProjectPromptContainer,
+        segment.segment_index
+      );
+      if (!segmentPrompt) {
+        await supabase
+          .from('video_clone_segments')
+          .update({
+            status: 'failed',
+            error_message: `Segment ${segment.segment_index + 1} prompt is missing.`,
+            updated_at: now
+          })
+          .eq('id', segment.id);
+        continue;
+      }
+
+      try {
+        const videoTaskId = await startSegmentVideoTask(
+          normalizedProject,
+          segmentPrompt,
+          null,
+          null,
+          segment.segment_index,
+          projectRecord.segment_count || segments.length
+        );
+        await supabase
+          .from('video_clone_segments')
+          .update({
+            video_task_id: videoTaskId,
+            video_webhook_received_at: null,
+            video_generation_approved: true,
+            status: 'generating_video',
+            error_message: null,
+            retry_count: 0,
+            updated_at: now
+          })
+          .eq('id', segment.id);
+        started += 1;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Storyboard video task failed';
+        startErrors.push(`Segment ${segment.segment_index + 1}: ${message}`);
+        await supabase
+          .from('video_clone_segments')
+          .update({
+            status: 'failed',
+            error_message: message,
+            updated_at: now
+          })
+          .eq('id', segment.id);
+      }
+    }
+
+    const { data: refreshedSegments } = await supabase
+      .from('video_clone_segments')
+      .select('*')
+      .eq('project_id', projectRecord.id)
+      .order('segment_index', { ascending: true });
+    await supabase
+      .from('video_clone_projects')
+      .update({
+        ...(started === 0 && startErrors.length > 0
+          ? {
+              status: 'failed',
+              current_step: 'failed',
+              error_message: startErrors[0],
+              progress_percentage: 70
+            }
+          : {
+              status: 'processing',
+              current_step: 'generating_segment_videos',
+              progress_percentage: 70,
+              video_generation_requested: true
+            }),
+        segment_status: buildSegmentStatusPayload((refreshedSegments || segments) as VideoCloneSegment[]),
+        last_processed_at: new Date().toISOString()
+      })
+      .eq('id', projectRecord.id);
+
+    captureServerEvent(ANALYTICS_EVENTS.ugc_clone_frame_generation_completed, {
+      request: input.request,
+      properties: {
+        feature: 'ugc_clone',
+        surface: 'ugc_storyboard_webhook',
+        project_id: projectRecord.id,
+        started_segment_videos: started
+      }
+    });
+
+    return NextResponse.json({ success: true, message: 'Storyboard image processed', startedVideoTasks: started }, { status: 200 });
+  }
+
+  if (state === 'fail' || code !== 200) {
+    const message = failMsg || msg || 'Storyboard image generation failed';
+    await supabase
+      .from('video_clone_projects')
+      .update({
+        status: 'failed',
+        current_step: 'failed',
+        error_message: message,
+        last_processed_at: now
+      })
+      .eq('id', projectRecord.id);
+    return NextResponse.json({ success: false, error: message }, { status: 200 });
+  }
+
+  return NextResponse.json({ success: true, message: 'Storyboard task still processing' }, { status: 200 });
+}
+
 /**
  * POST /api/video-clone/webhooks/frame
  *
@@ -154,6 +352,19 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (fetchError || !segment) {
+      const storyboardResponse = await handleStoryboardImageWebhook({
+        supabase,
+        request,
+        taskId,
+        code,
+        state,
+        msg,
+        failMsg,
+        resultJson
+      });
+      if (storyboardResponse) {
+        return storyboardResponse;
+      }
       console.warn('[UGC Frame Webhook] Task not found:', taskId);
       // Return 200 to prevent KIE retries for invalid taskId
       return NextResponse.json(
@@ -169,15 +380,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse result URL from resultJson
-    let imageUrl: string | undefined;
-    if (resultJson) {
-      try {
-        const parsed = JSON.parse(resultJson);
-        imageUrl = parsed.resultUrls?.[0];
-      } catch (parseError) {
-        console.error('[UGC Frame Webhook] Failed to parse resultJson:', parseError);
-      }
-    }
+    const imageUrl = parseImageResultUrl(resultJson);
 
     // Update segment based on webhook status
     if (code === 200 && state === 'success' && imageUrl) {

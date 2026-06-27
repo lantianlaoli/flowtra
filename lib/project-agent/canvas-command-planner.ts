@@ -324,8 +324,13 @@ export const planProjectAgentCanvasCommand = (
       || (includesAny(text, AVATAR_CONTEXT_PHRASES) ? findLatestCanvasAsset('avatar')?.asset : null)
       || getOnlyCanvasAsset('avatar')
     );
+    const resolvedPetAsset = (
+      findNamedCanvasAsset('pet')?.asset
+      || findLatestCanvasAsset('pet')?.asset
+      || getOnlyCanvasAsset('pet')
+    );
 
-    if (featureType === 'video_clone' && resolvedVideoAsset && (resolvedProductAsset || resolvedAvatarAsset)) {
+    if (featureType === 'video_clone' && resolvedVideoAsset && (resolvedProductAsset || resolvedAvatarAsset || resolvedPetAsset)) {
       const mutations: ProjectAgentCanvasMutation[] = [
         {
           type: 'add_asset_node',
@@ -377,11 +382,25 @@ export const planProjectAgentCanvasCommand = (
           target: { kind: 'alias', alias: 'featureNode' },
           targetHandle: 'avatar',
         });
+      } else if (resolvedPetAsset) {
+        mutations.splice(1, 0, {
+          type: 'add_asset_node',
+          alias: 'petAsset',
+          assetType: 'pet',
+          asset: resolvedPetAsset,
+          reuseExisting: true,
+        });
+        mutations.push({
+          type: 'connect_nodes',
+          source: { kind: 'alias', alias: 'petAsset' },
+          target: { kind: 'alias', alias: 'featureNode' },
+          targetHandle: 'pet',
+        });
       }
 
       mutations.push({ type: 'format_layout' });
       return buildSafeEditPlan(
-        `I added a Video Clone workflow to the canvas with ${resolvedVideoAsset.name}${resolvedProductAsset ? ` and ${resolvedProductAsset.name}` : resolvedAvatarAsset ? ` and ${resolvedAvatarAsset.name}` : ''}.`,
+        `I added a Video Clone workflow to the canvas with ${resolvedVideoAsset.name}${resolvedProductAsset ? ` and ${resolvedProductAsset.name}` : resolvedAvatarAsset ? ` and ${resolvedAvatarAsset.name}` : resolvedPetAsset ? ` and ${resolvedPetAsset.name}` : ''}.`,
         mutations,
       );
     }

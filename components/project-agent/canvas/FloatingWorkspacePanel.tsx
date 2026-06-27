@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 type FloatingWorkspacePanelProps = {
   title: string;
   description?: string;
+  headerExtra?: ReactNode;
   onClose: () => void;
   visible?: boolean;
   children: ReactNode;
@@ -14,6 +15,7 @@ type FloatingWorkspacePanelProps = {
 export default function FloatingWorkspacePanel({
   title,
   description,
+  headerExtra,
   onClose,
   visible = true,
   children,
@@ -25,10 +27,16 @@ export default function FloatingWorkspacePanel({
         visible ? 'opacity-100' : 'pointer-events-none invisible opacity-0'
       }`}
     >
-      <header className="flex shrink-0 items-center justify-between gap-4 border-b border-[#ebe6da] px-5 py-3.5">
-        <div>
+      <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[#ebe6da] px-5 py-3.5">
+        <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold text-black">{title}</h2>
-          {description ? <p className="mt-0.5 text-xs text-[#6f6a62]">{description}</p> : null}
+          {headerExtra ? (
+            <div className="mt-1.5 inline-flex max-w-full items-center gap-1.5 self-start rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700">
+              {headerExtra}
+            </div>
+          ) : description ? (
+            <p className="mt-0.5 text-xs text-[#6f6a62]">{description}</p>
+          ) : null}
         </div>
         <button
           type="button"

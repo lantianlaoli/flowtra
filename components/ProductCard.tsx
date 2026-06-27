@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { Eye, Edit2, Trash2, Plus, X, Loader2 } from 'lucide-react';
+import { Eye, Edit2, Pencil, Trash2, Plus, X, Loader2 } from 'lucide-react';
 import { UserProduct, UserProductPhoto } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAcceptedImageFormats, validateImageFormat, IMAGE_CONVERSION_LINK } from '@/lib/image-validation';
@@ -211,11 +211,11 @@ export default function ProductCard({
     return (
       <>
         <motion.div
-          className="assets-product-card assets-product-card--compact relative bg-white rounded-xl border border-gray-200 overflow-hidden transition-all duration-200 cursor-pointer hover:border-gray-300 hover:shadow-sm"
+          className="assets-product-card assets-product-card--compact relative flex h-full flex-col bg-white rounded-xl border border-gray-200 overflow-hidden transition-all duration-200 cursor-pointer hover:border-gray-300 hover:shadow-sm"
           onClick={handleCardClick}
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
+          exit={{ opacity: 1, scale: 0.95 }}
           whileHover={isDeleting ? undefined : { y: -2 }}
         >
           {/* Product Photo */}
@@ -236,20 +236,31 @@ export default function ProductCard({
           </div>
 
           {/* Product Info and Actions */}
-          <div className="assets-product-card-body flex flex-col gap-3 p-3">
+          <div className="assets-product-card-body flex flex-col gap-2 p-3">
             {/* Product Name */}
-            <h4 className="assets-product-card-title min-h-[2rem] line-clamp-2 text-base font-medium text-gray-900">
+            <h4 className="assets-product-card-title line-clamp-2 text-sm font-medium leading-tight text-gray-900">
               {product.product_name}
             </h4>
 
-            <div>
+            <div className="flex items-center gap-2">
               <button
                 onClick={handleEditClick}
-                className="assets-product-card-action w-full min-h-[42px] inline-flex items-center justify-center gap-2 rounded-lg border border-black bg-black px-3 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
-                title={isSystemProduct ? 'View system product details' : 'View details'}
+                className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-black bg-black px-3 text-xs font-semibold text-white transition hover:bg-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+                title={isSystemProduct ? 'View system product details' : 'Edit'}
+                aria-label="Edit product"
               >
-                <Eye className="w-4 h-4" />
-                <span>View Details</span>
+                <Pencil className="h-3.5 w-3.5" />
+                <span>Edit</span>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleDelete(e); }}
+                disabled={isSystemProduct || isDeleting}
+                className="inline-flex h-9 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label={isSystemProduct ? 'System product cannot be deleted' : 'Delete product'}
+                title={isSystemProduct ? 'System product cannot be deleted' : 'Delete product'}
+              >
+                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               </button>
             </div>
           </div>

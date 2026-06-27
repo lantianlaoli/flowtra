@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { Eye, Trash2, Video } from "lucide-react";
+import { Pencil, Trash2, Video, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
 interface VideoAsset {
@@ -24,6 +24,7 @@ interface VideoAsset {
 interface VideoAssetCardProps {
   video: VideoAsset;
   onViewDetails: (video: VideoAsset) => void;
+  onDelete?: (video: VideoAsset) => void;
   compact?: boolean;
   isDeleting?: boolean;
 }
@@ -31,6 +32,7 @@ interface VideoAssetCardProps {
 export default function VideoAssetCard({
   video,
   onViewDetails,
+  onDelete,
   compact = false,
   isDeleting = false,
 }: VideoAssetCardProps) {
@@ -40,6 +42,13 @@ export default function VideoAssetCard({
     event.preventDefault();
     event.stopPropagation();
     onViewDetails(video);
+  };
+
+  const handleDelete = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!onDelete || isDeleting) return;
+    onDelete(video);
   };
 
   const handleHoverPlay = () => {
@@ -73,7 +82,7 @@ export default function VideoAssetCard({
 
   return (
     <motion.div
-      className={`assets-video-card relative bg-white rounded-lg border border-gray-200 overflow-hidden transition-all duration-200 group ${
+      className={`assets-video-card relative flex h-full flex-col bg-white rounded-lg border border-gray-200 overflow-hidden transition-all duration-200 group ${
         isDeleting ? "pointer-events-none" : "hover:shadow-lg"
       }`}
       whileHover={isDeleting ? undefined : { y: -2 }}
@@ -103,15 +112,31 @@ export default function VideoAssetCard({
         <div className="assets-video-card-overlay absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
 
-      <div className={`assets-video-card-footer bg-white ${compact ? 'p-2' : 'p-3'}`}>
-        <button
-          onClick={handleViewDetails}
-          className={`assets-video-card-action w-full flex items-center justify-between bg-white text-gray-900 rounded-lg border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 group/btn ${compact ? 'px-2.5 py-2 text-xs' : 'px-3 py-2.5 text-sm'}`}
-          disabled={isDeleting}
-        >
-          <span className="font-medium">View Details</span>
-          <Eye className="w-4 h-4 text-gray-400 group-hover/btn:text-gray-600 transition-colors" />
-        </button>
+      <div className={`assets-video-card-footer mt-auto bg-white ${compact ? 'p-2' : 'p-3'}`}>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleViewDetails}
+            className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-black bg-black px-3 text-xs font-semibold text-white transition hover:bg-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+            disabled={isDeleting}
+            aria-label="Edit video"
+            title="Edit"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            <span>Edit</span>
+          </button>
+          {onDelete && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={isDeleting || video.isSystem}
+              className="inline-flex h-9 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label={video.isSystem ? 'System video cannot be deleted' : 'Delete video'}
+              title={video.isSystem ? 'System video cannot be deleted' : 'Delete video'}
+            >
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            </button>
+          )}
+        </div>
       </div>
       <AnimatePresence>{deletingOverlay}</AnimatePresence>
     </motion.div>

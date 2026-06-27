@@ -154,7 +154,7 @@ export interface VideoCloneSelectedInputs {
   referenceSourceId?: string | null
   isCloneMode?: boolean
   supplementalText?: string | null
-  executionMode?: 'clone' | 'clone_direct_reference' | 'clone_segmented_auto' | 'edit_video'
+  executionMode?: 'clone' | 'clone_storyboard_reference' | 'clone_direct_reference' | 'clone_segmented_auto' | 'edit_video'
   editVideoPrompt?: string | null
   editVideoSourceUrl?: string | null
   referenceSourceVideoUrl?: string | null
