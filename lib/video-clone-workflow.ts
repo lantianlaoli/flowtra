@@ -152,6 +152,7 @@ export interface StartWorkflowRequest {
   requestSource?: 'project_agent_clone' | 'project_agent_edit_video' | 'default';
   executionMode?: 'clone' | 'clone_storyboard_reference' | 'clone_direct_reference' | 'clone_segmented_auto' | 'edit_video';
   referenceSourceVideoUrl?: string;
+  referenceSourceMediaDurationSeconds?: number | null;
   editVideoPrompt?: string;
   editVideoSourceUrl?: string;
   supplementalText?: string;
@@ -329,6 +330,7 @@ export type SegmentPrompt = {
   first_frame_image_size?: string;
   is_continuation_from_prev?: boolean;
   shots?: SegmentShot[];
+  firstChunkIndex?: number;
 };
 
 type CloneReferenceAssets = {
@@ -395,7 +397,7 @@ const buildReplacementSummary = (assets: CloneReferenceAssets): string => {
   const parts: string[] = [];
   if (assets.avatarName || assets.avatarPhotoUrls.length > 0) {
     parts.push(
-      `the person from the avatar reference photo (${assets.avatarName ?? 'connected avatar'}) — must match exactly: same gender presentation, same clothing color and style, same hair color and length, same skin tone, same facial structure`
+      `the person from the avatar reference photo (${assets.avatarName ?? 'connected avatar'}) — must match the full visible appearance exactly, not only the face: same gender presentation, facial structure, hair color, hair length, skin tone, eyewear, accessories, body proportions, posture cues, clothing color, clothing fabric, clothing cut, clothing fit, sleeves, neckline, visible pants/skirt, and overall styling`
     );
   }
   if (assets.productName || assets.productImageUrls.length > 0) {
@@ -404,8 +406,9 @@ const buildReplacementSummary = (assets: CloneReferenceAssets): string => {
     );
   }
   if (assets.petName || assets.petPhotoUrls.length > 0) {
+    const petLabel = assets.petName ? `"${assets.petName}"` : 'connected pet';
     parts.push(
-      `the pet from the pet reference photos (${assets.petName ?? 'connected pet'}) — must match exactly: same breed, color, fur markings, size`
+      `the pet named ${petLabel} from the pet reference photos (single pet only, never duplicate; match the same breed, color, fur markings, body shape, and face; treat its name as a label, not a count)`
     );
   }
   return parts.length > 0
@@ -418,6 +421,19 @@ const cleanReferenceTextForStoryboard = (text: string | null | undefined, assets
   cleaned = removeOriginalAvatarReferences({ text: cleaned, avatarName: assets.avatarName });
   cleaned = removeOriginalProductReferences({ text: cleaned, productName: assets.productName });
   cleaned = removeOriginalPetReferences({ text: cleaned, petName: assets.petName });
+  if (assets.petName) {
+    const name = assets.petName.trim();
+    if (name) {
+      const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Collapse "orange tabby two fat" → "two fat", "small black two fat" → "two fat",
+      // or any 0-4 words preceding the pet name, so GPT-Image-2 reads the name as a label
+      // rather than a quantity.
+      cleaned = cleaned.replace(
+        new RegExp(`\\b(?:[\\w'-]+\\s+){0,4}${escapedName}\\b`, 'gi'),
+        name
+      );
+    }
+  }
   return cleaned;
 };
 
@@ -449,13 +465,21 @@ const splitReferenceShotsForStoryboard = (
 
   if (options?.forceSingleSegment) {
     const totalDuration = clampSeedanceStoryboardDuration(fallbackDurationSeconds);
-    const perShotDuration = Math.max(1, totalDuration / Math.max(1, sourceShots.length));
+    const shotCount = Math.max(1, sourceShots.length);
+    const baseDuration = Math.max(1, Math.floor(totalDuration / shotCount));
+    let remainingSeconds = totalDuration - (baseDuration * shotCount);
     let cursor = 0;
     return sourceShots.map((shot, index) => {
-      const startSeconds = Math.round(cursor);
+      const startSeconds = cursor;
+      const durationSeconds = index === sourceShots.length - 1
+        ? Math.max(1, totalDuration - cursor)
+        : baseDuration + (remainingSeconds > 0 ? 1 : 0);
+      if (remainingSeconds > 0) {
+        remainingSeconds -= 1;
+      }
       const endSeconds = index === sourceShots.length - 1
         ? totalDuration
-        : Math.max(startSeconds + 1, Math.round(cursor + perShotDuration));
+        : Math.min(totalDuration, startSeconds + durationSeconds);
       cursor = endSeconds;
       return {
         sourceShot: shot,
@@ -494,19 +518,32 @@ const splitReferenceShotsForStoryboard = (
 export function buildSeedanceStoryboardClonePlan(input: {
   shots: ReferenceVideoShot[];
   fallbackDurationSeconds?: number | null;
+  sourceMediaDurationSeconds?: number | null;
   aspectRatio: '16:9' | '9:16';
   language?: string | null;
   assets: CloneReferenceAssets;
 }): StoryboardPlan {
-  const fallbackDurationSeconds = Math.max(8, Math.round(input.fallbackDurationSeconds || sumShotDurations(input.shots) || 8));
+  const sourceMediaDurationSeconds = Number(input.sourceMediaDurationSeconds);
+  const hasSingleTaskMediaDuration = Number.isFinite(sourceMediaDurationSeconds) &&
+    sourceMediaDurationSeconds > 0 &&
+    sourceMediaDurationSeconds <= SEEDANCE_DIRECT_REFERENCE_MAX_SECONDS;
+  const fallbackDurationSeconds = Math.max(
+    8,
+    normalizeCloneDurationSeconds(
+      (hasSingleTaskMediaDuration ? sourceMediaDurationSeconds : null) ||
+      input.fallbackDurationSeconds ||
+      sumShotDurations(input.shots) ||
+      8
+    ) || 8
+  );
   const chunks = splitReferenceShotsForStoryboard(input.shots, fallbackDurationSeconds, {
-    forceSingleSegment: false
+    forceSingleSegment: hasSingleTaskMediaDuration
   });
   const totalChunkDuration = chunks.reduce((sum, item) => sum + item.durationSeconds, 0);
   // One Seedance task (≤15s) when all chunks together fit inside a single task.
   // Otherwise pack greedily into 4-15s groups. Either way, rows are produced
   // one per source chunk so multi-cut references render one storyboard row each.
-  const shouldForceSingleSegment = totalChunkDuration <= SEEDANCE_DIRECT_REFERENCE_MAX_SECONDS;
+  const shouldForceSingleSegment = hasSingleTaskMediaDuration || totalChunkDuration <= SEEDANCE_DIRECT_REFERENCE_MAX_SECONDS;
   const grouped: StoryboardChunk[][] = shouldForceSingleSegment && chunks.length > 0
     ? [chunks]
     : [];
@@ -566,11 +603,14 @@ export function buildSeedanceStoryboardClonePlan(input: {
     const storyboardPanelPrompt = [
       `Real TikTok UGC video still for storyboard row ${chunkIndex + 1} (vertical 9:16 phone-camera frame).`,
       `Time range: ${sourceTimeRange}.`,
+      `Timing lock: this panel represents exactly ${chunkDuration}s of source-video rhythm; preserve the same action beat, cut timing, hand/object motion pace, and camera beat from this time range.`,
       `Show ${replacementSummary} replacing the original source entities.`,
       sceneDescription,
-      `Camera: ${cameraMovement}.`,
+      `Camera rhythm lock: ${cameraMovement}. Match the original framing, focal distance, handheld shake, push-in/pan/tilt timing, and subject distance for this row.`,
       `Style: TikTok UGC, hand-held phone footage, real human skin, real pet fur, real product packaging, soft natural indoor lighting. NOT anime, NOT illustration, NOT 3D, NOT CGI, NOT storyboard art.`,
-      `Identity lock: every person in this panel must match the avatar reference photo exactly (gender presentation, clothing color and style, hair, skin tone, face). Do not render the original source identity.`
+      `Identity lock / Full appearance lock: every person in this panel must match the connected avatar reference photo exactly across the full visible body and styling, including face, hair, skin tone, eyewear, accessories, body proportions, clothing color, fabric, cut, fit, sleeves, neckline, visible bottoms, and footwear if visible. Do not copy clothing or styling from the original source video unless it is also in the connected avatar reference.`,
+      `Replacement override: ignore any clothing color, hairstyle, footwear, body-shape, age, gender-presentation, or appearance details in the scene description that contradict the avatar reference photo. Render only the connected avatar reference photo's visible attributes for every person in the panel.`,
+      `Pet count: render EXACTLY ONE pet (the connected pet reference photo). Do not duplicate the pet even if the source video shows multiple animals.`
     ].join(' ');
 
     return {
@@ -581,7 +621,7 @@ export function buildSeedanceStoryboardClonePlan(input: {
       camera_movement: cameraMovement,
       sound_bgm_voice_line: soundBgmVoiceLine,
       storyboard_panel_prompt: storyboardPanelPrompt,
-      replacement_notes: `Use ${replacementSummary}. Lock identity to the connected reference photos — every person, product, and pet in this row must match the corresponding reference photo. Remove original source characters, products, pets, labels, logos, and brand-specific packaging unless they belong to the replacement asset.`
+      replacement_notes: `Use ${replacementSummary}. Lock identity to the connected reference photos — every person must match the connected avatar's full visible appearance and clothing, not only the face; every product and pet must match the corresponding reference photo. Preserve the source row's timing, action beat, cut order, and camera rhythm. Remove original source characters, products, pets, labels, logos, and brand-specific packaging unless they belong to the replacement asset.`
     };
   });
 
@@ -589,6 +629,10 @@ export function buildSeedanceStoryboardClonePlan(input: {
     const startSeconds = group[0]?.startSeconds || 0;
     const rawDuration = group.reduce((sum, item) => sum + item.durationSeconds, 0);
     const durationSeconds = clampSeedanceStoryboardDuration(rawDuration);
+    // The storyboard sheet has one row per source chunk. The first chunk in
+    // this Seedance task determines which row the per-segment video prompt
+    // should reference (rows are indexed by chunk position, not segment position).
+    const firstChunkIndex = chunks.indexOf(group[0]);
     const primaryShot = group[0]?.sourceShot;
     const sceneDescription = cleanReferenceTextForStoryboard(
       [
@@ -624,7 +668,7 @@ export function buildSeedanceStoryboardClonePlan(input: {
         ambient: cleanReferenceTextForStoryboard(shot.ambient, input.assets),
         style: cleanReferenceTextForStoryboard(shot.style, input.assets),
         action: cleanReferenceTextForStoryboard(shot.action, input.assets) || sceneDescription,
-        subject: `Replacement subject: ${replacementSummary}. Lock to the avatar/product/pet reference photos; do not show the original source identity.`,
+        subject: `Replacement subject: ${replacementSummary}. Lock to the avatar/product/pet reference photos; for people, preserve the connected avatar's full visible outfit, styling, accessories, body proportions, hair, and face exactly, not only facial identity. Do not show the original source identity or source wardrobe.`,
         dialogue: cleanReferenceTextForStoryboard(shot.dialogue, input.assets),
         language: input.language || 'en',
         composition: cleanReferenceTextForStoryboard(shot.composition, input.assets),
@@ -639,17 +683,18 @@ export function buildSeedanceStoryboardClonePlan(input: {
       audio: soundBgmVoiceLine,
       style: cleanReferenceTextForStoryboard(primaryShot?.style, input.assets),
       action: sceneDescription,
-      subject: `Replacement subject: ${replacementSummary}. Lock to the avatar/product/pet reference photos; do not show the original source identity.`,
+      subject: `Replacement subject: ${replacementSummary}. Lock to the avatar/product/pet reference photos; for people, preserve the connected avatar's full visible outfit, styling, accessories, body proportions, hair, and face exactly, not only facial identity. Do not show the original source identity or source wardrobe.`,
       composition: cleanReferenceTextForStoryboard(primaryShot?.composition, input.assets),
       context_environment: cleanReferenceTextForStoryboard(primaryShot?.contextEnvironment, input.assets),
-      first_frame_description: `Real TikTok UGC first frame for storyboard row ${index + 1} (vertical 9:16 phone-camera still). ${sceneDescription} Use ${replacementSummary}; do not show the storyboard table layout.`,
+      first_frame_description: `Real TikTok UGC first frame for storyboard row ${(firstChunkIndex >= 0 ? firstChunkIndex : index) + 1} (vertical 9:16 phone-camera still). ${sceneDescription} Use ${replacementSummary}; preserve the connected avatar's full visible clothing and styling exactly; do not show the storyboard table layout.`,
       ambiance_colour_lighting: cleanReferenceTextForStoryboard(primaryShot?.ambianceColourLighting, input.assets),
       camera_motion_positioning: cameraMovement,
       dialogue: cleanReferenceTextForStoryboard(primaryShot?.dialogue, input.assets),
       language: input.language || 'en',
       first_frame_image_size: input.aspectRatio,
       is_continuation_from_prev: false,
-      shots
+      shots,
+      firstChunkIndex: firstChunkIndex >= 0 ? firstChunkIndex : undefined
     };
   });
 
@@ -680,7 +725,10 @@ const buildStoryboardSheetPrompt = (input: {
     `Final video aspect ratio target: ${input.aspectRatio}. The sheet itself may be portrait so every row is readable.`,
     'Each artwork cell must look like a vertical 9:16 phone-camera photo / video still from a real TikTok UGC video clip. Hand-held phone footage, real human skin, real pet fur, real product packaging. Soft natural indoor lighting, no studio look, no over-stylized color grading.',
     'HARD EXCLUSIONS — do NOT render any of these in the artwork cells: NOT anime, NOT illustration, NOT 3D render, NOT CGI, NOT vector art, NOT painted panels, NOT commercial storyboard art, NOT drawn storyboards, NOT cartoons, NOT comics.',
-    'Use the provided reference images as canonical replacement identity assets. Every person must match the avatar reference photo exactly: same gender presentation, same clothing color and style, same hair color and length, same skin tone, same facial structure. Every product must match the product reference photos exactly: same packaging shape, label layout, brand colors. Every pet must match the pet reference photos exactly: same breed, color, markings.',
+    'Use the provided reference images as canonical replacement identity assets. Every person must match the avatar reference photo exactly across the full visible appearance, not only the face: same gender presentation, facial structure, hair, skin tone, eyewear, accessories, body proportions, clothing color, fabric, cut, fit, sleeves, neckline, visible bottoms, footwear if visible, and overall styling. Every product must match the product reference photos exactly: same packaging shape, label layout, brand colors. Every pet must match the pet reference photos exactly: same breed, color, markings.',
+    'Replacement override: in every artwork cell, discard any clothing color, footwear, hairstyle, body-shape, age, gender-presentation, or appearance detail from the source video or scene description that contradicts the avatar/product/pet reference photos. The reference photos are the only source of truth for appearance and wardrobe; the source video is only a source of truth for action, shot order, timing, pacing, camera rhythm, and scene progression.',
+    'Rhythm lock: preserve the original reference-video cut order, row duration, action timing, camera movement, handheld shake, push-in/pan/tilt speed, subject distance, and motion pacing exactly for each row.',
+    'Pet count: each panel shows EXACTLY ONE pet. Do not duplicate or multiply the pet even if the source video shows multiple animals. Render only the connected pet reference photo.',
     `Replacement mapping: ${buildReplacementSummary(input.assets)}.`,
     'Remove original source characters, products, pets, labels, logos, and brand-specific packaging unless they belong to the replacement asset. Do not invent or substitute the original source identity.',
     'The table text must be concise, legible English. No watermarks, no extra commentary outside the sheet.',
@@ -2174,10 +2222,18 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       }
     }
 
+    const referenceSourceMediaDurationSeconds =
+      typeof request.referenceSourceMediaDurationSeconds === 'number' &&
+      Number.isFinite(request.referenceSourceMediaDurationSeconds) &&
+      request.referenceSourceMediaDurationSeconds > 0
+        ? request.referenceSourceMediaDurationSeconds
+        : null;
+
     const storyboardPlan = isStoryboardReferenceClone
       ? buildSeedanceStoryboardClonePlan({
           shots: referenceVideoShotTimeline?.shots || [],
-          fallbackDurationSeconds: normalizeCloneDurationSeconds(request.videoDuration) || referenceVideoContext?.video_duration_seconds || referenceVideoShotTimeline?.totalDurationSeconds || null,
+          fallbackDurationSeconds: normalizeCloneDurationSeconds(referenceSourceMediaDurationSeconds) || normalizeCloneDurationSeconds(request.videoDuration) || referenceVideoContext?.video_duration_seconds || referenceVideoShotTimeline?.totalDurationSeconds || null,
+          sourceMediaDurationSeconds: referenceSourceMediaDurationSeconds,
           aspectRatio: request.videoAspectRatio === '9:16' ? '9:16' : '16:9',
           language: request.language || referenceVideoContext?.language || 'en',
           assets: cloneReferenceAssets
@@ -2502,6 +2558,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       mergePolicy: 'auto',
       executionMode: request.executionMode || (request.requestSource === 'project_agent_clone' ? 'clone_segmented_auto' : 'clone'),
       referenceSourceVideoUrl: request.referenceSourceVideoUrl || null,
+      referenceSourceMediaDurationSeconds,
       supplementalText: normalizeSupplementalText(request.supplementalText),
       ...cloneReferenceSource
     };
@@ -6600,7 +6657,7 @@ async function startSegmentVideoTaskSeedance(
     totalSegments
   );
 
-  console.log(`🎬 Seedance Segment ${segmentIndex + 1}/${totalSegments}: Images count = ${isStoryboardReferenceMode ? referenceImageUrls.length + (firstFrameUrl ? 1 : 0) + (closingFrameUrl ? 1 : 0) : useReferenceImageMode ? referenceImageUrls.length : inputUrls.length} ${isStoryboardReferenceMode ? '(storyboard + first/last frame)' : useReferenceImageMode ? '(reference images)' : hasClosingFrame ? '(first + closing)' : '(first only)'}`);
+  console.log(`🎬 Seedance Segment ${segmentIndex + 1}/${totalSegments}: Images count = ${useReferenceImageMode ? referenceImageUrls.length : inputUrls.length} ${isStoryboardReferenceMode ? '(storyboard/reference images)' : useReferenceImageMode ? '(reference images)' : hasClosingFrame ? '(first + closing)' : '(first only)'}`);
 
   const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
   const resolution = normalizeCloneVideoQualityForModel(model, project.video_quality) as '480p' | '720p' | '1080p';
@@ -6680,8 +6737,11 @@ async function startSegmentVideoTaskSeedance(
     }
   }
 
+  const storyboardRowIndex = isStoryboardReferenceMode
+    ? (typeof segmentPrompt.firstChunkIndex === 'number' ? segmentPrompt.firstChunkIndex + 1 : segmentIndex + 1)
+    : segmentIndex + 1;
   const storyboardInstruction = isStoryboardReferenceMode
-    ? `Use @Image1 as the storyboard sheet. Follow storyboard row ${segmentIndex + 1} exactly for scene order, composition, camera movement, timing, action beats, and audio intent. Use the remaining reference images only as replacement identity assets. Do not render the storyboard table itself. `
+    ? `Use @Image1 as the storyboard sheet. Follow storyboard row ${storyboardRowIndex} exactly for scene order, row duration, composition, camera movement, handheld rhythm, push-in/pan/tilt speed, subject distance, action timing, cut timing, motion pacing, and audio intent. Use the remaining reference images only as replacement identity assets. For any person, match the connected avatar reference photo's full visible appearance and wardrobe exactly, not only the face: hair, skin tone, eyewear, accessories, body proportions, clothing color, fabric, cut, fit, sleeves, neckline, visible bottoms, and footwear if visible. Never copy the original source person's clothing or styling unless it appears in the connected avatar reference. Do not render the storyboard table itself. `
     : '';
   const promptText = `${storyboardInstruction}${promptParts.join('. ')}`.substring(0, 2500); // Max 2500 chars per Seedance API
 
@@ -6730,6 +6790,7 @@ async function startSegmentVideoTaskSeedance(
 
 export const __test__ = {
   cleanSegmentText,
+  cleanReferenceTextForStoryboard,
   buildProjectAgentFramePrompt,
   shouldWaitForContinuationFrame,
   buildStructuredVideoPromptPayload,

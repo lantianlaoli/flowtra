@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   removeOriginalAvatarReferences,
+  removeOriginalPetReferences,
   removeOriginalProductReferences
 } from '@/lib/project-agent/clone-product-replacement';
 
@@ -47,4 +48,40 @@ test('avatar replacement removes original reference performer from prompt text',
 
   assert.equal(cleaned, 'The shot opens on a medium close-up of Veronica centered in the frame.');
   assert.doesNotMatch(cleaned, /African American man|\bman\b/i);
+});
+
+test('avatar replacement strips source clothing/footwear descriptors so replacement photo wins', () => {
+  const cleaned = removeOriginalAvatarReferences({
+    text: "The person's feet in pink sweatpants and black-and-white Nike slides visible at the bottom of the frame.",
+    avatarName: 'laoli'
+  });
+
+  assert.doesNotMatch(cleaned, /pink sweatpants/i);
+  assert.doesNotMatch(cleaned, /Nike/i);
+  assert.doesNotMatch(cleaned, /\bslides\b/i);
+  assert.match(cleaned, /laoli/);
+});
+
+test('avatar replacement strips generic gender/age descriptors that signal source identity', () => {
+  const cleanedWoman = removeOriginalAvatarReferences({
+    text: 'A woman walks toward the camera holding the product.',
+    avatarName: 'laoli'
+  });
+  assert.equal(cleanedWoman, 'laoli walks toward the camera holding the product.');
+
+  const cleanedGirl = removeOriginalAvatarReferences({
+    text: 'The girl picks up the bottle from the table.',
+    avatarName: 'laoli'
+  });
+  assert.equal(cleanedGirl, 'laoli picks up the bottle from the table.');
+});
+
+test('pet replacement substitutes pet name for source pet words', () => {
+  const cleaned = removeOriginalPetReferences({
+    text: "The orange tabby cat stands between the person's feet.",
+    petName: 'two fat'
+  });
+
+  assert.match(cleaned, /two fat/);
+  assert.doesNotMatch(cleaned, /tabby cat/);
 });

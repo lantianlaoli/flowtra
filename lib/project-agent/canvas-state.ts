@@ -51,6 +51,7 @@ export type ProjectAgentCanvasAssetRef = {
   photos?: string[];
   content?: string | null;
   durationSeconds?: number | null;
+  mediaDurationSeconds?: number | null;
   sourceType?: 'creator' | 'reference_video' | null;
   videoUrl?: string | null;
   videoCdnUrl?: string | null;
@@ -523,7 +524,7 @@ export const getFeatureStartBlockedReason = (
 
   if (featureNode.type === 'motion_clone') {
     const videoNode = connected.get('video');
-    const durationSeconds = videoNode?.asset?.durationSeconds;
+    const durationSeconds = videoNode?.asset?.mediaDurationSeconds ?? videoNode?.asset?.durationSeconds;
 
     if (videoNode) {
       if (typeof durationSeconds !== 'number' || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
@@ -540,7 +541,7 @@ export const getFeatureStartBlockedReason = (
     const hasVideo = connected.has('video');
     const hasCloneTarget = connected.has('avatar') || connected.has('product') || connected.has('pet');
     const videoNode = connected.get('video');
-    const durationSeconds = videoNode?.asset?.durationSeconds;
+    const durationSeconds = videoNode?.asset?.mediaDurationSeconds ?? videoNode?.asset?.durationSeconds;
 
     if (hasVideo && !hasCloneTarget) {
       if (typeof durationSeconds !== 'number' || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {

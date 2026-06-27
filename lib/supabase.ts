@@ -158,6 +158,7 @@ export interface VideoCloneSelectedInputs {
   editVideoPrompt?: string | null
   editVideoSourceUrl?: string | null
   referenceSourceVideoUrl?: string | null
+  referenceSourceMediaDurationSeconds?: number | null
   [key: string]: unknown
 }
 

@@ -246,7 +246,8 @@ export function getGenerationCost(
 export function getSegmentVideoGenerationCost(
   model: VideoModel,
   segmentDurationSeconds?: number,
-  videoQuality?: PersistedVideoQuality
+  videoQuality?: PersistedVideoQuality,
+  options?: { hasVideoInput?: boolean }
 ): number {
   const normalizedCloneQuality = normalizeCloneVideoQualityForModel(model, videoQuality);
 
@@ -262,7 +263,7 @@ export function getSegmentVideoGenerationCost(
   }
 
   if (model === 'seedance_2_fast' || model === 'seedance_2' || model === 'seedance_2_mini' || model === 'wan_27') {
-    return getCloneSegmentVideoGenerationCost(model, segmentDurationSeconds, normalizedCloneQuality);
+    return getCloneSegmentVideoGenerationCost(model, segmentDurationSeconds, normalizedCloneQuality, options);
   }
 
   return 0;
@@ -511,7 +512,8 @@ export function mapCloneQualityToSeedanceResolution(
 export function getCloneSegmentVideoGenerationCost(
   model: VideoModel,
   segmentDurationSeconds?: number,
-  videoQuality?: PersistedVideoQuality | null
+  videoQuality?: PersistedVideoQuality | null,
+  options?: { hasVideoInput?: boolean }
 ): number {
   const normalizedQuality = normalizeCloneVideoQualityForModel(model, videoQuality);
 
@@ -531,8 +533,11 @@ export function getCloneSegmentVideoGenerationCost(
     const effectiveDuration = Number.isFinite(duration) && duration > 0
       ? Math.ceil(duration)
       : 0;
-    const perSecondCost = SEEDANCE_2_QUALITY_COSTS[normalizedQuality as keyof typeof SEEDANCE_2_QUALITY_COSTS]
-      ?? SEEDANCE_2_QUALITY_COSTS['720p'];
+    const priceTable = options?.hasVideoInput
+      ? SEEDANCE_2_WITH_VIDEO_INPUT_QUALITY_COSTS
+      : SEEDANCE_2_QUALITY_COSTS;
+    const perSecondCost = priceTable[normalizedQuality as keyof typeof priceTable]
+      ?? priceTable['720p'];
     return Math.ceil(effectiveDuration * perSecondCost);
   }
 
@@ -541,8 +546,11 @@ export function getCloneSegmentVideoGenerationCost(
     const effectiveDuration = Number.isFinite(duration) && duration > 0
       ? Math.ceil(duration)
       : 0;
-    const perSecondCost = SEEDANCE_2_FAST_QUALITY_COSTS[normalizedQuality as keyof typeof SEEDANCE_2_FAST_QUALITY_COSTS]
-      ?? SEEDANCE_2_FAST_QUALITY_COSTS['720p'];
+    const priceTable = options?.hasVideoInput
+      ? SEEDANCE_2_FAST_WITH_VIDEO_INPUT_QUALITY_COSTS
+      : SEEDANCE_2_FAST_QUALITY_COSTS;
+    const perSecondCost = priceTable[normalizedQuality as keyof typeof priceTable]
+      ?? priceTable['720p'];
     return Math.ceil(effectiveDuration * perSecondCost);
   }
 
@@ -551,8 +559,11 @@ export function getCloneSegmentVideoGenerationCost(
     const effectiveDuration = Number.isFinite(duration) && duration > 0
       ? Math.ceil(duration)
       : 0;
-    const perSecondCost = SEEDANCE_2_MINI_QUALITY_COSTS[normalizedQuality as keyof typeof SEEDANCE_2_MINI_QUALITY_COSTS]
-      ?? SEEDANCE_2_MINI_QUALITY_COSTS['720p'];
+    const priceTable = options?.hasVideoInput
+      ? SEEDANCE_2_MINI_WITH_VIDEO_INPUT_QUALITY_COSTS
+      : SEEDANCE_2_MINI_QUALITY_COSTS;
+    const perSecondCost = priceTable[normalizedQuality as keyof typeof priceTable]
+      ?? priceTable['720p'];
     return Math.ceil(effectiveDuration * perSecondCost);
   }
 

@@ -9,6 +9,18 @@ const ORIGINAL_PRODUCT_PATTERNS = [
 ];
 
 const ORIGINAL_AVATAR_PATTERNS = [
+  // Clothing/footwear color descriptors that reveal the source identity
+  /\bpink\s+sweatpants?\b/gi,
+  /\bsweatpants?\b/gi,
+  /\bblack-and-white\s+(?:Nike|sneaker|slides?|shoes?)\b/gi,
+  /\b(?:Nike|Adidas|Puma|Reebok|Converse|Vans|New\s+Balance)\s+(?:sneakers?|slides?|shoes?|socks?)\b/gi,
+  /\bslides?\b/gi,
+  /\bsneakers?\b/gi,
+  /\bshoes?\b/gi,
+  /\bsocks?\b/gi,
+  /\bin\s+pink\b/gi,
+  /\bwearing\s+pink\b/gi,
+  // Identity anchors
   /\bAfrican\s+American\s+man\b/gi,
   /\bAfrican\s+American\s+male\b/gi,
   /\bBlack\s+man\b/gi,
@@ -17,6 +29,18 @@ const ORIGINAL_AVATAR_PATTERNS = [
   /\ba\s+man\b/gi,
   /\bman\b/gi,
   /\bmale\b/gi,
+  /\bthe\s+woman\b/gi,
+  /\ba\s+woman\b/gi,
+  /\bwoman\b/gi,
+  /\bthe\s+girl\b/gi,
+  /\ba\s+girl\b/gi,
+  /\bgirl\b/gi,
+  /\bthe\s+boy\b/gi,
+  /\ba\s+boy\b/gi,
+  /\bboy\b/gi,
+  /\bthe\s+person(?:\s+in\s+pink)?\b/gi,
+  /\baperson\b/gi,
+  /\bfemale\b/gi,
   /\bpresenter\b/gi,
 ];
 
