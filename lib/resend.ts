@@ -21,7 +21,7 @@ function getResendClient() {
 
 export async function sendEmail(params: SendEmailParams) {
   const resend = getResendClient()
-  const from = params.from || process.env.RESEND_FROM || 'onboarding@resend.dev'
+  const from = params.from || 'support@flowtra.ai'
   const to = Array.isArray(params.to) ? params.to : [params.to]
 
   return await resend.emails.send({
