@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import { siteUrl } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: "Small Business AI Marketing Blog | Video Ad Tips for Etsy & Amazon Sellers",
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Small Business AI Marketing Blog | Etsy & Amazon Seller Tips",
     description: "Practical AI marketing guides for small businesses, Etsy sellers, and craft makers. Create video ads under $1.",
-    url: 'https://www.flowtra.store/blog',
+    url: siteUrl('/blog'),
   },
   alternates: {
     canonical: '/blog',

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { DEFAULT_SOCIAL_IMAGE_URL } from '@/lib/social-image';
+import { siteUrl } from '@/lib/seo';
 
 const description = 'Generate bilingual social media cover images from a portrait and product or logo reference.';
 
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Social Cover Generator | Flowtra',
     description,
-    url: 'https://www.flowtra.store/tools/social-cover-generator',
+    url: siteUrl('/tools/social-cover-generator'),
     siteName: 'Flowtra',
     type: 'website',
     images: [

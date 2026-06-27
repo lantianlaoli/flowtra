@@ -1,6 +1,7 @@
 import { type Metadata } from 'next';
 import AvatarAdsShowcasePage from '@/components/pages/AvatarAdsShowcasePage';
 import { DEFAULT_SOCIAL_IMAGE_PATH } from '@/lib/social-image';
+import { SITE_URL, siteUrl } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Avatar Ads - AI Character-Driven Video Ads | Flowtra',
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Avatar Ads - AI Character-Driven Video Ads | Flowtra',
     description: 'Create character-driven video advertisements with realistic AI characters powered by Seedance 2 Fast. Custom dialogue and natural performances.',
-    url: 'https://www.flowtra.store/features/avatar-ads',
+    url: siteUrl('/features/avatar-ads'),
     siteName: 'Flowtra',
     images: [
       {
@@ -59,7 +60,7 @@ export default function Page() {
             '@type': 'SoftwareApplication',
             name: 'Avatar Ads - AI Character Video Generator',
             description: 'Create character-driven video advertisements with AI. Custom characters, dialogue, and realistic performances powered by Seedance 2 Fast. Perfect for brand storytelling and product demos.',
-            url: 'https://www.flowtra.store/features/avatar-ads',
+            url: siteUrl('/features/avatar-ads'),
             applicationCategory: 'BusinessApplication',
             operatingSystem: 'Web',
             offers: {
@@ -79,7 +80,7 @@ export default function Page() {
             provider: {
               '@type': 'Organization',
               name: 'Flowtra',
-              url: 'https://www.flowtra.store',
+              url: SITE_URL,
             },
           })
         }}

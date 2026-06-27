@@ -1,6 +1,7 @@
 // Server-side Resend client and helpers
 // Note: Do not import this from client components.
 import { Resend } from 'resend'
+import { SITE_URL } from './seo'
 
 type SendEmailParams = {
   to: string | string[]
@@ -37,7 +38,7 @@ export async function sendWelcomeEmail(options: {
   name?: string | null
 }) {
   const subject = 'Welcome to Flowtra — Let\'s Create Your First AI Ad'
-  const siteBase = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://www.flowtra.store').replace(/\/$/, '')
+  const siteBase = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || SITE_URL).replace(/\/$/, '')
   const appUrl = `${siteBase}/dashboard`
   const logoUrl = `${siteBase}/logo.svg`
   const avatarAdsUrl = `${siteBase}/features/avatar-ads`

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DEFAULT_SOCIAL_IMAGE_URL } from '@/lib/social-image';
+import { siteUrl } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: "Image Clone Tool | Flowtra",
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
     title: "Image Clone Tool | Flowtra",
     description:
       "Upload your product photo and reference images to generate a cloned commercial image.",
-    url: "https://www.flowtra.store/tools/image-clone",
+    url: siteUrl('/tools/image-clone'),
     siteName: "Flowtra",
     type: "website",
     images: [

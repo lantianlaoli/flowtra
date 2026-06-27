@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Loader2, Package, ExternalLink, Plus, UserCircle, Video, PawPrint } from 'lucide-react';
 import { UserProduct, UserAvatar, UserPet } from '@/lib/supabase';
+import { SITE_URL } from '@/lib/seo';
 import type { SystemAvatar } from '@/lib/default-avatars';
 import { useToast } from '@/contexts/ToastContext';
 import { useI18n } from '@/providers/I18nProvider';
@@ -746,7 +747,7 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
       <div className={embedded ? "assets-content space-y-4" : "assets-content space-y-6"}>
         {activeTab === 'products' ? (
           <>
-            <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 items-stretch gap-4">
               {filteredProducts.map((product) => (
                 <ProductCard
                   key={product.id}
@@ -778,7 +779,7 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
           </>
         ) : activeTab === 'avatars' ? (
           <>
-            <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 items-stretch gap-4">
               {filteredAvatars.map((avatar) => (
                 <AvatarCard
                   key={avatar.id}
@@ -808,7 +809,7 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
           </>
         ) : activeTab === 'pets' ? (
           <>
-            <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 items-stretch gap-4">
               {filteredPets.map((pet) => (
                 <PetCard
                   key={pet.id}
@@ -851,7 +852,7 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
               </div>
               <div className="assets-actions-buttons flex gap-3 w-full lg:w-auto">
                 <a
-                  href="https://www.flowtra.store/blog/free-ugc-download-methods-2025"
+                  href={`${SITE_URL}/blog/free-ugc-download-methods-2025`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="assets-secondary-button flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium whitespace-nowrap"
@@ -878,7 +879,7 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
                 <p className="assets-empty-copy text-gray-500">{assetsMessages.empty.adjustSearch}</p>
               </div>
             ) : filteredVideos.length > 0 ? (
-              <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              <div className="assets-grid grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 items-stretch gap-4">
                 {filteredVideos.map((video) => (
                   <VideoAssetCard
                     key={video.id}
@@ -888,6 +889,7 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
                       setSelectedVideo(asset);
                       setShowVideoDetails(true);
                     }}
+                    onDelete={handleDeleteVideo}
                   />
                 ))}
               </div>

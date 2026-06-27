@@ -60,6 +60,13 @@ const nextConfig: NextConfig = {
 
   async redirects() {
     return [
+      // Domain canonicalization: enforce non-www host for flowtra.ai.
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.flowtra.ai' }],
+        destination: 'https://flowtra.ai/:path*',
+        permanent: true,
+      },
       // SEO cleanup 2026-06-01: pages removed from the app but still
       // indexed by Google. Each one is a 301 so the link equity (and
       // crawl budget) is transferred to the canonical replacement.

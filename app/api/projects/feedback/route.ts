@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { sendEmail } from '@/lib/resend';
+import { SITE_URL } from '@/lib/seo';
 
 const feedbackSchema = z.object({
   projectId: z.string().min(1),
@@ -67,8 +68,8 @@ export async function POST(request: NextRequest) {
       ? (project.merged_video_url || project.video_url)
       : project.output_video_url;
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.flowtra.store';
-    const projectUrl = `${siteUrl}/dashboard/${projectType}`;
+    const siteBase = process.env.NEXT_PUBLIC_SITE_URL || SITE_URL;
+    const projectUrl = `${siteBase}/dashboard/${projectType}`;
 
     const subject = `[Flowtra Feedback] ${feedbackLabel} - ${projectTypeLabel} - ${projectId.substring(0, 8)}`;
 

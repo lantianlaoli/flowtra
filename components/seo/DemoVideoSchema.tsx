@@ -4,6 +4,8 @@ interface DemoVideoSchemaProps {
   description: string;
 }
 
+import { SITE_URL } from '@/lib/seo';
+
 export default function DemoVideoSchema({ videoUrl, title, description }: DemoVideoSchemaProps) {
   // Generate a deterministic upload date based on video URL to avoid hydration mismatch
   // This ensures server and client render the same content
@@ -40,7 +42,7 @@ export default function DemoVideoSchema({ videoUrl, title, description }: DemoVi
       name: 'Flowtra',
       logo: {
         '@type': 'ImageObject',
-        url: 'https://www.flowtra.store/logo.svg'
+        url: `${SITE_URL}/logo.svg`
       }
     },
     genre: ['Advertising', 'E-commerce', 'AI Technology'],

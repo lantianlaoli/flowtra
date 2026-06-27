@@ -4,17 +4,19 @@
  * Provides comprehensive JSON-LD structured data for AI search engines and SEO.
  * Includes Organization, WebSite, Product, and AggregateOffer schemas.
  */
+import { SITE_URL } from '@/lib/seo';
+
 export default function StructuredData() {
   // Organization Schema
   const organizationSchema = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
-    '@id': 'https://www.flowtra.store/#organization',
+    '@id': `${SITE_URL}/#organization`,
     name: 'Flowtra',
-    url: 'https://www.flowtra.store',
+    url: SITE_URL,
     logo: {
       '@type': 'ImageObject',
-      url: 'https://www.flowtra.store/logo.svg',
+      url: `${SITE_URL}/logo.svg`,
       width: 250,
       height: 60
     },
@@ -26,7 +28,7 @@ export default function StructuredData() {
     contactPoint: {
       '@type': 'ContactPoint',
       contactType: 'Customer Service',
-      email: 'support@flowtra.store',
+      email: 'support@flowtra.ai',
       availableLanguage: ['en', 'zh']
     }
   };
@@ -35,18 +37,18 @@ export default function StructuredData() {
   const websiteSchema = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
-    '@id': 'https://www.flowtra.store/#website',
-    url: 'https://www.flowtra.store',
+    '@id': `${SITE_URL}/#website`,
+    url: SITE_URL,
     name: 'Flowtra - AI Video Ads for Small Business',
     description: 'Create professional video advertisements with AI. Transform product images into engaging video ads for Amazon, Walmart, and local stores.',
     publisher: {
-      '@id': 'https://www.flowtra.store/#organization'
+      '@id': `${SITE_URL}/#organization`
     },
     potentialAction: {
       '@type': 'SearchAction',
       target: {
         '@type': 'EntryPoint',
-        urlTemplate: 'https://www.flowtra.store/search?q={search_term_string}'
+        urlTemplate: `${SITE_URL}/search?q={search_term_string}`
       },
       'query-input': 'required name=search_term_string'
     }
@@ -56,14 +58,14 @@ export default function StructuredData() {
   const productSchema = {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
-    '@id': 'https://www.flowtra.store/#product',
+    '@id': `${SITE_URL}/#product`,
     name: 'Flowtra - Turn Viral Videos Into Your Own | AI Video Cloning',
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web Browser',
     description: 'Turn viral UGC videos into your own with AI. Clone TikTok ads, Instagram Reels, and YouTube Shorts with your products. Features dual-mode workflow: viral video cloning and avatar-based video generation. Built for Shopify sellers, dropshippers, and small businesses.',
     offers: {
       '@type': 'AggregateOffer',
-      '@id': 'https://www.flowtra.store/#offers',
+      '@id': `${SITE_URL}/#offers`,
       priceCurrency: 'USD',
       lowPrice: '29',
       highPrice: '99',
@@ -76,7 +78,7 @@ export default function StructuredData() {
           priceCurrency: 'USD',
           description: '1,930 credits. Approximately 58 Seedance 2 Fast videos (or 47 Seedance 2 videos) per 1-second generation units. Includes Video Clone, Avatar Ads, Motion Clone, plus free unlimited AI Agent access.',
           availability: 'https://schema.org/InStock',
-          url: 'https://www.flowtra.store/#pricing',
+          url: `${SITE_URL}/#pricing`,
           priceValidUntil: '2025-12-31',
           itemOffered: {
             '@type': 'Service',
@@ -91,7 +93,7 @@ export default function StructuredData() {
           priceCurrency: 'USD',
           description: '3,930 credits. Approximately 119 Seedance 2 Fast videos (or 95 Seedance 2 videos) per 1-second generation units. Image generation included. Includes Video Clone, Avatar Ads, Motion Clone, plus free unlimited AI Agent access.',
           availability: 'https://schema.org/InStock',
-          url: 'https://www.flowtra.store/#pricing',
+          url: `${SITE_URL}/#pricing`,
           priceValidUntil: '2025-12-31',
           itemOffered: {
             '@type': 'Service',
@@ -106,7 +108,7 @@ export default function StructuredData() {
           priceCurrency: 'USD',
           description: '6,600 credits. Approximately 200 Seedance 2 Fast videos (or 160 Seedance 2 videos) per 1-second generation units. Priority processing. Includes Video Clone, Avatar Ads, Motion Clone, plus free unlimited AI Agent access.',
           availability: 'https://schema.org/InStock',
-          url: 'https://www.flowtra.store/#pricing',
+          url: `${SITE_URL}/#pricing`,
           priceValidUntil: '2025-12-31',
           itemOffered: {
             '@type': 'Service',
@@ -137,13 +139,13 @@ export default function StructuredData() {
       'Generation-Time Billing: Pay only for generated videos',
       'No Editing Skills Required: AI handles creative structure replication'
     ],
-    screenshot: 'https://www.flowtra.store/screenshots/dashboard.png',
-    url: 'https://www.flowtra.store',
+    screenshot: `${SITE_URL}/screenshots/dashboard.png`,
+    url: SITE_URL,
     author: {
-      '@id': 'https://www.flowtra.store/#organization'
+      '@id': `${SITE_URL}/#organization`
     },
     provider: {
-      '@id': 'https://www.flowtra.store/#organization'
+      '@id': `${SITE_URL}/#organization`
     }
   };
 
@@ -156,7 +158,7 @@ export default function StructuredData() {
         '@type': 'ListItem',
         position: 1,
         name: 'Home',
-        item: 'https://www.flowtra.store'
+        item: SITE_URL
       }
     ]
   };

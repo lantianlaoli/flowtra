@@ -7,11 +7,11 @@
 
 /**
  * Check if the app is running in production environment
- * @returns true if NEXT_PUBLIC_SITE_URL contains 'flowtra.store'
+ * @returns true if NEXT_PUBLIC_SITE_URL contains 'flowtra.ai'
  */
 export const isProduction = (): boolean => {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
-  return siteUrl.includes('flowtra.store');
+  return siteUrl.includes('flowtra.ai');
 };
 
 /**

@@ -69,8 +69,8 @@ export type ClassifiedUrl = ClassificationInput & {
   recommendedAction: string;
 };
 
-const DEFAULT_BASE_URL = 'https://www.flowtra.store';
-const DEFAULT_SITE_URL = 'https://www.flowtra.store/';
+const DEFAULT_BASE_URL = 'https://flowtra.ai';
+const DEFAULT_SITE_URL = 'https://flowtra.ai/';
 const DEFAULT_REPORT_DIR = 'reports/seo-url-audit';
 
 const IMPORTANT_KNOWN_URLS = [

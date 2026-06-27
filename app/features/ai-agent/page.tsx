@@ -1,6 +1,7 @@
 import { type Metadata } from 'next';
 import AIAgentShowcasePage from '@/components/pages/AIAgentShowcasePage';
 import { DEFAULT_SOCIAL_IMAGE_PATH } from '@/lib/social-image';
+import { SITE_URL, siteUrl } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'AI Agent - Canvas Clone Workflows | Flowtra',
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'AI Agent - Canvas Clone Workflows | Flowtra',
     description: 'Drag cards into a canvas, connect clone functions, and run video clone, motion clone, and talking-head workflows from one place.',
-    url: 'https://www.flowtra.store/features/ai-agent',
+    url: siteUrl('/features/ai-agent'),
     siteName: 'Flowtra',
     images: [
       {
@@ -59,7 +60,7 @@ export default function Page() {
             '@type': 'SoftwareApplication',
             name: 'Flowtra AI Agent',
             description: 'Use Flowtra Agent in canvas mode to arrange assets, connect functions, and launch clone workflows for video clone, motion clone, and talking-head generation.',
-            url: 'https://www.flowtra.store/features/ai-agent',
+            url: siteUrl('/features/ai-agent'),
             applicationCategory: 'BusinessApplication',
             operatingSystem: 'Web',
             offers: {
@@ -77,7 +78,7 @@ export default function Page() {
             provider: {
               '@type': 'Organization',
               name: 'Flowtra',
-              url: 'https://www.flowtra.store',
+              url: SITE_URL,
             },
           })
         }}

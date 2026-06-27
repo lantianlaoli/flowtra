@@ -7,6 +7,7 @@ import { getArticleBySlug, getAllArticles } from '@/lib/supabase';
 import { calculateReadingTime, extractExcerpt } from '@/lib/article-utils';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { DEFAULT_SOCIAL_IMAGE_PATH, DEFAULT_SOCIAL_IMAGE_URL } from '@/lib/social-image';
+import { SITE_URL, siteUrl } from '@/lib/seo';
 
 // Revalidate individual article pages so content updates without redeploys
 export const revalidate = 60; // seconds
@@ -42,20 +43,20 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
     author: {
       '@type': 'Organization',
       name: 'Flowtra Team',
-      url: 'https://www.flowtra.store',
+      url: SITE_URL,
     },
     publisher: {
       '@type': 'Organization',
       name: 'Flowtra',
-      url: 'https://www.flowtra.store',
+      url: SITE_URL,
       logo: {
         '@type': 'ImageObject',
-        url: 'https://www.flowtra.store/logo.svg',
+        url: `${SITE_URL}/logo.svg`,
       },
     },
     mainEntityOfPage: {
       '@type': 'WebPage',
-      '@id': `https://www.flowtra.store/blog/${article.slug}`,
+      '@id': siteUrl(`/blog/${article.slug}`),
     },
   };
 

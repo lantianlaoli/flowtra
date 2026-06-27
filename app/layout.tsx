@@ -14,6 +14,7 @@ import {
   SITE_LOCALE_COOKIE_KEY,
 } from '@/lib/i18n/site';
 import { DEFAULT_SOCIAL_IMAGE_PATH } from '@/lib/social-image';
+import { SITE_URL, siteUrl } from '@/lib/seo';
 import { DASHBOARD_THEME_STORAGE_KEY } from '@/lib/theme';
 import "@fontsource/plus-jakarta-sans/400.css";
 import "@fontsource/plus-jakarta-sans/500.css";
@@ -83,14 +84,14 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL('https://www.flowtra.store'),
+  metadataBase: new URL(SITE_URL),
   alternates: {
     canonical: '/',
   },
   openGraph: {
     title: "Turn Viral Videos Into Your Own with AI - Flowtra",
   description: "Clone viral TikTok ads, Instagram Reels, and YouTube Shorts with AI. Built for Shopify sellers and small businesses. From $0.30 per 8 seconds.",
-    url: 'https://www.flowtra.store',
+    url: SITE_URL,
     siteName: 'Flowtra',
     images: [
       {
@@ -166,7 +167,7 @@ export default async function RootLayout({
     >
       <html lang={getDocumentLang(initialLocale)} suppressHydrationWarning={true}>
         <head>
-          <meta name="google-site-verification" content="s9LILAiVY8VS08_NWNu9kW3hdlnlQgDMa-Hy1y1Ly3A" />
+          <meta name="google-site-verification" content="0ORMaGX3SE1VfBZOGIUQlYpSfcQB94AidOZRovm66GQ" />
           <meta name="theme-color" content="#ffffff" />
           <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
           <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -182,7 +183,7 @@ export default async function RootLayout({
                 '@type': 'SoftwareApplication',
                 name: 'Flowtra AI - Turn Viral Videos Into Your Own | Clone Viral UGC',
                 description: 'AI-powered video cloning platform that transforms viral UGC videos into your own. Clone TikTok ads, Instagram Reels, and YouTube Shorts with your products. Built for Shopify, dropshipping, and small businesses.',
-                url: 'https://www.flowtra.store',
+                url: SITE_URL,
                 applicationCategory: 'BusinessApplication',
                 operatingSystem: 'Web',
                 browserRequirements: 'Requires JavaScript. Requires HTML5.',
@@ -221,10 +222,10 @@ export default async function RootLayout({
                 publisher: {
                   '@type': 'Organization',
                   name: 'Flowtra',
-                  url: 'https://www.flowtra.store',
+                  url: SITE_URL,
                   logo: {
                     '@type': 'ImageObject',
-                    url: 'https://www.flowtra.store/logo.svg',
+                    url: `${SITE_URL}/logo.svg`,
                     width: '200',
                     height: '60'
                   }
@@ -238,22 +239,22 @@ export default async function RootLayout({
                   'Upload product photos and get ads in minutes',
                   'Commercial usage rights with no watermarks'
                 ],
-                screenshot: 'https://www.flowtra.store/app-screenshot.jpg',
+                screenshot: `${SITE_URL}/app-screenshot.jpg`,
                 video: {
                   '@type': 'VideoObject',
                   name: 'Flowtra Demo - AI Ad Generation',
                   description: 'See how Flowtra creates professional video advertisements from product photos using advanced AI technology',
-                  thumbnailUrl: 'https://www.flowtra.store/demo-thumbnail.jpg',
+                  thumbnailUrl: `${SITE_URL}/demo-thumbnail.jpg`,
                   uploadDate: '2024-01-15T12:00:00+00:00',
-                  contentUrl: 'https://www.flowtra.store/demo-video.mp4',
+                  contentUrl: `${SITE_URL}/demo-video.mp4`,
                   duration: 'PT45S',
-                  embedUrl: 'https://www.flowtra.store/demo-video-embed',
+                  embedUrl: `${SITE_URL}/demo-video-embed`,
                   publisher: {
                     '@type': 'Organization',
                     name: 'Flowtra',
                     logo: {
                       '@type': 'ImageObject',
-                      url: 'https://www.flowtra.store/logo.svg'
+                      url: `${SITE_URL}/logo.svg`
                     }
                   }
                 }

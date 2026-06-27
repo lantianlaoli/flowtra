@@ -1,6 +1,7 @@
 import { type Metadata } from 'next';
 import MotionCloneShowcasePage from '@/components/pages/MotionCloneShowcasePage';
 import { DEFAULT_SOCIAL_IMAGE_PATH } from '@/lib/social-image';
+import { SITE_URL, siteUrl } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Motion Clone - Clone Viral Ads Instantly | Flowtra',
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Motion Clone - Clone Viral Ads Instantly | Flowtra',
     description: 'Clone viral TikTok ads by entering a creator\'s name. AI places your product in the motion while preserving the exact movements that made it go viral.',
-    url: 'https://www.flowtra.store/features/motion-clone',
+    url: siteUrl('/features/motion-clone'),
     siteName: 'Flowtra',
     images: [
       {
@@ -59,7 +60,7 @@ export default function Page() {
             '@type': 'SoftwareApplication',
             name: 'Motion Clone - AI Viral Ad Cloning Tool',
             description: 'Clone viral TikTok ads in seconds. Enter a creator\'s name and AI places your product in the motion while preserving movements, actions, and background that made it go viral. Smart frame editing for higher success rates.',
-            url: 'https://www.flowtra.store/features/motion-clone',
+            url: siteUrl('/features/motion-clone'),
             applicationCategory: 'BusinessApplication',
             operatingSystem: 'Web',
             offers: {
@@ -78,7 +79,7 @@ export default function Page() {
             provider: {
               '@type': 'Organization',
               name: 'Flowtra',
-              url: 'https://www.flowtra.store',
+              url: SITE_URL,
             },
           })
         }}

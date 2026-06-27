@@ -1,6 +1,7 @@
 import { type Metadata } from 'next';
 import VideoCloneFeaturePage from '@/components/pages/VideoCloneFeaturePage';
 import { DEFAULT_SOCIAL_IMAGE_PATH } from '@/lib/social-image';
+import { SITE_URL, siteUrl } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Video Clone - Recreate High-Performing Videos with AI | Flowtra',
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Video Clone - Recreate High-Performing Videos with AI | Flowtra',
     description: 'Turn a reference video into a launch-ready ad with AI. Rebuild the structure, swap in your product, and refine each scene before generation.',
-    url: 'https://www.flowtra.store/features/video-clone',
+    url: siteUrl('/features/video-clone'),
     siteName: 'Flowtra',
     images: [
       {
@@ -59,7 +60,7 @@ export default function Page() {
             '@type': 'SoftwareApplication',
             name: 'Video Clone - AI Video Recreation',
             description: 'Turn a reference video into a launch-ready ad with AI. Rebuild the structure, swap in your product, and refine each scene before generation.',
-            url: 'https://www.flowtra.store/features/video-clone',
+            url: siteUrl('/features/video-clone'),
             applicationCategory: 'BusinessApplication',
             operatingSystem: 'Web',
             offers: {
@@ -79,7 +80,7 @@ export default function Page() {
             provider: {
               '@type': 'Organization',
               name: 'Flowtra',
-              url: 'https://www.flowtra.store',
+              url: SITE_URL,
             },
           })
         }}

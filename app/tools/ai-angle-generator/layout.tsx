@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DEFAULT_SOCIAL_IMAGE_URL } from '@/lib/social-image';
+import { siteUrl } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: "Multi-Angle Photo Tool | Flowtra",
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
     title: "Multi-Angle Photo Tool | Flowtra",
     description:
       "Upload one frontal photo and generate 3 additional viewing angles.",
-    url: "https://www.flowtra.store/tools/ai-angle-generator",
+    url: siteUrl('/tools/ai-angle-generator'),
     siteName: "Flowtra",
     type: "website",
     images: [

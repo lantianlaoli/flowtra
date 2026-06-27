@@ -28,8 +28,8 @@ Disallow: /dashboard/
 
 test('classifier marks indexed dashboard 404 pages as blocked dashboard indexed', () => {
   const result = classifyUrl({
-    url: 'https://www.flowtra.store/dashboard/video-clone',
-    baseUrl: 'https://www.flowtra.store',
+    url: 'https://flowtra.ai/dashboard/video-clone',
+    baseUrl: 'https://flowtra.ai',
     appearsInGoogle: true,
     googleImpressions: 12,
     googleClicks: 1,
@@ -48,8 +48,8 @@ test('classifier marks indexed dashboard 404 pages as blocked dashboard indexed'
 
 test('classifier marks live public routes missing from sitemap', () => {
   const result = classifyUrl({
-    url: 'https://www.flowtra.store/features/ai-agent',
-    baseUrl: 'https://www.flowtra.store',
+    url: 'https://flowtra.ai/features/ai-agent',
+    baseUrl: 'https://flowtra.ai',
     appearsInGoogle: false,
     googleImpressions: 0,
     googleClicks: 0,

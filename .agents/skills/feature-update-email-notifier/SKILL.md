@@ -38,7 +38,7 @@ Always exclude `lantianlaoli@gmail.com` from recipient lists before batching. Th
 3. Write concise English email copy:
    - Use Flowtra Team as the signature unless the user specifies another sender identity.
    - Keep feature updates short and concrete.
-   - Include the production domain `flowtra.store` for public links.
+   - Include the production domain `flowtra.ai` for public links.
    - For pricing, include both credits and approximate USD when available.
    - See `references/release-email-policy.md` for the copy checklist.
 4. Create Gmail drafts:

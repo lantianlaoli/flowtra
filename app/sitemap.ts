@@ -1,8 +1,9 @@
 import { MetadataRoute } from "next";
 import { getAllArticles } from "@/lib/supabase";
+import { SITE_URL } from "@/lib/seo";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://www.flowtra.store";
+  const baseUrl = SITE_URL;
 
   // Get all articles from database
   const articles = await getAllArticles();

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DEFAULT_SOCIAL_IMAGE_URL } from '@/lib/social-image';
+import { siteUrl } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: "Ecommerce Listing Studio | Flowtra",
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
     title: "Ecommerce Listing Studio | Flowtra",
     description:
       "Generate marketplace listing images, detail images, and product ad videos from ecommerce product photos.",
-    url: "https://www.flowtra.store/tools/ecommerce-listing-studio",
+    url: siteUrl('/tools/ecommerce-listing-studio'),
     siteName: "Flowtra",
     type: "website",
     images: [

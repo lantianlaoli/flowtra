@@ -12,7 +12,7 @@ Use this reference when drafting Flowtra user feature-update emails.
 ## Required Checks
 
 - Use English UI/customer copy.
-- Use `https://flowtra.store/...` for production links.
+- Use `https://flowtra.ai/...` for production links.
 - Describe model differences conservatively. Do not claim a model is universally higher quality, faster, or cheaper unless verified.
 - Include credit pricing and approximate USD when pricing is part of the update.
 - For BCC campaigns, keep visible `to` as the sender account and leave `cc` empty.
