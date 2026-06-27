@@ -17,8 +17,13 @@ export const getProjectAgentVideoCloneMode = (
 export const getProjectAgentVideoCloneDurationSeconds = (
   inputs: ProjectAgentConnectedFeatureInputs
 ) => {
+  const mediaDurationSeconds = inputs.video?.mediaDurationSeconds;
+  if (typeof mediaDurationSeconds === 'number' && Number.isFinite(mediaDurationSeconds) && mediaDurationSeconds > 0) {
+    return mediaDurationSeconds;
+  }
+
   const durationSeconds = inputs.video?.durationSeconds;
-  return typeof durationSeconds === 'number' && Number.isFinite(durationSeconds)
+  return typeof durationSeconds === 'number' && Number.isFinite(durationSeconds) && durationSeconds > 0
     ? durationSeconds
     : null;
 };

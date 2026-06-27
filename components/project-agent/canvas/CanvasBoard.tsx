@@ -43,6 +43,8 @@ import {
   type VideoModel,
 } from '@/lib/constants';
 import {
+  getCloneSegmentPromptGenerationCost,
+  getProjectAgentCloneExecutionMode,
   getProjectAgentCloneGenerationCost,
   normalizeCloneDurationSeconds,
 } from '@/lib/video-clone-billing';
@@ -467,17 +469,45 @@ const getFeatureEstimatedCredits = (
       video: inputs.video,
       config: node.config,
     });
+    const hasReferenceVideoUrl = Boolean(payload.referenceSourceVideoUrl || payload.editVideoSourceUrl);
+    const executionMode = payload.executionMode
+      || getProjectAgentCloneExecutionMode({
+        model: payload.videoModel,
+        durationSeconds: payload.videoDuration,
+        hasReferenceVideoUrl
+      });
+    // Storyboard-mode Seedance calls bill per segment with image references,
+    // not video-input pricing. Mirror the charge path in
+    // app/api/video-clone/[id]/start-video/route.ts so the UI estimate and the
+    // actual deduction agree.
+    if (executionMode === 'clone_storyboard_reference' && hasReferenceVideoUrl) {
+      const sourceDuration = Number(payload.videoDuration) || 0;
+      const segmentDuration = sourceDuration > 0
+        ? Math.min(15, Math.max(4, Math.ceil(sourceDuration)))
+        : 8;
+      const segmentCount = sourceDuration > 0
+        ? Math.max(1, Math.ceil(sourceDuration / segmentDuration))
+        : 1;
+      const perSegmentCost = getCloneSegmentPromptGenerationCost({
+        model: payload.videoModel,
+        shots: null,
+        fallbackDurationSeconds: segmentDuration,
+        videoQuality: payload.videoQuality,
+        hasVideoInput: false
+      });
+      return Math.ceil(perSegmentCost * segmentCount) * runCount;
+    }
     return getProjectAgentCloneGenerationCost({
       model: payload.videoModel,
       durationSeconds: payload.videoDuration,
       videoQuality: payload.videoQuality,
       executionMode: payload.executionMode,
-      hasReferenceVideoUrl: Boolean(payload.referenceSourceVideoUrl || payload.editVideoSourceUrl),
+      hasReferenceVideoUrl
     }) * runCount;
   }
 
   const connectedVideo = getConnectedAssetForFeature(canvas, node.id, 'video');
-  const durationSeconds = Number(connectedVideo?.durationSeconds);
+  const durationSeconds = Number(connectedVideo?.mediaDurationSeconds ?? connectedVideo?.durationSeconds);
   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
     return null;
   }
@@ -1014,12 +1044,19 @@ export default function CanvasBoard({
                             preload="metadata"
                             src={playableVideoUrl}
                             onLoadedMetadata={(event) => {
-                              const durationSeconds = normalizeCloneDurationSeconds(event.currentTarget.duration);
+                              const rawDurationSeconds = event.currentTarget.duration;
+                              const mediaDurationSeconds = Number.isFinite(rawDurationSeconds) && rawDurationSeconds > 0
+                                ? rawDurationSeconds
+                                : null;
+                              const durationSeconds = normalizeCloneDurationSeconds(mediaDurationSeconds);
                               if (
-                                durationSeconds !== null &&
-                                node.asset?.durationSeconds !== durationSeconds
+                                (durationSeconds !== null && node.asset?.durationSeconds !== durationSeconds) ||
+                                (mediaDurationSeconds !== null && node.asset?.mediaDurationSeconds !== mediaDurationSeconds)
                               ) {
-                                onUpdateAssetNodeMetadata(node.id, { durationSeconds });
+                                onUpdateAssetNodeMetadata(node.id, {
+                                  durationSeconds,
+                                  mediaDurationSeconds,
+                                });
                               }
                             }}
                           />

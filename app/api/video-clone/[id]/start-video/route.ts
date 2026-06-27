@@ -69,6 +69,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     projectGenerationCreditsUsed = Number(project.generation_credits_used || 0);
     const isSeedanceReferenceImageMode = isProjectAgentSeedanceReferenceImageProject(project as SingleVideoProject);
+    // Storyboard tasks send image references only (`reference_image_urls`), so
+    // they use the no-video-input pricing tier. Legacy direct-reference mode
+    // is still marked as video-input because it carries a source video.
+    const segmentHasVideoInput = isSeedanceReferenceImageMode;
     if (isSeedanceReferenceImageMode && !project.video_generation_requested) {
       projectGenerationCreditsUsed = 0;
     }
@@ -212,7 +216,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           model: projectModel || 'seedance_2_fast',
           shots: segmentPrompt.shots,
           fallbackDurationSeconds: segmentDurationSeconds,
-          videoQuality: (project.video_quality as PersistedVideoQuality | null | undefined) || undefined
+          videoQuality: (project.video_quality as PersistedVideoQuality | null | undefined) || undefined,
+          hasVideoInput: segmentHasVideoInput
         });
 
         segmentsToStart.push({
@@ -230,7 +235,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       : getGenerationCost(
           project.video_model as VideoModel,
           project.video_duration || '8',
-          (project.video_quality as PersistedVideoQuality | null | undefined) || undefined
+          (project.video_quality as PersistedVideoQuality | null | undefined) || undefined,
+          { hasVideoInput: segmentHasVideoInput }
         );
 
     const hasPendingVideoWork = shouldUseSegmentRows

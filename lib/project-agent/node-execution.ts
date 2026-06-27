@@ -512,6 +512,7 @@ export const buildVideoCloneStartPayload = (input: {
     creatorSourceVideoId: input.video.sourceType === 'reference_video' ? undefined : input.video.id,
     referenceVideoId: input.video.sourceType === 'reference_video' ? input.video.id : undefined,
     referenceSourceVideoUrl: mode === 'clone' ? playableVideoUrl : undefined,
+    referenceSourceMediaDurationSeconds: mode === 'clone' ? sourceDurationSeconds : undefined,
     selectedAvatarIds: mode === 'clone' && input.avatar?.id ? [input.avatar.id] : [],
     selectedProductIds: mode === 'clone' && input.product?.id ? [input.product.id] : [],
     selectedPetIds: mode === 'clone' && input.pet?.id ? [input.pet.id] : [],

@@ -7,8 +7,10 @@ import {
 } from '@/lib/video-clone-direct-reference';
 import {
   getProjectAgentCloneExecutionMode,
+  getProjectAgentCloneGenerationCost,
 } from '@/lib/video-clone-billing';
 import {
+  buildVideoCloneStartPayload,
   normalizeCloneExecutionStatus,
 } from '@/lib/project-agent/node-execution';
 import {
@@ -69,6 +71,36 @@ test('Project Agent Seedance clone requests resolve to storyboard mode', () => {
     }),
     'clone_storyboard_reference'
   );
+});
+
+test('Project Agent clone payload prefers actual media duration over stale asset duration', () => {
+  const payload = buildVideoCloneStartPayload({
+    avatar: {
+      id: 'avatar-1',
+      name: 'Avatar',
+      imageUrl: 'https://example.com/avatar.png',
+      sourceType: null,
+    },
+    video: {
+      id: 'video-1',
+      name: 'Reference',
+      durationSeconds: 21,
+      mediaDurationSeconds: 14.267,
+      sourceType: 'creator',
+      videoUrl: 'https://example.com/reference.mp4',
+      videoCdnUrl: null,
+    },
+    config: {
+      videoModel: 'seedance_2_mini',
+      videoQuality: '480p',
+      videoQualityManual: true,
+      aspectRatio: '9:16',
+    },
+  });
+
+  assert.equal(payload.executionMode, 'clone_storyboard_reference');
+  assert.equal(payload.videoDuration, '15');
+  assert.equal(payload.referenceSourceMediaDurationSeconds, 14.267);
 });
 
 test('dashboard Seedance clone options no longer select direct reference mode', () => {
@@ -143,6 +175,42 @@ test('storyboard clone keeps short multi-cut references as one Seedance task wit
   assert.equal(plan.segments[0].shots?.length, 2);
   assert.equal(plan.rows[0].source_time_range, '00:00 - 00:08');
   assert.equal(plan.rows[1].source_time_range, '00:08 - 00:14');
+});
+
+test('storyboard clone trusts actual playable media duration over stale analysis duration', () => {
+  const plan = buildSeedanceStoryboardClonePlan({
+    shots: [
+      buildShot(1, 0, 4),
+      buildShot(2, 4, 4),
+      buildShot(3, 8, 3),
+      buildShot(4, 11, 4),
+      buildShot(5, 15, 3),
+      buildShot(6, 18, 3),
+    ],
+    fallbackDurationSeconds: 21,
+    sourceMediaDurationSeconds: 14.267,
+    aspectRatio: '9:16',
+    language: 'en',
+    assets,
+  });
+
+  assert.equal(plan.segments.length, 1);
+  assert.equal(plan.durationSeconds, 15);
+  assert.equal(plan.rows.length, 6);
+  const segmentDuration = plan.segments[0].shots?.reduce((sum, shot) => sum + (shot.duration_seconds || 0), 0) || 0;
+  assert.equal(segmentDuration, 15);
+});
+
+test('storyboard clone billing uses no-video-input pricing for Seedance 2 Mini 480p', () => {
+  const cost = getProjectAgentCloneGenerationCost({
+    model: 'seedance_2_mini',
+    durationSeconds: 14.267,
+    videoQuality: '480p',
+    executionMode: 'clone_storyboard_reference',
+    hasReferenceVideoUrl: true,
+  });
+
+  assert.equal(cost, 143);
 });
 
 test('storyboard clone keeps single short source shot as a single row', () => {
@@ -220,6 +288,9 @@ test('storyboard sheet prompt enforces TikTok UGC photorealism', () => {
   assert.match(prompt, /TikTok UGC/);
   assert.match(prompt, /NOT anime/);
   assert.match(prompt, /phone-camera/);
+  assert.match(prompt, /full visible appearance/);
+  assert.match(prompt, /wardrobe/);
+  assert.match(prompt, /Rhythm lock/);
   assert.doesNotMatch(prompt, /cinematic drawn panels/);
   assert.doesNotMatch(prompt, /polished professional storyboard sheet/);
 });
@@ -233,6 +304,8 @@ test('replacement summary locks identity to avatar/product/pet reference photos'
 
   assert.match(summary, /gender presentation/);
   assert.match(summary, /clothing color/);
+  assert.match(summary, /clothing fabric/);
+  assert.match(summary, /body proportions/);
   assert.match(summary, /hair color/);
   assert.match(summary, /skin tone/);
   assert.match(summary, /facial structure/);
@@ -247,8 +320,11 @@ test('replacement summary locks identity to avatar/product/pet reference photos'
   });
 
   assert.match(plan.rows[0].replacement_notes, /Lock identity to the connected reference photos/);
+  assert.match(plan.rows[0].replacement_notes, /full visible appearance and clothing/);
+  assert.match(plan.rows[0].replacement_notes, /camera rhythm/);
   assert.match(plan.rows[0].storyboard_panel_prompt, /Identity lock/);
-  assert.match(plan.segments[0].subject, /Lock to the avatar\/product\/pet reference photos/);
+  assert.match(plan.rows[0].storyboard_panel_prompt, /Full appearance lock/);
+  assert.match(plan.segments[0].subject, /full visible outfit/);
 });
 
 test('Project Agent storyboard milestones skip scene-frame generation', () => {

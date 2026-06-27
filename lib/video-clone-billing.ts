@@ -63,11 +63,17 @@ export function getProjectAgentCloneGenerationCost(input: {
     hasReferenceVideoUrl: input.hasReferenceVideoUrl,
   });
 
+  // Storyboard-mode Seedance calls only send image references
+  // (`reference_image_urls`), so they use the no-video-input tier.
+  // Direct-reference and edit-video modes send video input.
+  const hasVideoInput = executionMode === 'clone_direct_reference'
+    || executionMode === 'edit_video';
+
   return getGenerationCost(
     input.model,
     String(durationSeconds),
     input.videoQuality || undefined,
-    { hasVideoInput: executionMode === 'clone_direct_reference' || executionMode === 'edit_video' }
+    { hasVideoInput }
   );
 }
 
@@ -76,6 +82,7 @@ export function getCloneSegmentPromptGenerationCost(input: {
   shots?: Array<SegmentShotTimingLike> | null;
   fallbackDurationSeconds?: number | null;
   videoQuality?: PersistedVideoQuality | null;
+  hasVideoInput?: boolean;
 }): number {
   const segmentDurationSeconds = getEffectiveSegmentDurationSeconds(
     input.shots,
@@ -84,6 +91,7 @@ export function getCloneSegmentPromptGenerationCost(input: {
   return getSegmentVideoGenerationCost(
     input.model,
     segmentDurationSeconds,
-    normalizeCloneVideoQualityForModel(input.model, input.videoQuality)
+    normalizeCloneVideoQualityForModel(input.model, input.videoQuality),
+    { hasVideoInput: input.hasVideoInput }
   );
 }
