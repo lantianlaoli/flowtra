@@ -113,7 +113,7 @@ export interface SingleVideoProject {
   downloaded?: boolean // Whether user has downloaded the video
   download_credits_used?: number // DEPRECATED: Credits used for downloading (no longer applicable, downloads are free)
   video_task_id?: string | null
-  current_step?: 'describing' | 'generating_prompts' | 'generating_cover' | 'generating_video' | 'completed'
+  current_step?: 'describing' | 'generating_prompts' | 'generating_cover' | 'generating_video' | 'generating_storyboard_image' | 'generating_segment_videos' | 'completed'
   progress_percentage?: number
   last_processed_at?: string
   selected_inputs?: VideoCloneSelectedInputs | null // Multi-selection context (primary + arrays)
