@@ -1,8 +1,3 @@
-import {
-  formatInstructionSemanticRoleLabel,
-  getInstructionSemanticRole,
-  getProposedInstructionSemanticRole,
-} from '@/lib/project-agent/instruction-semantics';
 import type { VideoDuration } from '@/lib/constants';
 
 export type ProjectAgentFeatureNodeType =
@@ -176,16 +171,11 @@ export const getCanvasConnectionError = (
     return 'This connection is not supported.';
   }
 
-  if (sourceNode.type === 'text' && edge.targetHandle === 'text') {
-    const currentRole = getInstructionSemanticRole(state, sourceNode.id);
-    const nextRole = getProposedInstructionSemanticRole(state, edge);
-    if (
-      currentRole !== 'instruction' &&
-      nextRole !== 'instruction' &&
-      currentRole !== nextRole
-    ) {
-      return `This instruction is already used as a ${formatInstructionSemanticRoleLabel(currentRole)}. Create a new instruction for ${formatInstructionSemanticRoleLabel(nextRole)}.`;
-    }
+  const occupied = state.edges.some(
+    (item) => item.targetNodeId === edge.targetNodeId && item.targetHandle === edge.targetHandle
+  );
+  if (occupied) {
+    return `${getProjectAgentAssetDisplayName(edge.targetHandle)} is already connected. Remove it first.`;
   }
 
   if (
@@ -238,8 +228,24 @@ export const getProjectAgentCanvasSourceHandlePosition = (node: Pick<ProjectAgen
   };
 };
 
-export const getProjectAgentCanvasTargetHandlePosition = (node: Pick<ProjectAgentCanvasNode, 'type' | 'x' | 'y'>) => {
+const FEATURE_INPUT_SLOT_GAP = 36;
+
+export const getProjectAgentCanvasTargetHandlePosition = (
+  node: Pick<ProjectAgentCanvasNode, 'type' | 'x' | 'y'>,
+  handle?: ProjectAgentAssetNodeType
+) => {
   const size = getProjectAgentCanvasNodeSize(node);
+  if (isProjectAgentFeatureNode(node.type) && handle) {
+    const slots = getProjectAgentFeatureInputSlots(node.type);
+    const slotIndex = slots.indexOf(handle);
+    if (slotIndex >= 0) {
+      const firstSlotY = node.y + size.height / 2 - ((slots.length - 1) * FEATURE_INPUT_SLOT_GAP) / 2;
+      return {
+        x: node.x,
+        y: firstSlotY + slotIndex * FEATURE_INPUT_SLOT_GAP,
+      };
+    }
+  }
   return {
     x: node.x,
     y: node.y + size.height / 2,
@@ -251,26 +257,35 @@ export const PROJECT_AGENT_FEATURE_INPUTS: Record<
   ProjectAgentAssetNodeType[]
 > = {
   video_clone: ['video'],
-  avatar_ads: ['avatar', 'text'],
-  motion_clone: ['video'],
+  avatar_ads: ['avatar', 'product'],
+  motion_clone: ['video', 'avatar', 'product'],
 };
 
-// "Any one of" input groups — at least one from the group must be connected
+// "Any one of" input groups — at least one from the group must be connected.
 export const PROJECT_AGENT_FEATURE_ANY_OF_INPUTS: Partial<Record<
   ProjectAgentFeatureNodeType,
   ProjectAgentAssetNodeType[]
 >> = {
   video_clone: ['avatar', 'product', 'pet'],
-  motion_clone: ['avatar', 'product'],
 };
 
-// Optional (non-required) inputs for each feature node type
+// Optional (non-required) inputs for each feature node type.
+// Reserved for future use; current feature nodes use strict inputs only.
 export const PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS: Partial<Record<
   ProjectAgentFeatureNodeType,
   ProjectAgentAssetNodeType[]
->> = {
-  video_clone: ['text'],
-  avatar_ads: ['product'],
+>> = {};
+
+// Ordered list of input slots shown on the left edge of each feature card.
+// Order is the same as PROJECT_AGENT_FEATURE_INPUTS for that feature.
+export const getProjectAgentFeatureInputSlots = (
+  type: ProjectAgentFeatureNodeType
+): ProjectAgentAssetNodeType[] => {
+  return Array.from(new Set([
+    ...(PROJECT_AGENT_FEATURE_INPUTS[type] ?? []),
+    ...(PROJECT_AGENT_FEATURE_ANY_OF_INPUTS[type] ?? []),
+    ...(PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS[type] ?? []),
+  ]));
 };
 
 export const getProjectAgentFeatureDisplayName = (
@@ -455,26 +470,6 @@ export const getMissingFeatureInputs = (
 
   const connected = getConnectedAssetNodeMap(state, featureNodeId);
 
-  if (featureNode.type === 'video_clone') {
-    const hasVideo = connected.has('video');
-    const hasCloneTarget = connected.has('avatar') || connected.has('product') || connected.has('pet');
-    const hasEditPrompt = connected.has('text');
-
-    if (hasVideo && (hasCloneTarget || hasEditPrompt)) {
-      return [];
-    }
-
-    if (!hasVideo && !hasCloneTarget && !hasEditPrompt) {
-      return ['video', 'avatar', 'product', 'pet', 'text'];
-    }
-
-    if (!hasVideo) {
-      return ['video'];
-    }
-
-    return ['avatar', 'product', 'pet', 'text'];
-  }
-
   // Strict required inputs — ALL must be connected
   const strictMissing = PROJECT_AGENT_FEATURE_INPUTS[featureNode.type].filter(
     (requiredInput) => !connected.has(requiredInput)
@@ -494,47 +489,25 @@ export const formatMissingFeatureInputsLabel = (
 ) => {
   if (featureType === 'video_clone') {
     const needsVideo = missingInputs.includes('video');
-    const needsCloneOrEdit =
+    const needsCloneTarget =
       missingInputs.includes('avatar') &&
       missingInputs.includes('product') &&
-      missingInputs.includes('text');
+      missingInputs.includes('pet');
 
-    if (needsVideo && needsCloneOrEdit) {
-      return 'video and avatar, product, pet, or edit instruction';
+    if (needsVideo && needsCloneTarget) {
+      return 'Video and Avatar, Product, or Pet';
     }
-
     if (needsVideo) {
-      return 'video';
+      return 'Video';
     }
-
-    if (needsCloneOrEdit) {
-      return 'avatar, product, pet, or edit instruction';
-    }
-  }
-
-  if (featureType === 'avatar_ads' && missingInputs.includes('text')) {
-    return missingInputs.includes('avatar') ? 'avatar and script' : 'script';
-  }
-
-  if (featureType === 'video_clone' || featureType === 'motion_clone') {
-    const needsVideo = missingInputs.includes('video');
-    const needsSwapTarget =
-      missingInputs.includes('avatar') && missingInputs.includes('product') && missingInputs.includes('pet');
-
-    if (needsVideo && needsSwapTarget) {
-      return 'video and avatar, product, or pet';
-    }
-
-    if (needsVideo) {
-      return 'video';
-    }
-
-    if (needsSwapTarget) {
-      return 'avatar, product, or pet';
+    if (needsCloneTarget) {
+      return 'Avatar, Product, or Pet';
     }
   }
 
-  return missingInputs.join(', ');
+  return missingInputs
+    .map((type) => getProjectAgentAssetDisplayName(type))
+    .join(', ');
 };
 
 export const getFeatureStartBlockedReason = (
@@ -565,12 +538,11 @@ export const getFeatureStartBlockedReason = (
 
   if (featureNode.type === 'video_clone') {
     const hasVideo = connected.has('video');
-    const hasText = connected.has('text');
     const hasCloneTarget = connected.has('avatar') || connected.has('product') || connected.has('pet');
     const videoNode = connected.get('video');
     const durationSeconds = videoNode?.asset?.durationSeconds;
 
-    if (hasVideo && hasText && !hasCloneTarget) {
+    if (hasVideo && !hasCloneTarget) {
       if (typeof durationSeconds !== 'number' || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
         return 'Source video duration is unavailable.';
       }
@@ -624,14 +596,9 @@ export const connectCanvasNodes = (
     return state;
   }
 
-  const nextEdges = state.edges.filter(
-    (item) => !(item.targetNodeId === edge.targetNodeId && item.targetHandle === edge.targetHandle)
-  );
-  nextEdges.push(edge);
-
   return {
     ...state,
-    edges: nextEdges,
+    edges: [...state.edges, edge],
   };
 };
 

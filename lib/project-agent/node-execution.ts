@@ -269,10 +269,19 @@ export const getProjectAgentCanvasErrorInfo = (
 
 const getMilestoneLabels = (
   nodeType: ProjectAgentFeatureNodeType,
-  options?: { skipCloneFrames?: boolean; skipCloneMerge?: boolean }
+  options?: { skipCloneFrames?: boolean; skipCloneMerge?: boolean; storyboardClone?: boolean }
 ) => {
   switch (nodeType) {
     case 'video_clone':
+      if (options?.storyboardClone) {
+        return [
+          ['generating_storyboard', 'Generating storyboard'],
+          ['generating_video', 'Generating video'],
+          ['merging', 'Merging video'],
+          ['completed', 'Completed'],
+        ] as const;
+      }
+
       if (options?.skipCloneFrames) {
         return [
           ['preparing_prompt', 'Preparing prompt'],
@@ -312,7 +321,7 @@ const buildMilestones = (
   nodeType: ProjectAgentFeatureNodeType,
   currentMilestoneKey: string,
   executionState: 'ready' | 'running' | 'completed' | 'failed',
-  options?: { skipCloneFrames?: boolean; skipCloneMerge?: boolean },
+  options?: { skipCloneFrames?: boolean; skipCloneMerge?: boolean; storyboardClone?: boolean },
 ): ProjectAgentCanvasMilestone[] => {
   const labels = getMilestoneLabels(nodeType, options);
   const currentIndex = Math.max(0, labels.findIndex(([key]) => key === currentMilestoneKey));
@@ -351,10 +360,33 @@ const getCurrentMilestoneForClone = (
   needsVideoStart: boolean,
   hasActiveVideoGeneration: boolean,
   isReferenceImageDirectMode = false,
+  isStoryboardCloneMode = false,
 ) => {
   if (status === 'completed') return 'completed';
   if (awaitingMerge || step === 'merging' || status === 'merging') return 'merging';
   if (hasActiveVideoGeneration) {
+    return 'generating_video';
+  }
+  if (
+    isStoryboardCloneMode &&
+    (
+      step === 'generating_storyboard_image' ||
+      step === 'generating_storyboard' ||
+      status === 'pending_storyboard'
+    )
+  ) {
+    return 'generating_storyboard';
+  }
+  if (
+    isStoryboardCloneMode &&
+    (
+      step === 'generating_segment_frames' ||
+      step === 'reviewing_segment_frames' ||
+      step === 'ready_for_video' ||
+      status === 'segment_frames_ready' ||
+      status === 'ready_for_video'
+    )
+  ) {
     return 'generating_video';
   }
   if (
@@ -390,13 +422,13 @@ const getCurrentMilestoneForMotionClone = (status: string) => {
 
 export const createQueuedExecutionStatus = (
   nodeType: ProjectAgentFeatureNodeType,
-  options?: { skipCloneFrames?: boolean; skipCloneMerge?: boolean },
+  options?: { skipCloneFrames?: boolean; skipCloneMerge?: boolean; storyboardClone?: boolean },
 ): Pick<ProjectAgentCanvasExecutionStatus, 'phase' | 'progress' | 'statusLabel' | 'milestones' | 'currentMilestoneKey'> => ({
   phase: 'queued',
   progress: 5,
-  statusLabel: 'Preparing prompt',
-  currentMilestoneKey: 'preparing_prompt',
-  milestones: buildMilestones(nodeType, 'preparing_prompt', 'running', options),
+  statusLabel: options?.storyboardClone ? 'Generating storyboard' : 'Preparing prompt',
+  currentMilestoneKey: options?.storyboardClone ? 'generating_storyboard' : 'preparing_prompt',
+  milestones: buildMilestones(nodeType, options?.storyboardClone ? 'generating_storyboard' : 'preparing_prompt', 'running', options),
 });
 
 export const getExecutionTableForNodeType = (
@@ -600,6 +632,7 @@ export const normalizeCloneExecutionStatus = (
   const awaitingMerge = Boolean(data.awaitingMerge) || status === 'awaiting_merge';
   const videoGenerationRequested = data.videoGenerationRequested === true;
   const step = typeof payload.current_step === 'string' ? payload.current_step : '';
+  const isStoryboardCloneMode = data.executionMode === 'clone_storyboard_reference';
   const skipsFrameGeneration = data.workflowSource === 'project_agent_edit_video' ||
     data.executionMode === 'clone_direct_reference';
   const skipsMerge = data.workflowSource === 'project_agent_edit_video' ||
@@ -646,12 +679,14 @@ export const normalizeCloneExecutionStatus = (
     needsVideoStart,
     hasActiveVideoGeneration || (skipsFrameGeneration && needsVideoStart),
     skipsFrameGeneration,
+    isStoryboardCloneMode,
   );
   const error = typeof data.errorMessage === 'string' ? data.errorMessage : null;
   const { retryable, userFacingError } = getProjectAgentCanvasErrorInfo(error);
   const milestones = buildMilestones('video_clone', currentMilestoneKey, executionState, {
     skipCloneFrames: skipsFrameGeneration,
     skipCloneMerge: skipsMerge,
+    storyboardClone: isStoryboardCloneMode,
   }).map((milestone) => (
     awaitingManualVideoStart && milestone.state === 'active'
       ? { ...milestone, state: 'pending' as const }
@@ -673,6 +708,8 @@ export const normalizeCloneExecutionStatus = (
         ? 'Failed'
         : awaitingMerge
           ? 'Auto merging segments'
+          : isStoryboardCloneMode && currentMilestoneKey === 'generating_storyboard'
+            ? 'Generating storyboard'
           : hasActiveVideoGeneration
             ? 'Running clone workflow'
             : needsVideoStart

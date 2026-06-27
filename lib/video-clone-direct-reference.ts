@@ -5,18 +5,18 @@ import {
   type VideoModel,
 } from '@/lib/constants';
 import {
-  SEEDANCE_DIRECT_REFERENCE_MAX_SECONDS,
-  SEEDANCE_DIRECT_REFERENCE_MIN_SECONDS,
   isSeedanceCloneModel,
   normalizeCloneDurationSeconds,
 } from '@/lib/video-clone-billing';
 
-export type DashboardDirectReferenceRequestOptions = {
+export type DashboardStoryboardReferenceRequestOptions = {
   requestSource: 'project_agent_clone';
-  executionMode: 'clone_direct_reference';
-  referenceSourceVideoUrl: string;
+  executionMode: 'clone_storyboard_reference';
+  referenceSourceVideoUrl?: string;
   videoDuration: VideoDuration;
 };
+
+export type DashboardDirectReferenceRequestOptions = DashboardStoryboardReferenceRequestOptions;
 
 export function getPlayableReferenceVideoUrl(input: {
   videoUrl?: string | null;
@@ -34,24 +34,18 @@ export function getDashboardDirectReferenceRequestOptions(input: {
   durationSeconds?: number | null;
   videoUrl?: string | null;
   videoCdnUrl?: string | null;
-}): DashboardDirectReferenceRequestOptions | null {
+}): DashboardStoryboardReferenceRequestOptions | null {
   const durationSeconds = normalizeCloneDurationSeconds(input.durationSeconds);
   const referenceSourceVideoUrl = getPlayableReferenceVideoUrl(input);
 
-  if (
-    !isSeedanceCloneModel(input.model) ||
-    !referenceSourceVideoUrl ||
-    durationSeconds === null ||
-    durationSeconds < SEEDANCE_DIRECT_REFERENCE_MIN_SECONDS ||
-    durationSeconds > SEEDANCE_DIRECT_REFERENCE_MAX_SECONDS
-  ) {
+  if (!isSeedanceCloneModel(input.model) || durationSeconds === null) {
     return null;
   }
 
   return {
     requestSource: 'project_agent_clone',
-    executionMode: 'clone_direct_reference',
-    referenceSourceVideoUrl,
+    executionMode: 'clone_storyboard_reference',
+    ...(referenceSourceVideoUrl ? { referenceSourceVideoUrl } : {}),
     videoDuration: String(durationSeconds) as VideoDuration,
   };
 }
@@ -61,10 +55,7 @@ export function isDashboardDirectReferenceCandidate(input: {
   durationSeconds?: number | null;
 }): boolean {
   const durationSeconds = normalizeCloneDurationSeconds(input.durationSeconds);
-  return isSeedanceCloneModel(input.model) &&
-    durationSeconds !== null &&
-    durationSeconds >= SEEDANCE_DIRECT_REFERENCE_MIN_SECONDS &&
-    durationSeconds <= SEEDANCE_DIRECT_REFERENCE_MAX_SECONDS;
+  return isSeedanceCloneModel(input.model) && durationSeconds !== null;
 }
 
 export function getDashboardVideoCloneDuration(input: {

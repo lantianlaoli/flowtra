@@ -16,7 +16,7 @@ import {
   GripVertical,
   Keyboard,
   Loader2,
-  Package,
+  Package2,
   PawPrint,
   Play,
   Plus,
@@ -59,6 +59,7 @@ import {
   buildProjectAgentOutputFeedbackPayload,
   getProjectAgentCanvasSourceHandlePosition,
   getProjectAgentCanvasTargetHandlePosition,
+  getProjectAgentFeatureInputSlots,
   type ProjectAgentAssetNodeType,
   type ProjectAgentCanvasNode,
   type ProjectAgentCanvasState,
@@ -138,8 +139,8 @@ const getNodeSize = (node: ProjectAgentCanvasNode) => getProjectAgentCanvasNodeS
 const getSourceHandlePosition = getProjectAgentCanvasSourceHandlePosition;
 const getTargetHandlePosition = (
   node: ProjectAgentCanvasNode,
-  _handle?: ProjectAgentAssetNodeType
-) => getProjectAgentCanvasTargetHandlePosition(node);
+  handle?: ProjectAgentAssetNodeType
+) => getProjectAgentCanvasTargetHandlePosition(node, handle);
 
 const renderEdgePath = (source: { x: number; y: number }, target: { x: number; y: number }) => {
   const dx = Math.max(60, Math.abs(target.x - source.x) / 2);
@@ -354,7 +355,7 @@ const getBezierTangentAngleAtPoint = (
 
 const getAssetFallbackIcon = (type: ProjectAgentAssetNodeType) => {
   if (type === 'avatar') return User;
-  if (type === 'product') return Package;
+  if (type === 'product') return Package2;
   if (type === 'pet') return PawPrint;
   if (type === 'text') return Type;
   return VideoIcon;
@@ -816,9 +817,6 @@ export default function CanvasBoard({
             !showRunningState &&
             canChangeProjectAgentVideoQuality(qualityIntent, selectedVideoModel);
           const qualityMenuOpen = qualityMenuNodeId === node.id;
-          const hasAnyInput = isFeatureNode
-            ? canvas.edges.some((e) => e.targetNodeId === node.id)
-            : false;
           const hasConnectedVideo = isFeatureNode
             ? Boolean(getConnectedAssetForFeature(canvas, node.id, 'video'))
             : false;
@@ -829,13 +827,14 @@ export default function CanvasBoard({
                 hasConnectedVideo,
               })
             : false;
-          // Receiver dot state: green = ready, yellow = partial, white = empty
-          const dotState = canStart ? 'ready' : hasAnyInput ? 'partial' : 'empty';
           const featureOptionalInputs = featureType
             ? (PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS[featureType] || [])
             : [];
           const featureAnyOfInputs = featureType
             ? (PROJECT_AGENT_FEATURE_ANY_OF_INPUTS[featureType] || [])
+            : [];
+          const featureInputSlots = featureType
+            ? getProjectAgentFeatureInputSlots(featureType)
             : [];
           const supportsPendingConnection = (
             isFeatureNode &&
@@ -843,7 +842,8 @@ export default function CanvasBoard({
             isProjectAgentAssetNode(pendingSourceNode.type) &&
             (missingInputs.includes(pendingSourceNode.type) ||
              featureOptionalInputs.includes(pendingSourceNode.type) ||
-             featureAnyOfInputs.includes(pendingSourceNode.type))
+             featureAnyOfInputs.includes(pendingSourceNode.type) ||
+             featureInputSlots.includes(pendingSourceNode.type))
           );
           const FeatureIcon = featureType ? getFeatureIcon(featureType) : null;
           const featurePresentation = featureType ? getFeatureNodePresentation(featureType) : null;
@@ -971,9 +971,13 @@ export default function CanvasBoard({
                 </div>
               ) : isProjectAgentAssetNode(node.type) ? (
                 <div className="relative flex flex-col h-full">
-                  {/* Header: drag handle + name */}
+                  {/* Header: drag handle + type icon + name */}
                   <div className="flex items-center gap-1.5 px-2.5 pt-2.5 pb-1.5">
                     <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-[#c4c1b8] active:cursor-grabbing" strokeWidth={2} />
+                    {(() => {
+                      const FallbackIcon = getAssetFallbackIcon(node.type as ProjectAgentAssetNodeType);
+                      return <FallbackIcon className="h-4 w-4 shrink-0 text-[#3d3c38]" />;
+                    })()}
                     <span className="truncate text-xs font-semibold text-[#3d3c38]">
                       {instructionPresentation?.label || node.asset?.name || getProjectAgentAssetDisplayName(node.type as ProjectAgentAssetNodeType)}
                     </span>
@@ -1089,38 +1093,6 @@ export default function CanvasBoard({
               ) : (
                 /* Feature node — vertical layout matching video/asset cards */
                 <div className="relative flex flex-col h-full">
-                  {/* Left connection target dot — colored by input state */}
-                  <div
-                    className={`project-agent-node-status-dot pointer-events-none absolute left-0 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border shadow-[0_6px_14px_rgba(0,0,0,0.08)] transition-all duration-300 ease-out ${
-                      selected
-                        ? 'project-agent-node-status-dot--selected z-40'
-                        : 'z-10'
-                    } ${
-                      snappedConnectionTarget?.targetNodeId === node.id
-                        ? 'scale-[1.4] border-black bg-white shadow-[0_0_0_8px_rgba(15,15,15,0.10)]'
-                        : dotState === 'ready'
-                          ? 'border-emerald-400 bg-emerald-50'
-                          : dotState === 'partial'
-                            ? 'border-amber-400 bg-amber-50'
-                            : 'border-[#d7d4ca] bg-white'
-                    }`}
-                  >
-                    <span
-                      className={`absolute inset-[3px] rounded-full transition-all duration-300 ease-out ${
-                        snappedConnectionTarget?.targetNodeId === node.id
-                          ? 'bg-black'
-                          : dotState === 'ready'
-                            ? 'bg-emerald-400'
-                            : dotState === 'partial'
-                              ? 'bg-amber-400'
-                              : 'bg-white'
-                      }`}
-                    />
-                    {snappedConnectionTarget?.targetNodeId === node.id ? (
-                      <span className="absolute inset-[-5px] rounded-full border border-black/15 animate-ping" />
-                    ) : null}
-                  </div>
-
                   {/* Header: grip + feature name + start/status button */}
                   <div className="flex items-center gap-1.5 px-2.5 pt-2.5 pb-1.5">
                     <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-[#c4c1b8] active:cursor-grabbing" strokeWidth={2} />
@@ -1445,9 +1417,98 @@ export default function CanvasBoard({
                     </div>
                   </div>
 
-                  {supportsPendingConnection ? (
-                    <div className="pointer-events-none absolute left-0 top-1/2 z-20 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#0f0f0f] bg-white shadow-[0_8px_18px_rgba(0,0,0,0.12)]" />
-                  ) : null}
+                  {/* Input slot dots align with getProjectAgentCanvasTargetHandlePosition. */}
+                  <div className="pointer-events-none absolute left-0 top-1/2 z-30 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2">
+                    {featureInputSlots.map((slotType) => {
+                      const SlotIcon = getAssetFallbackIcon(slotType);
+                      const connectedAsset = getConnectedAssetForFeature(canvas, node.id, slotType);
+                      const isFilled = Boolean(connectedAsset);
+                      const isPendingMatch = pendingSourceNode?.type === slotType;
+                      const isSnapped =
+                        snappedConnectionTarget?.targetNodeId === node.id &&
+                        snappedConnectionTarget?.handle === slotType &&
+                        isPendingMatch;
+                      const showError =
+                        isPendingMatch &&
+                        snappedConnectionTarget?.targetNodeId === node.id &&
+                        snappedConnectionTarget?.handle === slotType &&
+                        Boolean(snappedConnectionTarget?.errorMessage);
+                      const inMissing = missingInputs.includes(slotType);
+                      const tone = isSnapped
+                        ? 'snapped'
+                        : showError
+                          ? 'error'
+                          : isFilled
+                            ? 'filled'
+                            : inMissing
+                              ? 'partial'
+                              : 'empty';
+                      return (
+                        <div
+                          key={slotType}
+                          className="pointer-events-auto relative flex items-center"
+                          title={`${getProjectAgentAssetDisplayName(slotType)}${isFilled && connectedAsset?.name ? ` · ${connectedAsset.name}` : ''}`}
+                        >
+                          {/* Floating type label, sits to the LEFT of the dot */}
+                          <span
+                            className={`absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-all ${
+                              isSnapped
+                                ? 'border-black bg-black text-white'
+                                : isFilled
+                                  ? 'border-black bg-black text-white'
+                                  : inMissing
+                                    ? 'border-[#777] bg-[#f4f4f4] text-[#111]'
+                                    : 'border-[#d7d7d7] bg-white text-[#666] shadow-[0_4px_10px_rgba(0,0,0,0.06)]'
+                            }`}
+                          >
+                            {getProjectAgentAssetDisplayName(slotType)}
+                          </span>
+
+                          <div
+                            className={`relative flex h-7 w-7 items-center justify-center rounded-full border transition-all duration-150 ${
+                              tone === 'snapped'
+                                ? 'scale-[1.35] border-black bg-white shadow-[0_0_0_6px_rgba(15,15,15,0.10)]'
+                                : tone === 'error'
+                                  ? 'scale-[1.2] border-black bg-white shadow-[0_0_0_5px_rgba(15,15,15,0.14)]'
+                                  : tone === 'filled'
+                                    ? 'border-black bg-black'
+                                    : tone === 'partial'
+                                      ? 'border-[#777] bg-white'
+                                      : 'border-[#cfcfcf] bg-white shadow-[0_4px_10px_rgba(0,0,0,0.05)]'
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none absolute inset-[2px] rounded-full ${
+                                tone === 'filled' || tone === 'snapped'
+                                  ? 'bg-white/95'
+                                  : tone === 'error'
+                                    ? 'bg-white'
+                                    : tone === 'partial'
+                                      ? 'bg-[#f4f4f4]'
+                                      : 'bg-[#f8f8f8]'
+                              }`}
+                            />
+
+                            {tone === 'snapped' ? (
+                              <SlotIcon className="relative h-3.5 w-3.5 text-black" strokeWidth={2.5} />
+                            ) : tone === 'filled' ? (
+                              <Check className="relative h-3.5 w-3.5 text-black" strokeWidth={3} />
+                            ) : tone === 'error' ? (
+                              <SlotIcon className="relative h-3.5 w-3.5 text-black" strokeWidth={2.5} />
+                            ) : tone === 'partial' ? (
+                              <SlotIcon className="relative h-3.5 w-3.5 text-[#4a4a4a]" strokeWidth={2.5} />
+                            ) : (
+                              <SlotIcon className="relative h-3.5 w-3.5 text-[#888]" strokeWidth={2.5} />
+                            )}
+
+                            {tone === 'snapped' ? (
+                              <span className="pointer-events-none absolute inset-[-6px] rounded-full border border-black/20 animate-ping" />
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>

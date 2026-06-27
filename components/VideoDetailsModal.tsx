@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Download, Loader2, Check, ChevronDown, ChevronUp, User, MessageSquare, Music, Play, Sparkles, Layout, Camera, Clock, Eye, Video, Sun, Cpu, Maximize, Languages, Coins, Calendar, Film, ThumbsUp, ThumbsDown, Send, ArrowLeft, AlertCircle } from 'lucide-react';
+import { X, Download, Loader2, Check, ChevronDown, ChevronUp, User, MessageSquare, Music, Play, Sparkles, Layout, Camera, Clock, Eye, Video, Sun, Cpu, Maximize, Languages, Coins, Calendar, Film, ThumbsUp, ThumbsDown, Send, ArrowLeft, AlertCircle, FileText } from 'lucide-react';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
@@ -348,6 +348,14 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
       const data = promptsContent.data;
       const segments = data?.segments || [];
 
+      if (!segments.length) {
+        return (
+          <div className="rounded-xl border border-dashed border-[#E5E5E5] bg-[#FAFAFA] p-5 text-sm text-[#666666]">
+            No segment data available for this video.
+          </div>
+        );
+      }
+
       return (
         <div className="space-y-6">
           {segments.map((segment: any, segmentIdx: number) => (
@@ -660,7 +668,10 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                   </button>
                 ) : null}
                 <h2 className={`my-ads-details-title font-semibold text-black tracking-tight ${embedded ? 'text-base' : 'text-xl'}`}>
-                  {isCharacterAds(item) ? 'Character Ad' : 'UGC Clone'} Details
+                  <span className="inline-flex items-center gap-2">
+                    {isCharacterAds(item) ? <Sparkles className="h-4 w-4" /> : <Video className="h-4 w-4" />}
+                    {isCharacterAds(item) ? 'Character Ad' : 'UGC Clone'} Details
+                  </span>
                 </h2>
               </div>
               {!embedded ? (
@@ -790,7 +801,10 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
                     {promptsContent && (
                       <section className="space-y-3">
                         <h3 className="my-ads-details-subtitle text-base font-semibold text-black tracking-tight">
-                          {promptsContent.title}
+                          <span className="inline-flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            {promptsContent.title}
+                          </span>
                         </h3>
 
                         {/* Render formatted content */}

@@ -101,9 +101,10 @@ export default function TikTokInputHero() {
               placeholder={tiktokInputMessages.placeholder}
               value={tiktokUrl}
               onChange={handleUrlChange}
-              className={`h-14 w-full bg-transparent pl-10 pr-11 text-base font-medium placeholder:text-gray-400 focus:outline-none ${
-                validationError 
-                  ? 'text-red-500' 
+              style={{ outline: 'none', boxShadow: 'none', border: 'none' }}
+              className={`h-14 w-full appearance-none bg-transparent pl-10 pr-11 text-base font-medium placeholder:text-gray-400 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 ${
+                validationError
+                  ? 'text-red-500'
                   : 'text-black'
               }`}
             />

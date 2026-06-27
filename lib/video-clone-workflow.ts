@@ -28,6 +28,7 @@ import {
 import {
   getProjectAgentCloneExecutionMode,
   getProjectAgentCloneGenerationCost,
+  SEEDANCE_DIRECT_REFERENCE_MAX_SECONDS,
   isSeedanceCloneModel,
   normalizeCloneDurationSeconds,
 } from '@/lib/video-clone-billing';
@@ -83,6 +84,8 @@ async function retryAsync<T>(fn: () => Promise<T>, options?: { maxAttempts?: num
 
 const KIE_PROMPT_LIMIT = 5000;
 type SeedanceVideoModel = 'seedance_2_fast' | 'seedance_2' | 'seedance_2_mini';
+const STORYBOARD_REFERENCE_PROMPT_VERSION = 1;
+const SEEDANCE_STORYBOARD_SINGLE_TASK_SOURCE_MAX_SECONDS = 16;
 
 const getSeedanceKieVideoModelId = (model: SeedanceVideoModel) => {
   if (model === 'seedance_2') return 'bytedance/seedance-2';
@@ -147,7 +150,7 @@ export interface StartWorkflowRequest {
   useCustomScript?: boolean; // Flag to enable custom script mode
   resolvedVideoModel?: VideoModel;
   requestSource?: 'project_agent_clone' | 'project_agent_edit_video' | 'default';
-  executionMode?: 'clone' | 'clone_direct_reference' | 'clone_segmented_auto' | 'edit_video';
+  executionMode?: 'clone' | 'clone_storyboard_reference' | 'clone_direct_reference' | 'clone_segmented_auto' | 'edit_video';
   referenceSourceVideoUrl?: string;
   editVideoPrompt?: string;
   editVideoSourceUrl?: string;
@@ -353,6 +356,339 @@ type CloneManualEditSeedInput = {
   metadataSource?: Record<string, unknown> | null;
 };
 
+export type StoryboardReferenceRow = {
+  no: number;
+  source_time_range: string;
+  duration_seconds: number;
+  scene_description: string;
+  camera_movement: string;
+  sound_bgm_voice_line: string;
+  storyboard_panel_prompt: string;
+  replacement_notes: string;
+};
+
+type StoryboardChunk = {
+  sourceShot: ReferenceVideoShot;
+  startSeconds: number;
+  endSeconds: number;
+  durationSeconds: number;
+  partIndex: number;
+  partCount: number;
+};
+
+type StoryboardPlan = {
+  rows: StoryboardReferenceRow[];
+  segments: SegmentPrompt[];
+  durationSeconds: number;
+};
+
+const clampSeedanceStoryboardDuration = (durationSeconds: number): number => (
+  Math.max(SEEDANCE_MIN_TASK_DURATION_SECONDS, Math.min(SEEDANCE_DIRECT_REFERENCE_MAX_SECONDS, Math.round(durationSeconds)))
+);
+
+const cleanStoryboardText = (value: string | null | undefined, fallback = ''): string => {
+  const cleaned = cleanSegmentText(value);
+  return cleaned && cleaned.length > 0 ? cleaned : fallback;
+};
+
+const buildReplacementSummary = (assets: CloneReferenceAssets): string => {
+  const parts: string[] = [];
+  if (assets.avatarName || assets.avatarPhotoUrls.length > 0) {
+    parts.push(
+      `the person from the avatar reference photo (${assets.avatarName ?? 'connected avatar'}) — must match exactly: same gender presentation, same clothing color and style, same hair color and length, same skin tone, same facial structure`
+    );
+  }
+  if (assets.productName || assets.productImageUrls.length > 0) {
+    parts.push(
+      `the product from the product reference photos (${assets.productName ?? 'connected product'}) — must match exactly: same packaging shape, label layout, brand colors, material cues`
+    );
+  }
+  if (assets.petName || assets.petPhotoUrls.length > 0) {
+    parts.push(
+      `the pet from the pet reference photos (${assets.petName ?? 'connected pet'}) — must match exactly: same breed, color, fur markings, size`
+    );
+  }
+  return parts.length > 0
+    ? parts.join('; ')
+    : 'connected replacement asset (no specific identity provided)';
+};
+
+const cleanReferenceTextForStoryboard = (text: string | null | undefined, assets: CloneReferenceAssets): string => {
+  let cleaned = cleanStoryboardText(text);
+  cleaned = removeOriginalAvatarReferences({ text: cleaned, avatarName: assets.avatarName });
+  cleaned = removeOriginalProductReferences({ text: cleaned, productName: assets.productName });
+  cleaned = removeOriginalPetReferences({ text: cleaned, petName: assets.petName });
+  return cleaned;
+};
+
+const splitReferenceShotsForStoryboard = (
+  shots: ReferenceVideoShot[],
+  fallbackDurationSeconds: number,
+  options?: { forceSingleSegment?: boolean }
+): StoryboardChunk[] => {
+  const sourceShots = shots.length > 0
+    ? shots
+    : [{
+        id: 1,
+        startTime: '00:00',
+        endTime: formatTimecode(Math.max(8, fallbackDurationSeconds || 8)),
+        durationSeconds: Math.max(8, fallbackDurationSeconds || 8),
+        firstFrameDescription: 'Opening scene from the analyzed reference video.',
+        subject: 'Replacement asset appears as the featured subject.',
+        contextEnvironment: 'Environment follows the reference video.',
+        action: 'Preserve the reference action beat.',
+        style: 'Preserve the reference visual style.',
+        cameraMotionPositioning: 'Preserve the reference camera movement.',
+        composition: 'Preserve the reference composition.',
+        ambianceColourLighting: 'Preserve the reference lighting.',
+        audio: 'Preserve the reference audio intent.',
+        dialogue: '',
+        startTimeSeconds: 0,
+        endTimeSeconds: Math.max(8, fallbackDurationSeconds || 8)
+      } satisfies ReferenceVideoShot];
+
+  if (options?.forceSingleSegment) {
+    const totalDuration = clampSeedanceStoryboardDuration(fallbackDurationSeconds);
+    const perShotDuration = Math.max(1, totalDuration / Math.max(1, sourceShots.length));
+    let cursor = 0;
+    return sourceShots.map((shot, index) => {
+      const startSeconds = Math.round(cursor);
+      const endSeconds = index === sourceShots.length - 1
+        ? totalDuration
+        : Math.max(startSeconds + 1, Math.round(cursor + perShotDuration));
+      cursor = endSeconds;
+      return {
+        sourceShot: shot,
+        startSeconds,
+        endSeconds,
+        durationSeconds: Math.max(1, endSeconds - startSeconds),
+        partIndex: 0,
+        partCount: 1
+      };
+    });
+  }
+
+  const chunks: StoryboardChunk[] = [];
+  for (const shot of sourceShots) {
+    const start = Number.isFinite(shot.startTimeSeconds) ? shot.startTimeSeconds : parseTimecode(shot.startTime) || 0;
+    const duration = Math.max(1, Math.round(shot.durationSeconds || ((parseTimecode(shot.endTime) || start + 8) - start) || 8));
+    const partCount = Math.max(1, Math.ceil(duration / SEEDANCE_DIRECT_REFERENCE_MAX_SECONDS));
+    for (let partIndex = 0; partIndex < partCount; partIndex += 1) {
+      const partStart = start + Math.round((duration / partCount) * partIndex);
+      const partEnd = partIndex === partCount - 1
+        ? start + duration
+        : start + Math.round((duration / partCount) * (partIndex + 1));
+      chunks.push({
+        sourceShot: shot,
+        startSeconds: partStart,
+        endSeconds: Math.max(partStart + 1, partEnd),
+        durationSeconds: Math.max(1, Math.max(partStart + 1, partEnd) - partStart),
+        partIndex,
+        partCount
+      });
+    }
+  }
+  return chunks;
+};
+
+export function buildSeedanceStoryboardClonePlan(input: {
+  shots: ReferenceVideoShot[];
+  fallbackDurationSeconds?: number | null;
+  aspectRatio: '16:9' | '9:16';
+  language?: string | null;
+  assets: CloneReferenceAssets;
+}): StoryboardPlan {
+  const fallbackDurationSeconds = Math.max(8, Math.round(input.fallbackDurationSeconds || sumShotDurations(input.shots) || 8));
+  const chunks = splitReferenceShotsForStoryboard(input.shots, fallbackDurationSeconds, {
+    forceSingleSegment: false
+  });
+  const totalChunkDuration = chunks.reduce((sum, item) => sum + item.durationSeconds, 0);
+  // One Seedance task (≤15s) when all chunks together fit inside a single task.
+  // Otherwise pack greedily into 4-15s groups. Either way, rows are produced
+  // one per source chunk so multi-cut references render one storyboard row each.
+  const shouldForceSingleSegment = totalChunkDuration <= SEEDANCE_DIRECT_REFERENCE_MAX_SECONDS;
+  const grouped: StoryboardChunk[][] = shouldForceSingleSegment && chunks.length > 0
+    ? [chunks]
+    : [];
+
+  if (!shouldForceSingleSegment) {
+    for (const chunk of chunks) {
+      const current = grouped[grouped.length - 1];
+      const currentDuration = current?.reduce((sum, item) => sum + item.durationSeconds, 0) || 0;
+      if (current && currentDuration >= SEEDANCE_MIN_TASK_DURATION_SECONDS && currentDuration + chunk.durationSeconds <= SEEDANCE_DIRECT_REFERENCE_MAX_SECONDS) {
+        current.push(chunk);
+      } else {
+        grouped.push([chunk]);
+      }
+    }
+
+    if (grouped.length > 1) {
+      const last = grouped[grouped.length - 1];
+      const lastDuration = last.reduce((sum, item) => sum + item.durationSeconds, 0);
+      const previous = grouped[grouped.length - 2];
+      const previousDuration = previous.reduce((sum, item) => sum + item.durationSeconds, 0);
+      if (lastDuration < SEEDANCE_MIN_TASK_DURATION_SECONDS && previousDuration + lastDuration <= SEEDANCE_DIRECT_REFERENCE_MAX_SECONDS) {
+        previous.push(...last);
+        grouped.pop();
+      }
+    }
+  }
+
+  const replacementSummary = buildReplacementSummary(input.assets);
+
+  // Build one storyboard row per source chunk (i.e., per cut) so multi-shot
+  // references produce one row each. A single Seedance task may carry multiple
+  // rows when the source duration is short.
+  const rows: StoryboardReferenceRow[] = chunks.map((chunk, chunkIndex): StoryboardReferenceRow => {
+    const startSeconds = chunk.startSeconds;
+    const chunkDuration = clampSeedanceStoryboardDuration(chunk.durationSeconds);
+    const endSeconds = startSeconds + chunkDuration;
+    const sourceTimeRange = `${formatTimecode(startSeconds)} - ${formatTimecode(endSeconds)}`;
+    const shot = chunk.sourceShot;
+    const sceneDescription = cleanReferenceTextForStoryboard(
+      [
+        shot?.firstFrameDescription,
+        shot?.contextEnvironment,
+        shot?.action
+      ].filter(Boolean).join(' '),
+      input.assets
+    ) || `Row ${chunkIndex + 1} follows the reference timing and replaces source entities with ${replacementSummary}.`;
+    const cameraMovement = cleanReferenceTextForStoryboard(shot?.cameraMotionPositioning, input.assets) || 'Preserve the reference camera movement and framing.';
+    const soundBgmVoiceLine = cleanReferenceTextForStoryboard(
+      [
+        shot?.audio,
+        shot?.sfx ? `SFX: ${shot.sfx}` : '',
+        shot?.ambient ? `Ambient: ${shot.ambient}` : '',
+        shot?.dialogue ? `Voice line: ${shot.dialogue}` : ''
+      ].filter(Boolean).join(' '),
+      input.assets
+    ) || 'Preserve the source audio, BGM, and dialogue intent without naming original brands.';
+    const storyboardPanelPrompt = [
+      `Real TikTok UGC video still for storyboard row ${chunkIndex + 1} (vertical 9:16 phone-camera frame).`,
+      `Time range: ${sourceTimeRange}.`,
+      `Show ${replacementSummary} replacing the original source entities.`,
+      sceneDescription,
+      `Camera: ${cameraMovement}.`,
+      `Style: TikTok UGC, hand-held phone footage, real human skin, real pet fur, real product packaging, soft natural indoor lighting. NOT anime, NOT illustration, NOT 3D, NOT CGI, NOT storyboard art.`,
+      `Identity lock: every person in this panel must match the avatar reference photo exactly (gender presentation, clothing color and style, hair, skin tone, face). Do not render the original source identity.`
+    ].join(' ');
+
+    return {
+      no: chunkIndex + 1,
+      source_time_range: sourceTimeRange,
+      duration_seconds: chunkDuration,
+      scene_description: sceneDescription,
+      camera_movement: cameraMovement,
+      sound_bgm_voice_line: soundBgmVoiceLine,
+      storyboard_panel_prompt: storyboardPanelPrompt,
+      replacement_notes: `Use ${replacementSummary}. Lock identity to the connected reference photos — every person, product, and pet in this row must match the corresponding reference photo. Remove original source characters, products, pets, labels, logos, and brand-specific packaging unless they belong to the replacement asset.`
+    };
+  });
+
+  const segments = grouped.map((group, index): SegmentPrompt => {
+    const startSeconds = group[0]?.startSeconds || 0;
+    const rawDuration = group.reduce((sum, item) => sum + item.durationSeconds, 0);
+    const durationSeconds = clampSeedanceStoryboardDuration(rawDuration);
+    const primaryShot = group[0]?.sourceShot;
+    const sceneDescription = cleanReferenceTextForStoryboard(
+      [
+        primaryShot?.firstFrameDescription,
+        primaryShot?.contextEnvironment,
+        primaryShot?.action
+      ].filter(Boolean).join(' '),
+      input.assets
+    ) || `Scene ${index + 1} follows the reference timing and replaces source entities with ${replacementSummary}.`;
+    const cameraMovement = cleanReferenceTextForStoryboard(primaryShot?.cameraMotionPositioning, input.assets) || 'Preserve the reference camera movement and framing.';
+    const soundBgmVoiceLine = cleanReferenceTextForStoryboard(
+      [
+        primaryShot?.audio,
+        primaryShot?.sfx ? `SFX: ${primaryShot.sfx}` : '',
+        primaryShot?.ambient ? `Ambient: ${primaryShot.ambient}` : '',
+        primaryShot?.dialogue ? `Voice line: ${primaryShot.dialogue}` : ''
+      ].filter(Boolean).join(' '),
+      input.assets
+    ) || 'Preserve the source audio, BGM, and dialogue intent without naming original brands.';
+
+    const shots: SegmentShot[] = group.map((chunk, shotIndex) => {
+      const localStart = Math.max(0, chunk.startSeconds - startSeconds);
+      const localEnd = Math.min(durationSeconds, localStart + chunk.durationSeconds);
+      const shot = chunk.sourceShot;
+      return {
+        id: shotIndex + 1,
+        time_range: `${formatTimecode(localStart)} - ${formatTimecode(Math.max(localStart + 1, localEnd))}`,
+        start_seconds: localStart,
+        end_seconds: Math.max(localStart + 1, localEnd),
+        duration_seconds: Math.max(1, Math.max(localStart + 1, localEnd) - localStart),
+        audio: cleanReferenceTextForStoryboard(shot.audio, input.assets) || soundBgmVoiceLine,
+        sfx: cleanReferenceTextForStoryboard(shot.sfx, input.assets),
+        ambient: cleanReferenceTextForStoryboard(shot.ambient, input.assets),
+        style: cleanReferenceTextForStoryboard(shot.style, input.assets),
+        action: cleanReferenceTextForStoryboard(shot.action, input.assets) || sceneDescription,
+        subject: `Replacement subject: ${replacementSummary}. Lock to the avatar/product/pet reference photos; do not show the original source identity.`,
+        dialogue: cleanReferenceTextForStoryboard(shot.dialogue, input.assets),
+        language: input.language || 'en',
+        composition: cleanReferenceTextForStoryboard(shot.composition, input.assets),
+        context_environment: cleanReferenceTextForStoryboard(shot.contextEnvironment, input.assets),
+        ambiance_colour_lighting: cleanReferenceTextForStoryboard(shot.ambianceColourLighting, input.assets),
+        camera_motion_positioning: cleanReferenceTextForStoryboard(shot.cameraMotionPositioning, input.assets) || cameraMovement
+      };
+    });
+
+    return {
+      index: index + 1,
+      audio: soundBgmVoiceLine,
+      style: cleanReferenceTextForStoryboard(primaryShot?.style, input.assets),
+      action: sceneDescription,
+      subject: `Replacement subject: ${replacementSummary}. Lock to the avatar/product/pet reference photos; do not show the original source identity.`,
+      composition: cleanReferenceTextForStoryboard(primaryShot?.composition, input.assets),
+      context_environment: cleanReferenceTextForStoryboard(primaryShot?.contextEnvironment, input.assets),
+      first_frame_description: `Real TikTok UGC first frame for storyboard row ${index + 1} (vertical 9:16 phone-camera still). ${sceneDescription} Use ${replacementSummary}; do not show the storyboard table layout.`,
+      ambiance_colour_lighting: cleanReferenceTextForStoryboard(primaryShot?.ambianceColourLighting, input.assets),
+      camera_motion_positioning: cameraMovement,
+      dialogue: cleanReferenceTextForStoryboard(primaryShot?.dialogue, input.assets),
+      language: input.language || 'en',
+      first_frame_image_size: input.aspectRatio,
+      is_continuation_from_prev: false,
+      shots
+    };
+  });
+
+  return {
+    rows,
+    segments,
+    durationSeconds: segments.reduce((sum, segment) => sum + getPromptSegmentDurationSeconds(segment), 0)
+  };
+}
+
+const buildStoryboardSheetPrompt = (input: {
+  rows: StoryboardReferenceRow[];
+  aspectRatio: '16:9' | '9:16';
+  assets: CloneReferenceAssets;
+}) => {
+  const rowBrief = input.rows.map(row => [
+    `No. ${row.no}`,
+    `Time: ${row.source_time_range}`,
+    `Scene: ${row.scene_description}`,
+    `Camera: ${row.camera_movement}`,
+    `Sound/BGM/Voice: ${row.sound_bgm_voice_line}`,
+    `Replacement: ${row.replacement_notes}`
+  ].join('\n')).join('\n\n');
+
+  return truncateText([
+    'Create a TikTok UGC reference sheet showing real vertical phone-camera stills from a video.',
+    'Use a clean black table border on a white page with numbered rows and columns: No., Storyboard, Scene Description, Camera Movement, Sound / BGM / Voice Line.',
+    `Final video aspect ratio target: ${input.aspectRatio}. The sheet itself may be portrait so every row is readable.`,
+    'Each artwork cell must look like a vertical 9:16 phone-camera photo / video still from a real TikTok UGC video clip. Hand-held phone footage, real human skin, real pet fur, real product packaging. Soft natural indoor lighting, no studio look, no over-stylized color grading.',
+    'HARD EXCLUSIONS — do NOT render any of these in the artwork cells: NOT anime, NOT illustration, NOT 3D render, NOT CGI, NOT vector art, NOT painted panels, NOT commercial storyboard art, NOT drawn storyboards, NOT cartoons, NOT comics.',
+    'Use the provided reference images as canonical replacement identity assets. Every person must match the avatar reference photo exactly: same gender presentation, same clothing color and style, same hair color and length, same skin tone, same facial structure. Every product must match the product reference photos exactly: same packaging shape, label layout, brand colors. Every pet must match the pet reference photos exactly: same breed, color, markings.',
+    `Replacement mapping: ${buildReplacementSummary(input.assets)}.`,
+    'Remove original source characters, products, pets, labels, logos, and brand-specific packaging unless they belong to the replacement asset. Do not invent or substitute the original source identity.',
+    'The table text must be concise, legible English. No watermarks, no extra commentary outside the sheet.',
+    '',
+    rowBrief
+  ].join('\n'), 3800);
+};
+
 export type CloneReferenceSourceType = 'reference_video' | 'creator_source_video';
 
 export type CloneModeResolution = {
@@ -550,11 +886,23 @@ export const isProjectAgentSeedanceReferenceImageProject = (
     selectedInputs?.executionMode === 'clone_direct_reference';
 };
 
+export const isSeedanceStoryboardReferenceProject = (
+  project: Pick<SingleVideoProject, 'video_model' | 'selected_inputs'>
+) => {
+  const selectedInputs = project.selected_inputs && typeof project.selected_inputs === 'object'
+    ? project.selected_inputs as Record<string, unknown>
+    : null;
+  return isSeedanceCloneModel(project.video_model as VideoModel) &&
+    selectedInputs?.executionMode === 'clone_storyboard_reference';
+};
+
 export const getProjectAgentSeedanceReferenceImageUrls = (
   project: Pick<SingleVideoProject, 'video_model' | 'selected_inputs' | 'video_prompts'>,
   max = 9
 ) => {
-  if (!isProjectAgentSeedanceReferenceImageProject(project)) return [];
+  const isLegacyDirectReference = isProjectAgentSeedanceReferenceImageProject(project);
+  const isStoryboardReference = isSeedanceStoryboardReferenceProject(project);
+  if (!isLegacyDirectReference && !isStoryboardReference) return [];
 
   const prompts = project.video_prompts && typeof project.video_prompts === 'object'
     ? project.video_prompts as Record<string, unknown>
@@ -571,9 +919,26 @@ export const getProjectAgentSeedanceReferenceImageUrls = (
   const petPhotoUrls = Array.isArray(cloneAssets.petPhotoUrls)
     ? cloneAssets.petPhotoUrls
     : [];
+  const storyboardMode = prompts.storyboard_mode && typeof prompts.storyboard_mode === 'object'
+    ? prompts.storyboard_mode as Record<string, unknown>
+    : null;
+  const storyboardImageUrl = typeof storyboardMode?.storyboard_image_url === 'string'
+    ? storyboardMode.storyboard_image_url
+    : null;
+
+  if (isStoryboardReference) {
+    // Storyboard-reference mode: the rendered storyboard sheet already contains
+    // the replacement identity baked in (avatar/product/pet are anchored at the
+    // GPT-Image stage). The Seedance video task only needs the sheet itself.
+    return collectDistinctUrls([storyboardImageUrl], 1);
+  }
 
   return collectDistinctUrls(
-    [...avatarPhotoUrls, ...productImageUrls, ...petPhotoUrls].map((url) => (
+    [
+      ...avatarPhotoUrls,
+      ...productImageUrls,
+      ...petPhotoUrls
+    ].map((url) => (
       typeof url === 'string' ? url : null
     )),
     max
@@ -1669,10 +2034,19 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       };
     }
 
-    request.videoDuration = normalizeRequestedDuration(
-      actualVideoModel,
-      request.videoDuration
-    );
+    const shouldPreserveStoryboardCloneDuration =
+      request.executionMode === 'clone_storyboard_reference' ||
+      (request.requestSource === 'project_agent_clone' && isSeedanceCloneModel(actualVideoModel));
+    request.videoDuration = shouldPreserveStoryboardCloneDuration
+      ? String(
+          normalizeCloneDurationSeconds(request.videoDuration) ||
+          normalizeCloneDurationSeconds(referenceDurationSeconds) ||
+          8
+        ) as VideoDuration
+      : normalizeRequestedDuration(
+          actualVideoModel,
+          request.videoDuration
+        );
     const projectAgentCloneExecutionMode = request.requestSource === 'project_agent_clone' && isSeedanceCloneModel(actualVideoModel)
       ? getProjectAgentCloneExecutionMode({
           model: actualVideoModel,
@@ -1771,6 +2145,49 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       }
     }
 
+    const isStoryboardReferenceClone = request.executionMode === 'clone_storyboard_reference';
+    if (isStoryboardReferenceClone) {
+      if (!isSeedanceCloneModel(actualVideoModel)) {
+        return {
+          success: false,
+          error: 'Unsupported storyboard clone model',
+          details: 'Storyboard clone mode is only available for Seedance 2 models.'
+        };
+      }
+      if (!referenceVideoContext?.existing_analysis || referenceVideoContext.analysis_status !== 'completed') {
+        return {
+          success: false,
+          error: 'Reference analysis required',
+          details: 'Storyboard clone mode requires a completed reference-video analysis.'
+        };
+      }
+      const hasReplacementAsset =
+        cloneReferenceAssets.avatarPhotoUrls.length > 0 ||
+        cloneReferenceAssets.productImageUrls.length > 0 ||
+        cloneReferenceAssets.petPhotoUrls.length > 0;
+      if (!hasReplacementAsset) {
+        return {
+          success: false,
+          error: 'Replacement asset required',
+          details: 'Connect at least one avatar, product, or pet before starting storyboard clone mode.'
+        };
+      }
+    }
+
+    const storyboardPlan = isStoryboardReferenceClone
+      ? buildSeedanceStoryboardClonePlan({
+          shots: referenceVideoShotTimeline?.shots || [],
+          fallbackDurationSeconds: normalizeCloneDurationSeconds(request.videoDuration) || referenceVideoContext?.video_duration_seconds || referenceVideoShotTimeline?.totalDurationSeconds || null,
+          aspectRatio: request.videoAspectRatio === '9:16' ? '9:16' : '16:9',
+          language: request.language || referenceVideoContext?.language || 'en',
+          assets: cloneReferenceAssets
+        })
+      : null;
+    if (storyboardPlan) {
+      request.videoDuration = String(storyboardPlan.durationSeconds) as VideoDuration;
+      console.log(`🎬 Storyboard clone plan prepared: ${storyboardPlan.segments.length} Seedance task(s), ${storyboardPlan.durationSeconds}s total`);
+    }
+
     const segmentedByDuration = actualVideoModel === 'kling_3'
       ? true
       : isSegmentedVideoRequest(actualVideoModel, request.videoDuration);
@@ -1793,7 +2210,10 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     console.log(`   - Reference shot count: ${referenceVideoShotCount}`);
     console.log(`   - User segment count (from duration): ${userSegmentCount}`);
 
-    if (actualVideoModel === 'kling_3') {
+    if (storyboardPlan) {
+      segmentCount = storyboardPlan.segments.length;
+      console.log(`✅ Seedance storyboard segmentation planned: ${segmentCount} segments`);
+    } else if (actualVideoModel === 'kling_3') {
       const klingTargetDuration = Number(request.videoDuration || referenceVideoShotTimeline?.totalDurationSeconds || 0);
       if (!Number.isFinite(klingTargetDuration) || klingTargetDuration <= 0) {
         throw new Error('Kling clone requires a video duration.');
@@ -1827,7 +2247,10 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     // Precompute shot-to-segment mapping asap so we can persist plans even if prompt generation fails later
     let shotPlanForSegments: ReferenceVideoShot[] | undefined;
     let precomputedSegmentPlan: SegmentPrompt[] | undefined;
-    if (segmentCount > 0 && actualVideoModel === 'kling_3') {
+    if (storyboardPlan) {
+      precomputedSegmentPlan = storyboardPlan.segments;
+      shotPlanForSegments = undefined;
+    } else if (segmentCount > 0 && actualVideoModel === 'kling_3') {
       precomputedSegmentPlan = buildManualCloneSeedPrompts({
         videoModel: actualVideoModel,
         segmentCount,
@@ -2039,7 +2462,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       download_credits_used: 0,
       is_segmented: hasSegmentFlow, // FIX: Use segmentCount instead of isSegmented to avoid data inconsistency
       segment_count: segmentCount,
-      segment_duration_seconds: hasSegmentFlow ? resolvedSegmentDuration : null,
+      segment_duration_seconds: hasSegmentFlow && !storyboardPlan ? resolvedSegmentDuration : null,
       segment_status: hasSegmentFlow
         ? {
             total: segmentCount,
@@ -2152,6 +2575,13 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
           productContext,
           referenceVideoContext
         );
+      } else if (storyboardPlan) {
+        await initializeStoryboardReferenceCloneProject({
+          projectId: project.id,
+          request: { ...request, imageUrl, resolvedVideoModel: actualVideoModel },
+          storyboardPlan,
+          cloneReferenceAssets
+        });
       } else if (isReferenceCloneCreate) {
         const cloneSeedPrompts = precomputedSegmentPlan?.length === segmentCount
           ? precomputedSegmentPlan
@@ -3442,6 +3872,129 @@ ${strictSegmentFormat}`
   );
 }
 
+async function initializeStoryboardReferenceCloneProject(input: {
+  projectId: string;
+  request: StartWorkflowRequest & { imageUrl?: string; resolvedVideoModel: VideoModel };
+  storyboardPlan: StoryboardPlan;
+  cloneReferenceAssets: CloneReferenceAssets;
+}): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  const { projectId, request, storyboardPlan, cloneReferenceAssets } = input;
+  const aspectRatio = request.videoAspectRatio === '9:16' ? '9:16' : '16:9';
+  const referenceImageUrls = collectDistinctUrls(
+    [
+      ...cloneReferenceAssets.avatarPhotoUrls,
+      ...cloneReferenceAssets.productImageUrls,
+      ...cloneReferenceAssets.petPhotoUrls
+    ],
+    9
+  );
+  const storyboardPrompt = buildStoryboardSheetPrompt({
+    rows: storyboardPlan.rows,
+    aspectRatio,
+    assets: cloneReferenceAssets
+  });
+
+  await moderatePromptBeforeGeneration(storyboardPrompt, {
+    externalId: `user_${request.userId}:video_clone_${projectId}:storyboard_sheet`,
+  });
+
+  const storyboardTaskId = await createKieGptImageTask({
+    prompt: storyboardPrompt,
+    referenceImageUrls,
+    aspectRatio: '9:16',
+    callBackUrl: FRAME_WEBHOOK_URL,
+    moderationExternalId: `user_${request.userId}:video_clone_${projectId}:storyboard_sheet`
+  });
+
+  const metadataSource = {
+    clone_reference_assets: {
+      selectedAvatarId: cloneReferenceAssets.selectedAvatarId || request.selectedAvatarId || null,
+      selectedProductId: cloneReferenceAssets.selectedProductId || request.selectedProductId || null,
+      selectedPetId: cloneReferenceAssets.selectedPetId || request.selectedPetId || null,
+      selectedAvatarIds:
+        cloneReferenceAssets.selectedAvatarIds ||
+        normalizeSelectedIds(request.selectedAvatarId, request.selectedAvatarIds, 8),
+      selectedProductIds:
+        cloneReferenceAssets.selectedProductIds ||
+        normalizeSelectedIds(request.selectedProductId, request.selectedProductIds, 8),
+      selectedPetIds:
+        cloneReferenceAssets.selectedPetIds ||
+        normalizeSelectedIds(request.selectedPetId, request.selectedPetIds, 8),
+      avatarPhotoUrls: cloneReferenceAssets.avatarPhotoUrls,
+      productImageUrls: cloneReferenceAssets.productImageUrls,
+      petPhotoUrls: cloneReferenceAssets.petPhotoUrls
+    },
+    storyboard_mode: {
+      mode: 'clone_storyboard_reference',
+      prompt_version: STORYBOARD_REFERENCE_PROMPT_VERSION,
+      storyboard_task_id: storyboardTaskId,
+      storyboard_image_url: null,
+      rows: storyboardPlan.rows,
+      reference_asset_map: {
+        avatarIds: cloneReferenceAssets.selectedAvatarIds || [],
+        productIds: cloneReferenceAssets.selectedProductIds || [],
+        petIds: cloneReferenceAssets.selectedPetIds || [],
+        avatarPhotoUrls: cloneReferenceAssets.avatarPhotoUrls,
+        productImageUrls: cloneReferenceAssets.productImageUrls,
+        petPhotoUrls: cloneReferenceAssets.petPhotoUrls
+      }
+    }
+  } satisfies Record<string, unknown>;
+  const storedVideoPrompts = buildStoredVideoPromptsPayload(storyboardPlan.segments, metadataSource);
+  const serializedPlan = serializeSegmentPlan(storyboardPlan.segments);
+
+  const { error: cleanupError } = await supabase
+    .from('video_clone_segments')
+    .delete()
+    .eq('project_id', projectId);
+  if (cleanupError) {
+    console.error('Failed to clean up existing storyboard segments:', cleanupError);
+    throw new Error('Failed to reset storyboard segments');
+  }
+
+  const segmentRows = storyboardPlan.segments.map((segmentPrompt, index) => ({
+    project_id: projectId,
+    segment_index: index,
+    status: 'pending_storyboard',
+    prompt: serializeSegmentPrompt(segmentPrompt)
+  }));
+
+  const { data: segments, error: insertError } = await supabase
+    .from('video_clone_segments')
+    .insert(segmentRows)
+    .select();
+  if (insertError || !segments) {
+    console.error('Failed to insert storyboard segments:', insertError);
+    throw new Error('Failed to initialize storyboard segments');
+  }
+
+  const now = new Date().toISOString();
+  const { error: projectUpdateError } = await supabase
+    .from('video_clone_projects')
+    .update({
+      video_prompts: storedVideoPrompts,
+      segment_plan: serializedPlan,
+      is_segmented: true,
+      segment_count: storyboardPlan.segments.length,
+      segment_duration_seconds: null,
+      video_duration: String(storyboardPlan.durationSeconds),
+      status: 'processing',
+      current_step: 'generating_storyboard_image',
+      progress_percentage: 25,
+      video_generation_requested: true,
+      segment_status: buildSegmentStatusPayload(segments as VideoCloneSegment[]),
+      last_processed_at: now
+    })
+    .eq('id', projectId);
+  if (projectUpdateError) {
+    console.error('Failed to update storyboard project state:', projectUpdateError);
+    throw new Error('Failed to initialize storyboard clone project');
+  }
+
+  console.log(`✅ Storyboard clone initialized for project ${projectId}; storyboard task ${storyboardTaskId}`);
+}
+
 async function startSegmentedWorkflow(
   projectId: string,
   request: StartWorkflowRequest & { imageUrl?: string }, // Optional when no product image is provided
@@ -3672,9 +4225,6 @@ export function normalizeSegmentPrompts(
   const durationPerSegment = Number.isFinite(segmentDurationSeconds) && segmentDurationSeconds
     ? Number(segmentDurationSeconds)
     : 0;
-  if (durationPerSegment <= 0) {
-    throw new Error('Segment duration is required to normalize prompts.');
-  }
 
   const normalized: SegmentPrompt[] = [];
 
@@ -3683,9 +4233,38 @@ export function normalizeSegmentPrompts(
     const shot = referenceVideoShots?.[index];
     const shotOverrides = shot ? buildSegmentOverridesFromShot(shot) : undefined;
     const defaultLanguage = cleanSegmentText(source.language) || 'en';
+    const sourceShots = Array.isArray((source as { shots?: unknown }).shots)
+      ? ((source as { shots?: Array<Record<string, unknown>> }).shots || [])
+      : [];
+    const serializedShotDuration = sourceShots.reduce((sum, rawShot) => {
+      const duration = typeof rawShot.duration_seconds === 'number'
+        ? rawShot.duration_seconds
+        : Number(rawShot.duration_seconds);
+      if (Number.isFinite(duration) && duration > 0) {
+        return sum + duration;
+      }
+      const start = typeof rawShot.start_seconds === 'number'
+        ? rawShot.start_seconds
+        : Number(rawShot.start_seconds);
+      const end = typeof rawShot.end_seconds === 'number'
+        ? rawShot.end_seconds
+        : Number(rawShot.end_seconds);
+      if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+        return sum + (end - start);
+      }
+      return sum;
+    }, 0);
+    const segmentDurationForIndex =
+      durationPerSegment > 0
+        ? durationPerSegment
+        : shot?.durationSeconds && shot.durationSeconds > 0
+          ? shot.durationSeconds
+          : serializedShotDuration > 0
+            ? serializedShotDuration
+            : getSegmentDurationForModel('seedance_2_fast');
     const normalizedShots = normalizeSegmentShots(
       (source as { shots?: unknown }).shots,
-      durationPerSegment,
+      segmentDurationForIndex,
       defaultLanguage,
       source,
       shot
@@ -4050,6 +4629,7 @@ type FrameGenerationOverrides = {
   aspectRatioOverride?: string;
   imageSizeOverride?: string;
   characterPhotoUrls?: string[] | null;
+  additionalReferenceImageUrls?: string[] | null;
   workflowSourceOverride?: 'project_agent_clone' | 'project_agent_edit_video' | 'default';
   usePromptAsIs?: boolean;
   moderationExternalId?: string;
@@ -4204,9 +4784,13 @@ export async function createSmartSegmentFrame(
     const normalizedProductImages = Array.isArray(productImageUrls)
       ? productImageUrls.filter(url => typeof url === 'string' && url.length > 0)
       : [];
+    const additionalReferenceImages = Array.isArray(overrides?.additionalReferenceImageUrls)
+      ? overrides.additionalReferenceImageUrls.filter(url => typeof url === 'string' && url.length > 0)
+      : [];
     const imageInput = Array.from(
       new Set([
         ...(usesContinuationReference && continuationReferenceUrl ? [continuationReferenceUrl] : []),
+        ...additionalReferenceImages,
         ...characterPhotos,
         ...normalizedProductImages
       ])
@@ -4287,6 +4871,13 @@ export async function createSmartSegmentFrame(
       imageInput.push(...normalizedProductImages);
       console.log(`   - 📦 Product references: Using ${normalizedProductImages.length} product photo(s)`);
     }
+    const additionalReferenceImages = Array.isArray(overrides?.additionalReferenceImageUrls)
+      ? overrides.additionalReferenceImageUrls.filter(url => typeof url === 'string' && url.length > 0)
+      : [];
+    if (additionalReferenceImages.length > 0) {
+      imageInput.unshift(...additionalReferenceImages);
+      console.log(`   - 🎞️ Storyboard/reference images: Using ${additionalReferenceImages.length} additional reference(s)`);
+    }
 
     console.log('[Frame Routing]', {
       segmentIndex,
@@ -4343,6 +4934,9 @@ export async function createSmartSegmentFrame(
   const characterPhotos = Array.isArray(overrides?.characterPhotoUrls)
     ? overrides.characterPhotoUrls.filter(url => typeof url === 'string' && url.length > 0)
     : [];
+  const additionalReferenceImages = Array.isArray(overrides?.additionalReferenceImageUrls)
+    ? overrides.additionalReferenceImageUrls.filter(url => typeof url === 'string' && url.length > 0)
+    : [];
   const hasCharacterPhotos = characterPhotos.length > 0;
 
   console.log(`🎬 Segment ${segmentIndex + 1} ${frameType} frame generation:`);
@@ -4355,6 +4949,7 @@ export async function createSmartSegmentFrame(
   const combinedReferenceImages = Array.from(
     new Set([
       ...continuationReferences,
+      ...additionalReferenceImages,
       ...(hasCharacterPhotos ? characterPhotos : []),
       ...normalizedProductImages
     ])
@@ -4544,6 +5139,13 @@ function resolveTaskDurationSeconds(
     return Math.max(
       KLING_MIN_TASK_DURATION_SECONDS,
       Math.min(KLING_MAX_TASK_DURATION_SECONDS, getPromptSegmentDurationSeconds(segmentPrompt))
+    );
+  }
+
+  if (isSeedanceStoryboardReferenceProject(project) && Array.isArray(segmentPrompt?.shots) && segmentPrompt.shots.length > 0) {
+    return Math.max(
+      SEEDANCE_MIN_TASK_DURATION_SECONDS,
+      Math.min(SEEDANCE_DIRECT_REFERENCE_MAX_SECONDS, getPromptSegmentDurationSeconds(segmentPrompt))
     );
   }
 
@@ -5281,12 +5883,16 @@ function buildSeedanceVideoRequestBody(input: {
   prompt: string;
   inputUrls: string[];
   referenceImageUrls?: string[];
+  firstFrameUrl?: string | null;
+  lastFrameUrl?: string | null;
+  useFirstLastFrameFields?: boolean;
   aspectRatio: '16:9' | '9:16';
   resolution: '480p' | '720p' | '1080p';
   duration: number;
 }) {
   const referenceImageUrls = collectDistinctUrls(input.referenceImageUrls || [], 9);
-  const useReferenceImageMode = (input.model === 'seedance_2_fast' || input.model === 'seedance_2_mini') && referenceImageUrls.length > 0;
+  const useReferenceImageMode = !input.useFirstLastFrameFields &&
+    referenceImageUrls.length > 0;
   const inputUrls = collectDistinctUrls(input.inputUrls || [], 2);
   const requestInput: Record<string, unknown> = {
     prompt: input.prompt,
@@ -5294,10 +5900,22 @@ function buildSeedanceVideoRequestBody(input: {
     resolution: input.resolution,
     duration: input.duration,
     generate_audio: true,
-    web_search: !useReferenceImageMode && inputUrls.length === 0
+    web_search: !input.useFirstLastFrameFields && !useReferenceImageMode && inputUrls.length === 0
   };
 
-  if (useReferenceImageMode) {
+  if (input.useFirstLastFrameFields) {
+    if (input.firstFrameUrl) {
+      requestInput.first_frame_url = input.firstFrameUrl;
+    }
+    if (input.lastFrameUrl && input.lastFrameUrl !== input.firstFrameUrl) {
+      requestInput.last_frame_url = input.lastFrameUrl;
+    }
+    if (referenceImageUrls.length > 0) {
+      requestInput.reference_image_urls = referenceImageUrls;
+    }
+    requestInput.fixed_lens = false;
+    requestInput.web_search = false;
+  } else if (useReferenceImageMode) {
     requestInput.reference_image_urls = referenceImageUrls;
   } else if (inputUrls.length > 0) {
     requestInput.input_urls = inputUrls;
@@ -5958,11 +6576,12 @@ async function startSegmentVideoTaskSeedance(
     throw new Error('KIE_API_KEY environment variable is not configured');
   }
 
-  const referenceImageUrls = model === 'seedance_2_fast' || model === 'seedance_2_mini'
+  const isStoryboardReferenceMode = isSeedanceStoryboardReferenceProject(project);
+  const referenceImageUrls = model === 'seedance_2_fast' || model === 'seedance_2_mini' || isStoryboardReferenceMode
     ? getProjectAgentSeedanceReferenceImageUrls(project)
     : [];
   const useReferenceImageMode = referenceImageUrls.length > 0;
-  if (!useReferenceImageMode && !firstFrameUrl) {
+  if (!firstFrameUrl && !useReferenceImageMode) {
     throw new Error('Seedance video generation requires a first frame or reference images.');
   }
 
@@ -5981,7 +6600,7 @@ async function startSegmentVideoTaskSeedance(
     totalSegments
   );
 
-  console.log(`🎬 Seedance Segment ${segmentIndex + 1}/${totalSegments}: Images count = ${useReferenceImageMode ? referenceImageUrls.length : inputUrls.length} ${useReferenceImageMode ? '(reference images)' : hasClosingFrame ? '(first + closing)' : '(first only)'}`);
+  console.log(`🎬 Seedance Segment ${segmentIndex + 1}/${totalSegments}: Images count = ${isStoryboardReferenceMode ? referenceImageUrls.length + (firstFrameUrl ? 1 : 0) + (closingFrameUrl ? 1 : 0) : useReferenceImageMode ? referenceImageUrls.length : inputUrls.length} ${isStoryboardReferenceMode ? '(storyboard + first/last frame)' : useReferenceImageMode ? '(reference images)' : hasClosingFrame ? '(first + closing)' : '(first only)'}`);
 
   const aspectRatio = project.video_aspect_ratio === '9:16' ? '9:16' : '16:9';
   const resolution = normalizeCloneVideoQualityForModel(model, project.video_quality) as '480p' | '720p' | '1080p';
@@ -6061,7 +6680,10 @@ async function startSegmentVideoTaskSeedance(
     }
   }
 
-  const promptText = promptParts.join('. ').substring(0, 2500); // Max 2500 chars per Seedance API
+  const storyboardInstruction = isStoryboardReferenceMode
+    ? `Use @Image1 as the storyboard sheet. Follow storyboard row ${segmentIndex + 1} exactly for scene order, composition, camera movement, timing, action beats, and audio intent. Use the remaining reference images only as replacement identity assets. Do not render the storyboard table itself. `
+    : '';
+  const promptText = `${storyboardInstruction}${promptParts.join('. ')}`.substring(0, 2500); // Max 2500 chars per Seedance API
 
   await moderatePromptBeforeGeneration(promptText, {
     externalId: `user_${project.user_id}:video_clone_${project.id}:segment_${segmentIndex}:video`,
@@ -6072,8 +6694,11 @@ async function startSegmentVideoTaskSeedance(
     segmentIndex,
     model,
     prompt: promptText,
-    inputUrls,
+    inputUrls: isStoryboardReferenceMode ? [] : inputUrls,
     referenceImageUrls: useReferenceImageMode ? referenceImageUrls : [],
+    firstFrameUrl: isStoryboardReferenceMode ? null : firstFrameUrl,
+    lastFrameUrl: isStoryboardReferenceMode ? null : closingFrameUrl || null,
+    useFirstLastFrameFields: false,
     aspectRatio,
     resolution,
     duration: segmentDuration
@@ -6118,5 +6743,8 @@ export const __test__ = {
   deriveKlingShotDurationsFromSourceShots,
   isProjectAgentSeedanceReferenceImageMode,
   isProjectAgentSeedanceReferenceImageProject,
-  getProjectAgentSeedanceReferenceImageUrls
+  isSeedanceStoryboardReferenceProject,
+  getProjectAgentSeedanceReferenceImageUrls,
+  buildReplacementSummary,
+  buildStoryboardSheetPrompt
 };

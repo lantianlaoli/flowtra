@@ -11,6 +11,7 @@ export const SEEDANCE_DIRECT_REFERENCE_MAX_SECONDS = 15;
 export const SEEDANCE_DIRECT_REFERENCE_MIN_SECONDS = 2;
 
 export type ProjectAgentCloneExecutionMode =
+  | 'clone_storyboard_reference'
   | 'clone_direct_reference'
   | 'clone_segmented_auto'
   | 'clone_manual'
@@ -37,19 +38,8 @@ export function getProjectAgentCloneExecutionMode(input: {
   durationSeconds?: string | number | null;
   hasReferenceVideoUrl?: boolean;
 }): ProjectAgentCloneExecutionMode {
-  const durationSeconds = normalizeCloneDurationSeconds(input.durationSeconds);
-  if (
-    isSeedanceCloneModel(input.model) &&
-    input.hasReferenceVideoUrl &&
-    durationSeconds !== null &&
-    durationSeconds >= SEEDANCE_DIRECT_REFERENCE_MIN_SECONDS &&
-    durationSeconds <= SEEDANCE_DIRECT_REFERENCE_MAX_SECONDS
-  ) {
-    return 'clone_direct_reference';
-  }
-
   if (isSeedanceCloneModel(input.model)) {
-    return 'clone_segmented_auto';
+    return 'clone_storyboard_reference';
   }
 
   return 'clone_manual';
