@@ -67,6 +67,22 @@ const nextConfig: NextConfig = {
         destination: 'https://flowtra.ai/:path*',
         permanent: true,
       },
+      // Defensive: if the legacy www.flowtra.store host is ever pointed at
+      // this deployment (e.g. via Cloudflare proxy), mirror the same
+      // whole-domain 301. Standalone legacy deployment must add its own
+      // equivalent rule — this only covers the in-project case.
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.flowtra.store' }],
+        destination: 'https://flowtra.ai/:path*',
+        permanent: true,
+      },
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'flowtra.store' }],
+        destination: 'https://flowtra.ai/:path*',
+        permanent: true,
+      },
       // SEO cleanup 2026-06-01: pages removed from the app but still
       // indexed by Google. Each one is a 301 so the link equity (and
       // crawl budget) is transferred to the canonical replacement.
