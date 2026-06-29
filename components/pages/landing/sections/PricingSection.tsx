@@ -1,8 +1,21 @@
 'use client';
 
+import Link from "next/link";
 import { PricingButton } from "@/components/pages/landing/PricingButton";
-import { Check, Zap, TrendingUp, Crown } from "lucide-react";
-import { getPackageModelDurationRows } from "@/lib/constants";
+import {
+  Sparkles,
+  Zap,
+  TrendingUp,
+  Crown,
+  Coins,
+  UserRound,
+  Clapperboard,
+  Activity,
+  Search,
+  ArrowRight,
+  type LucideIcon,
+} from "lucide-react";
+import { getPackageSeedance2Mini15sVideoCount } from "@/lib/constants";
 import { useI18n } from "@/providers/I18nProvider";
 
 type PlanFeatureItem = {
@@ -10,6 +23,22 @@ type PlanFeatureItem = {
   bold?: boolean;
   badges?: string[];
 };
+
+// Plan-feature icons indexed to match the i18n planFeatureItems order.
+// Both en and zh locales must keep the same 5-entry array shape:
+//   0. Credits        → Coins
+//   1. AI Agent       → Sparkles
+//   2. Avatar Ads     → UserRound
+//   3. Clone viral videos → Clapperboard
+//   4. Motion Clone   → Activity
+// If you add/remove a feature, update both locales and this array together.
+const PLAN_FEATURE_ICONS: readonly LucideIcon[] = [
+  Coins,
+  Sparkles,
+  UserRound,
+  Clapperboard,
+  Activity,
+];
 
 export default function PricingSection({
   showTitle = true,
@@ -25,16 +54,20 @@ export default function PricingSection({
   const litePricing = LITE_PRICE;
   const basicPricing = BASIC_PRICE;
   const proPricing = PRO_PRICE;
-  const liteModelDurations = getPackageModelDurationRows("lite");
-  const basicModelDurations = getPackageModelDurationRows("basic");
-  const proModelDurations = getPackageModelDurationRows("pro");
+  const liteSeedance2Mini = pricingMessages.modelBenchmarkLine(
+    getPackageSeedance2Mini15sVideoCount("lite")
+  );
+  const basicSeedance2Mini = pricingMessages.modelBenchmarkLine(
+    getPackageSeedance2Mini15sVideoCount("basic")
+  );
+  const proSeedance2Mini = pricingMessages.modelBenchmarkLine(
+    getPackageSeedance2Mini15sVideoCount("pro")
+  );
   const planFeatureItems: Record<"lite" | "basic" | "pro", PlanFeatureItem[]> = {
-    lite: pricingMessages.planFeatureItems.lite.map((label, index) => ({ label, bold: index < 2 })),
-    basic: pricingMessages.planFeatureItems.basic.map((label, index) => ({ label, bold: index < 2 })),
-    pro: pricingMessages.planFeatureItems.pro.map((label, index) => ({ label, bold: index < 2 })),
+    lite: pricingMessages.planFeatureItems.lite.map((label) => ({ label, bold: true })),
+    basic: pricingMessages.planFeatureItems.basic.map((label) => ({ label, bold: true })),
+    pro: pricingMessages.planFeatureItems.pro.map((label) => ({ label, bold: true })),
   };
-  const formatModelDuration = (durationLabel: string, durationLabels?: string[]) =>
-    durationLabels?.length ? durationLabels.join(" / ") : durationLabel;
 
   return (
     <section id="pricing" className="py-14 md:py-20">
@@ -49,11 +82,35 @@ export default function PricingSection({
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 lg:grid-cols-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 lg:grid-cols-4">
+        {/* Explore Card (no plan, jump into dashboard preview) */}
+
+        <Link
+          href="/dashboard?preview=1"
+          className="landing-plan-card flex flex-col items-center justify-center text-center rounded-[24px] border border-[#E5E5E5] bg-white p-5 sm:p-6 transition-colors hover:bg-[#FAFAFA] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30"
+        >
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-black text-white">
+            <Search className="w-6 h-6" aria-hidden="true" />
+          </div>
+          <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#666666] mb-1">
+            {pricingMessages.exploreCard.eyebrow}
+          </p>
+          <h3 className="text-[20px] font-bold text-black mb-2">
+            {pricingMessages.exploreCard.title}
+          </h3>
+          <p className="text-[14px] text-[#444444] mb-6">
+            {pricingMessages.exploreCard.pitch}
+          </p>
+          <span className="inline-flex min-h-11 items-center justify-center rounded-lg bg-black px-5 py-2 text-sm font-semibold text-white">
+            {pricingMessages.exploreCard.cta}
+            <ArrowRight className="ml-2 w-4 h-4" aria-hidden="true" />
+          </span>
+        </Link>
+
         {/* Lite Plan */}
 
         <article
-          className="landing-plan-card flex flex-col rounded-[24px] border border-[#E5E5E5] bg-white p-6 sm:p-8"
+          className="landing-plan-card flex flex-col rounded-[24px] border border-[#E5E5E5] bg-white p-5 sm:p-6"
           itemScope
           itemType="https://schema.org/Offer"
         >
@@ -81,43 +138,26 @@ export default function PricingSection({
 
           </div>
 
-          <ul className="space-y-4 mb-10 flex-grow">
-            {planFeatureItems.lite.map((item, idx) => (
-              <li
-                key={idx}
-                className="flex items-center gap-3 text-[14px] text-[#666666]"
-              >
-                <Check className="w-4 h-4 text-black flex-shrink-0" />
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className={item.bold ? "font-semibold text-black" : ""}>
-                    {item.label}
-                  </span>
-                  {(item.badges ?? []).map((badge: string) => (
-                    <span
-                      key={badge}
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${
-                        badge === "Free"
-                          ? "border border-[#16A34A] bg-[#F0FDF4] text-[#15803D]"
-                          : "text-black/55"
-                      }`}
-                    >
-                      {badge}
-                    </span>
-                  ))}
-                </span>
-              </li>
-            ))}
-            {liteModelDurations.map((item) => (
-              <li
-                key={item.model}
-                className="flex items-center gap-3 text-[14px] text-[#666666]"
-              >
-                <Check className="w-4 h-4 text-black flex-shrink-0" />
-                <span className="font-semibold text-black">
-                  {item.label}: {formatModelDuration(item.durationLabel, item.durationLabels)}
-                </span>
-              </li>
-            ))}
+          <ul className="space-y-3 mb-8 flex-grow">
+            {planFeatureItems.lite.map((item, idx) => {
+              const FeatureIcon = PLAN_FEATURE_ICONS[idx] ?? Sparkles;
+              return (
+                <li
+                  key={idx}
+                  className="flex items-center gap-3 text-[14px] font-bold text-black"
+                >
+                  <FeatureIcon className="w-4 h-4 text-black flex-shrink-0" />
+                  <span className="font-bold text-black">{item.label}</span>
+                </li>
+              );
+            })}
+            <li className="flex items-center gap-3 text-[14px] font-bold text-black">
+              <Sparkles className="w-4 h-4 text-black flex-shrink-0" />
+              <span className="font-bold text-black">
+                <span className="underline">{liteSeedance2Mini.count}</span>
+                {` ${liteSeedance2Mini.suffix}`}
+              </span>
+            </li>
           </ul>
 
           <PricingButton packageName="lite" />
@@ -126,7 +166,7 @@ export default function PricingSection({
         {/* Basic Plan (Recommended) */}
 
         <article
-          className="landing-plan-card landing-plan-card--featured relative flex flex-col rounded-[24px] border-2 border-black bg-white p-6 shadow-[0_20px_40px_rgba(0,0,0,0.1)] sm:p-8"
+          className="landing-plan-card landing-plan-card--featured relative flex flex-col rounded-[24px] border-2 border-black bg-white p-5 shadow-[0_20px_40px_rgba(0,0,0,0.1)] sm:p-6"
           itemScope
           itemType="https://schema.org/Offer"
         >
@@ -159,43 +199,26 @@ export default function PricingSection({
             </div>
           </div>
 
-          <ul className="space-y-4 mb-10 flex-grow">
-            {planFeatureItems.basic.map((item, idx) => (
-              <li
-                key={idx}
-                className="flex items-center gap-3 text-[14px] text-[#666666]"
-              >
-                <Check className="w-4 h-4 text-black flex-shrink-0" />
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className={item.bold ? "font-semibold text-black" : ""}>
-                    {item.label}
-                  </span>
-                  {(item.badges ?? []).map((badge: string) => (
-                    <span
-                      key={badge}
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${
-                        badge === "Free"
-                          ? "border border-[#16A34A] bg-[#F0FDF4] text-[#15803D]"
-                          : "text-black/55"
-                      }`}
-                    >
-                      {badge}
-                    </span>
-                  ))}
-                </span>
-              </li>
-            ))}
-            {basicModelDurations.map((item) => (
-              <li
-                key={item.model}
-                className="flex items-center gap-3 text-[14px] text-[#666666]"
-              >
-                <Check className="w-4 h-4 text-black flex-shrink-0" />
-                <span className="font-semibold text-black">
-                  {item.label}: {formatModelDuration(item.durationLabel, item.durationLabels)}
-                </span>
-              </li>
-            ))}
+          <ul className="space-y-3 mb-8 flex-grow">
+            {planFeatureItems.basic.map((item, idx) => {
+              const FeatureIcon = PLAN_FEATURE_ICONS[idx] ?? Sparkles;
+              return (
+                <li
+                  key={idx}
+                  className="flex items-center gap-3 text-[14px] font-bold text-black"
+                >
+                  <FeatureIcon className="w-4 h-4 text-black flex-shrink-0" />
+                  <span className="font-bold text-black">{item.label}</span>
+                </li>
+              );
+            })}
+            <li className="flex items-center gap-3 text-[14px] font-bold text-black">
+              <Sparkles className="w-4 h-4 text-black flex-shrink-0" />
+              <span className="font-bold text-black">
+                <span className="underline">{basicSeedance2Mini.count}</span>
+                {` ${basicSeedance2Mini.suffix}`}
+              </span>
+            </li>
           </ul>
 
           <PricingButton packageName="basic" />
@@ -204,7 +227,7 @@ export default function PricingSection({
         {/* Pro Plan */}
 
         <article
-          className="landing-plan-card flex flex-col rounded-[24px] border border-[#E5E5E5] bg-white p-6 sm:p-8"
+          className="landing-plan-card flex flex-col rounded-[24px] border border-[#E5E5E5] bg-white p-5 sm:p-6"
           itemScope
           itemType="https://schema.org/Offer"
         >
@@ -231,43 +254,26 @@ export default function PricingSection({
             </div>
           </div>
 
-          <ul className="space-y-4 mb-10 flex-grow">
-            {planFeatureItems.pro.map((item, idx) => (
-              <li
-                key={idx}
-                className="flex items-center gap-3 text-[14px] text-[#666666]"
-              >
-                <Check className="w-4 h-4 text-black flex-shrink-0" />
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className={item.bold ? "font-semibold text-black" : ""}>
-                    {item.label}
-                  </span>
-                  {(item.badges ?? []).map((badge: string) => (
-                    <span
-                      key={badge}
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${
-                        badge === "Free"
-                          ? "border border-[#16A34A] bg-[#F0FDF4] text-[#15803D]"
-                          : "text-black/55"
-                      }`}
-                    >
-                      {badge}
-                    </span>
-                  ))}
-                </span>
-              </li>
-            ))}
-            {proModelDurations.map((item) => (
-              <li
-                key={item.model}
-                className="flex items-center gap-3 text-[14px] text-[#666666]"
-              >
-                <Check className="w-4 h-4 text-black flex-shrink-0" />
-                <span className="font-semibold text-black">
-                  {item.label}: {formatModelDuration(item.durationLabel, item.durationLabels)}
-                </span>
-              </li>
-            ))}
+          <ul className="space-y-3 mb-8 flex-grow">
+            {planFeatureItems.pro.map((item, idx) => {
+              const FeatureIcon = PLAN_FEATURE_ICONS[idx] ?? Sparkles;
+              return (
+                <li
+                  key={idx}
+                  className="flex items-center gap-3 text-[14px] font-bold text-black"
+                >
+                  <FeatureIcon className="w-4 h-4 text-black flex-shrink-0" />
+                  <span className="font-bold text-black">{item.label}</span>
+                </li>
+              );
+            })}
+            <li className="flex items-center gap-3 text-[14px] font-bold text-black">
+              <Sparkles className="w-4 h-4 text-black flex-shrink-0" />
+              <span className="font-bold text-black">
+                <span className="underline">{proSeedance2Mini.count}</span>
+                {` ${proSeedance2Mini.suffix}`}
+              </span>
+            </li>
           </ul>
 
           <PricingButton packageName="pro" />

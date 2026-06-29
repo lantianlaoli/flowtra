@@ -5,7 +5,11 @@ import { ChevronDownIcon } from '@heroicons/react/24/outline';
 import FAQSchema from '@/components/seo/FAQSchema';
 import { useI18n } from '@/providers/I18nProvider';
 
-export default function FAQ() {
+export default function FAQ({
+  compact = false,
+}: {
+  compact?: boolean;
+}) {
   const { messages } = useI18n();
   const faqMessages = messages.landing.faq;
   const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -15,10 +19,15 @@ export default function FAQ() {
   };
 
   return (
-    <section id="faq" className="landing-section-surface py-14 md:py-24 scroll-mt-24 bg-white">
+    <section
+      id="faq"
+      className={`landing-section-surface scroll-mt-24 bg-white ${
+        compact ? 'py-10 md:py-12' : 'py-14 md:py-24'
+      }`}
+    >
       <FAQSchema faqData={faqMessages.items} />
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-10 md:mb-16">
+        <div className={`text-center ${compact ? 'mb-6' : 'mb-10 md:mb-16'}`}>
           <h2 className="text-[32px] md:text-[40px] font-bold text-black mb-4 tracking-tight">
             {faqMessages.title}
           </h2>

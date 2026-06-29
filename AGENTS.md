@@ -12,7 +12,9 @@
 - **Language**: Application code, docs, comments: English. UI copy: English ONLY.
 - **Design**: Follow minimalist SaaS style from design_guide.md
 - **Secrets**: Never commit .env - copy from .env.example locally
-- **Agent Mode Test User ID**: `user_37ky51qtKUnhQtRTzDdJ5rPH9G8`
+- **Agent Mode Test Users** (Clerk user IDs for agent/manual testing — use these to log in and exercise flows without burning real customer accounts):
+  - Primary: `user_37ky51qtKUnhQtRTzDdJ5rPH9G8`
+  - Secondary: `user_3FoSofGLY8lInmkZtN6tA4OB3Mq`
 - **Project Structure**:
   - `docs/` - Official API documentation (KIE, fal.ai, Creem, TikTok)
   - `scripts/` - Test scripts and utility tools

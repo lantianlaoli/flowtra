@@ -4,6 +4,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
+import { CreditCard } from 'lucide-react';
 import PricingSection from '@/components/pages/landing/sections/PricingSection';
 import FlowtraLoading from '@/components/ui/FlowtraLoading';
 
@@ -105,7 +106,12 @@ export default function SelectPlanPage() {
     <div className="min-h-screen bg-white">
       <div className="fixed top-0 inset-x-0 z-50 border-b border-[#E5E5E5] bg-white">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
-          <p className="hidden sm:block text-sm text-gray-600">Not ready to choose a plan yet?</p>
+          <p className="hidden sm:block text-sm text-gray-600">
+            Need help choosing?{' '}
+            <a href="/support" className="text-black underline">
+              Contact support
+            </a>
+          </p>
           <Link
             href="/"
             className="inline-flex min-h-11 items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#222222] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30"
@@ -115,9 +121,10 @@ export default function SelectPlanPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 pt-24 pb-16">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-black mb-4">
+      <div className="max-w-7xl mx-auto px-4 pt-20 pb-0">
+        <div className="text-center mb-6">
+          <h1 className="text-4xl font-bold text-black mb-3 inline-flex items-center justify-center gap-3">
+            <CreditCard className="w-8 h-8 text-black" aria-hidden="true" />
             Choose Your Plan
           </h1>
           <p className="text-lg text-gray-600">
@@ -127,12 +134,9 @@ export default function SelectPlanPage() {
 
         <PricingSection showTitle={false} />
 
-        <div className="text-center mt-8 text-sm text-gray-500">
-          Need help choosing? <a href="/support" className="text-black underline">Contact support</a>
-        </div>
       </div>
 
-      <FAQ />
+      <FAQ compact />
     </div>
   );
 }

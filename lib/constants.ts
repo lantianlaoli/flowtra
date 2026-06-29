@@ -412,6 +412,17 @@ export type PackageModelDurationRow = {
   durationLabels?: string[];
 };
 
+// Single canonical model benchmark for plan-card copy: Seedance 2 Mini at 480p,
+// no reference video input. Returns the count of full 15-second clips a plan's
+// credits can cover, given the constant per-second cost (9.5 credits/sec at
+// 480p). Any fractional remainder is dropped — only whole videos are counted.
+// e.g. Lite 1930 / 9.5 / 15 = 13.54 → 13.
+export function getPackageSeedance2Mini15sVideoCount(packageName: keyof typeof PACKAGES): number {
+  const credits = PACKAGES[packageName].credits;
+  const perSecondCost = SEEDANCE_2_MINI_QUALITY_COSTS['480p'];
+  return Math.floor(credits / perSecondCost / 15);
+}
+
 export function getPackageModelDurationRows(
   packageName: keyof typeof PACKAGES,
   models: readonly VideoModel[] = LANDING_PRICING_VIDEO_MODELS

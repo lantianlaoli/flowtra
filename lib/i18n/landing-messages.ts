@@ -140,6 +140,13 @@ export type LandingMessages = {
     description: string;
     recommended: string;
     perMonth: string;
+    modelBenchmarkLine: (count: number) => { count: number; suffix: string };
+    exploreCard: {
+      eyebrow: string;
+      title: string;
+      pitch: string;
+      cta: string;
+    };
     plans: {
       lite: {
         name: string;
@@ -439,18 +446,28 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       description: 'Monthly subscription with automatic credit reset',
       recommended: 'Recommended',
       perMonth: '/month',
+      modelBenchmarkLine: (count: number) => ({
+        count,
+        suffix: '× 15s videos (Seedance 2 Mini, 480p)',
+      }),
+      exploreCard: {
+        eyebrow: 'Explore',
+        title: 'See Flowtra in action',
+        pitch: 'See it work first.',
+        cta: 'Open Dashboard',
+      },
       plans: {
         lite: {
           name: 'Lite',
-          description: 'Perfect for small creators starting out.',
+          description: 'For TikTok dropshippers who need test ads today, not next week.',
         },
         basic: {
           name: 'Basic',
-          description: 'Most popular for growing brands.',
+          description: 'When one ad wins, clone it across every product you sell.',
         },
         pro: {
           name: 'Pro',
-          description: 'For power users and agencies.',
+          description: 'Full TikTok ad pipeline: analysis, generation, and iteration at scale.',
         },
       },
       planFeatureItems: {
@@ -460,9 +477,6 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
           'Avatar Ads',
           'Clone viral videos',
           'Motion Clone',
-          '10+ languages',
-          'Latest video models',
-          'TikTok publishing support',
         ],
         basic: [
           '3,930 Credits',
@@ -470,9 +484,6 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
           'Avatar Ads',
           'Clone viral videos',
           'Motion Clone',
-          '10+ languages',
-          'Latest video models',
-          'TikTok publishing support',
         ],
         pro: [
           '6,600 Credits',
@@ -480,9 +491,6 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
           'Avatar Ads',
           'Clone viral videos',
           'Motion Clone',
-          '10+ languages',
-          'Latest video models',
-          'TikTok publishing support',
         ],
       },
       buttons: {
@@ -791,18 +799,28 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       description: '按月订阅，积分自动重置',
       recommended: '推荐',
       perMonth: '/月',
+      modelBenchmarkLine: (count: number) => ({
+        count,
+        suffix: '个 15 秒视频（Seedance 2 Mini，480p）',
+      }),
+      exploreCard: {
+        eyebrow: '探索',
+        title: '先看 Flowtra 怎么跑',
+        pitch: '先看效果再决定。',
+        cta: '打开控制台',
+      },
       plans: {
         lite: {
           name: 'Lite',
-          description: '适合刚开始尝试的小型创作者。',
+          description: '刚开始在 TikTok Shop 卖货的独立卖家。',
         },
         basic: {
           name: 'Basic',
-          description: '最适合成长中的品牌。',
+          description: '一条素材跑赢，铺到所有产品。',
         },
         pro: {
           name: 'Pro',
-          description: '适合重度用户与代理团队。',
+          description: '完整的 TikTok 广告生产线。',
         },
       },
       planFeatureItems: {
@@ -812,9 +830,6 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
           '数字人广告',
           '爆款视频复刻',
           '动作复刻',
-          '支持 10+ 语言',
-          '最新视频模型',
-          '支持发布到 TikTok',
         ],
         basic: [
           '3,930 积分',
@@ -822,9 +837,6 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
           '数字人广告',
           '爆款视频复刻',
           '动作复刻',
-          '支持 10+ 语言',
-          '最新视频模型',
-          '支持发布到 TikTok',
         ],
         pro: [
           '6,600 积分',
@@ -832,9 +844,6 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
           '数字人广告',
           '爆款视频复刻',
           '动作复刻',
-          '支持 10+ 语言',
-          '最新视频模型',
-          '支持发布到 TikTok',
         ],
       },
       buttons: {

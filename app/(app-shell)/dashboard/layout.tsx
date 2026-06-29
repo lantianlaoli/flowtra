@@ -56,8 +56,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       return
     }
 
+    const params = new URLSearchParams(window.location.search)
     const isLandingUploadEntry = shouldCheckPlanForDashboardEntry({
-      upload: new URLSearchParams(window.location.search).get('upload'),
+      upload: params.get('upload'),
+      preview: params.get('preview'),
     })
 
     if (!isLandingUploadEntry || hasCheckedEntryPlanRef.current) {
