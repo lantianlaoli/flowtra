@@ -36,6 +36,11 @@ import {
   estimateAvatarAdsDialogueSeconds,
   estimateAvatarAdsSingleSceneDurationSeconds,
 } from '@/lib/avatar-ads-duration-estimate';
+import {
+  AVATAR_ADS_SEEDANCE_STORYBOARD_DURATION_SECONDS,
+  isAvatarAdsSeedanceStoryboardModel,
+  normalizeAvatarAdsStoryboardDurationSeconds,
+} from '@/lib/avatar-ads-storyboard';
 // Events table removed: no tracking imports
 
 const DEFAULT_VIDEO_MODEL = 'seedance_2_fast' as const;
@@ -128,12 +133,39 @@ export const isAgentReferenceAvatarWorkflow = (
   project.generated_prompts?.workflow_source === AVATAR_AGENT_REFERENCE_WORKFLOW_SOURCE
 );
 
+const isAvatarAdsStoryboardMode = (
+  prompts: Record<string, unknown> | null | undefined
+) => Boolean(
+  prompts &&
+  typeof prompts === 'object' &&
+  prompts.storyboard_mode &&
+  typeof prompts.storyboard_mode === 'object'
+);
+
 export const getAvatarAdsReferenceImageUrls = (
   project: Pick<AvatarAdsProject, 'person_image_urls' | 'product_image_urls'>
 ) => (
   [...(project.person_image_urls || []), ...(project.product_image_urls || [])]
     .filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
 );
+
+const getAvatarAdsVideoReferenceImageUrls = (
+  project: Pick<AvatarAdsProject, 'generated_prompts' | 'generated_image_url' | 'person_image_urls' | 'product_image_urls'>
+) => {
+  if (isAvatarAdsStoryboardMode(project.generated_prompts)) {
+    const storyboardUrl =
+      ((project.generated_prompts as { storyboard_mode?: { storyboard_image_url?: unknown } }).storyboard_mode?.storyboard_image_url) ||
+      project.generated_image_url;
+    if (typeof storyboardUrl === 'string' && storyboardUrl.trim().length > 0) {
+      return [storyboardUrl];
+    }
+    return [];
+  }
+
+  return project.generated_image_url
+    ? [project.generated_image_url, project.generated_image_url]
+    : [];
+};
 
 interface ProcessResult {
   project: AvatarAdsProject;
@@ -261,16 +293,18 @@ export const buildSeedanceAvatarAdsVideoInput = (input: {
   prompt: string;
   referenceImageUrls: string[];
   durationSeconds: number;
+  model?: 'seedance_2_fast' | 'seedance_2' | 'seedance_2_mini';
+  resolution?: PersistedVideoQuality | null;
 }) => ({
   prompt: input.prompt,
   reference_image_urls: input.referenceImageUrls.filter(
     (url) => typeof url === 'string' && url.trim().length > 0
   ),
   aspect_ratio: '9:16' as const,
-  duration: input.durationSeconds,
-  resolution: '720p' as const,
+  duration: normalizeAvatarAdsStoryboardDurationSeconds(input.model, input.durationSeconds),
+  resolution: normalizeCloneVideoQualityForModel(input.model || 'seedance_2_fast', input.resolution),
   generate_audio: true,
-  web_search: true,
+  web_search: false,
 });
 
 export const buildWanAvatarAdsVideoInput = (input: {
@@ -516,6 +550,17 @@ export const buildAvatarAdsVideoExecutionPrompt = (
   }, null, 2);
 };
 
+export const buildAvatarAdsSeedanceStoryboardVideoPrompt = (input: {
+  sceneNumber?: number;
+  finalPrompt?: string;
+}) => [
+  `Use reference_image_urls[0] as the storyboard sheet. Follow storyboard row ${input.sceneNumber || 1} exactly.`,
+  'Generate the video from the storyboard cells in the same order, framing, camera movement, action timing, and dialogue timing.',
+  'Use the remaining reference images only as identity anchors for the avatar and product appearance.',
+  'Do not reinterpret the scene from text. Do not use the avatar reference photo background as the environment.',
+  'Do not render the storyboard sheet, grid, captions, arrows, labels, or panel borders.',
+].join('\n\n');
+
 const cleanAvatarExecutionField = (value: unknown) => {
   if (typeof value !== 'string') return '';
   const compiled = compileAvatarAdsMentionText(value).replace(/^"|"$/g, '').trim();
@@ -754,6 +799,122 @@ const getAvatarVideoReferenceImages = (
   return uniqueUrls.slice(0, 1);
 };
 
+const flattenAvatarActionText = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return value.map((item) => (
+      typeof item === 'string'
+        ? item
+        : item && typeof item === 'object' && typeof (item as { description?: unknown }).description === 'string'
+          ? (item as { description: string }).description
+          : ''
+    )).filter(Boolean).join(' ');
+  }
+  return typeof value === 'string' ? value : '';
+};
+
+const buildAvatarAdsStoryboardMode = (input: {
+  prompts: Record<string, unknown>;
+  model: AvatarAdsVideoModel;
+  videoDurationSeconds: number;
+  avatarName?: string | null;
+  productName?: string | null;
+  sellingRequirements?: string | null;
+}) => {
+  const rowDuration = normalizeAvatarAdsStoryboardDurationSeconds(input.model, input.videoDurationSeconds);
+  const sourceScenes = getAvatarPromptScenes(input.prompts);
+  const sourcePrompts = sourceScenes
+    .map((scene) => scene.prompt)
+    .filter((prompt): prompt is Record<string, unknown> => Boolean(prompt && typeof prompt === 'object'));
+  const combinedAction = sourcePrompts
+    .map((prompt) => flattenAvatarActionText(prompt.action))
+    .filter(Boolean)
+    .join(' ');
+  const combinedDialog = sourcePrompts
+    .map((prompt) => flattenAvatarDialogText(prompt.dialog))
+    .filter(Boolean)
+    .join(' ');
+  const primaryPrompt = sourcePrompts[0] || {};
+  const storyboardScene = {
+    scene: 1,
+    prompt: {
+      ...primaryPrompt,
+      action: combinedAction || primaryPrompt.action,
+      dialog: combinedDialog ? { [`0-${rowDuration}s`]: combinedDialog } : primaryPrompt.dialog,
+      duration_seconds: rowDuration,
+    }
+  };
+  const scenes = [storyboardScene];
+  const rows = scenes.map((scene, index) => {
+    const prompt = scene.prompt as Record<string, unknown>;
+    const action = flattenAvatarActionText(prompt.action);
+    const dialog = flattenAvatarDialogText(prompt.dialog);
+    const sceneEnvironment = typeof prompt.context_environment === 'string' && prompt.context_environment.trim()
+      ? prompt.context_environment.trim()
+      : 'A product-relevant real-life usage environment designed from the product category and selling point, not copied from the avatar photo background.';
+    const sellingPoint = input.sellingRequirements ||
+      (input.productName ? `Demonstrate why ${input.productName} is useful in a realistic daily scenario.` : 'Demonstrate the product benefit in a realistic daily scenario.');
+    return {
+      no: index + 1,
+      duration_seconds: rowDuration,
+      product_usage_beat: action || 'Show the product being used clearly in a real-life scenario by the referenced avatar.',
+      selling_point: sellingPoint,
+      scene_environment: sceneEnvironment,
+      scene_description: [
+        `Product-first usage scenario for ${input.productName || 'the product'}.`,
+        `Environment: ${sceneEnvironment}.`,
+        action
+      ].filter(Boolean).join(' '),
+      camera_movement: typeof prompt.camera_motion_positioning === 'string'
+        ? prompt.camera_motion_positioning
+        : 'Handheld UGC camera, natural phone-video framing.',
+      sound_bgm_voice_line: [
+        typeof prompt.audio === 'string' ? prompt.audio : '',
+        dialog ? `Voice line: ${dialog}` : ''
+      ].filter(Boolean).join(' '),
+    };
+  });
+  const rowBrief = rows.map((row) => [
+    `No. ${row.no}`,
+    `Duration: ${row.duration_seconds}s`,
+    `Scene: ${row.scene_description}`,
+    `Camera: ${row.camera_movement}`,
+    `Sound/BGM/Voice: ${row.sound_bgm_voice_line}`
+  ].join('\n')).join('\n\n');
+  const imagePrompt = [
+    'Create a product-first usage scenario storyboard sheet for a TikTok UGC avatar product ad.',
+    'Use a clean black table border on a white page with columns: No., Storyboard (9:16), Scene Description, Camera Movement, Sound / BGM / Voice Line.',
+    'Each storyboard cell must look like a real vertical phone-camera video still, not illustration, not anime, not 3D, not vector art.',
+    `The full storyboard represents one ${AVATAR_ADS_SEEDANCE_STORYBOARD_DURATION_SECONDS}-second video.`,
+    'Design every panel around the product being used, opened, demonstrated, compared, solving a pain point, or leading to a CTA.',
+    'Do not copy the avatar reference photo background, room, staircase, desk, wall, lighting setup, or camera location unless the user instruction explicitly asks for that exact environment.',
+    'Invent product-relevant real-life usage environments from the product category and selling requirements. The scene should serve the product feature first.',
+    'The avatar is only the user or presenter inside the product scenario. Do not make the storyboard a portrait shoot, fashion shoot, or recreation of the avatar source photo.',
+    'Use the provided avatar reference photo as the exact person identity and wardrobe source: match the full visible appearance, face, hair, skin tone, clothing color, fabric, cut, accessories, and styling.',
+    input.productName ? `Use the provided product photos as the exact product source: ${input.productName}.` : '',
+    input.sellingRequirements ? `Selling requirements to express through the sequence: ${input.sellingRequirements}` : '',
+    'Preserve each row duration, action beat, camera rhythm, and speaking beat in the row text.',
+    '',
+    rowBrief
+  ].filter(Boolean).join('\n');
+
+  return {
+    ...input.prompts,
+    scenes,
+    image_prompt: imagePrompt,
+    planned_total_duration_seconds: AVATAR_ADS_SEEDANCE_STORYBOARD_DURATION_SECONDS,
+    planned_scene_duration_seconds: [AVATAR_ADS_SEEDANCE_STORYBOARD_DURATION_SECONDS],
+    storyboard_mode: {
+      mode: 'avatar_ads_seedance_storyboard',
+      video_model: input.model,
+      total_duration_seconds: AVATAR_ADS_SEEDANCE_STORYBOARD_DURATION_SECONDS,
+      storyboard_task_id: null,
+      storyboard_image_url: null,
+      rows,
+      selling_requirements: input.sellingRequirements || null,
+    }
+  };
+};
+
 const parseAvatarPromptGenerationResponse = (data: unknown): AvatarPromptResponseShape | null => {
   const rawContent = (data as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message?.content;
 
@@ -953,6 +1114,7 @@ async function generatePrompts(
   productContext: {
     product_name?: string;
     talking_head_script?: string;
+    selling_requirements?: string;
   } | null,
   personImageUrl: string,
   productImageUrl: string | null,
@@ -978,6 +1140,7 @@ async function _generatePromptsInternal(
   productContext: {
     product_name?: string;
     talking_head_script?: string;
+    selling_requirements?: string;
   } | null,
   personImageUrl: string,
   productImageUrl: string | null,
@@ -1028,7 +1191,8 @@ async function _generatePromptsInternal(
     }
   }
 
- const talkHeadContext = userDialogue
+  const sellingRequirements = productContext?.selling_requirements?.trim() || '';
+  const talkHeadContext = userDialogue
     ? `The user provided this custom script: "${userDialogue.replace(/"/g, '\\"')}"
 
 CRITICAL SCRIPT SPLITTING RULES:
@@ -1074,6 +1238,7 @@ Structure rules:
 
 Content rules:
 - Base all visual writing on the images and user script.
+- In product ad mode, user selling requirements are creative direction only: explain those benefits naturally, but do not read the requirement text verbatim unless the user explicitly wrote a quoted script.
 - Write concrete, shootable UGC details.
 - Avoid generic stock phrases and repeated beats.
 - "voice_type" must match the perceived person in the image and the selected language.
@@ -1096,7 +1261,7 @@ Your job:
 - make it feel like a real UGC product-selling video prompt, not a template
 
 ${productContext?.product_name ? `Product context: ${productContext.product_name}` : ''}
-${userDialogue ? `User script: "${userDialogue.replace(/"/g, '\\"')}"` : ''}
+${sellingRequirements ? `User selling requirements: "${sellingRequirements.replace(/"/g, '\\"')}"` : ''}
 
 ${commonStructuredRules}`.trim();
 
@@ -1131,7 +1296,7 @@ ${commonStructuredRules}`.trim();
           type: 'text',
           text: isTalkingHeadMode
             ? `Generate prompts for this character speaking directly to camera.\nPERSON IMAGE: Analyze for gender, age, and style.\n${productContext?.talking_head_script ? `Talking Head Context: ${productContext.talking_head_script}` : ''}`
-            : `Generate prompts for this character and product:\n\nPERSON IMAGE: Analyze for gender, age, style\nPRODUCT IMAGE: Identify the product\n\n${productContext?.product_name ? `Product Name: ${productContext.product_name}` : ''}`
+            : `Generate prompts for this character and product:\n\nPERSON IMAGE: Analyze for gender, age, style\nPRODUCT IMAGE: Identify the product\n\n${productContext?.product_name ? `Product Name: ${productContext.product_name}` : ''}\n${sellingRequirements ? `Selling Requirements: ${sellingRequirements}` : 'Create product-selling dialogue from the product image and context.'}`
         },
         { type: 'image_url', image_url: { url: personImageUrl } },
         ...(!isTalkingHeadMode && productImageUrl ? [{ type: 'image_url', image_url: { url: productImageUrl } }] : [])
@@ -1180,12 +1345,21 @@ ${commonStructuredRules}`.trim();
       model: resolvedModel,
       avatarName: options?.avatarName,
       productName: productContext?.product_name,
-      fallbackScriptSource: scriptSource,
+      fallbackScriptSource: isTalkingHeadMode ? scriptSource : (sellingRequirements || scriptSource),
       hasProductContext: !isTalkingHeadMode,
     });
 
     if (normalized) {
-      return normalized;
+      return isAvatarAdsSeedanceStoryboardModel(resolvedModel)
+        ? buildAvatarAdsStoryboardMode({
+            prompts: normalized,
+            model: resolvedModel,
+            videoDurationSeconds,
+            avatarName: options?.avatarName,
+            productName: productContext?.product_name,
+            sellingRequirements
+          })
+        : normalized;
     }
 
     const legacyFallback = buildAvatarGeneratedPrompts({
@@ -1201,7 +1375,7 @@ ${commonStructuredRules}`.trim();
       productName: productContext?.product_name
     });
 
-    return {
+    const fallbackPrompts = {
       ...legacyFallback.generatedPrompts,
       language: languageName,
       resolved_spoken_language: languageCode,
@@ -1210,6 +1384,16 @@ ${commonStructuredRules}`.trim();
         prompt: scene.prompt
       }))
     };
+    return isAvatarAdsSeedanceStoryboardModel(resolvedModel)
+      ? buildAvatarAdsStoryboardMode({
+          prompts: fallbackPrompts,
+          model: resolvedModel,
+          videoDurationSeconds,
+          avatarName: options?.avatarName,
+          productName: productContext?.product_name,
+          sellingRequirements
+        })
+      : fallbackPrompts;
   } catch (error) {
     console.error('Failed to parse OpenRouter response:', data.choices?.[0]?.message?.content);
     console.error('Parse error:', error);
@@ -1452,6 +1636,12 @@ export async function generateVideoWithKIE(
   const finalPrompt = isStructuredExecutionPrompt
     ? basePrompt
     : `Spoken Language: ${languageName}\n\n${basePrompt}`;
+  const seedanceStoryboardPrompt = options?.referenceWorkflow && isAvatarAdsSeedanceStoryboardModel(resolvedModel)
+    ? buildAvatarAdsSeedanceStoryboardVideoPrompt({
+        sceneNumber: options.sceneNumber,
+        finalPrompt,
+      })
+    : finalPrompt;
   const durationSeconds = (() => {
     const inputDuration = options?.durationSeconds && options.durationSeconds > 0
       ? options.durationSeconds
@@ -1532,9 +1722,13 @@ export async function generateVideoWithKIE(
       model: getSeedanceKieVideoModelId(resolvedModel),
       ...(callBackUrl ? { callBackUrl } : {}),
       input: buildSeedanceAvatarAdsVideoInput({
-        prompt: finalPrompt,
+        prompt: seedanceStoryboardPrompt,
         referenceImageUrls: selectedReferenceImages,
         durationSeconds,
+        model: resolvedModel === 'seedance_2' || resolvedModel === 'seedance_2_mini'
+          ? resolvedModel
+          : 'seedance_2_fast',
+        resolution: options?.videoQuality,
       })
     };
   })();
@@ -1840,7 +2034,7 @@ export async function processAvatarAdsProject(
 
         // ✅ Fix Bug 2: Direct Gemini analysis - no separate person analysis or gender detection
         const rawPrompts = await generatePrompts(
-          productContext as { product_name?: string; talking_head_script?: string } | null,
+          productContext as { product_name?: string; talking_head_script?: string; selling_requirements?: string } | null,
           personImageUrl,
           productImageUrl,
           project.video_duration_seconds,
@@ -1855,16 +2049,19 @@ export async function processAvatarAdsProject(
         const prompts = options?.agentReferenceWorkflow
           ? markAvatarPromptsForAgentReferenceWorkflow(rawPrompts as Record<string, unknown>)
           : rawPrompts;
+        const hasStoryboardMode = isAvatarAdsStoryboardMode(prompts as Record<string, unknown>);
         const resolvedVideoModel = resolveAvatarAdsVideoModel(project);
         const resolvedSpokenLanguage = typeof (prompts as { resolved_spoken_language?: unknown }).resolved_spoken_language === 'string'
           ? (prompts as { resolved_spoken_language?: string }).resolved_spoken_language
           : project.language;
-        const plannedDurationSeconds = getAvatarPlannedTotalDurationSeconds(
-          prompts as Record<string, unknown>,
-          resolvedVideoModel,
-          project.video_duration_seconds,
-          resolvedSpokenLanguage
-        );
+        const plannedDurationSeconds = hasStoryboardMode && isAvatarAdsSeedanceStoryboardModel(resolvedVideoModel)
+          ? AVATAR_ADS_SEEDANCE_STORYBOARD_DURATION_SECONDS
+          : getAvatarPlannedTotalDurationSeconds(
+              prompts as Record<string, unknown>,
+              resolvedVideoModel,
+              project.video_duration_seconds,
+              resolvedSpokenLanguage
+            );
         const plannedCreditsCost = getGenerationCost(
           resolvedVideoModel,
           String(plannedDurationSeconds),
@@ -1898,7 +2095,7 @@ export async function processAvatarAdsProject(
           .from('avatar_ads_projects')
           .update({
             generated_prompts: prompts,
-            image_prompt: options?.agentReferenceWorkflow
+            image_prompt: options?.agentReferenceWorkflow && !hasStoryboardMode
               ? null
               : (prompts as { image_prompt?: string }).image_prompt, // Store project-level image prompt
             language: typeof resolvedSpokenLanguage === 'string' ? resolvedSpokenLanguage : project.language,
@@ -1986,11 +2183,22 @@ export async function processAvatarAdsProject(
         const status = await checkKIEImageTaskStatus(project.kie_image_task_id);
 
         if (status.status === 'completed' && status.result_url) {
+          const nextGeneratedPrompts = project.generated_prompts && isAvatarAdsStoryboardMode(project.generated_prompts)
+            ? {
+                ...project.generated_prompts,
+                storyboard_mode: {
+                  ...((project.generated_prompts as { storyboard_mode?: Record<string, unknown> }).storyboard_mode || {}),
+                  storyboard_task_id: project.kie_image_task_id || null,
+                  storyboard_image_url: status.result_url,
+                }
+              }
+            : project.generated_prompts;
           // Image generation completed
           const { data: updatedProject, error } = await supabase
             .from('avatar_ads_projects')
             .update({
               generated_image_url: status.result_url,
+              generated_prompts: nextGeneratedPrompts,
               status: 'awaiting_review', // Changed from generating_videos to awaiting_review
               current_step: 'reviewing', // Changed from generating_videos to reviewing
               progress_percentage: 75,
@@ -2027,12 +2235,14 @@ export async function processAvatarAdsProject(
         const promptScenes = getAvatarPromptScenes(project.generated_prompts);
         const videoScenes = promptScenes.length;
         const resolvedVideoModel = resolveAvatarAdsVideoModel(project);
-        const plannedDurationSeconds = getAvatarPlannedTotalDurationSeconds(
-          project.generated_prompts,
-          resolvedVideoModel,
-          project.video_duration_seconds,
-          project.language
-        );
+        const plannedDurationSeconds = isAvatarAdsStoryboardMode(project.generated_prompts) && isAvatarAdsSeedanceStoryboardModel(resolvedVideoModel)
+          ? AVATAR_ADS_SEEDANCE_STORYBOARD_DURATION_SECONDS
+          : getAvatarPlannedTotalDurationSeconds(
+              project.generated_prompts,
+              resolvedVideoModel,
+              project.video_duration_seconds,
+              project.language
+            );
         const generationCost = getGenerationCost(
           resolvedVideoModel,
           String(plannedDurationSeconds),
@@ -2097,11 +2307,7 @@ export async function processAvatarAdsProject(
         const paidGenerationCost = generationCost;
 
         const isReferenceWorkflow = isAgentReferenceAvatarWorkflow(project);
-        const referenceImageUrls = isReferenceWorkflow
-          ? getAvatarAdsReferenceImageUrls(project)
-          : project.generated_image_url
-            ? [project.generated_image_url, project.generated_image_url]
-            : [];
+        const referenceImageUrls = getAvatarAdsVideoReferenceImageUrls(project);
 
         // Step 4: Generate video scenes using KIE
         if (referenceImageUrls.length === 0) {
@@ -2179,7 +2385,7 @@ export async function processAvatarAdsProject(
                 language: project.language
               }),
               avatarGender: project.avatar_gender,
-              referenceWorkflow: isReferenceWorkflow,
+              referenceWorkflow: isReferenceWorkflow || isAvatarAdsStoryboardMode(project.generated_prompts),
               videoQuality: project.video_quality,
               moderationExternalId: `user_${project.user_id}:avatar_ads_${project.id}:scene_${i}:video`
             }
@@ -2275,9 +2481,7 @@ export async function processAvatarAdsProject(
                 // Regenerate video task using updated generation logic (handles both structured and legacy)
                 const { taskId: newTaskId } = await generateVideoWithKIE(
                   videoPrompt as Record<string, unknown>,
-                  isAgentReferenceAvatarWorkflow(project)
-                    ? getAvatarAdsReferenceImageUrls(project)
-                    : [project.generated_image_url!, project.generated_image_url!],
+                  getAvatarAdsVideoReferenceImageUrls(project),
                   project.video_aspect_ratio as '16:9' | '9:16' | undefined,
                   project.language,
                   {
@@ -2289,7 +2493,7 @@ export async function processAvatarAdsProject(
                       totalScenes: promptScenes.length,
                       language: project.language
                     }),
-                    referenceWorkflow: isAgentReferenceAvatarWorkflow(project),
+                    referenceWorkflow: isAgentReferenceAvatarWorkflow(project) || isAvatarAdsStoryboardMode(project.generated_prompts),
                     videoQuality: project.video_quality,
                     moderationExternalId: `user_${project.user_id}:avatar_ads_${project.id}:scene_${i + 1}:video_retry`
                   }
@@ -2563,3 +2767,14 @@ export async function processAvatarAdsProject(
     throw error;
   }
 }
+
+export const __test__ = {
+  buildAvatarAdsStoryboardMode,
+  buildAvatarAdsSeedanceStoryboardVideoPrompt,
+  getAvatarAdsVideoReferenceImageUrls,
+};
+
+export {
+  AVATAR_ADS_SEEDANCE_STORYBOARD_DURATION_SECONDS,
+  isAvatarAdsSeedanceStoryboardModel,
+};
