@@ -22,6 +22,19 @@ import "@fontsource/plus-jakarta-sans/600.css";
 import "@fontsource/plus-jakarta-sans/700.css";
 import "./globals.css";
 
+const LEGACY_CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsuZmxvd3RyYS5zdG9yZSQ";
+const FLOWTRA_CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsuZmxvd3RyYS5haSQ=";
+
+function resolveClerkPublishableKey() {
+  const configuredKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+  if (configuredKey === LEGACY_CLERK_PUBLISHABLE_KEY) {
+    return FLOWTRA_CLERK_PUBLISHABLE_KEY;
+  }
+
+  return configuredKey;
+}
+
 export const metadata: Metadata = {
   title: "Turn Viral Videos Into Your Own with AI - Flowtra | Clone TikTok & Instagram Ads",
   description: "Turn viral TikTok ads and Instagram Reels into your own with AI. Clone proven UGC videos for your products. From $0.30/8s. No editing skills needed.",
@@ -160,6 +173,7 @@ export default async function RootLayout({
 
   return (
     <ClerkProvider
+      publishableKey={resolveClerkPublishableKey()}
       signInFallbackRedirectUrl="/dashboard"
       signUpFallbackRedirectUrl="/dashboard"
       signInUrl="/sign-in"
