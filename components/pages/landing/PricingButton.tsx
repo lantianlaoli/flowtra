@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { SignInButton, useUser } from '@clerk/nextjs';
+import { SignUpButton, useUser } from '@clerk/nextjs';
 import { handleCreemCheckout } from '@/lib/payment';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { trackEvent } from '@/lib/analytics/client';
@@ -68,7 +68,7 @@ export function PricingButton({ packageName, label }: PricingButtonProps) {
 
   if (!user) {
     return (
-      <SignInButton mode="modal" forceRedirectUrl="/dashboard">
+      <SignUpButton mode="modal" forceRedirectUrl="/dashboard">
         <button
           className={purchaseButtonClass}
           onClick={() => {
@@ -82,7 +82,7 @@ export function PricingButton({ packageName, label }: PricingButtonProps) {
         >
           {label ?? buttonMessages.getStarted}
         </button>
-      </SignInButton>
+      </SignUpButton>
     );
   }
 

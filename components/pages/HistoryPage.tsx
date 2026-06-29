@@ -340,102 +340,12 @@ export default function HistoryPage({ embedded = false, active = true }: { embed
     void fetchHistory();
   }, [active, fetchHistory]);
 
-  // Poll for processing updates while there are in-progress items
-  const hasProcessing = history.some(h => h.status === 'processing');
-  useEffect(() => {
-    if (!user?.id) return;
-    if (!hasProcessing) return;
-
-    let isCancelled = false;
-    const poll = async () => {
-      try {
-        const videoResponse = await fetch('/api/history');
-        const videoResult = await videoResponse.json();
-
-        if (!isCancelled) {
-          const combinedHistory: HistoryItem[] = videoResult.success ? videoResult.history : [];
-
-          // Sort by creation date
-          combinedHistory.sort((a, b) => {
-            const aDate = a.createdAt;
-            const bDate = b.createdAt;
-            return new Date(bDate).getTime() - new Date(aDate).getTime();
-          });
-
-          setHistory(combinedHistory);
-        }
-      } catch (err) {
-        console.warn('Polling history failed:', err);
-      }
-    };
-
-    const interval = setInterval(poll, 3000);
-    // Do an immediate poll to reduce perceived latency
-    poll();
-    return () => {
-      isCancelled = true;
-      clearInterval(interval);
-    };
-  }, [user?.id, hasProcessing]);
-
   useEffect(() => {
     if (!user?.id) return;
 
     const channels: RealtimeChannel[] = [];
-
-    const updateHighResUrls = (
-      item: AvatarAdsItem | VideoCloneItem,
-      merged1080p?: string | null,
-      merged4k?: string | null
-    ) => {
-      let changed = false;
-      const next = { ...item };
-
-      if (merged1080p && item.videoUrl1080p !== merged1080p) {
-        next.videoUrl1080p = merged1080p;
-        changed = true;
-      }
-
-      if (merged4k && item.videoUrl4k !== merged4k) {
-        next.videoUrl4k = merged4k;
-        changed = true;
-      }
-
-      return changed ? next : item;
-    };
-
-    const handleAvatarUpdate = (payload: { new: Record<string, unknown> }) => {
-      const record = payload.new;
-      const projectId = record?.id as string | undefined;
-      if (!projectId) return;
-
-      setHistory((prev) =>
-        prev.map((item) => {
-          if (!isCharacterAds(item) || item.id !== projectId) return item;
-          return updateHighResUrls(
-            item,
-            record.merged_video_1080p_url as string | undefined,
-            record.merged_video_4k_url as string | undefined
-          );
-        })
-      );
-    };
-
-    const handleUgcUpdate = (payload: { new: Record<string, unknown> }) => {
-      const record = payload.new;
-      const projectId = record?.id as string | undefined;
-      if (!projectId) return;
-
-      setHistory((prev) =>
-        prev.map((item) => {
-          if (!isVideoClone(item) || item.id !== projectId) return item;
-          return updateHighResUrls(
-            item,
-            record.merged_video_1080p_url as string | undefined,
-            record.merged_video_4k_url as string | undefined
-          );
-        })
-      );
+    const refreshFromRealtime = () => {
+      void fetchHistory();
     };
 
     const avatarChannel = supabase
@@ -443,12 +353,12 @@ export default function HistoryPage({ embedded = false, active = true }: { embed
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
           table: 'avatar_ads_projects',
           filter: `user_id=eq.${user.id}`
         },
-        handleAvatarUpdate
+        refreshFromRealtime
       )
       .subscribe();
 
@@ -459,12 +369,12 @@ export default function HistoryPage({ embedded = false, active = true }: { embed
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
           table: 'video_clone_projects',
           filter: `user_id=eq.${user.id}`
         },
-        handleUgcUpdate
+        refreshFromRealtime
       )
       .subscribe();
 
@@ -475,7 +385,7 @@ export default function HistoryPage({ embedded = false, active = true }: { embed
         supabase.removeChannel(channel);
       });
     };
-  }, [supabase, user?.id]);
+  }, [fetchHistory, supabase, user?.id]);
 
   // Reset to first page when filter changes
   useEffect(() => {

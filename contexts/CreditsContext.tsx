@@ -4,7 +4,10 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { useUser } from '@clerk/nextjs';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import { RealtimeChannel } from '@supabase/supabase-js';
-import type { UserCredits } from '@/lib/supabase';
+import {
+  CREDIT_BALANCE_REALTIME_EVENTS,
+  readCreditsRealtimeBalance,
+} from '@/lib/credits-realtime';
 
 interface CreditsData {
   credits_remaining: number;
@@ -203,7 +206,9 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
     }
   }, [user?.id, isLoaded, credits, fetchCredits]);
 
-  // Set up Realtime subscription for credit updates
+  // Schema verified via Supabase MCP (2026-06-29):
+  // public.user_credits has user_id and credits_remaining.
+  // Set up one Realtime subscription for credit balance display updates.
   useEffect(() => {
     if (!user?.id) {
       // Cleanup if user logs out
@@ -214,31 +219,34 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
       return;
     }
 
-    // Only set up subscription after initial fetch completes (credits is no longer undefined)
-    if (credits === undefined) {
-      return;
-    }
-
     const channel = supabase
       .channel(`user-credits:${user.id}`)
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
           table: 'user_credits',
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
+          if (!CREDIT_BALANCE_REALTIME_EVENTS.includes(payload.eventType as typeof CREDIT_BALANCE_REALTIME_EVENTS[number])) {
+            return;
+          }
+
+          const newCreditsRemaining = readCreditsRealtimeBalance(payload.new);
+          if (newCreditsRemaining === undefined) {
+            return;
+          }
+
           console.log('[Credits Realtime] Credits updated:', payload.new);
 
-          if (payload.new && isMountedRef.current) {
-            const newCredits = payload.new as UserCredits;
-            writeCachedCredits(user.id, newCredits.credits_remaining);
+          if (isMountedRef.current) {
+            writeCachedCredits(user.id, newCreditsRemaining);
             setCreditsData({
-              credits_remaining: newCredits.credits_remaining,
+              credits_remaining: newCreditsRemaining,
             });
-            setCredits(newCredits.credits_remaining);
+            setCredits(newCreditsRemaining);
           }
         }
       )
@@ -258,7 +266,7 @@ export function CreditsProvider({ children }: CreditsProviderProps) {
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [credits, supabase, user?.id]);
+  }, [supabase, user?.id]);
 
   const refetchCredits = async () => {
     await fetchCredits();

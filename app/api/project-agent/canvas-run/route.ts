@@ -245,9 +245,9 @@ const chargeCredits = async (
 const assertAvatarCredits = async (userId: string, body: CanvasRunRequestBody, runCount = 1) => {
   const avatar = ensureAsset(body.connectedAssets?.avatar, 'Avatar');
   const product = body.connectedAssets?.product || null;
-  const text = ensureAsset(body.connectedAssets?.text, 'Text');
-  const customDialogue = text.content?.trim() || '';
-  const resolvedSpokenLanguage = await resolveAgentAvatarSpokenLanguage(customDialogue, body.config);
+  const text = body.connectedAssets?.text || null;
+  const customDialogue = text?.content?.trim() || '';
+  const resolvedSpokenLanguage = await resolveAgentAvatarSpokenLanguage(product ? '' : customDialogue, body.config);
   const payload = buildAvatarAdsStartPayload({
     avatar,
     product,
@@ -458,10 +458,10 @@ const startAvatarAds = async (
 ) => {
   const avatar = ensureAsset(body.connectedAssets?.avatar, 'Avatar');
   const product = body.connectedAssets?.product || null;
-  const text = ensureAsset(body.connectedAssets?.text, 'Text');
-  const customDialogue = text.content?.trim() || '';
+  const text = body.connectedAssets?.text || null;
+  const customDialogue = text?.content?.trim() || '';
   const spokenLanguage = resolvedSpokenLanguage
-    || await resolveAgentAvatarSpokenLanguage(customDialogue, body.config);
+    || await resolveAgentAvatarSpokenLanguage(product ? '' : customDialogue, body.config);
   const payload = buildAvatarAdsStartPayload({
     avatar,
     product,
@@ -487,6 +487,9 @@ const startAvatarAds = async (
   }
   if (payload.customDialogue) {
     formData.set('custom_dialogue', payload.customDialogue);
+  }
+  if (payload.sellingRequirements) {
+    formData.set('selling_requirements', payload.sellingRequirements);
   }
   if (payload.talkingHeadMode) {
     formData.set('talking_head_mode', 'true');
@@ -515,7 +518,7 @@ const startAvatarAds = async (
       payload.videoModel,
       typeof project?.video_duration_seconds === 'number'
         ? project.video_duration_seconds
-        : Number(body.config?.videoDuration || '16')
+        : Number(body.config?.videoDuration || '15')
     );
 
     if (status.nextAction === 'generate_avatar_cover') {

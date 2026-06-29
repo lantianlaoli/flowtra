@@ -1,6 +1,4 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
-import { NextResponse } from 'next/server'
-import { hasUserPurchased } from '@/lib/credits'
 
 // Define protected routes that require authentication
 const isProtectedRoute = createRouteMatcher([
@@ -8,11 +6,6 @@ const isProtectedRoute = createRouteMatcher([
   '/api/create-checkout(.*)',
   '/api/credits(.*)',
   '/api/upload(.*)'
-])
-
-// Routes that require purchase (all dashboard routes except select-plan)
-const isPurchaseRequiredRoute = createRouteMatcher([
-  '/dashboard(.*)'
 ])
 
 export default clerkMiddleware(async (auth, req) => {

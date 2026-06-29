@@ -160,8 +160,8 @@ export default async function RootLayout({
 
   return (
     <ClerkProvider
-      signUpForceRedirectUrl="/select-plan"
       signInFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/dashboard"
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
     >

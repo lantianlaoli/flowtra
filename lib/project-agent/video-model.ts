@@ -17,7 +17,7 @@ export function getProjectAgentVideoModels(
     return getProjectAgentVideoCloneAllowedModels(cloneMode);
   }
   if (intent === 'avatar_ads') {
-    return ['seedance_2_fast', 'seedance_2_mini', 'seedance_2', 'kling_3', 'wan_27'];
+    return ['seedance_2_fast', 'seedance_2_mini', 'seedance_2'];
   }
   if (intent === 'motion_clone') {
     return ['kling_3'];

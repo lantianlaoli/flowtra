@@ -5,10 +5,11 @@ import { uploadImageToStorage } from '@/lib/supabase';
 import {
   GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL,
   getGenerationCost,
-  getModelSupportedDurations,
   KLING_MAX_PROJECT_DURATION_SECONDS,
   KLING_MIN_TASK_DURATION_SECONDS,
   normalizeCloneVideoQualityForModel,
+  SEEDANCE_MAX_PROJECT_DURATION_SECONDS,
+  SEEDANCE_MIN_TASK_DURATION_SECONDS,
   type PersistedVideoQuality,
   type VideoModel
 } from '@/lib/constants';
@@ -21,10 +22,11 @@ import { resolveAvatarSpokenLanguage } from '@/lib/avatar-spoken-language';
 import { isSystemProductId } from '@/lib/default-products';
 import { resolveProductForUser } from '@/lib/product-resolution';
 import { estimateAvatarAdsSingleSceneDurationSeconds } from '@/lib/avatar-ads-duration-estimate';
+import { normalizeAvatarAdsStoryboardDurationSeconds } from '@/lib/avatar-ads-storyboard';
 
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const AVATAR_ADS_PERSISTED_IMAGE_MODEL = GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL;
-const PUBLIC_AVATAR_ADS_VIDEO_MODELS: VideoModel[] = ['seedance_2_fast', 'seedance_2_mini', 'kling_3', 'wan_27'];
+const PUBLIC_AVATAR_ADS_VIDEO_MODELS: VideoModel[] = ['seedance_2_fast', 'seedance_2', 'seedance_2_mini', 'kling_3', 'wan_27'];
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,6 +65,7 @@ export async function POST(request: NextRequest) {
     const videoModel = formData.get('video_model') as string;
     const videoQuality = (formData.get('video_quality') as PersistedVideoQuality | null) || null;
     const customDialogue = (formData.get('custom_dialogue') as string) || '';
+    const sellingRequirements = ((formData.get('selling_requirements') as string | null) || '').trim();
     const videoAspectRatio = '9:16';
     const selectedPersonPhotoUrl = formData.get('selected_person_photo_url') as string;
     const avatarName = formData.get('avatar_name') as string | null;
@@ -140,22 +143,24 @@ export async function POST(request: NextRequest) {
     }
 
     const requestedVideoModel = videoModel as VideoModel;
-    const supportedDurations = new Set(getModelSupportedDurations(requestedVideoModel));
-    const normalizedDuration = String(videoDurationSeconds);
-    const isAgentKlingDuration = (
-      isInternalAgentRequest &&
-      requestedVideoModel === 'kling_3' &&
-      Number.isFinite(videoDurationSeconds) &&
-      videoDurationSeconds >= KLING_MIN_TASK_DURATION_SECONDS &&
-      videoDurationSeconds <= KLING_MAX_PROJECT_DURATION_SECONDS
-    );
+    const projectMaxDuration = requestedVideoModel === 'kling_3'
+      ? KLING_MAX_PROJECT_DURATION_SECONDS
+      : requestedVideoModel === 'wan_27'
+        ? 15
+        : SEEDANCE_MAX_PROJECT_DURATION_SECONDS;
+    const projectMinDuration = requestedVideoModel === 'kling_3'
+      ? KLING_MIN_TASK_DURATION_SECONDS
+      : requestedVideoModel === 'wan_27'
+        ? 2
+        : SEEDANCE_MIN_TASK_DURATION_SECONDS;
 
     if (
-      !supportedDurations.has(normalizedDuration as ReturnType<typeof getModelSupportedDurations>[number]) &&
-      !isAgentKlingDuration
+      !Number.isFinite(videoDurationSeconds) ||
+      videoDurationSeconds < projectMinDuration ||
+      videoDurationSeconds > projectMaxDuration
     ) {
       return NextResponse.json(
-        { error: `Invalid video duration for ${requestedVideoModel}` },
+        { error: `Video duration must be between ${projectMinDuration} and ${projectMaxDuration} seconds for ${requestedVideoModel}` },
         { status: 400 }
       );
     }
@@ -184,6 +189,7 @@ export async function POST(request: NextRequest) {
     let productContext: {
       product_name?: string;
       talking_head_script?: string;
+      selling_requirements?: string;
     } | null = null;
 
     if (selectedProductId) {
@@ -251,7 +257,7 @@ export async function POST(request: NextRequest) {
     talkingHeadMode = !hasProductAssets;
     const trimmedDialogue = (customDialogue || '').trim();
 
-    if (!trimmedDialogue) {
+    if (talkingHeadMode && !trimmedDialogue) {
       return NextResponse.json(
         { error: 'Dialogue is required.' },
         { status: 400 }
@@ -278,6 +284,12 @@ export async function POST(request: NextRequest) {
         talking_head_script: `Talking head delivery. Have the character speak directly to camera and read this script verbatim: ${trimmedDialogue}`
       };
     }
+    if (!talkingHeadMode && sellingRequirements) {
+      productContext = {
+        ...(productContext || {}),
+        selling_requirements: sellingRequirements
+      };
+    }
 
     // Upload product images to Supabase if we have files
     for (let i = 0; i < productFiles.length; i++) {
@@ -290,15 +302,19 @@ export async function POST(request: NextRequest) {
     const resolvedVideoModel: VideoModel = PUBLIC_AVATAR_ADS_VIDEO_MODELS.includes(requestedVideoModel)
       ? requestedVideoModel
       : 'seedance_2_fast';
-    const normalizedVideoDurationSeconds = prebuiltPrompts
+    const baseVideoDurationSeconds = prebuiltPrompts
       ? videoDurationSeconds
       : (
-        estimateAvatarAdsSingleSceneDurationSeconds(
-          trimmedDialogue,
-          resolvedVideoModel,
-          resolvedSpokenLanguage
-        ) || videoDurationSeconds
-      );
+          estimateAvatarAdsSingleSceneDurationSeconds(
+            talkingHeadMode ? trimmedDialogue : '',
+            resolvedVideoModel,
+            resolvedSpokenLanguage
+          ) || videoDurationSeconds
+        );
+    const normalizedVideoDurationSeconds = normalizeAvatarAdsStoryboardDurationSeconds(
+      resolvedVideoModel,
+      baseVideoDurationSeconds
+    );
     const normalizedVideoQuality = normalizeCloneVideoQualityForModel(resolvedVideoModel, videoQuality);
     const totalCredits = getGenerationCost(
       resolvedVideoModel,

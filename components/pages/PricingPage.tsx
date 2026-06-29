@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
-import { useUser, SignInButton } from '@clerk/nextjs';
+import { useUser, SignUpButton } from '@clerk/nextjs';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { CREDIT_COSTS } from '@/lib/constants';
@@ -144,11 +144,11 @@ export default function PricingPage() {
       : "w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer";
 
     return (
-      <SignInButton mode="modal" forceRedirectUrl="/dashboard">
+      <SignUpButton mode="modal" forceRedirectUrl="/dashboard">
         <button className={buttonClass}>
           Get Started
         </button>
-      </SignInButton>
+      </SignUpButton>
     );
   };
 

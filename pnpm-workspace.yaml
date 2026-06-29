@@ -1,2 +1,9 @@
-onlyBuiltDependencies:
-  - ffmpeg-static
+allowBuilds:
+  '@clerk/shared': true
+  '@openrouter/sdk': true
+  core-js: true
+  esbuild: true
+  ffmpeg-static: true
+  protobufjs: true
+  sharp: true
+  unrs-resolver: true

@@ -26,6 +26,7 @@ import {
 import { AvatarAdInspector, StructuredVideoPrompt } from '@/components/avatar-ads/AvatarAdInspector';
 import { resolveAvatarSpokenLanguage } from '@/lib/avatar-spoken-language';
 import { estimateAvatarAdsSingleSceneDurationSeconds } from '@/lib/avatar-ads-duration-estimate';
+import { normalizeAvatarAdsStoryboardDurationSeconds } from '@/lib/avatar-ads-storyboard';
 import { type Format } from '@/components/ui/FormatSelector';
 import { useSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -366,10 +367,16 @@ const formatDurationLabel = (seconds: number) => {
       resolvedDialogueLanguage
     );
     if (estimatedSeconds <= 0) {
-      return String(getSegmentDurationForModel(selectedModel)) as VideoDuration;
+      return String(normalizeAvatarAdsStoryboardDurationSeconds(
+        selectedModel,
+        getSegmentDurationForModel(selectedModel)
+      )) as VideoDuration;
     }
 
-    return snapDurationToModel(selectedModel, estimatedSeconds);
+    return String(normalizeAvatarAdsStoryboardDurationSeconds(
+      selectedModel,
+      Number(snapDurationToModel(selectedModel, estimatedSeconds))
+    )) as VideoDuration;
   }, [customDialogue, resolvedDialogueLanguage, selectedModel]);
   // Calculate required credits for the current duration selection
   const requiredCredits = useMemo(() => {
@@ -1472,7 +1479,6 @@ const formatDurationLabel = (seconds: number) => {
               hideFormatSelector={true}
               variant="minimal"
               videoDuration={videoDuration}
-              hiddenModels={['seedance_2']}
             />
           }
           onGenerate={handleStartGeneration}

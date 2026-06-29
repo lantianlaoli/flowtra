@@ -275,7 +275,9 @@ export const PROJECT_AGENT_FEATURE_ANY_OF_INPUTS: Partial<Record<
 export const PROJECT_AGENT_FEATURE_OPTIONAL_INPUTS: Partial<Record<
   ProjectAgentFeatureNodeType,
   ProjectAgentAssetNodeType[]
->> = {};
+>> = {
+  avatar_ads: ['text'],
+};
 
 // Ordered list of input slots shown on the left edge of each feature card.
 // Order is the same as PROJECT_AGENT_FEATURE_INPUTS for that feature.
@@ -395,7 +397,7 @@ export const createProjectAgentFeatureNode = (input: {
   config: {
     aspectRatio: '9:16',
     language: 'en',
-    videoDuration: input.type === 'avatar_ads' ? '16' : '8',
+    videoDuration: input.type === 'avatar_ads' ? '15' : '8',
     videoModel: input.type === 'avatar_ads'
       ? 'seedance_2_fast'
       : input.type === 'video_clone'

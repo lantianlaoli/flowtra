@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { data: project, error: fetchError } = await supabase
       .from('avatar_ads_projects')
-      .select('id, user_id, status, webhook_received_at')
+      .select('id, user_id, status, webhook_received_at, generated_prompts, kie_image_task_id')
       .eq('kie_image_task_id', taskId)
       .single();
 
@@ -71,10 +71,25 @@ export async function POST(request: NextRequest) {
 
     // Update project based on webhook status
     if (code === 200 && state === 'success' && imageUrl) {
+      const generatedPrompts = project.generated_prompts && typeof project.generated_prompts === 'object'
+        ? project.generated_prompts as Record<string, unknown>
+        : null;
+      const nextGeneratedPrompts = generatedPrompts?.storyboard_mode &&
+        typeof generatedPrompts.storyboard_mode === 'object'
+          ? {
+              ...generatedPrompts,
+              storyboard_mode: {
+                ...(generatedPrompts.storyboard_mode as Record<string, unknown>),
+                storyboard_task_id: project.kie_image_task_id || null,
+                storyboard_image_url: imageUrl,
+              }
+            }
+          : project.generated_prompts;
       const { error: updateError } = await supabase
         .from('avatar_ads_projects')
         .update({
           generated_image_url: imageUrl,
+          generated_prompts: nextGeneratedPrompts,
           status: 'awaiting_review',
           current_step: 'reviewing',
           progress_percentage: 60,

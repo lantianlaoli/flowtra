@@ -942,29 +942,6 @@ export default function ProjectAgentPage() {
   }, [canvas.nodes, fetchNodeStatus, supabase]);
 
   useEffect(() => {
-    const activeRuntimeNodes = canvas.nodes.filter((node) => (
-      isProjectAgentFeatureNode(node.type) &&
-      typeof node.runtime?.projectId === 'string' &&
-      node.runtime.projectId.length > 0 &&
-      isProjectAgentRuntimeActive(node.runtime)
-    ));
-
-    if (activeRuntimeNodes.length === 0) return;
-
-    const interval = window.setInterval(() => {
-      activeRuntimeNodes.forEach((node) => {
-        const projectId = node.runtime?.projectId;
-        if (!projectId) return;
-        void fetchNodeStatus(node.id, node.type as ProjectAgentFeatureNodeType, projectId);
-      });
-    }, 4000);
-
-    return () => {
-      window.clearInterval(interval);
-    };
-  }, [canvas.nodes, fetchNodeStatus]);
-
-  useEffect(() => {
     const subscriptions = subscriptionsRef.current;
     const supabaseClient = supabase;
 

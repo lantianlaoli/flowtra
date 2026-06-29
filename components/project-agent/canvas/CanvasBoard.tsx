@@ -81,6 +81,7 @@ import {
   getInstructionSemanticPresentation,
   getInstructionSemanticRole,
 } from '@/lib/project-agent/instruction-semantics';
+import { normalizeAvatarAdsStoryboardDurationSeconds } from '@/lib/avatar-ads-storyboard';
 import {
   getProjectAgentVideoCloneAllowedModels,
   getProjectAgentVideoCloneDurationSeconds,
@@ -97,6 +98,10 @@ import {
   getEffectiveProjectAgentVideoQuality,
   getProjectAgentAllowedVideoQualities,
 } from '@/lib/project-agent/video-quality';
+import {
+  PROJECT_AGENT_RUNNING_MESSAGES,
+  getNextProjectAgentRunningMessage,
+} from '@/lib/project-agent/running-copy';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 type CanvasBoardProps = {
@@ -320,6 +325,74 @@ function AgentOutputFeedbackButtons({
   );
 }
 
+function AnimatedCreditAmount({
+  value,
+  shouldReduceMotion,
+}: {
+  value: number;
+  shouldReduceMotion: boolean;
+}) {
+  const previousValueRef = useRef(value);
+  const direction = value >= previousValueRef.current ? 1 : -1;
+
+  useEffect(() => {
+    previousValueRef.current = value;
+  }, [value]);
+
+  return (
+    <span className="relative inline-flex h-3 min-w-[4ch] items-center justify-end overflow-hidden tabular-nums">
+      <AnimatePresence initial={false} mode="popLayout">
+        <motion.span
+          key={value}
+          animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, filter: 'blur(0px)' }}
+          className="inline-block"
+          exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -direction * 7, filter: 'blur(2px)' }}
+          initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: direction * 7, filter: 'blur(2px)' }}
+          transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
+        >
+          {value}
+        </motion.span>
+      </AnimatePresence>
+    </span>
+  );
+}
+
+function RunningStatusPill({
+  shouldReduceMotion,
+}: {
+  shouldReduceMotion: boolean;
+}) {
+  const [message, setMessage] = useState<string>(PROJECT_AGENT_RUNNING_MESSAGES[0]);
+
+  useEffect(() => {
+    if (shouldReduceMotion) return;
+    const interval = window.setInterval(() => {
+      setMessage((current) => getNextProjectAgentRunningMessage(current));
+    }, 4500);
+    return () => window.clearInterval(interval);
+  }, [shouldReduceMotion]);
+
+  return (
+    <div className="flex h-6 max-w-[154px] shrink-0 items-center gap-1 overflow-hidden rounded-full bg-black px-2 py-1 text-[10px] font-semibold text-white">
+      <Loader2 className="h-2.5 w-2.5 shrink-0 animate-spin" />
+      <span className="relative inline-flex h-3 min-w-0 flex-1 items-center overflow-hidden">
+        <AnimatePresence initial={false} mode="wait">
+          <motion.span
+            key={message}
+            animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, filter: 'blur(0px)' }}
+            className="block min-w-0 truncate whitespace-nowrap"
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -7, filter: 'blur(2px)' }}
+            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 7, filter: 'blur(2px)' }}
+            transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+          >
+            {message}
+          </motion.span>
+        </AnimatePresence>
+      </span>
+    </div>
+  );
+}
+
 // Returns the tangent angle at an arbitrary canvas point by finding the closest t on the bezier
 const getBezierTangentAngleAtPoint = (
   source: { x: number; y: number },
@@ -420,6 +493,11 @@ const getFeatureModelOption = (model: ProjectAgentFeatureNodeConfig['videoModel'
   PROJECT_AGENT_VIDEO_CLONE_MODELS[0]
 );
 
+const getFeatureModelCreditsPerSecond = (
+  model: NonNullable<ProjectAgentFeatureNodeConfig['videoModel']>,
+  quality: PersistedVideoQuality | null | undefined,
+) => getGenerationCost(model, '1', quality || undefined);
+
 const getConnectedAssetForFeature = (
   canvas: ProjectAgentCanvasState,
   nodeId: string,
@@ -440,12 +518,13 @@ const getFeatureEstimatedCredits = (
   if (!isProjectAgentFeatureNode(node.type)) return null;
 
   const runCount = Math.max(1, Number(node.config?.runCount || 1));
-  const duration = node.config?.videoDuration || (node.type === 'avatar_ads' ? '16' : '8');
+  const duration = node.config?.videoDuration || (node.type === 'avatar_ads' ? '15' : '8');
 
   if (node.type === 'avatar_ads') {
     const model = getEffectiveProjectAgentVideoModel('avatar_ads', node.config?.videoModel);
     const quality = getEffectiveProjectAgentVideoQuality('avatar_ads', model, node.config?.videoQuality);
-    return getGenerationCost(model, duration, quality) * runCount;
+    const avatarDuration = normalizeAvatarAdsStoryboardDurationSeconds(model, Number(duration));
+    return getGenerationCost(model, String(avatarDuration), quality) * runCount;
   }
 
   if (node.type === 'video_clone') {
@@ -1156,10 +1235,7 @@ export default function CanvasBoard({
                       </Tooltip>
                     ) : null}
                     {showRunningState ? (
-                      <div className="flex shrink-0 items-center gap-1 rounded-full bg-black px-2 py-1 text-[10px] font-semibold text-white">
-                        <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                        Running
-                      </div>
+                      <RunningStatusPill shouldReduceMotion={Boolean(shouldReduceMotion)} />
                     ) : executionState === 'completed' ? (
                       <div className="flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-600">
                         <CheckCircle2 className="h-2.5 w-2.5" />
@@ -1246,7 +1322,10 @@ export default function CanvasBoard({
                                     : 'bg-[#d7d3c8]'
                             }`} />
                             <Coins className="h-2.5 w-2.5" />
-                            <span>{estimatedCredits}</span>
+                            <AnimatedCreditAmount
+                              shouldReduceMotion={Boolean(shouldReduceMotion)}
+                              value={estimatedCredits}
+                            />
                             </motion.span>
                           ) : null}
                         </AnimatePresence>
@@ -1317,7 +1396,7 @@ export default function CanvasBoard({
                   </div>
 
                   <div className="mx-2.5 border-t border-[#eeebe3] pb-2.5 pt-2">
-                    <div className="grid grid-cols-[minmax(0,1fr)_104px] gap-2" onClick={(event) => event.stopPropagation()}>
+                    <div className="grid grid-cols-[minmax(0,1fr)_78px] gap-2" onClick={(event) => event.stopPropagation()}>
                       <div className="relative">
                       <button
                         aria-expanded={canChangeModel ? modelMenuOpen : undefined}
@@ -1361,9 +1440,8 @@ export default function CanvasBoard({
                               const OptionIcon = option.Icon;
                               const active = option.value === selectedVideoModel;
                               return (
-                                <Tooltip key={option.value}>
-                                  <TooltipTrigger asChild>
                                     <button
+                                      key={option.value}
                                       className={`flex w-full items-center gap-2 rounded-[9px] px-2 py-2 text-left text-[11px] font-semibold transition-colors ${
                                         active ? 'bg-black text-white' : 'text-[#2a2a2a] hover:bg-white'
                                       }`}
@@ -1379,7 +1457,7 @@ export default function CanvasBoard({
                                           videoQualityManual: false,
                                           videoDuration: snapDurationToModel(
                                             option.value,
-                                            Number(node.config?.videoDuration || (node.type === 'avatar_ads' ? '16' : '8')),
+                                            Number(node.config?.videoDuration || (node.type === 'avatar_ads' ? '15' : '8')),
                                           ),
                                         });
                                         setModelMenuNodeId(null);
@@ -1392,13 +1470,14 @@ export default function CanvasBoard({
                                         <OptionIcon className="h-3.5 w-3.5" />
                                       </span>
                                       <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                                      <span className={`ml-auto inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] ${
+                                        active ? 'bg-white/15 text-white' : 'bg-white text-[#4a4a4a]'
+                                      }`}>
+                                        <Coins className="h-3 w-3" />
+                                        <span>{getFeatureModelCreditsPerSecond(option.value, selectedVideoQuality)}/s</span>
+                                      </span>
                                       {active ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
                                     </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="right" sideOffset={10}>
-                                    {option.creditsPerSecond} credits / sec
-                                  </TooltipContent>
-                                </Tooltip>
                               );
                             })}
                         </div>
@@ -1408,7 +1487,7 @@ export default function CanvasBoard({
                         <button
                           aria-expanded={canChangeQuality ? qualityMenuOpen : undefined}
                           aria-label={`${getProjectAgentFeatureDisplayName(node.type as ProjectAgentFeatureNodeType)} quality`}
-                          className={`flex h-10 w-full items-center justify-between rounded-[14px] border border-black bg-black px-3 text-sm font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.12)_inset,0_10px_20px_rgba(0,0,0,0.16)] ${
+                          className={`flex h-10 w-full items-center justify-center gap-1.5 rounded-[14px] border border-black bg-black px-2 text-sm font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.12)_inset,0_10px_20px_rgba(0,0,0,0.16)] ${
                             canChangeQuality ? 'cursor-pointer hover:bg-[#151515]' : 'cursor-default opacity-80'
                           }`}
                           disabled={!canChangeQuality}
@@ -1419,9 +1498,9 @@ export default function CanvasBoard({
                           }}
                           type="button"
                         >
-                          <span>{selectedVideoQuality}</span>
+                          <span className="truncate">{selectedVideoQuality}</span>
                           {canChangeQuality ? (
-                            <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${qualityMenuOpen ? 'rotate-180' : ''}`} />
+                            <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${qualityMenuOpen ? 'rotate-180' : ''}`} />
                           ) : null}
                         </button>
                         {canChangeQuality && qualityMenuOpen ? (

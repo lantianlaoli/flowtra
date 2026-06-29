@@ -18,6 +18,7 @@ import {
   normalizeCloneDurationSeconds,
   type ProjectAgentCloneExecutionMode,
 } from '@/lib/video-clone-billing';
+import { normalizeAvatarAdsStoryboardDurationSeconds } from '@/lib/avatar-ads-storyboard';
 
 const resolveVideoClonePayloadQuality = (input: {
   videoModel: ReturnType<typeof normalizeProjectAgentVideoCloneModel>;
@@ -299,6 +300,14 @@ const getMilestoneLabels = (
         ['completed', 'Completed'],
       ] as const;
     case 'avatar_ads':
+      if (options?.storyboardClone) {
+        return [
+          ['preparing_prompt', 'Preparing prompt'],
+          ['generating_storyboard', 'Generating storyboard'],
+          ['generating_video', 'Generating video'],
+          ['completed', 'Completed'],
+        ] as const;
+      }
       return [
         ['preparing_prompt', 'Preparing prompt'],
         ['generating_cover', 'Generating cover'],
@@ -342,13 +351,13 @@ const buildMilestones = (
   });
 };
 
-const getCurrentMilestoneForAvatar = (status: string, isReferenceWorkflow = false) => {
+const getCurrentMilestoneForAvatar = (status: string, isReferenceWorkflow = false, isStoryboardWorkflow = false) => {
   if (status === 'completed') return 'completed';
   if (status === 'failed') return 'generating_video';
   if (status === 'generating_videos') return 'generating_video';
   if (isReferenceWorkflow && status === 'awaiting_review') return 'generating_video';
   if (status === 'generating_image' || status === 'regenerating_image' || status === 'awaiting_review') {
-    return 'generating_cover';
+    return isStoryboardWorkflow ? 'generating_storyboard' : 'generating_cover';
   }
   return 'preparing_prompt';
 };
@@ -453,7 +462,10 @@ export const buildAvatarAdsStartPayload = (input: {
   config?: ProjectAgentFeatureNodeConfig | null;
   resolvedSpokenLanguage?: LanguageCode | null;
 }) => {
-  const customDialogue = input.text?.content?.trim() || '';
+  const instructionText = input.text?.content?.trim() || '';
+  const talkingHeadMode = !input.product?.id;
+  const customDialogue = talkingHeadMode ? instructionText : '';
+  const sellingRequirements = talkingHeadMode ? '' : instructionText;
   const configuredLanguage = input.config?.language && input.config.language !== 'en'
     ? input.config.language
     : null;
@@ -462,16 +474,22 @@ export const buildAvatarAdsStartPayload = (input: {
     configuredLanguage: input.resolvedSpokenLanguage || configuredLanguage,
   });
 
+  const videoModel = getEffectiveProjectAgentVideoModel('avatar_ads', input.config?.videoModel);
+
   return {
     selectedPersonPhotoUrl: input.avatar.imageUrl || '',
     selectedProductId: input.product?.id || '',
     customDialogue,
-    talkingHeadMode: !input.product?.id,
-    videoDurationSeconds: Number(input.config?.videoDuration || '16'),
+    sellingRequirements,
+    talkingHeadMode,
+    videoDurationSeconds: normalizeAvatarAdsStoryboardDurationSeconds(
+      videoModel,
+      Number(input.config?.videoDuration || '15')
+    ),
     videoAspectRatio: input.config?.aspectRatio || '9:16',
     language: resolvedSpokenLanguage,
     resolvedSpokenLanguage,
-    videoModel: getEffectiveProjectAgentVideoModel('avatar_ads', input.config?.videoModel),
+    videoModel,
     videoQuality: input.config?.videoQuality || '720p',
   };
 };
@@ -564,6 +582,11 @@ export const normalizeAvatarExecutionStatus = (
     ? (project.generated_prompts as Record<string, unknown>).workflow_source
     : null;
   const isReferenceWorkflow = workflowSource === 'project_agent_reference_to_video';
+  const isStoryboardWorkflow = Boolean(
+    project.generated_prompts &&
+    typeof project.generated_prompts === 'object' &&
+    (project.generated_prompts as Record<string, unknown>).storyboard_mode
+  );
   const progress = toProgress(project.progress_percentage, status === 'completed' ? 100 : 15);
   const failed = status === 'failed';
   const completed = status === 'completed';
@@ -572,7 +595,7 @@ export const normalizeAvatarExecutionStatus = (
   const awaitingCoverGeneration = awaitingReview && !generatedImageUrl && hasImagePrompt;
   const awaitingCoverConfirmation = awaitingReview && Boolean(generatedImageUrl);
   const executionState = completed ? 'completed' : failed ? 'failed' : 'running';
-  const currentMilestoneKey = getCurrentMilestoneForAvatar(status, isReferenceWorkflow);
+  const currentMilestoneKey = getCurrentMilestoneForAvatar(status, isReferenceWorkflow, isStoryboardWorkflow);
   const error = typeof project.error_message === 'string' ? project.error_message : null;
   const { retryable, userFacingError } = getProjectAgentCanvasErrorInfo(error);
 
@@ -589,23 +612,25 @@ export const normalizeAvatarExecutionStatus = (
       ? 'Completed'
       : failed
         ? 'Failed'
+        : awaitingCoverGeneration
+          ? isStoryboardWorkflow ? 'Generating storyboard' : 'Generating cover'
         : isReferenceWorkflow && awaitingReview
           ? 'Ready to generate video'
-        : awaitingCoverGeneration
-          ? 'Generating cover'
         : awaitingCoverConfirmation
           ? 'Auto confirming cover'
           : 'Running avatar workflow',
     projectId,
     table: 'avatar_ads_projects',
-    nextAction: isReferenceWorkflow && awaitingReview
-      ? 'start_avatar_video'
-      : awaitingCoverGeneration
+    nextAction: awaitingCoverGeneration
       ? 'generate_avatar_cover'
+      : isReferenceWorkflow && awaitingReview
+      ? 'start_avatar_video'
       : awaitingCoverConfirmation
         ? 'confirm_avatar'
         : 'none',
-    milestones: buildMilestones('avatar_ads', currentMilestoneKey, executionState),
+    milestones: buildMilestones('avatar_ads', currentMilestoneKey, executionState, {
+      storyboardClone: isStoryboardWorkflow
+    }),
     currentMilestoneKey,
     raw: payload,
   };

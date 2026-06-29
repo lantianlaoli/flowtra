@@ -62,10 +62,22 @@ export function isCreemModerationError(error: unknown): error is CreemModeration
   return error instanceof CreemModerationError;
 }
 
+export function isCreemPromptModerationEnabled(): boolean {
+  return process.env.CREEM_PROMPT_MODERATION_ENABLED === 'true';
+}
+
 export async function moderatePromptBeforeGeneration(
   prompt: string,
   options: ModeratePromptOptions = {}
 ): Promise<{ decision: CreemModerationDecision; id?: string }> {
+  if (!isCreemPromptModerationEnabled()) {
+    console.info('[Creem Moderation] Prompt screening skipped:', {
+      externalId: options.externalId || null,
+      reason: 'CREEM_PROMPT_MODERATION_ENABLED is not true',
+    });
+    return { decision: 'allow' };
+  }
+
   const normalizedPrompt = prompt.trim();
   if (!normalizedPrompt) {
     throw new CreemModerationError('prompt_required');

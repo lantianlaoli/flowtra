@@ -1,18 +1,21 @@
 'use client'
 
 import { useUser } from '@clerk/nextjs'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import FlowtraLoading from '@/components/ui/FlowtraLoading'
-import { useCredits } from '@/contexts/CreditsContext'
+import {
+  shouldCheckPlanForDashboardEntry,
+  shouldRedirectDashboardEntryToSelectPlan,
+} from '@/lib/dashboard-access'
 import { applyDashboardTheme, getPreferredDashboardTheme } from '@/lib/theme'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoaded } = useUser()
-  const { credits, isLoading: isCreditsLoading } = useCredits()
   const router = useRouter()
-  const [isCheckingPurchase, setIsCheckingPurchase] = useState(true)
+  const [isCheckingEntryPlan, setIsCheckingEntryPlan] = useState(true)
   const [isDarkMode, setIsDarkMode] = useState(true)
+  const hasCheckedEntryPlanRef = useRef(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -48,20 +51,56 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       return
     }
 
-    if (isCreditsLoading && credits === undefined) {
-      setIsCheckingPurchase(false)
+    if (typeof window === 'undefined') {
+      setIsCheckingEntryPlan(false)
       return
     }
 
-    if (credits !== undefined && credits <= 0) {
-      router.replace('/select-plan')
+    const isLandingUploadEntry = shouldCheckPlanForDashboardEntry({
+      upload: new URLSearchParams(window.location.search).get('upload'),
+    })
+
+    if (!isLandingUploadEntry || hasCheckedEntryPlanRef.current) {
+      setIsCheckingEntryPlan(false)
       return
     }
 
-    setIsCheckingPurchase(false)
-  }, [credits, isCreditsLoading, user, isLoaded, router])
+    hasCheckedEntryPlanRef.current = true
+    let cancelled = false
 
-  if (!isLoaded || isCheckingPurchase) {
+    const checkEntryPlan = async () => {
+      setIsCheckingEntryPlan(true)
+      try {
+        const response = await fetch('/api/credits/check', { cache: 'no-store' })
+        const payload = await response.json()
+        const subscriptionStatus = typeof payload?.subscription?.status === 'string'
+          ? payload.subscription.status
+          : null
+
+        if (shouldRedirectDashboardEntryToSelectPlan({
+          isLandingUploadEntry,
+          subscriptionStatus,
+        })) {
+          router.replace('/select-plan')
+          return
+        }
+      } catch (error) {
+        console.warn('Dashboard entry plan check failed:', error)
+      }
+
+      if (!cancelled) {
+        setIsCheckingEntryPlan(false)
+      }
+    }
+
+    void checkEntryPlan()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user, isLoaded, router])
+
+  if (!isLoaded || isCheckingEntryPlan) {
     return <FlowtraLoading />
   }
 

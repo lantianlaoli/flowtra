@@ -9,7 +9,7 @@ export default function Page() {
           <p className="mt-2 text-gray-600">Welcome back to your AI advertisement workspace</p>
         </div>
         <SignIn
-          forceRedirectUrl="/dashboard"
+          fallbackRedirectUrl="/dashboard"
           signUpUrl="/sign-up"
           appearance={{
             elements: {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { useUser, UserButton, SignInButton } from "@clerk/nextjs";
+import { useUser, UserButton, SignUpButton } from "@clerk/nextjs";
 import {
   Bars3Icon,
   XMarkIcon,
@@ -443,13 +443,13 @@ export default function Header({
               {showAuthButtons ? (
                 <>
                   {!isSignedIn ? (
-                    <SignInButton mode="modal" forceRedirectUrl="/dashboard">
+                    <SignUpButton mode="modal" forceRedirectUrl="/dashboard?upload=true">
                       <button className="landing-press-button landing-press-button--compact inline-flex items-center justify-center px-3 text-[12px] font-medium sm:px-5 sm:text-[14px]">
                         <UserCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
                         <span className="hidden sm:inline">{headerMessages.signUpDesktop}</span>
                         <span className="sm:hidden">{headerMessages.signUpMobile}</span>
                       </button>
-                    </SignInButton>
+                    </SignUpButton>
                   ) : (
                     <UserButton />
                   )}
