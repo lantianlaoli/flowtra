@@ -204,7 +204,7 @@ export const buildMotionCloneVideoRequestBody = ({
       reference_image_urls: [previewImageUrl],
       reference_video_urls: [referenceVideoUrl],
       reference_audio_urls: [],
-      generate_audio: false,
+      generate_audio: true,
       resolution: mode || MOTION_CLONE_MODE,
       aspect_ratio: '9:16',
       duration: outputDuration,

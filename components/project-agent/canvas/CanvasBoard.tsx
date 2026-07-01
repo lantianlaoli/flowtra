@@ -340,7 +340,7 @@ function AnimatedCreditAmount({
   }, [value]);
 
   return (
-    <span className="relative inline-flex h-3 min-w-[4ch] items-center justify-end overflow-hidden tabular-nums">
+    <span className="relative inline-flex h-3 min-w-0 items-center justify-end overflow-hidden tabular-nums">
       <AnimatePresence initial={false} mode="popLayout">
         <motion.span
           key={value}
