@@ -50,7 +50,6 @@ interface CreatorSource {
 
 interface VideoAsset extends CreatorSourceVideo {
   source_name?: string | null;
-  source_type?: 'creator' | 'reference_video';
   reference_video_id?: string | null;
   isSystem?: boolean;
 }
@@ -522,8 +521,7 @@ export default function AssetsManager({ embedded = false, active = true }: { emb
       return;
     }
 
-    const isReferenceVideo =
-      video.source_type === 'reference_video' || Boolean(video.reference_video_id);
+    const isReferenceVideo = Boolean(video.reference_video_id);
     const endpoint = isReferenceVideo
       ? `/api/reference-videos/${video.id}`
       : `/api/creator-videos/${video.id}`;

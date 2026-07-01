@@ -214,7 +214,7 @@ export function validateProjectAgentKlingShots(
 ): ProjectAgentCloneShot[] {
   const rawCount = Array.isArray(shots) ? shots.length : 0;
   if (rawCount > KLING_MAX_MULTI_SHOT_ITEMS) {
-    throw new Error(`Kling 3.0 scenes support at most ${KLING_MAX_MULTI_SHOT_ITEMS} shots per generation.`);
+    throw new Error(`Scenes support at most ${KLING_MAX_MULTI_SHOT_ITEMS} shots per generation.`);
   }
   return normalizeProjectAgentKlingShots(shots, fallbackLanguage);
 }
@@ -225,7 +225,7 @@ export function validateProjectAgentKlingShotsForProvider(
 ): ProjectAgentCloneShot[] {
   const rawCount = Array.isArray(shots) ? shots.length : 0;
   if (rawCount > KLING_MAX_MULTI_SHOT_ITEMS) {
-    throw new Error(`Kling 3.0 scenes support at most ${KLING_MAX_MULTI_SHOT_ITEMS} shots per generation.`);
+    throw new Error(`Scenes support at most ${KLING_MAX_MULTI_SHOT_ITEMS} shots per generation.`);
   }
   return normalizeProjectAgentKlingShotsForProvider(shots, fallbackLanguage);
 }

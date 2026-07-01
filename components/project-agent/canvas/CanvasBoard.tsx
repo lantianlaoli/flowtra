@@ -31,9 +31,9 @@ import {
   Video as VideoIcon,
   WandSparkles,
 } from 'lucide-react';
-import { ByteDance, Kling, Qwen } from '@lobehub/icons';
+import { ByteDance } from '@lobehub/icons';
 import {
-  GENERATION_COSTS,
+  SEEDANCE_2_FAST_QUALITY_COSTS,
   SEEDANCE_2_MINI_QUALITY_COSTS,
   SEEDANCE_2_QUALITY_COSTS,
   getGenerationCost,
@@ -452,34 +452,22 @@ const getPlayableVideoUrl = (asset: ProjectAgentCanvasNode['asset']) => {
 
 const PROJECT_AGENT_VIDEO_CLONE_MODELS = [
   {
-    value: 'seedance_2_fast' as const,
-    label: 'Seedance 2 Fast',
-    Icon: ByteDance,
-    creditsPerSecond: GENERATION_COSTS.seedance_2_fast,
-  },
-  {
-    value: 'seedance_2' as const,
-    label: 'Seedance 2',
-    Icon: ByteDance,
-    creditsPerSecond: SEEDANCE_2_QUALITY_COSTS['1080p'],
-  },
-  {
     value: 'seedance_2_mini' as const,
     label: 'Seedance 2 Mini',
     Icon: ByteDance,
     creditsPerSecond: SEEDANCE_2_MINI_QUALITY_COSTS['720p'],
   },
   {
-    value: 'kling_3' as const,
-    label: 'Kling 3',
-    Icon: Kling,
-    creditsPerSecond: GENERATION_COSTS.kling_3,
+    value: 'seedance_2_fast' as const,
+    label: 'Seedance 2 Fast',
+    Icon: ByteDance,
+    creditsPerSecond: SEEDANCE_2_FAST_QUALITY_COSTS['720p'],
   },
   {
-    value: 'wan_27' as const,
-    label: 'Wan 2.7',
-    Icon: Qwen,
-    creditsPerSecond: GENERATION_COSTS.wan_27,
+    value: 'seedance_2' as const,
+    label: 'Seedance 2',
+    Icon: ByteDance,
+    creditsPerSecond: SEEDANCE_2_QUALITY_COSTS['1080p'],
   },
 ] satisfies Array<{
   value: NonNullable<ProjectAgentFeatureNodeConfig['videoModel']>;
@@ -876,7 +864,7 @@ export default function CanvasBoard({
           );
           const estimatedCredits = isFeatureNode ? getFeatureEstimatedCredits(canvas, node) : null;
           const showRunningState = executionState === 'running' && isProjectAgentRuntimeActive(node.runtime);
-          const canChangeModel = isFeatureNode && node.type !== 'motion_clone' && !showRunningState;
+          const canChangeModel = isFeatureNode && !showRunningState;
           const connectedVideoCloneInputs = isFeatureNode && node.type === 'video_clone'
             ? {
                 avatar: getConnectedAssetForFeature(canvas, node.id, 'avatar'),
@@ -1415,17 +1403,9 @@ export default function CanvasBoard({
                         type="button"
                       >
                         <span className="flex min-w-0 items-center gap-2">
-                          {node.type !== 'motion_clone' ? (
-                            <SelectedVideoModelIcon className="h-4 w-4 shrink-0" />
-                          ) : (
-                            <Kling className="h-4 w-4 shrink-0 text-white" />
-                          )}
+                          <SelectedVideoModelIcon className="h-4 w-4 shrink-0" />
                           <span className="truncate">
-                            {node.type !== 'motion_clone'
-                              ? selectedVideoModelOption.label
-                              : getVideoModelDisplayName('kling_3', {
-                                  feature: node.type === 'motion_clone' ? 'motion_clone' : 'avatar_ads',
-                                })}
+                            {selectedVideoModelOption.label}
                           </span>
                         </span>
                         {canChangeModel ? (

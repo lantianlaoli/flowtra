@@ -86,7 +86,6 @@ type SessionState = {
   cloneReferenceVideo?: {
     id: string;
     name?: string | null;
-    sourceType?: 'creator' | 'reference_video';
     sourceId?: string | null;
     analysisSummary?: string | null;
     keyShots?: string[] | null;
@@ -410,7 +409,7 @@ const generateReplacementDraft = async (input: {
             'subject must not describe behavior, pose progression, camera movement, or event flow.',
             'action is the only shot field that should describe what happens in the shot.',
             'Apply avatar/product replacement inside video shot fields too. Do not leave original role words (e.g. woman/man) when replacement is selected.',
-            'Keep fields concise and provider-safe, but do not optimize for Kling per-shot character limits.'
+            'Keep fields concise and provider-safe, but do not optimize for removed provider-specific per-shot character limits.'
           ].join(' ')
         },
         {
@@ -775,24 +774,23 @@ export async function POST(request: NextRequest) {
     const avatarById = new Map(avatarSelections.map((avatar) => [avatar.id, { name: avatar.name }] as const));
     const productById = new Map(productSelections.map((product) => [product.id, { name: product.name }] as const));
 
-    const referenceSourceType = reference.sourceType || 'creator';
     const referenceSourceId = reference.sourceId || reference.id;
     const referenceVideoId = reference.id || reference.sourceId;
 
     let analysisResult: Record<string, unknown> | null = null;
     let referenceDurationSeconds: number | null = null;
 
-    if (referenceSourceType === 'reference_video') {
-      // Schema verified via Supabase MCP (2026-02-11): reference_videos includes id,user_id,analysis_result.
-      const { data: referenceVideo } = await supabase
-        .from('reference_videos')
-        .select('id,analysis_result,video_duration_seconds')
-        .eq('id', referenceSourceId)
-        .eq('user_id', userId)
-        .maybeSingle();
-      analysisResult = (referenceVideo?.analysis_result as Record<string, unknown> | null) || null;
-      referenceDurationSeconds = Number(referenceVideo?.video_duration_seconds || 0) || null;
-    } else {
+    // Schema verified via Supabase MCP (2026-02-11): reference_videos includes id,user_id,analysis_result.
+    const { data: referenceVideo } = await supabase
+      .from('reference_videos')
+      .select('id,analysis_result,video_duration_seconds')
+      .eq('id', referenceSourceId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    analysisResult = (referenceVideo?.analysis_result as Record<string, unknown> | null) || null;
+    referenceDurationSeconds = Number(referenceVideo?.video_duration_seconds || 0) || null;
+
+    if (!analysisResult) {
       // Schema verified via Supabase MCP (2026-02-11): creator_source_videos includes id,user_id,source_id,analysis_result.
       let creatorVideo: { id: string; analysis_result: unknown; duration_seconds?: number | null } | null = null;
       if (referenceVideoId) {

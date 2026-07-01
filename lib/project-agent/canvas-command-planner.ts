@@ -442,25 +442,9 @@ export const planProjectAgentCanvasCommand = (
         },
       ];
 
-      if (resolvedProductAsset) {
-        mutations.splice(2, 0, {
-          type: 'add_asset_node',
-          alias: 'productAsset',
-          assetType: 'product',
-          asset: resolvedProductAsset,
-          reuseExisting: true,
-        });
-        mutations.push({
-          type: 'connect_nodes',
-          source: { kind: 'alias', alias: 'productAsset' },
-          target: { kind: 'alias', alias: 'featureNode' },
-          targetHandle: 'product',
-        });
-      }
-
       mutations.push({ type: 'format_layout' });
       return buildSafeEditPlan(
-        `I added a Motion Clone workflow to the canvas with ${resolvedAvatarAsset.name}, ${resolvedVideoAsset.name}${resolvedProductAsset ? `, and ${resolvedProductAsset.name}` : ''}.`,
+        `I added a Motion Clone workflow to the canvas with ${resolvedAvatarAsset.name} and ${resolvedVideoAsset.name}.`,
         mutations,
       );
     }

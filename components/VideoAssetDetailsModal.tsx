@@ -31,7 +31,6 @@ interface VideoAsset {
   analysis_result?: Record<string, unknown> | null;
   analysis_error?: string | null;
   analysis_language?: string | null;
-  source_type?: "creator" | "reference_video";
   reference_video_id?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -193,8 +192,7 @@ export default function VideoAssetDetailsModal({
       return;
     }
 
-    const isReferenceVideo =
-      currentVideo.source_type === "reference_video" || Boolean(currentVideo.reference_video_id);
+    const isReferenceVideo = Boolean(currentVideo.reference_video_id);
     const endpoint = isReferenceVideo
       ? `/api/reference-videos/${currentVideo.id}`
       : `/api/creator-videos/${currentVideo.id}`;

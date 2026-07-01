@@ -130,7 +130,7 @@ const AD_TYPE_OPTIONS = [
     value: 'motion-clone',
     label: 'Motion Clone',
     icon: Shuffle,
-    description: 'Kling motion-controlled swaps from reference videos',
+    description: 'Motion-controlled swaps from reference videos',
   },
 ] as const;
 

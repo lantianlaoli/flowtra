@@ -118,10 +118,6 @@ const isMotionClone = (item: HistoryItem | null): item is MotionCloneItem => {
 
 
 const getProjectModelDisplayName = (item: HistoryItem): string => {
-  if (isMotionClone(item) && item.videoModel === 'kling_3') {
-    return getVideoModelDisplayName(item.videoModel, { feature: 'motion_clone' });
-  }
-
   return getVideoModelDisplayName(item.videoModel);
 };
 
@@ -220,7 +216,7 @@ export default function VideoDetailsModal({ isOpen, onClose, item, onDownload, i
   const [resolutionMenuOpen, setResolutionMenuOpen] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
   const [showTikTokPanel, setShowTikTokPanel] = useState(false);
-  const isNativeOnlyModel = item?.videoModel === 'seedance_2_fast' || item?.videoModel === 'seedance_2' || item?.videoModel === 'seedance_2_mini' || item?.videoModel === 'kling_3';
+  const isNativeOnlyModel = item?.videoModel === 'seedance_2_fast' || item?.videoModel === 'seedance_2' || item?.videoModel === 'seedance_2_mini';
 
   const toggleShot = (shotKey: string) => {
     setExpandedShots(prev => {

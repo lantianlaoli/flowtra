@@ -52,7 +52,6 @@ export type ProjectAgentCanvasAssetRef = {
   content?: string | null;
   durationSeconds?: number | null;
   mediaDurationSeconds?: number | null;
-  sourceType?: 'creator' | 'reference_video' | null;
   videoUrl?: string | null;
   videoCdnUrl?: string | null;
   analysisLanguage?: string | null;
@@ -82,7 +81,7 @@ export type ProjectAgentFeatureNodeConfig = {
   aspectRatio?: '16:9' | '9:16';
   language?: string;
   videoDuration?: VideoDuration;
-  videoModel?: 'seedance_2_fast' | 'seedance_2' | 'seedance_2_mini' | 'kling_3' | 'wan_27';
+  videoModel?: 'seedance_2_mini' | 'seedance_2_fast' | 'seedance_2';
   videoQuality?: '480p' | '720p' | '1080p';
   videoQualityManual?: boolean;
   runCount?: 1 | 2 | 3;
@@ -259,7 +258,7 @@ export const PROJECT_AGENT_FEATURE_INPUTS: Record<
 > = {
   video_clone: ['video'],
   avatar_ads: ['avatar', 'product'],
-  motion_clone: ['video', 'avatar', 'product'],
+  motion_clone: ['video', 'avatar'],
 };
 
 // "Any one of" input groups — at least one from the group must be connected.
@@ -398,12 +397,8 @@ export const createProjectAgentFeatureNode = (input: {
     aspectRatio: '9:16',
     language: 'en',
     videoDuration: input.type === 'avatar_ads' ? '15' : '8',
-    videoModel: input.type === 'avatar_ads'
-      ? 'seedance_2_fast'
-      : input.type === 'video_clone'
-        ? 'seedance_2'
-        : 'kling_3',
-    videoQuality: '720p',
+    videoModel: 'seedance_2_mini',
+    videoQuality: input.type === 'motion_clone' ? '480p' : '720p',
     ...input.config,
   },
   runtime: {
@@ -621,8 +616,23 @@ export const normalizeCanvasState = (
   }
 
   const record = value as Record<string, unknown>;
+  const normalizeAsset = (asset: ProjectAgentCanvasAssetRef | null | undefined) => {
+    if (!asset || typeof asset !== 'object') return asset ?? null;
+    const cleanAsset = { ...(asset as Record<string, unknown>) };
+    [
+      `source${'Type'}`,
+      `source${'_'}type`,
+      `referenceSource${'Type'}`,
+    ].forEach((key) => {
+      delete cleanAsset[key];
+    });
+    return cleanAsset as ProjectAgentCanvasAssetRef;
+  };
   const nodes = Array.isArray(record.nodes)
-    ? (record.nodes as ProjectAgentCanvasNode[])
+    ? (record.nodes as ProjectAgentCanvasNode[]).map((node) => ({
+        ...node,
+        asset: normalizeAsset(node.asset),
+      }))
     : [];
   const edges = Array.isArray(record.edges)
     ? (record.edges as ProjectAgentCanvasEdge[])

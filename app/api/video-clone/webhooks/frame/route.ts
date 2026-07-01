@@ -650,7 +650,6 @@ export async function POST(request: NextRequest) {
                   segmentIndex: nextSegmentIndex,
                   frameType: 'first',
                   isCloneMode: cloneMode.isCloneMode,
-                  referenceSourceType: cloneMode.sourceType,
                   usesContinuationReference: true,
                   imageInputCount: mergedProductImageUrls.length + cloneReferenceAssets.avatarPhotoUrls.length + 1
                 });
@@ -794,7 +793,6 @@ export async function POST(request: NextRequest) {
             segmentIndex: segment.segment_index,
             frameType: 'first',
             isCloneMode: cloneMode.isCloneMode,
-            referenceSourceType: cloneMode.sourceType,
             usesContinuationReference: false,
             imageInputCount: mergedProductImageUrls.length + cloneReferenceAssets.avatarPhotoUrls.length
           });

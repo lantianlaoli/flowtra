@@ -527,8 +527,7 @@ export const buildVideoCloneStartPayload = (input: {
 
   return {
     executionMode,
-    creatorSourceVideoId: input.video.sourceType === 'reference_video' ? undefined : input.video.id,
-    referenceVideoId: input.video.sourceType === 'reference_video' ? input.video.id : undefined,
+    referenceVideoId: input.video.id,
     referenceSourceVideoUrl: mode === 'clone' ? playableVideoUrl : undefined,
     referenceSourceMediaDurationSeconds: mode === 'clone' ? sourceDurationSeconds : undefined,
     selectedAvatarIds: mode === 'clone' && input.avatar?.id ? [input.avatar.id] : [],
@@ -553,16 +552,18 @@ export const buildVideoCloneStartPayload = (input: {
 
 export const buildMotionCloneStartPayload = (input: {
   avatar?: ProjectAgentCanvasAssetRef | null;
-  product?: ProjectAgentCanvasAssetRef | null;
   video: ProjectAgentCanvasAssetRef;
   config?: ProjectAgentFeatureNodeConfig | null;
-}) => ({
-  referenceVideoId: input.video.id,
-  avatarId: input.avatar?.id || null,
-  productId: input.product?.id || null,
-  action: 'video' as const,
-  mode: input.config?.videoQuality || '720p',
-});
+}) => {
+  const videoModel = getEffectiveProjectAgentVideoModel('motion_clone', input.config?.videoModel);
+  return {
+    referenceVideoId: input.video.id,
+    avatarId: input.avatar?.id || null,
+    action: 'video' as const,
+    mode: input.config?.videoQuality || (videoModel === 'seedance_2_mini' ? '480p' : '720p'),
+    videoModel,
+  };
+};
 
 export const normalizeAvatarExecutionStatus = (
   payload: Record<string, unknown>

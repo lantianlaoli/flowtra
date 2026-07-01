@@ -13,7 +13,7 @@ import {
   type SegmentPrompt,
   type SerializedSegmentPlanSegment
 } from '@/lib/video-clone-workflow';
-import { getSegmentDurationForModel, type PersistedVideoQuality, type VideoModel } from '@/lib/constants';
+import { getSegmentDurationForModel, SEEDANCE_VIDEO_MODELS, type PersistedVideoQuality, type VideoModel } from '@/lib/constants';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { assertKieCreditsAvailable } from '@/lib/kie-credits-check';
 import { getAvatarPhotoUrls, SYSTEM_AVATARS } from '@/lib/default-avatars';
@@ -148,7 +148,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Segment not found' }, { status: 404 });
     }
 
-    const projectModel = (project.video_model ?? null) as VideoModel | null;
+    if (project.video_model && !SEEDANCE_VIDEO_MODELS.includes(project.video_model as VideoModel)) {
+      return NextResponse.json({
+        error: 'Legacy model cannot be regenerated',
+        details: 'This project was created with a removed legacy model. Create a new project with a Seedance model to generate video.',
+      }, { status: 409 });
+    }
+
+    const projectModel = (project.video_model ?? 'seedance_2_mini') as VideoModel;
     const segmentDurationSeconds = project.segment_duration_seconds || getSegmentDurationForModel(projectModel);
     const existingPrompt = hydrateSerializedSegmentPrompt(
       segmentRow.prompt as SerializedSegmentPlanSegment,
@@ -450,7 +457,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         segmentIndex: index,
         frameType: 'first',
         isCloneMode: cloneMode.isCloneMode,
-        referenceSourceType: cloneMode.sourceType,
         productImageUrlsCount: productImageUrls.length,
         characterPhotoUrlsCount: characterPhotoUrls.length,
         characterPhotoUrls,
@@ -517,9 +523,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           mergedPrompt.shots,
           segmentDurationSeconds
         );
-        const videoChargeDescription = projectModel === 'kling_3'
-          ? `Video Clone - Segment ${index + 1} video generation (KLING_3, ${effectiveSegmentDurationSeconds}s)`
-          : `Video Clone - Segment ${index + 1} video generation (${String(project.video_model || 'seedance_2_fast').toUpperCase()})`;
+        const videoChargeDescription =
+          `Video Clone - Segment ${index + 1} video generation (${String(project.video_model || 'seedance_2_mini').toUpperCase()}, ${effectiveSegmentDurationSeconds}s)`;
 
         await ensureCredits(segmentVideoCost, videoChargeDescription);
 

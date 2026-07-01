@@ -9,7 +9,7 @@ import {
   hydrateSerializedSegmentPrompt,
   type SerializedSegmentPlanSegment
 } from '@/lib/video-clone-workflow';
-import { getSegmentDurationForModel, type PersistedVideoQuality, type VideoModel } from '@/lib/constants';
+import { getSegmentDurationForModel, SEEDANCE_VIDEO_MODELS, type PersistedVideoQuality, type VideoModel } from '@/lib/constants';
 import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
 import { validateKieCredits } from '@/lib/kie-credits-check';
@@ -104,7 +104,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // 7. Hydrate segment prompt from stored data
-    const projectModel = (project.video_model ?? null) as VideoModel | null;
+    if (project.video_model && !SEEDANCE_VIDEO_MODELS.includes(project.video_model as VideoModel)) {
+      return NextResponse.json({
+        error: 'Legacy model cannot be regenerated',
+        details: 'This project was created with a removed legacy model. Create a new project with a Seedance model to generate video.',
+      }, { status: 409 });
+    }
+
+    const projectModel = (project.video_model ?? 'seedance_2_mini') as VideoModel;
     const segmentDurationSeconds = project.segment_duration_seconds || getSegmentDurationForModel(projectModel);
 
     const segmentPrompt = hydrateSerializedSegmentPrompt(
@@ -159,9 +166,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         return NextResponse.json({ error: deduction.error || 'Failed to deduct credits' }, { status: 500 });
       }
 
-      chargeDescription = projectModel === 'kling_3'
-        ? `Video Clone - Segment ${index + 1} video generation (KLING_3, ${effectiveSegmentDurationSeconds}s)`
-        : `Video Clone - Segment ${index + 1} video generation (${String(project.video_model || 'seedance_2_fast').toUpperCase()})`;
+      chargeDescription =
+        `Video Clone - Segment ${index + 1} video generation (${String(project.video_model || 'seedance_2_mini').toUpperCase()}, ${effectiveSegmentDurationSeconds}s)`;
 
       const transaction = await recordCreditTransaction(
         userId,

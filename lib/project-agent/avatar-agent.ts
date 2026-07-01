@@ -258,7 +258,7 @@ export const buildProjectAgentAvatarExecution = (
   return {
     projectId: project.id,
     phase,
-    model: (project.video_model as VideoModel) || 'kling_3',
+    model: (project.video_model as VideoModel) || 'seedance_2_mini',
     finalVideoUrl: project.merged_video_url ?? null,
     coverImageUrl: project.generated_image_url ?? null,
     scenes,

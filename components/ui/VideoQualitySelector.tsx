@@ -33,13 +33,6 @@ type QualityOption = {
 };
 
 function getQualityOptions(model: VideoModel, creditsPerSecondLabel: string): QualityOption[] {
-  if (model === 'kling_3') {
-    return [
-      { value: '720p', label: '720p', creditsPerSecondLabel: `20 ${creditsPerSecondLabel}` },
-      { value: '1080p', label: '1080p', creditsPerSecondLabel: `27 ${creditsPerSecondLabel}` }
-    ];
-  }
-
   if (model === 'seedance_2_fast') {
     return [
       { value: '720p', label: '720p', creditsPerSecondLabel: `33 ${creditsPerSecondLabel}` }

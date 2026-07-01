@@ -1,6 +1,4 @@
 import {
-  KLING_MAX_TASK_DURATION_SECONDS,
-  KLING_MIN_TASK_DURATION_SECONDS,
   SEEDANCE_MAX_TASK_DURATION_SECONDS,
   SEEDANCE_MIN_TASK_DURATION_SECONDS,
   getLanguagePromptName,
@@ -33,7 +31,7 @@ type BuildAvatarGeneratedPromptsInput = {
   productName?: string | null;
 };
 
-export type AvatarDurationModel = 'seedance_2_fast' | 'seedance_2' | 'seedance_2_mini' | 'kling_3' | 'wan_27';
+export type AvatarDurationModel = 'seedance_2_mini' | 'seedance_2_fast' | 'seedance_2';
 
 const DEFAULT_VISUAL_PROMPT = {
   subject: 'Confident spokesperson from the selected avatar',
@@ -46,10 +44,6 @@ const DEFAULT_VISUAL_PROMPT = {
   audio: 'Natural room tone under clean spoken dialogue',
   voice_type: 'Warm natural voice speaking natural English.',
 };
-
-const KLING_SAFE_DURATION_BUFFER_SECONDS = 1;
-const KLING_RISKY_COPY_BUFFER_SECONDS = 1.5;
-const RISKY_DIALOGUE_PATTERN = /(?:[$€£¥]\s*\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?-inch|—|–|,|;|:|\b(?:honestly|literally|seriously|definitely|worth it|perfect for|such a steal|starting out)\b)/i;
 
 const normalizeWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim();
 
@@ -190,22 +184,6 @@ const splitLongSentence = (sentence: string, language: string, model: AvatarDura
 };
 
 const getDurationBoundsByModel = (model: AvatarDurationModel) => {
-  if (model === 'kling_3') {
-    return {
-      minDurationSeconds: KLING_MIN_TASK_DURATION_SECONDS,
-      maxDurationSeconds: KLING_MAX_TASK_DURATION_SECONDS,
-      planningLimitSeconds: KLING_MAX_TASK_DURATION_SECONDS - KLING_SAFE_DURATION_BUFFER_SECONDS
-    };
-  }
-
-  if (model === 'wan_27') {
-    return {
-      minDurationSeconds: 2,
-      maxDurationSeconds: 15,
-      planningLimitSeconds: 15
-    };
-  }
-
   return {
     minDurationSeconds: SEEDANCE_MIN_TASK_DURATION_SECONDS,
     maxDurationSeconds: SEEDANCE_MAX_TASK_DURATION_SECONDS,
@@ -215,7 +193,7 @@ const getDurationBoundsByModel = (model: AvatarDurationModel) => {
 
 export const normalizeAvatarPromptDuration = (
   value: unknown,
-  model: AvatarDurationModel = 'kling_3'
+  model: AvatarDurationModel = 'seedance_2_mini'
 ) => {
   const bounds = getDurationBoundsByModel(model);
   const numeric = Number(value);
@@ -235,19 +213,7 @@ const getScenePlanningLimitSeconds = (
   model: AvatarDurationModel
 ) => {
   const bounds = getDurationBoundsByModel(model);
-  if (model !== 'kling_3') {
-    return bounds.planningLimitSeconds;
-  }
-
-  const baseLimit = language === 'en'
-    ? bounds.planningLimitSeconds
-    : KLING_MAX_TASK_DURATION_SECONDS - 0.5;
-
-  if (language === 'en' && RISKY_DIALOGUE_PATTERN.test(dialogue)) {
-    return Math.max(KLING_MIN_TASK_DURATION_SECONDS, KLING_MAX_TASK_DURATION_SECONDS - KLING_RISKY_COPY_BUFFER_SECONDS);
-  }
-
-  return Math.max(KLING_MIN_TASK_DURATION_SECONDS, baseLimit);
+  return bounds.planningLimitSeconds;
 };
 
 const getTargetDurationSeconds = (

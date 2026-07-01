@@ -1,5 +1,6 @@
 import type { ProjectAgentConnectedFeatureInputs } from '@/lib/project-agent/node-execution';
 import type { ProjectAgentVideoModel } from '@/lib/project-agent/video-model';
+import { SEEDANCE_VIDEO_MODELS } from '@/lib/constants';
 
 export type ProjectAgentVideoCloneMode = 'clone' | 'edit_video';
 
@@ -30,11 +31,7 @@ export const getProjectAgentVideoCloneDurationSeconds = (
 
 export const getProjectAgentVideoCloneAllowedModels = (
   mode: ProjectAgentVideoCloneMode
-): ProjectAgentVideoModel[] => (
-  mode === 'edit_video'
-    ? ['seedance_2', 'seedance_2_mini', 'seedance_2_fast', 'wan_27']
-    : ['seedance_2', 'seedance_2_mini', 'seedance_2_fast', 'kling_3']
-);
+): ProjectAgentVideoModel[] => [...SEEDANCE_VIDEO_MODELS];
 
 export const normalizeProjectAgentVideoCloneModel = (
   preferredModel: unknown,
@@ -43,5 +40,5 @@ export const normalizeProjectAgentVideoCloneModel = (
   const allowedModels = getProjectAgentVideoCloneAllowedModels(mode);
   return typeof preferredModel === 'string' && allowedModels.includes(preferredModel as ProjectAgentVideoModel)
     ? preferredModel as ProjectAgentVideoModel
-    : 'seedance_2';
+    : 'seedance_2_mini';
 };

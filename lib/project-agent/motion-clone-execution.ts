@@ -211,22 +211,16 @@ export const buildMotionClonePromptDrafts = (options?: {
   referenceVideo?: ProjectAgentMotionCloneReferenceVideo | null;
 }) => {
   const avatarName = options?.avatarName?.trim() || '';
-  const productName = options?.productName?.trim() || '';
   const avatarToken = avatarName ? buildTypedMentionToken({ type: 'character', label: avatarName }) : '';
-  const productToken = productName ? buildTypedMentionToken({ type: 'product', label: productName }) : '';
   const imagePrompt = buildMotionClonePreviewPrompt({
     hasAvatar: Boolean(avatarToken),
-    hasProduct: Boolean(productToken),
     avatarLabel: avatarToken || null,
-    productLabel: productToken || null,
   });
   const videoPrompt = [
     buildMotionCloneVideoPrompt({
       hasAvatar: Boolean(avatarToken),
-      hasProduct: Boolean(productToken),
     }),
     avatarToken ? `The on-screen person should be ${avatarToken}.` : '',
-    productToken ? `Every visible product or bottle should be ${productToken}.` : '',
   ].filter(Boolean).join(' ');
 
   return {

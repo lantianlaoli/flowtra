@@ -8,7 +8,7 @@ import {
   startSegmentVideoTask,
   type SerializedSegmentPlanSegment
 } from '@/lib/video-clone-workflow';
-import { getGenerationCost, getSegmentDurationForModel, type PersistedVideoQuality, type VideoModel } from '@/lib/constants';
+import { getGenerationCost, getSegmentDurationForModel, SEEDANCE_VIDEO_MODELS, type PersistedVideoQuality, type VideoModel } from '@/lib/constants';
 import { isKlingPromptValidationError } from '@/lib/kling-prompt-budget';
 import { getKlingPromptValidationResponse } from '@/lib/kling-prompt-api-error';
 import { checkCredits, deductCredits, recordCreditTransaction } from '@/lib/credits';
@@ -164,7 +164,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     let readyCount = 0;
     const startErrors: string[] = [];
     let promptValidationFailure = false;
-    const projectModel = (project.video_model ?? null) as VideoModel | null;
+    if (project.video_model && !SEEDANCE_VIDEO_MODELS.includes(project.video_model as VideoModel)) {
+      return NextResponse.json({
+        error: 'Legacy model cannot be regenerated',
+        details: 'This project was created with a removed legacy model. Create a new project with a Seedance model to generate video.',
+      }, { status: 409 });
+    }
+
+    const projectModel = (project.video_model ?? 'seedance_2_mini') as VideoModel;
     const segmentDurationSeconds = project.segment_duration_seconds || getSegmentDurationForModel(projectModel);
     const normalizedProject = {
       ...(project as SingleVideoProject),

@@ -1,17 +1,15 @@
 'use client';
 
-import { ByteDance, Gemini, Kling, OpenAI, Qwen } from '@lobehub/icons';
+import { ByteDance, Gemini, OpenAI } from '@lobehub/icons';
 import { Coins, DollarSign } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useState } from 'react';
 import { useI18n } from '@/providers/I18nProvider';
 import {
-  KLING_QUALITY_COSTS,
   SEEDANCE_2_FAST_QUALITY_COSTS,
   SEEDANCE_2_MINI_QUALITY_COSTS,
   SEEDANCE_2_QUALITY_COSTS,
-  WAN_27_QUALITY_COSTS,
 } from '@/lib/constants';
 
 const CREDIT_TO_USD = 0.015;
@@ -38,6 +36,15 @@ const MODEL_CARDS: ModelCard[] = [
     icon: Gemini,
   },
   {
+    name: 'Seedance 2 Mini',
+    unit: 'sec',
+    qualities: Object.entries(SEEDANCE_2_MINI_QUALITY_COSTS).map(([label, credits]) => ({
+      label,
+      credits,
+    })),
+    icon: ByteDance,
+  },
+  {
     name: 'Seedance 2 Fast',
     unit: 'sec',
     qualities: Object.entries(SEEDANCE_2_FAST_QUALITY_COSTS).map(([label, credits]) => ({
@@ -56,15 +63,6 @@ const MODEL_CARDS: ModelCard[] = [
     icon: ByteDance,
   },
   {
-    name: 'Seedance 2 Mini',
-    unit: 'sec',
-    qualities: Object.entries(SEEDANCE_2_MINI_QUALITY_COSTS).map(([label, credits]) => ({
-      label,
-      credits,
-    })),
-    icon: ByteDance,
-  },
-  {
     name: 'GPT Image 2',
     unit: 'image',
     qualities: [
@@ -73,24 +71,6 @@ const MODEL_CARDS: ModelCard[] = [
       { label: '4K', credits: 8 },
     ],
     icon: OpenAI,
-  },
-  {
-    name: 'Kling 3.0',
-    unit: 'sec',
-    qualities: Object.entries(KLING_QUALITY_COSTS).map(([label, credits]) => ({
-      label,
-      credits,
-    })),
-    icon: Kling,
-  },
-  {
-    name: 'Wan 2.7',
-    unit: 'sec',
-    qualities: Object.entries(WAN_27_QUALITY_COSTS).map(([label, credits]) => ({
-      label,
-      credits,
-    })),
-    icon: Qwen,
   },
 ];
 

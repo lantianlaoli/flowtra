@@ -69,8 +69,7 @@ import {
   toMotionCloneExecutionFromProject,
   type ProjectAgentMotionCloneExecution,
   type ProjectAgentMotionCloneStage,
-  type ProjectAgentMotionCloneReferenceVideo,
-  type ProjectAgentMotionCloneSelection
+  type ProjectAgentMotionCloneReferenceVideo
 } from '@/lib/project-agent/motion-clone-execution';
 import { syncMotionCloneCanvasState } from '@/lib/project-agent/motion-clone-canvas';
 import {
@@ -233,7 +232,6 @@ type SessionState = {
   cloneReferenceVideo?: {
     id: string;
     name?: string | null;
-    sourceType?: 'creator' | 'reference_video';
     sourceId?: string | null;
     videoUrl?: string | null;
     cdnUrl?: string | null;
@@ -323,7 +321,7 @@ const DEFAULT_STATE: SessionState = {
   language: 'en',
   videoDurationSeconds: 16,
   videoAspectRatio: '9:16',
-  videoModel: 'kling_3'
+  videoModel: 'seedance_2_mini'
 };
 
 type CloneDraftScene = NonNullable<SessionState['cloneReplacementDraft']>['scenes'][number];
@@ -1011,7 +1009,7 @@ const buildSystemPrompt = (state: SessionState) => {
   const motionCloneError = state.motionClone?.error || 'none';
   const selectedVideoModel = normalizeProjectAgentVideoModel(
     state.videoModel,
-    state.intent === 'video_clone' ? 'seedance_2' : 'kling_3',
+    'seedance_2_mini',
     state.intent
   );
   const effectiveVideoModel = getEffectiveProjectAgentVideoModel(state.intent, state.videoModel);
@@ -1081,7 +1079,7 @@ Workflow rules:
   - Step 2: ask what the avatar should say.
   - Step 3: if user says "you decide" or only gives product selling points, use draftAvatarAdsPrompts.
   - Step 4: if there is no product and no explicit script, ask one short follow-up about the topic or angle before drafting.
-  - Step 5: once the draft workspace is ready, the right side only edits image prompt and script; Flowgen auto-splits the script into Kling 3.0 clips between 3 and 15 seconds each.
+  - Step 5: once the draft workspace is ready, the right side only edits image prompt and script; Flowgen auto-splits the script into Seedance-compatible clips between 4 and 15 seconds each.
   - Step 6: when the draft is ready, tell the user to click the avatar ads node's "Start" button on the canvas to run it.
 - For avatar_ads, do not start cover generation until avatar is selected and a draft exists.
 - For avatar_ads, prefer these tools:
@@ -1096,7 +1094,7 @@ Workflow rules:
 - For avatar_ads, never instruct the user to open the old inspector modal or leave the agent to continue.
 - For motion_clone, use chat only to prepare the canvas:
   - Step 1: choose one eligible reference video.
-  - Step 2: choose the replacement avatar first, then optionally choose a product.
+  - Step 2: choose the replacement avatar.
   - Step 3: once the current reference and replacement selections are represented on the canvas, tell the user to click the motion clone node's "Start" button.
 - For motion_clone, prefer these tools:
   - listMotionCloneReferenceVideos
@@ -1109,10 +1107,10 @@ Workflow rules:
   - syncMotionCloneStatus
 - For motion_clone, never imply that chat can execute the run.
 - For motion_clone, image generation is free and video generation is paid. If a video-generation tool returns insufficient credits, state that generation did not start and include required/current credits.
-- For motion_clone, selection priority rule (strict): if current state already contains a selected reference video and selected avatar/product from the left panel, treat those selections as authoritative user intent.
+- For motion_clone, selection priority rule (strict): if current state already contains a selected reference video and selected avatar from the left panel, treat those selections as authoritative user intent.
 - For motion_clone, continue rule (strict): if the current state already has the selected reference video plus a selected avatar, and the user says continue / set it up / create the project / use these selections, do not ask for names again. Create the motion clone project from the existing state and move into the workspace.
 - For motion_clone, never invent avatar option names. If you need to mention available avatars, either call listAvatars first or tell the user to choose from the avatars shown on the left.
-- For motion_clone, immediately after a reference video is selected, do not enumerate avatar names in prose. Just confirm the selected reference and direct the user to choose the replacement avatar from the left panel; product remains optional.
+- For motion_clone, immediately after a reference video is selected, do not enumerate avatar names in prose. Just confirm the selected reference and direct the user to choose the replacement avatar from the left panel.
 - If the user picks video_clone, use chat only to build the clone canvas:
   - Step 1: choose reference video.
   - Step 2: collect replacement selections. Avatar and product are both optional individually, but at least one replacement is required before confirmation or draft generation.
@@ -1285,7 +1283,7 @@ const mergeState = (state: SessionState, patch: Partial<SessionState>) => {
     ...nextState,
     videoModel: normalizeProjectAgentVideoModel(
       nextState.videoModel,
-      nextState.intent === 'video_clone' ? 'seedance_2' : 'kling_3',
+      'seedance_2_mini',
       nextState.intent
     )
   };
@@ -2322,7 +2320,6 @@ export async function POST(request: Request) {
             : sourceName || 'Reference video',
           imageUrl: null,
           durationSeconds: typeof video.duration_seconds === 'number' ? video.duration_seconds : null,
-          sourceType: 'creator' as const,
           videoUrl: typeof video.video_url === 'string' ? video.video_url : null,
           videoCdnUrl: typeof video.video_cdn_url === 'string' ? video.video_cdn_url : null,
           analysisLanguage: typeof video.analysis_language === 'string' ? video.analysis_language : null,
@@ -2337,7 +2334,6 @@ export async function POST(request: Request) {
           : 'Reference video',
         imageUrl: null,
         durationSeconds: typeof ad.video_duration_seconds === 'number' ? ad.video_duration_seconds : null,
-        sourceType: 'reference_video' as const,
         videoUrl: null,
         videoCdnUrl: null,
         analysisLanguage: typeof ad.language === 'string' ? ad.language : null,
@@ -2405,7 +2401,6 @@ export async function POST(request: Request) {
             : 'Reference video',
           imageUrl: null,
           durationSeconds: typeof video.duration_seconds === 'number' ? video.duration_seconds : null,
-          sourceType: 'creator' as const,
           videoUrl: typeof video.video_url === 'string' ? video.video_url : null,
           videoCdnUrl: typeof video.video_cdn_url === 'string' ? video.video_cdn_url : null,
           analysisLanguage: typeof video.analysis_language === 'string' ? video.analysis_language : null,
@@ -2444,7 +2439,6 @@ export async function POST(request: Request) {
               name: sessionState.motionClone.referenceVideo.description || 'Reference video',
               imageUrl: sessionState.motionClone.referenceVideo.coverUrl || null,
               durationSeconds: sessionState.motionClone.referenceVideo.durationSeconds ?? null,
-              sourceType: 'creator' as const,
               videoUrl: sessionState.motionClone.referenceVideo.videoUrl || null,
               videoCdnUrl: sessionState.motionClone.referenceVideo.videoCdnUrl || null,
               analysisLanguage: sessionState.motionClone.referenceVideo.analysisLanguage || null,
@@ -2739,29 +2733,6 @@ export async function POST(request: Request) {
         });
       }
 
-      if (resolvedProductAsset) {
-        const insertIndex = resolvedAvatarAsset ? 2 : 1;
-        mutations.splice(insertIndex, 0, {
-          kind: 'canvas_mutation',
-          mutation: {
-            type: 'add_asset_node',
-            alias: 'productAsset',
-            assetType: 'product',
-            asset: resolvedProductAsset,
-            reuseExisting: true,
-          },
-        });
-        mutations.push({
-          kind: 'canvas_mutation',
-          mutation: {
-            type: 'connect_nodes',
-            source: { kind: 'alias', alias: 'productAsset' },
-            target: { kind: 'alias', alias: 'featureNode' },
-            targetHandle: 'product',
-          },
-        });
-      }
-
       mutations.push({
         kind: 'canvas_mutation',
         mutation: { type: 'format_layout' },
@@ -2789,15 +2760,7 @@ export async function POST(request: Request) {
               photoUrl: resolvedAvatarAsset.imageUrl || null,
             }
           : undefined,
-        selectedProduct: resolvedProductAsset
-          ? {
-              id: resolvedProductAsset.id,
-              name: resolvedProductAsset.name,
-              photoUrl: resolvedProductAsset.imageUrl || null,
-            }
-          : intent.constraints.removeProduct
-            ? null
-            : undefined,
+        selectedProduct: null,
       });
 
       const nextState = mergeState(sessionState, {
@@ -2811,7 +2774,7 @@ export async function POST(request: Request) {
 
       return {
         kind: 'canvas',
-        replyText: `I added the Motion Clone workflow to the canvas with ${resolvedVideoAsset.name}${resolvedProductAsset ? `, ${resolvedAvatarAsset.name}, and ${resolvedProductAsset.name}` : ` and ${resolvedAvatarAsset.name}`}.`,
+        replyText: `I added the Motion Clone workflow to the canvas with ${resolvedVideoAsset.name} and ${resolvedAvatarAsset.name}.`,
         actions: mutations,
         nextState,
       };
@@ -2915,7 +2878,6 @@ export async function POST(request: Request) {
                 name: sessionState.cloneReferenceVideo.name?.trim() || 'Reference video',
                 imageUrl: null,
                 durationSeconds: null,
-                sourceType: sessionState.cloneReferenceVideo.sourceType || 'creator',
                 videoUrl: sessionState.cloneReferenceVideo.videoUrl || null,
                 videoCdnUrl: sessionState.cloneReferenceVideo.cdnUrl || null,
                 analysisLanguage: sessionState.cloneReferenceVideo.language || null,
@@ -3167,7 +3129,6 @@ export async function POST(request: Request) {
         cloneReferenceVideo: {
           id: resolvedVideoAsset.id,
           name: resolvedVideoAsset.name,
-          sourceType: resolvedVideoAsset.sourceType === 'reference_video' ? 'reference_video' : 'creator',
           videoUrl: resolvedVideoAsset.videoUrl || null,
           cdnUrl: resolvedVideoAsset.videoCdnUrl || null,
           language: resolvedVideoAsset.analysisLanguage || null,
@@ -3721,7 +3682,6 @@ export async function POST(request: Request) {
             ? video.description
             : sourceName,
           sourceName,
-          sourceType: 'creator' as const,
           videoUrl: typeof video.video_url === 'string' ? video.video_url : null,
           videoCdnUrl: typeof video.video_cdn_url === 'string' ? video.video_cdn_url : null,
           coverUrl: null,
@@ -3741,7 +3701,6 @@ export async function POST(request: Request) {
         coverUrl: null,
         durationSeconds: typeof ad.video_duration_seconds === 'number' ? ad.video_duration_seconds : null,
         analysisLanguage: typeof ad.language === 'string' ? ad.language : null,
-        sourceType: 'reference_video' as const,
       }));
 
       const availableReferenceVideos = [...creatorReferenceVideos, ...storedReferenceVideos];
@@ -3791,7 +3750,6 @@ export async function POST(request: Request) {
             name: matchedReferenceVideo.description || 'Reference video',
             imageUrl: matchedReferenceVideo.coverUrl,
             durationSeconds: matchedReferenceVideo.durationSeconds,
-            sourceType: matchedReferenceVideo.sourceType ?? 'creator' as const,
             videoUrl: matchedReferenceVideo.videoUrl,
             videoCdnUrl: matchedReferenceVideo.videoCdnUrl,
             analysisLanguage: matchedReferenceVideo.analysisLanguage,
@@ -3963,21 +3921,6 @@ export async function POST(request: Request) {
           },
         );
 
-        if (resolvedProductAssetWithCanvasFallback) {
-          mutations.splice(2, 0, {
-            type: 'add_asset_node',
-            alias: 'productAsset',
-            assetType: 'product',
-            asset: resolvedProductAssetWithCanvasFallback,
-            reuseExisting: true,
-          });
-          mutations.push({
-            type: 'connect_nodes',
-            source: { kind: 'alias', alias: 'productAsset' },
-            target: { kind: 'alias', alias: 'featureNode' },
-            targetHandle: 'product',
-          });
-        }
       }
 
       if (mutations.length === 0) return null;
@@ -4002,7 +3945,7 @@ export async function POST(request: Request) {
       if (workflowIntent === 'avatar_ads' && resolvedAvatarAsset) {
         replyText = `I added an Avatar Ads workflow to the canvas with ${resolvedAvatarAsset.name}${resolvedProductAssetWithCanvasFallback ? ` and ${resolvedProductAssetWithCanvasFallback.name}` : ''}.`;
       } else if (workflowIntent === 'motion_clone' && resolvedAvatarAsset && resolvedReferenceVideoAsset) {
-        replyText = `I added a Motion Clone workflow to the canvas with ${resolvedAvatarAsset.name}, ${resolvedReferenceVideoAsset.name}${resolvedProductAssetWithCanvasFallback ? `, and ${resolvedProductAssetWithCanvasFallback.name}` : ''}.`;
+        replyText = `I added a Motion Clone workflow to the canvas with ${resolvedAvatarAsset.name} and ${resolvedReferenceVideoAsset.name}.`;
       } else if (workflowIntent === 'video_clone' && resolvedReferenceVideoAsset) {
         replyText = `I added a Video Clone workflow to the canvas with ${resolvedReferenceVideoAsset.name}${resolvedProductAssetWithCanvasFallback ? ` and ${resolvedProductAssetWithCanvasFallback.name}` : resolvedAvatarAsset ? ` and ${resolvedAvatarAsset.name}` : ''}.`;
       }
@@ -4159,21 +4102,6 @@ export async function POST(request: Request) {
           },
         );
 
-        if (resolvedProductAssetWithCanvasFallback) {
-          mutations.splice(2, 0, {
-            type: 'add_asset_node',
-            alias: 'productAsset',
-            assetType: 'product',
-            asset: resolvedProductAssetWithCanvasFallback,
-            reuseExisting: true,
-          });
-          mutations.push({
-            type: 'connect_nodes',
-            source: { kind: 'alias', alias: 'productAsset' },
-            target: { kind: 'alias', alias: 'featureNode' },
-            targetHandle: 'product',
-          });
-        }
       }
 
       if (workflowIntent === 'avatar_ads' && resolvedAvatarAsset) {
@@ -4248,7 +4176,7 @@ export async function POST(request: Request) {
 
       let replyText = 'I updated the canvas.';
       if (workflowIntent === 'motion_clone' && resolvedAvatarAsset && resolvedVideoAsset) {
-        replyText = `I added a Motion Clone workflow to the canvas with ${resolvedAvatarAsset.name}, ${resolvedVideoAsset.name}${resolvedProductAssetWithCanvasFallback ? `, and ${resolvedProductAssetWithCanvasFallback.name}` : ''}.`;
+        replyText = `I added a Motion Clone workflow to the canvas with ${resolvedAvatarAsset.name} and ${resolvedVideoAsset.name}.`;
       } else if (workflowIntent === 'avatar_ads' && resolvedAvatarAsset) {
         replyText = `I added an Avatar Ads workflow to the canvas with ${resolvedAvatarAsset.name}${resolvedProductAssetWithCanvasFallback ? ` and ${resolvedProductAssetWithCanvasFallback.name}` : ''}.`;
       } else if (workflowIntent === 'video_clone' && resolvedVideoAsset) {
@@ -4641,7 +4569,7 @@ export async function POST(request: Request) {
         || 'the selected video';
 
       return sendDirectAssistantReply(
-        `Done. "${referenceLabel}" is now set as your motion reference. Next, choose the replacement avatar from the options shown on the left. If you also want to swap the product, choose that too.`
+        `Done. "${referenceLabel}" is now set as your motion reference. Next, choose the replacement avatar from the options shown on the left.`
       );
     };
 
@@ -4654,7 +4582,6 @@ export async function POST(request: Request) {
 
       const referenceVideo = sessionState.motionClone?.referenceVideo;
       const selectedAvatar = sessionState.motionClone?.selectedAvatar;
-      const selectedProduct = sessionState.motionClone?.selectedProduct ?? null;
       const alreadyHasProject = Boolean(sessionState.motionClone?.projectId);
       const wantsToContinue = (
         isSelectionContinueIntent(trimmedUserTurn) ||
@@ -4680,11 +4607,8 @@ export async function POST(request: Request) {
           canvas: nextCanvas
         });
 
-        const productLine = selectedProduct
-          ? `I also kept ${selectedProduct.name} as the product swap.`
-          : 'I kept the product unchanged.';
         return sendDirectAssistantReply(
-          `Perfect. I locked in the selected reference video with ${selectedAvatar.name}. ${productLine} The workspace is ready with prompts generated from your current selections.`
+          `Perfect. I locked in the selected reference video with ${selectedAvatar.name}. The workspace is ready with prompts generated from your current selections.`
         );
       }
 
@@ -4717,11 +4641,8 @@ export async function POST(request: Request) {
         canvas: nextCanvas
       });
 
-      const productLine = selectedProduct
-        ? `I also linked ${selectedProduct.name} as the product swap.`
-        : 'I kept the product unchanged.';
       return sendDirectAssistantReply(
-        `Perfect. I locked in the selected reference video with ${selectedAvatar.name}. ${productLine} The workspace is ready with prompts generated from your current selections.`
+        `Perfect. I locked in the selected reference video with ${selectedAvatar.name}. The workspace is ready with prompts generated from your current selections.`
       );
     };
 
@@ -4734,7 +4655,6 @@ export async function POST(request: Request) {
       const projectId = sessionState.motionClone?.projectId || await resolveMotionCloneProjectId();
       const referenceVideoId = sessionState.motionClone?.referenceVideo?.id;
       const selectedAvatar = sessionState.motionClone?.selectedAvatar;
-      const selectedProduct = sessionState.motionClone?.selectedProduct ?? null;
       const internalTimestamp = String(Date.now());
       const internalHeaders = {
         'Content-Type': 'application/json',
@@ -4761,7 +4681,7 @@ export async function POST(request: Request) {
         const execution = toMotionCloneExecutionFromProject(payload.project, {
           referenceVideo: sessionState.motionClone?.referenceVideo || null,
           selectedAvatar: selectedAvatar || null,
-          selectedProduct: selectedProduct || null
+          selectedProduct: null
         });
         await persistSession({
           intent: 'motion_clone',
@@ -4805,7 +4725,6 @@ export async function POST(request: Request) {
           body: JSON.stringify({
             reference_video_id: referenceVideoId,
             avatar_id: selectedAvatar.id,
-            product_id: selectedProduct?.id || undefined,
             photo_prompt: sessionState.motionClone?.photoPrompt || undefined,
             video_prompt: sessionState.motionClone?.videoPrompt || undefined,
             mode: normalizeMotionCloneQuality(sessionState.motionClone?.videoQuality),
@@ -4820,7 +4739,7 @@ export async function POST(request: Request) {
         const execution = toMotionCloneExecutionFromProject(payload.project, {
           referenceVideo: sessionState.motionClone?.referenceVideo || null,
           selectedAvatar: selectedAvatar || null,
-          selectedProduct: selectedProduct || null
+          selectedProduct: null
         });
         await persistSession({
           intent: 'motion_clone',
@@ -4852,7 +4771,6 @@ export async function POST(request: Request) {
           body: JSON.stringify({
             reference_video_id: referenceVideoId,
             avatar_id: selectedAvatar.id,
-            product_id: selectedProduct?.id || undefined,
             photo_prompt: sessionState.motionClone?.photoPrompt || undefined,
             video_prompt: sessionState.motionClone?.videoPrompt || undefined,
             mode: normalizeMotionCloneQuality(sessionState.motionClone?.videoQuality),
@@ -4876,7 +4794,7 @@ export async function POST(request: Request) {
         const execution = toMotionCloneExecutionFromProject(payload.project, {
           referenceVideo: sessionState.motionClone?.referenceVideo || null,
           selectedAvatar: selectedAvatar || null,
-          selectedProduct: selectedProduct || null
+          selectedProduct: null
         });
         await persistSession({
           intent: 'motion_clone',
@@ -5058,33 +4976,33 @@ export async function POST(request: Request) {
           let analysisResult: Record<string, unknown> | null = null;
           let referenceDurationSeconds: number | null = null;
 
-          if (reference.sourceType === 'reference_video') {
-            const { data } = await supabase
-              .from('reference_videos')
-              .select('id,analysis_result,video_duration_seconds')
-              .eq('id', reference.sourceId || reference.id)
-              .eq('user_id', userId)
-              .maybeSingle();
-            const referenceVideo = data as {
-              id: string;
-              analysis_result: unknown;
-              video_duration_seconds?: number | null;
-            } | null;
-            analysisResult = (referenceVideo?.analysis_result as Record<string, unknown> | null) || null;
-            referenceDurationSeconds = Number(referenceVideo?.video_duration_seconds || 0) || null;
-          } else {
+          const referenceId = reference.sourceId || reference.id;
+          const { data: referenceVideoData } = await supabase
+            .from('reference_videos')
+            .select('id,analysis_result,video_duration_seconds')
+            .eq('id', referenceId)
+            .eq('user_id', userId)
+            .maybeSingle();
+          const referenceVideo = referenceVideoData as {
+            id: string;
+            analysis_result: unknown;
+            video_duration_seconds?: number | null;
+          } | null;
+          analysisResult = (referenceVideo?.analysis_result as Record<string, unknown> | null) || null;
+          referenceDurationSeconds = Number(referenceVideo?.video_duration_seconds || 0) || null;
+
+          if (!analysisResult) {
             type CreatorSourceVideoRow = {
               id: string;
               analysis_result: unknown;
               duration_seconds?: number | null;
             };
             let creatorVideo: CreatorSourceVideoRow | null = null;
-            const primaryId = reference.id;
-            if (primaryId) {
+            if (reference.id) {
               const { data } = await supabase
                 .from('creator_source_videos')
                 .select('id,analysis_result,duration_seconds')
-                .eq('id', primaryId)
+                .eq('id', reference.id)
                 .eq('user_id', userId)
                 .maybeSingle();
               creatorVideo = data as CreatorSourceVideoRow | null;
@@ -5524,9 +5442,7 @@ export async function POST(request: Request) {
               return {
                 success: true,
                 avatar: match,
-                message: nextMotionClone.selectedProduct?.id
-                  ? 'Avatar selected for motion clone. Prompts were refreshed based on the current avatar and product selections.'
-                  : 'Avatar selected for motion clone. Prompts were refreshed for the current selection.'
+                message: 'Avatar selected for motion clone. Prompts were refreshed for the current selection.'
               };
             }
 
@@ -6372,7 +6288,7 @@ export async function POST(request: Request) {
           }
         }),
         draftAvatarAdsPrompts: tool({
-          description: 'Draft avatar ad script and cover prompt from user guidance or multimodal product context, then auto-split the script into hidden Kling scenes.',
+          description: 'Draft avatar ad script and cover prompt from user guidance or multimodal product context, then auto-split the script into hidden Seedance-compatible scenes.',
           inputSchema: jsonSchema({
             type: 'object',
             properties: {
@@ -6484,7 +6400,7 @@ export async function POST(request: Request) {
             formData.set('user_id', userId);
             formData.set('video_duration_seconds', String(promptState.totalDurationSeconds));
             formData.set('image_size', (sessionState.avatarSelection?.aspectRatio ?? sessionState.videoAspectRatio) === '9:16' ? 'portrait_16_9' : 'landscape_16_9');
-            formData.set('video_model', 'kling_3');
+            formData.set('video_model', 'seedance_2_mini');
             formData.set('video_aspect_ratio', sessionState.avatarSelection?.aspectRatio ?? sessionState.videoAspectRatio ?? '9:16');
             formData.set('selected_person_photo_url', avatar.photoUrl);
             formData.set('language', sessionState.avatarSelection?.language ?? sessionState.language ?? 'en');
@@ -6534,7 +6450,7 @@ export async function POST(request: Request) {
               avatarExecution: {
                 projectId: nextProjectId,
                 phase: 'generating_cover',
-                model: 'kling_3',
+                model: 'seedance_2_mini',
                 finalVideoUrl: null,
                 coverImageUrl: null,
                 scenes: [],
@@ -6772,50 +6688,22 @@ export async function POST(request: Request) {
           }
         }),
         setMotionCloneSelections: tool({
-          description: 'Select the required avatar and optional product replacements for motion clone.',
+          description: 'Select the required avatar replacement for motion clone.',
           inputSchema: jsonSchema({
             type: 'object',
             properties: {
               avatarId: { type: 'string' },
-              productId: { type: 'string' },
-              clearAvatar: { type: 'boolean' },
-              clearProduct: { type: 'boolean' }
+              clearAvatar: { type: 'boolean' }
             },
             required: []
           }),
-          execute: async ({ avatarId, productId, clearAvatar, clearProduct }) => {
+          execute: async ({ avatarId, clearAvatar }) => {
             const avatars = mergeAvatarOptions(await fetchUserAvatarOptions());
             const avatarMatch = avatarId
               ? avatars.find((avatar) => avatar.id === avatarId)
               : undefined;
             if (avatarId && (!avatarMatch || !avatarMatch.photo_url)) {
               return { success: false, message: 'The selected avatar was not found.' };
-            }
-
-            let productSelection: ProjectAgentMotionCloneSelection | null | undefined;
-            if (productId) {
-              const { data, error } = await supabase
-                .from('user_products')
-                .select('id, product_name, user_product_photos(photo_url,is_primary)')
-                .eq('user_id', userId)
-                .eq('id', productId)
-                .limit(1);
-              if (error) {
-                return { success: false, message: 'Failed to load the selected product.' };
-              }
-              const product = (data ?? [])[0] as
-                | { id: string; product_name: string; user_product_photos?: Array<{ photo_url?: string; is_primary?: boolean }> }
-                | undefined;
-              if (!product) {
-                return { success: false, message: 'The selected product was not found.' };
-              }
-              const photos = Array.isArray(product.user_product_photos) ? product.user_product_photos : [];
-              const primaryPhoto = photos.find((photo) => photo.is_primary) || photos[0];
-              productSelection = {
-                id: product.id,
-                name: product.product_name,
-                photoUrl: primaryPhoto?.photo_url || null
-              };
             }
 
             const selectedAvatar = clearAvatar
@@ -6827,14 +6715,9 @@ export async function POST(request: Request) {
                     photoUrl: avatarMatch.photo_url ?? null
                   }
                 : (sessionState.motionClone?.selectedAvatar ?? null);
-            const selectedProduct = clearProduct
-              ? null
-              : productSelection !== undefined
-                ? productSelection
-                : (sessionState.motionClone?.selectedProduct ?? null);
             const nextMotionClone = buildMotionCloneExecutionUpdate(sessionState.motionClone, {
               selectedAvatar,
-              selectedProduct,
+              selectedProduct: null,
               error: null
             });
             const nextCanvas = syncMotionCloneCanvasState(latestCanvas, nextMotionClone);
@@ -6847,12 +6730,7 @@ export async function POST(request: Request) {
                     photoUrl: selectedAvatar.photoUrl || ''
                   }
                 : null,
-              product: selectedProduct
-                ? {
-                    id: selectedProduct.id,
-                    name: selectedProduct.name
-                  }
-                : null,
+              product: null,
               motionClone: nextMotionClone,
               canvas: nextCanvas
             });
@@ -6860,9 +6738,9 @@ export async function POST(request: Request) {
             return {
               success: true,
               selectedAvatar,
-              selectedProduct,
-              message: selectedAvatar || selectedProduct
-                ? 'Motion clone selections updated. Prompts were refreshed based on the current avatar and product selections.'
+              selectedProduct: null,
+              message: selectedAvatar
+                ? 'Motion clone selections updated. Prompts were refreshed based on the current avatar selection.'
                 : 'Motion clone selections cleared.'
             };
           }
@@ -6950,7 +6828,6 @@ export async function POST(request: Request) {
             const projectId = sessionState.motionClone?.projectId || await resolveMotionCloneProjectId();
             const referenceVideoId = sessionState.motionClone?.referenceVideo?.id;
             const selectedAvatar = sessionState.motionClone?.selectedAvatar;
-            const selectedProduct = sessionState.motionClone?.selectedProduct;
             if (!projectId) {
               return { success: false, message: 'Create the motion clone project first.' };
             }
@@ -6974,7 +6851,6 @@ export async function POST(request: Request) {
               body: JSON.stringify({
                 reference_video_id: referenceVideoId,
                 avatar_id: selectedAvatar?.id || undefined,
-                product_id: selectedProduct?.id || undefined,
                 photo_prompt: sessionState.motionClone?.photoPrompt || undefined,
                 video_prompt: sessionState.motionClone?.videoPrompt || undefined,
                 mode: normalizeMotionCloneQuality(sessionState.motionClone?.videoQuality),
@@ -6989,7 +6865,7 @@ export async function POST(request: Request) {
             const execution = toMotionCloneExecutionFromProject(payload.project, {
               referenceVideo: sessionState.motionClone?.referenceVideo || null,
               selectedAvatar: selectedAvatar || null,
-              selectedProduct: selectedProduct || null
+              selectedProduct: null
             });
             await persistSession({
               intent: 'motion_clone',
@@ -7007,7 +6883,6 @@ export async function POST(request: Request) {
             const projectId = sessionState.motionClone?.projectId || await resolveMotionCloneProjectId();
             const referenceVideoId = sessionState.motionClone?.referenceVideo?.id;
             const selectedAvatar = sessionState.motionClone?.selectedAvatar;
-            const selectedProduct = sessionState.motionClone?.selectedProduct;
             if (!projectId) {
               return { success: false, message: 'Create the motion clone project first.' };
             }
@@ -7035,7 +6910,6 @@ export async function POST(request: Request) {
               body: JSON.stringify({
                 reference_video_id: referenceVideoId,
                 avatar_id: selectedAvatar?.id || undefined,
-                product_id: selectedProduct?.id || undefined,
                 photo_prompt: sessionState.motionClone?.photoPrompt || undefined,
                 video_prompt: sessionState.motionClone?.videoPrompt || undefined,
                 mode: normalizeMotionCloneQuality(sessionState.motionClone?.videoQuality),
@@ -7058,7 +6932,7 @@ export async function POST(request: Request) {
             const execution = toMotionCloneExecutionFromProject(payload.project, {
               referenceVideo: sessionState.motionClone?.referenceVideo || null,
               selectedAvatar: selectedAvatar || null,
-              selectedProduct: selectedProduct || null
+              selectedProduct: null
             });
             await persistSession({
               intent: 'motion_clone',
@@ -7089,7 +6963,7 @@ export async function POST(request: Request) {
             const execution = toMotionCloneExecutionFromProject(payload.project, {
               referenceVideo: sessionState.motionClone?.referenceVideo || null,
               selectedAvatar: sessionState.motionClone?.selectedAvatar || null,
-              selectedProduct: sessionState.motionClone?.selectedProduct || null
+              selectedProduct: null
             });
             await persistSession({
               intent: 'motion_clone',
@@ -7293,7 +7167,7 @@ export async function POST(request: Request) {
               (total, segment) => total + getProjectAgentSegmentPromptDurationSeconds(segment),
               0
             ));
-            const normalizedModel = 'kling_3' as const;
+            const normalizedModel = 'seedance_2_mini' as const;
             const cloneReferenceVideo = sessionState.cloneReferenceVideo;
             if (!cloneReferenceVideo) {
               return { success: false, message: 'Reference video is missing.' };
@@ -7316,11 +7190,7 @@ export async function POST(request: Request) {
               requestSource: 'project_agent_clone',
               referenceSourceVideoUrl: cloneReferenceVideo.cdnUrl || cloneReferenceVideo.videoUrl || undefined
             };
-            if (cloneReferenceVideo.sourceType === 'reference_video') {
-              createPayload.referenceVideoId = cloneReferenceVideo.sourceId || cloneReferenceVideo.id;
-            } else {
-              createPayload.creatorSourceVideoId = cloneReferenceVideo.id || cloneReferenceVideo.sourceId;
-            }
+            createPayload.referenceVideoId = cloneReferenceVideo.sourceId || cloneReferenceVideo.id;
 
             await persistSession({
               pendingMergeConfirmation: null,

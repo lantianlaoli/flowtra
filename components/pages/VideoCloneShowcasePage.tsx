@@ -70,15 +70,14 @@ export default function VideoCloneShowcasePage() {
     {
       icon: Film,
       title: 'Multiple AI Models',
-      description: 'Choose from Seedance 2 Fast, Seedance 2, Seedance 2 Mini, and Kling 3.0 to match your quality and budget needs.',
+      description: 'Choose from Seedance 2 Mini, Seedance 2 Fast, and Seedance 2 to match your quality and budget needs.',
     },
   ];
 
   const pricingOptions = [
+    { model: 'Seedance 2 Mini', credits: 20.5, type: 'Paid Generation', quality: 'Value 720p, billed per second' },
     { model: 'Seedance 2 Fast', credits: 33, type: 'Paid Generation', quality: 'Native 720p, billed per second' },
     { model: 'Seedance 2', credits: 41, type: 'Paid Generation', quality: 'Higher quality, billed per second' },
-    { model: 'Seedance 2 Mini', credits: 20.5, type: 'Paid Generation', quality: 'Value 720p, billed per second' },
-    { model: 'Kling 3.0', credits: 35, type: 'Paid Generation', quality: 'Cinematic generation, billed per second' },
     { model: 'Replica Photo', credits: '6', type: 'Paid Generation', quality: 'GPT Image 2 scene replica' },
   ];
 

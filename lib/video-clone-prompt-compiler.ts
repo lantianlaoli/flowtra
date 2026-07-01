@@ -48,21 +48,13 @@ const mapMentionsInValue = (value: unknown): unknown => {
 
 export const compilePromptForExecution = <T>(
   value: T,
-  model: VideoModel
+  _model: VideoModel
 ): {
   compiledValue: T;
   mentionCount: number;
   compileMode: PromptCompileMode;
 } => {
   const mentionCount = countMentionsInValue(value);
-  if (model === 'kling_3') {
-    return {
-      compiledValue: value,
-      mentionCount,
-      compileMode: 'kling_elements'
-    };
-  }
-
   return {
     compiledValue: mapMentionsInValue(value) as T,
     mentionCount,

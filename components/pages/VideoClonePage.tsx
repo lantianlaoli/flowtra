@@ -28,6 +28,7 @@ import {
   getGenerationCost,
   getSegmentCountFromDuration,
   normalizeCloneVideoQualityForModel,
+  SEEDANCE_VIDEO_MODELS,
   type VideoModel,
   type CloneVideoQuality,
   type VideoDuration,
@@ -211,12 +212,7 @@ const getStageLabel = (
   return locale === "zh" ? "排队中" : "Queued";
 };
 
-const ALL_VIDEO_MODELS: VideoModel[] = [
-  "seedance_2_fast",
-  "seedance_2",
-  "seedance_2_mini",
-  "kling_3",
-];
+const ALL_VIDEO_MODELS: VideoModel[] = [...SEEDANCE_VIDEO_MODELS];
 const SESSION_STORAGE_KEY = "flowtra_video_clone_generations";
 
 export default function VideoClonePage() {
@@ -264,9 +260,9 @@ export default function VideoClonePage() {
   >({});
 
   // Video configuration states
-  const [selectedModel, setSelectedModel] = useState<VideoModel>("seedance_2_fast");
+  const [selectedModel, setSelectedModel] = useState<VideoModel>("seedance_2_mini");
   const [selectedVideoQuality, setSelectedVideoQuality] =
-    useState<CloneVideoQuality>(getDefaultCloneVideoQuality("seedance_2_fast"));
+    useState<CloneVideoQuality>(getDefaultCloneVideoQuality("seedance_2_mini"));
   const [format, setFormat] = useState<Format>("9:16");
 
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>("en");
@@ -278,7 +274,6 @@ export default function VideoClonePage() {
   });
   const elementsCount = 1;
   type ReferenceVideo = CreatorSourceVideo & {
-    source_type?: "creator" | "reference_video";
     reference_video_id?: string;
   };
   const [assetVideos, setAssetVideos] = useState<ReferenceVideo[]>([]);
@@ -311,9 +306,8 @@ export default function VideoClonePage() {
     trackEvent(ANALYTICS_EVENTS.project_agent_clone_reference_selected, {
       feature: "ugc_clone",
       surface: "video_clone_page",
-      reference_type: selectedReferenceVideo?.source_type || "creator",
     });
-  }, [selectedReferenceVideo?.source_type, selectedReferenceVideoId]);
+  }, [selectedReferenceVideoId]);
   const hasReferenceVideo = Boolean(selectedReferenceVideo);
   // Reference videos are video-only, so photo mode is never active from reference selection
   const isReferencePhotoMode = false;
@@ -1810,18 +1804,6 @@ export default function VideoClonePage() {
       return;
     }
 
-    if (
-      selectedModel === "kling_3" &&
-      Number.isFinite(referenceDurationSeconds) &&
-      referenceDurationSeconds > 60
-    ) {
-      setValidationMessage(
-        "Kling 3.0 clone supports reference videos up to 60 seconds.",
-      );
-      setShowValidationModal(true);
-      return;
-    }
-
     if (isGenerating) return;
 
     setIsGenerating(true);
@@ -1909,15 +1891,9 @@ export default function VideoClonePage() {
         elementsCountOverride: elementsCount,
         aspectRatioOverride: format,
         generateVideo: shouldGenerateVideo,
-        creatorSourceVideoId:
-          selectedReferenceVideo.source_type === "reference_video"
-            ? undefined
-            : selectedReferenceVideo.id,
         referenceVideoId:
-          selectedReferenceVideo.source_type === "reference_video"
-            ? selectedReferenceVideo.reference_video_id ||
-              selectedReferenceVideo.id
-            : undefined,
+          selectedReferenceVideo.reference_video_id ||
+          selectedReferenceVideo.id,
         directReferenceOptions: shouldGenerateVideo
           ? directReferenceRequestOptions
           : null,

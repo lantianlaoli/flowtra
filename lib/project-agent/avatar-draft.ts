@@ -116,7 +116,7 @@ export async function draftProjectAgentAvatarPrompts(input: {
           'prompt must be an object with keys: subject, context_environment, action, style, camera_motion_positioning, composition, ambiance_color_lighting, audio, dialog, duration_seconds.',
           'Keep the visual direction grounded in the uploaded avatar and product photos.',
           'dialog must feel spoken, concise, and conversion-oriented.',
-          'For Kling 3.0, split the spoken script into natural segments between 3 and 15 seconds each.',
+          'Split the spoken script into natural Seedance-compatible segments between 4 and 15 seconds each.',
           'Choose as many segments as needed so the spoken pacing feels natural.',
           'image_prompt must describe a single spoken-to-camera talking-head cover frame matching the script and selected assets.',
           'Do not mention aspect ratio, resolution, or camera spec boilerplate in image_prompt.',

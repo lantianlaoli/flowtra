@@ -6,12 +6,15 @@ export const toProjectAgentVideoAssets = (value: unknown): ProjectAgentCanvasAss
   return videos
     .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
     .filter((item) => {
-      const sourceType = item.source_type === 'reference_video' ? 'reference_video' : 'creator';
-      if (sourceType === 'reference_video') return true;
-
       const videoUrl = typeof item.video_url === 'string' ? item.video_url.trim() : '';
       const videoCdnUrl = typeof item.video_cdn_url === 'string' ? item.video_cdn_url.trim() : '';
-      return videoUrl.length > 0 || videoCdnUrl.length > 0;
+      const hasStorageReference = (
+        typeof item.source_storage_bucket === 'string' &&
+        item.source_storage_bucket.trim().length > 0 &&
+        typeof item.source_storage_path === 'string' &&
+        item.source_storage_path.trim().length > 0
+      );
+      return videoUrl.length > 0 || videoCdnUrl.length > 0 || hasStorageReference || item.isSystem === true;
     })
     .map((item) => ({
       id: String(item.id),
@@ -22,7 +25,6 @@ export const toProjectAgentVideoAssets = (value: unknown): ProjectAgentCanvasAss
           : 'Video',
       imageUrl: null,
       durationSeconds: typeof item.duration_seconds === 'number' ? item.duration_seconds : null,
-      sourceType: item.source_type === 'reference_video' ? 'reference_video' : 'creator',
       videoUrl: typeof item.video_url === 'string' ? item.video_url : null,
       videoCdnUrl: typeof item.video_cdn_url === 'string' ? item.video_cdn_url : null,
       analysisLanguage: typeof item.analysis_language === 'string' ? item.analysis_language : null,

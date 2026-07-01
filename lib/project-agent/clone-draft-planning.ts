@@ -1,7 +1,7 @@
 import {
-  KLING_MAX_PROJECT_DURATION_SECONDS,
-  KLING_MAX_TASK_DURATION_SECONDS,
-  KLING_MIN_TASK_DURATION_SECONDS,
+  SEEDANCE_MAX_PROJECT_DURATION_SECONDS,
+  SEEDANCE_MAX_TASK_DURATION_SECONDS,
+  SEEDANCE_MIN_TASK_DURATION_SECONDS,
   snapDurationToModel,
   type VideoDuration,
 } from '@/lib/constants';
@@ -50,13 +50,13 @@ function buildFallbackReferenceVideoShots(fallbackShots?: string[] | null, fallb
 
   if (normalizedShots.length > 0) {
     return normalizedShots.slice(0, 8).map((summary, index) => {
-      const startSeconds = index * KLING_MIN_TASK_DURATION_SECONDS;
-      const endSeconds = startSeconds + KLING_MIN_TASK_DURATION_SECONDS;
+      const startSeconds = index * SEEDANCE_MIN_TASK_DURATION_SECONDS;
+      const endSeconds = startSeconds + SEEDANCE_MIN_TASK_DURATION_SECONDS;
       return {
         id: index + 1,
         startTime: formatTimecode(startSeconds),
         endTime: formatTimecode(endSeconds),
-        durationSeconds: KLING_MIN_TASK_DURATION_SECONDS,
+        durationSeconds: SEEDANCE_MIN_TASK_DURATION_SECONDS,
         firstFrameDescription: summary,
         subject: summary,
         contextEnvironment: '',
@@ -79,8 +79,8 @@ function buildFallbackReferenceVideoShots(fallbackShots?: string[] | null, fallb
   return [{
     id: 1,
     startTime: formatTimecode(0),
-    endTime: formatTimecode(KLING_MIN_TASK_DURATION_SECONDS),
-    durationSeconds: KLING_MIN_TASK_DURATION_SECONDS,
+    endTime: formatTimecode(SEEDANCE_MIN_TASK_DURATION_SECONDS),
+    durationSeconds: SEEDANCE_MIN_TASK_DURATION_SECONDS,
     firstFrameDescription: summary,
     subject: summary,
     contextEnvironment: '',
@@ -94,7 +94,7 @@ function buildFallbackReferenceVideoShots(fallbackShots?: string[] | null, fallb
     sfx: '',
     ambient: '',
     startTimeSeconds: 0,
-    endTimeSeconds: KLING_MIN_TASK_DURATION_SECONDS,
+    endTimeSeconds: SEEDANCE_MIN_TASK_DURATION_SECONDS,
   }];
 }
 
@@ -105,8 +105,8 @@ function resolveKlingDuration(
   shots?: ReferenceVideoShot[]
 ): VideoDuration {
   const explicitReferenceDuration = Number(referenceDurationSeconds);
-  if (Number.isFinite(explicitReferenceDuration) && explicitReferenceDuration > KLING_MAX_PROJECT_DURATION_SECONDS) {
-    throw new Error('Kling 3.0 clone supports reference videos up to 60 seconds.');
+  if (Number.isFinite(explicitReferenceDuration) && explicitReferenceDuration > 64) {
+    throw new Error('Seedance clone supports reference videos up to 64 seconds.');
   }
 
   const preferredDuration = Number.isFinite(explicitReferenceDuration) && explicitReferenceDuration > 0
@@ -116,14 +116,14 @@ function resolveKlingDuration(
       : Number.isFinite(Number(fallbackDurationSeconds)) && Number(fallbackDurationSeconds) > 0
         ? Number(fallbackDurationSeconds)
         : Math.max(
-            KLING_MIN_TASK_DURATION_SECONDS,
+            SEEDANCE_MIN_TASK_DURATION_SECONDS,
             Math.min(
-              KLING_MAX_PROJECT_DURATION_SECONDS,
+              SEEDANCE_MAX_PROJECT_DURATION_SECONDS,
               sumShotDurations(shots || [])
             )
           );
 
-  return snapDurationToModel('kling_3', preferredDuration);
+  return snapDurationToModel('seedance_2_mini', preferredDuration);
 }
 
 function normalizeShotDurations(shots: ReferenceVideoShot[], targetTotalSeconds: number): PlannedShotPart[] {
@@ -171,10 +171,10 @@ function canRemainingShotsFitIntoScenes(remainingParts: PlannedShotPart[]) {
   const remainingShotCount = remainingParts.length;
   const remainingDuration = remainingParts.reduce((sum, part) => sum + part.durationSeconds, 0);
   const minimumSceneCountFromShots = Math.ceil(remainingShotCount / KLING_MAX_MULTI_SHOT_ITEMS);
-  const minimumSceneCountFromDuration = Math.ceil(remainingDuration / KLING_MAX_TASK_DURATION_SECONDS);
+  const minimumSceneCountFromDuration = Math.ceil(remainingDuration / SEEDANCE_MAX_TASK_DURATION_SECONDS);
   const minimumRequiredScenes = Math.max(minimumSceneCountFromShots, minimumSceneCountFromDuration, 1);
 
-  return remainingDuration >= minimumRequiredScenes * KLING_MIN_TASK_DURATION_SECONDS;
+  return remainingDuration >= minimumRequiredScenes * SEEDANCE_MIN_TASK_DURATION_SECONDS;
 }
 
 function chooseSceneBoundaries(parts: PlannedShotPart[], respectHardBreaks: boolean): Array<{ start: number; end: number }> | null {
@@ -212,10 +212,10 @@ function chooseSceneBoundaries(parts: PlannedShotPart[], respectHardBreaks: bool
       }
 
       const bucketDuration = prefixDurations[endIndex + 1] - prefixDurations[startIndex];
-      if (bucketDuration > KLING_MAX_TASK_DURATION_SECONDS) {
+      if (bucketDuration > SEEDANCE_MAX_TASK_DURATION_SECONDS) {
         continue;
       }
-      if (bucketDuration < KLING_MIN_TASK_DURATION_SECONDS) {
+      if (bucketDuration < SEEDANCE_MIN_TASK_DURATION_SECONDS) {
         continue;
       }
 
@@ -251,21 +251,21 @@ function partitionSceneBuckets(parts: PlannedShotPart[]): PlannedSceneBucket[] {
     return [{
       sceneIndex: 1,
       isContinuation: false,
-      durationSeconds: KLING_MIN_TASK_DURATION_SECONDS,
+      durationSeconds: SEEDANCE_MIN_TASK_DURATION_SECONDS,
       shotParts: [],
       sourceShotIds: [],
     }];
   }
 
   // Prefer keeping the analyzed continuity boundaries when they still fit within
-  // Kling's per-scene limits. If that is too strict, fall back to a duration/count
+  // the per-scene limits. If that is too strict, fall back to a duration/count
   // based partition so dense references can still be cloned without dropping shots.
   const boundaries = (
     chooseSceneBoundaries(parts, true) ||
     chooseSceneBoundaries(parts, false)
   );
   if (!boundaries) {
-    throw new Error('Unable to fit the reference shots into Kling 3.0 scene limits without dropping source shots.');
+    throw new Error('Unable to fit the reference shots into scene limits without dropping source shots.');
   }
 
   return boundaries.map((boundary, index) => {

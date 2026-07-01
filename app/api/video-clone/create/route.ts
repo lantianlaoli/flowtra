@@ -5,7 +5,7 @@ export const maxDuration = 300; // 5 minutes max for complex AI prompt generatio
 import { auth } from '@clerk/nextjs/server';
 import { startWorkflowProcess, StartWorkflowRequest } from '@/lib/video-clone-workflow';
 import { validateKieCredits } from '@/lib/kie-credits-check';
-import type { VideoModel } from '@/lib/constants';
+import { SEEDANCE_VIDEO_MODELS, type VideoModel } from '@/lib/constants';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { enforceRateLimit, getRequestIp, RateLimitError } from '@/lib/security/rate-limit';
 import { verifyInternalUserRequest } from '@/lib/security/internal-request';
@@ -16,7 +16,7 @@ import { captureServerEvent } from '@/lib/analytics/server';
  * Validates that the video model is one of the supported models
  */
 function validateVideoModel(model: string): model is VideoModel {
-  return model === 'seedance_2_fast' || model === 'seedance_2' || model === 'seedance_2_mini' || model === 'kling_3' || model === 'wan_27';
+  return SEEDANCE_VIDEO_MODELS.includes(model as VideoModel);
 }
 
 export async function POST(request: NextRequest) {
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Edit-video source video URL is required' }, { status: 400 });
       }
 
-      const maxEditVideoDuration = requestData.videoModel === 'wan_27' ? 10 : 15;
+      const maxEditVideoDuration = 15;
       if (!Number.isFinite(durationSeconds) || durationSeconds < 2 || durationSeconds > maxEditVideoDuration) {
         return NextResponse.json(
           { error: `Edit-video source duration must be between 2 and ${maxEditVideoDuration} seconds` },
@@ -102,11 +102,10 @@ export async function POST(request: NextRequest) {
       if (
         requestData.videoModel !== 'seedance_2' &&
         requestData.videoModel !== 'seedance_2_fast' &&
-        requestData.videoModel !== 'seedance_2_mini' &&
-        requestData.videoModel !== 'wan_27'
+        requestData.videoModel !== 'seedance_2_mini'
       ) {
         return NextResponse.json(
-          { error: 'Edit-video mode supports Seedance 2 models and Wan 2.7 only' },
+          { error: 'Edit-video mode supports Seedance 2 models only' },
           { status: 400 }
         );
       }
@@ -179,18 +178,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'Invalid video model',
-          supportedModels: ['seedance_2_fast', 'seedance_2', 'seedance_2_mini', 'kling_3', 'wan_27'],
-          message: 'Please select Seedance 2 Fast, Seedance 2, Seedance 2 Mini, Kling 3.0, or Wan 2.7'
-        },
-        { status: 400 }
-      );
-    }
-
-    if (requestData.executionMode !== 'edit_video' && requestData.videoModel === 'wan_27') {
-      return NextResponse.json(
-        {
-          error: 'Wan 2.7 is currently available for edit-video mode only',
-          supportedModels: ['seedance_2_fast', 'seedance_2', 'seedance_2_mini', 'kling_3'],
+          supportedModels: SEEDANCE_VIDEO_MODELS,
+          message: 'Please select Seedance 2 Mini, Seedance 2 Fast, or Seedance 2'
         },
         { status: 400 }
       );
@@ -274,11 +263,6 @@ export async function POST(request: NextRequest) {
             : requestData.photoOnly
               ? 'replica_photo'
               : 'clone_video',
-          source_type: requestData.executionMode === 'edit_video'
-            ? 'source_video'
-            : requestData.creatorSourceVideoId
-              ? 'creator'
-              : 'reference_video',
         }
       });
       return NextResponse.json(result);

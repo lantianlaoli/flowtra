@@ -1,9 +1,9 @@
 'use client';
 
-import { OpenAI, ByteDance, Gemini, Kling, Qwen } from '@lobehub/icons';
+import { OpenAI, ByteDance, Gemini } from '@lobehub/icons';
 import { BadgeDollarSign, Boxes, Coins, ScanLine } from 'lucide-react';
 import { useI18n } from '@/providers/I18nProvider';
-import { SEEDANCE_2_MINI_QUALITY_COSTS, WAN_27_QUALITY_COSTS } from '@/lib/constants';
+import { SEEDANCE_2_FAST_QUALITY_COSTS, SEEDANCE_2_MINI_QUALITY_COSTS, SEEDANCE_2_QUALITY_COSTS } from '@/lib/constants';
 
 export default function ModelPricingSection() {
   const { messages } = useI18n();
@@ -32,27 +32,6 @@ export default function ModelPricingSection() {
       ] as PricingOption[],
     },
     {
-      name: 'Seedance 2 Fast',
-      description: 'Fastest Seedance model for avatar ads and video clone generation',
-      icon: ByteDance,
-      durationRange: '4-15s',
-      billingType: 'generation' as const,
-      pricingOptions: [
-        { resolution: '720p', credits: 1980 },
-      ] as PricingOption[],
-    },
-    {
-      name: 'Seedance 2',
-      description: 'Higher quality Seedance model for premium generation',
-      icon: ByteDance,
-      durationRange: '4-15s',
-      billingType: 'generation' as const,
-      pricingOptions: [
-        { resolution: '720p', credits: 2460 },
-        { resolution: '1080p', credits: 6120 },
-      ] as PricingOption[],
-    },
-    {
       name: 'Seedance 2 Mini',
       description: 'Lower-cost Seedance generation for ecommerce videos and lightweight motion tasks',
       icon: ByteDance,
@@ -60,6 +39,28 @@ export default function ModelPricingSection() {
       durationRange: '4-15s',
       billingType: 'generation' as const,
       pricingOptions: Object.entries(SEEDANCE_2_MINI_QUALITY_COSTS).map(([resolution, credits]) => ({
+        resolution,
+        credits: credits * 60,
+      })) as PricingOption[],
+    },
+    {
+      name: 'Seedance 2 Fast',
+      description: 'Fastest Seedance model for avatar ads and video clone generation',
+      icon: ByteDance,
+      durationRange: '4-15s',
+      billingType: 'generation' as const,
+      pricingOptions: Object.entries(SEEDANCE_2_FAST_QUALITY_COSTS).map(([resolution, credits]) => ({
+        resolution,
+        credits: credits * 60,
+      })) as PricingOption[],
+    },
+    {
+      name: 'Seedance 2',
+      description: 'Higher quality Seedance model for premium generation',
+      icon: ByteDance,
+      durationRange: '4-15s',
+      billingType: 'generation' as const,
+      pricingOptions: Object.entries(SEEDANCE_2_QUALITY_COSTS).map(([resolution, credits]) => ({
         resolution,
         credits: credits * 60,
       })) as PricingOption[],
@@ -75,41 +76,6 @@ export default function ModelPricingSection() {
         { resolution: '2K', credits: 0 },
         { resolution: '4K', credits: 0 },
       ] as PricingOption[],
-    },
-    {
-      name: 'Kling 3.0 Motion Control',
-      description: 'Motion-control generation priced at the latest Standard and Pro API rates',
-      icon: Kling,
-      badge: pricingMessages.newBadge,
-      durationRange: '3-30s',
-      billingType: 'generation' as const,
-      pricingOptions: [
-        { resolution: '720p', credits: 1200 },
-        { resolution: '1080p', credits: 1620 },
-      ] as PricingOption[],
-    },
-    {
-      name: 'Kling 3.0',
-      description: 'Clone video generation with audio enabled, matched to the latest API pricing',
-      icon: Kling,
-      badge: pricingMessages.newBadge,
-      durationRange: '3-60s',
-      billingType: 'generation' as const,
-      pricingOptions: [
-        { resolution: '720p', credits: 1200 },
-        { resolution: '1080p', credits: 1620 },
-      ] as PricingOption[],
-    },
-    {
-      name: 'Wan 2.7',
-      description: 'High-fidelity image-to-video generation with rich motion',
-      icon: Qwen,
-      durationRange: '2-15s',
-      billingType: 'generation' as const,
-      pricingOptions: Object.entries(WAN_27_QUALITY_COSTS).map(([resolution, credits]) => ({
-        resolution,
-        credits: credits * 60,
-      })) as PricingOption[],
     },
   ];
 

@@ -1,8 +1,6 @@
 import {
   SEEDANCE_MIN_TASK_DURATION_SECONDS,
   SEEDANCE_MAX_TASK_DURATION_SECONDS,
-  KLING_MIN_TASK_DURATION_SECONDS,
-  KLING_MAX_TASK_DURATION_SECONDS,
   type VideoModel,
 } from '@/lib/constants';
 import { estimateDialogueDuration } from '@/lib/dialogue-duration-estimator';
@@ -44,22 +42,6 @@ export function estimateAvatarAdsDialogueSeconds(
     configuredLanguage: language || 'en',
   });
 
-  if (model === 'wan_27') {
-    const profile = CJK_PROMO_SHORTFORM_PROFILE[languageCode];
-    if (profile) {
-      const contentChars = trimmedDialogue.match(CJK_CONTENT_REGEX)?.length ?? 0;
-      if (contentChars > 0 && contentChars <= 80) {
-        const strongPauses = trimmedDialogue.match(STRONG_PAUSE_REGEX)?.length ?? 0;
-        const softPauses = trimmedDialogue.match(SOFT_PAUSE_REGEX)?.length ?? 0;
-        const estimated =
-          contentChars / profile.charactersPerSecond +
-          strongPauses * profile.strongPauseSeconds +
-          softPauses * profile.softPauseSeconds;
-        return Math.round(estimated * 10) / 10;
-      }
-    }
-  }
-
   return estimateDialogueDuration(trimmedDialogue, languageCode);
 }
 
@@ -81,20 +63,6 @@ export function estimateAvatarAdsSingleSceneDurationSeconds(
 
   if (!Number.isFinite(estimated) || estimated <= 0) {
     return 0;
-  }
-
-  if (model === 'kling_3') {
-    if (estimated <= 7.5) {
-      return Math.max(KLING_MIN_TASK_DURATION_SECONDS, Math.min(7, Math.ceil(estimated)));
-    }
-    return Math.max(KLING_MIN_TASK_DURATION_SECONDS, Math.min(KLING_MAX_TASK_DURATION_SECONDS, Math.ceil(estimated + 0.4)));
-  }
-
-  if (model === 'wan_27') {
-    if (estimated <= 7.5) {
-      return Math.max(2, Math.min(7, Math.ceil(estimated)));
-    }
-    return Math.max(2, Math.min(15, Math.ceil(estimated + 0.1)));
   }
 
   if (estimated <= 7.5) {

@@ -12,7 +12,7 @@ import {
 import GenerationProgressDisplay, {
   type Generation,
 } from "@/components/ui/GenerationProgressDisplay";
-import { UserAvatar, UserProduct } from "@/lib/supabase";
+import { UserAvatar } from "@/lib/supabase";
 import { useSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useToast } from "@/contexts/ToastContext";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -30,9 +30,14 @@ import type { Format } from "@/components/ui/FormatSelector";
 import { useSearchParams } from "next/navigation";
 import { MENTION_TOKEN_REGEX, buildMentionToken, normalizeMentionLabel, parseMentionToken } from "@/lib/prompt-mention-tokens";
 import {
+  SEEDANCE_2_FAST_WITH_VIDEO_INPUT_QUALITY_COSTS,
+  SEEDANCE_2_MINI_WITH_VIDEO_INPUT_QUALITY_COSTS,
+  SEEDANCE_2_WITH_VIDEO_INPUT_QUALITY_COSTS,
+  SEEDANCE_VIDEO_MODELS,
   getMotionCloneGenerationCost,
   normalizeMotionCloneQuality,
   type CloneVideoQuality,
+  type VideoModel,
 } from "@/lib/constants";
 import {
   buildMotionClonePreviewPrompt,
@@ -61,6 +66,7 @@ interface MotionCloneProject {
   status: string;
   progress_percentage: number;
   mode?: string | null;
+  video_model?: string | null;
   creator_source_id?: string | null;
   creator_source_video_id?: string | null;
   avatar_id?: string | null;
@@ -82,6 +88,7 @@ type PersistedMotionCloneProject = Pick<
   | "status"
   | "progress_percentage"
   | "mode"
+  | "video_model"
   | "creator_source_video_id"
   | "avatar_id"
   | "product_id"
@@ -102,6 +109,7 @@ interface MotionCloneSessionState {
   selectedVideoId?: string;
   selectedSize?: Format;
   selectedVideoQuality?: CloneVideoQuality;
+  selectedVideoModel?: VideoModel;
 }
 
 interface MotionClonePromptDraft {
@@ -125,17 +133,29 @@ const isMaintenanceModeError = (payload: unknown) => (
 const MOTION_CLONE_TUTORIAL_EMBED_URL =
   "https://www.youtube.com/embed/d_pzzXUj-Lw?rel=0";
 const SESSION_STORAGE_KEY = "motion_clone_session_state";
-const MOTION_CLONE_QUALITY_OPTIONS = [
-  { value: "720p" as const, label: "720p", creditsPerSecondLabel: "20 credits / s" },
-  { value: "1080p" as const, label: "1080p", creditsPerSecondLabel: "27 credits / s" },
-];
+const normalizeMotionCloneVideoModel = (value?: string | null): VideoModel => (
+  SEEDANCE_VIDEO_MODELS.includes(value as VideoModel)
+    ? value as VideoModel
+    : "seedance_2_mini"
+);
+
+const getMotionCloneQualityOptions = (model: VideoModel) => {
+  const table = model === "seedance_2"
+    ? SEEDANCE_2_WITH_VIDEO_INPUT_QUALITY_COSTS
+    : model === "seedance_2_fast"
+      ? SEEDANCE_2_FAST_WITH_VIDEO_INPUT_QUALITY_COSTS
+      : SEEDANCE_2_MINI_WITH_VIDEO_INPUT_QUALITY_COSTS;
+  return [
+    { value: "480p" as const, label: "480p", creditsPerSecondLabel: `${table["480p"]} credits / s` },
+    { value: "720p" as const, label: "720p", creditsPerSecondLabel: `${table["720p"]} credits / s` },
+  ];
+};
 const DEFAULT_FEMALE_MENTION = buildMentionToken({
   type: "character",
   label: "Lin Yuqing",
 });
 const DEFAULT_IMAGE_PROMPT_TEMPLATE = buildMotionClonePreviewPrompt({
   hasAvatar: true,
-  hasProduct: false,
   avatarLabel: DEFAULT_FEMALE_MENTION,
 });
 const EDITABLE_MOTION_CLONE_STATUSES = [
@@ -152,6 +172,7 @@ const serializeMotionCloneProject = (
   status: project.status,
   progress_percentage: project.progress_percentage,
   mode: project.mode ?? null,
+  video_model: project.video_model ?? null,
   creator_source_video_id: project.creator_source_video_id ?? null,
   avatar_id: project.avatar_id ?? null,
   product_id: project.product_id ?? null,
@@ -186,7 +207,6 @@ export default function MotionClonePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [videos, setVideos] = useState<MotionCloneVideo[]>([]);
   const [avatars, setAvatars] = useState<UserAvatar[]>([]);
-  const [products, setProducts] = useState<UserProduct[]>([]);
   const [selectedVideoId, setSelectedVideoId] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [kieCreditsStatus, setKieCreditsStatus] = useState<KieCreditsStatus>({
@@ -197,8 +217,10 @@ export default function MotionClonePage() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<Format>("9:16");
+  const [selectedVideoModel, setSelectedVideoModel] =
+    useState<VideoModel>("seedance_2_mini");
   const [selectedVideoQuality, setSelectedVideoQuality] =
-    useState<CloneVideoQuality>("720p");
+    useState<CloneVideoQuality>("480p");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editAction, setEditAction] = useState<"image" | "video" | null>(null);
   const [editPhotoPrompt, setEditPhotoPrompt] = useState("");
@@ -261,15 +283,9 @@ export default function MotionClonePage() {
     () => new Map(videos.map((video) => [video.id, video])),
     [videos],
   );
-  const productById = useMemo(
-    () => new Map(products.map((product) => [product.id, product])),
-    [products],
-  );
   const getMentionedIds = useCallback((text: string) => {
     const characterIds = new Set<string>();
-    const productIds = new Set<string>();
     const avatarsByKey = new Map(avatars.map((item) => [normalizeMentionLabel(item.avatar_name || ""), item]));
-    const productsByKey = new Map(products.map((item) => [normalizeMentionLabel(item.product_name || ""), item]));
     let match: RegExpExecArray | null;
     MENTION_TOKEN_REGEX.lastIndex = 0;
     while ((match = MENTION_TOKEN_REGEX.exec(text)) !== null) {
@@ -280,43 +296,33 @@ export default function MotionClonePage() {
         const avatar = avatarsByKey.get(mentionKey);
         if (avatar) characterIds.add(avatar.id);
       }
-      if (parsed.type === "product") {
-        const product = productsByKey.get(mentionKey);
-        if (product) productIds.add(product.id);
-      }
       if (parsed.type === "unknown") {
         const avatar = avatarsByKey.get(mentionKey);
-        const product = productsByKey.get(mentionKey);
-        if (avatar && !product) characterIds.add(avatar.id);
-        if (product && !avatar) productIds.add(product.id);
+        if (avatar) characterIds.add(avatar.id);
       }
     }
     return {
       characterIds: Array.from(characterIds),
-      productIds: Array.from(productIds),
     };
-  }, [avatars, products]);
+  }, [avatars]);
   const mentionSelections = useMemo(() => {
     const characterIds = new Set<string>();
-    const productIds = new Set<string>();
 
     [editPhotoPrompt, editVideoPrompt].forEach((prompt) => {
       const ids = getMentionedIds(prompt);
       ids.characterIds.forEach((id) => characterIds.add(id));
-      ids.productIds.forEach((id) => productIds.add(id));
     });
 
     return {
       characterIds: Array.from(characterIds),
-      productIds: Array.from(productIds),
     };
   }, [editPhotoPrompt, editVideoPrompt, getMentionedIds]);
   const editAvatarId = mentionSelections.characterIds[0] || "";
-  const editProductId = mentionSelections.productIds[0] || "";
 
   const estimatedCredits = getMotionCloneGenerationCost(
     selectedVideo?.duration_seconds,
     selectedVideoQuality,
+    selectedVideoModel,
   );
 
   const loadAssets = useCallback(async () => {
@@ -328,13 +334,7 @@ export default function MotionClonePage() {
 
       if (assetsResponse.ok) {
         const data = await assetsResponse.json();
-        const allVideos = data.videos || [];
-        const motionCloneVideos = allVideos.filter(
-          (video: { source_type?: string }) =>
-            video.source_type !== "reference_video",
-        );
-        setVideos(motionCloneVideos);
-        setProducts(data.products || []);
+        setVideos(data.videos || []);
       }
 
       if (avatarsResponse.ok) {
@@ -376,6 +376,9 @@ export default function MotionClonePage() {
         setSelectedVideoQuality(
           normalizeMotionCloneQuality(parsed.selectedVideoQuality),
         );
+      }
+      if (parsed.selectedVideoModel) {
+        setSelectedVideoModel(normalizeMotionCloneVideoModel(parsed.selectedVideoModel));
       }
     } catch (error) {
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
@@ -441,7 +444,8 @@ export default function MotionClonePage() {
   useEffect(() => {
     if (!projectInEditor) return;
     setSelectedVideoQuality(normalizeMotionCloneQuality(projectInEditor.mode));
-  }, [projectInEditor?.id, projectInEditor?.mode, projectInEditor]);
+    setSelectedVideoModel(normalizeMotionCloneVideoModel(projectInEditor.video_model));
+  }, [projectInEditor?.id, projectInEditor?.mode, projectInEditor?.video_model, projectInEditor]);
 
   useEffect(() => {
     if (!editDialogOpen || !editingProjectId) return;
@@ -460,7 +464,8 @@ export default function MotionClonePage() {
       if (
         !selectedVideoId &&
         selectedSize === "9:16" &&
-        selectedVideoQuality === "720p"
+        selectedVideoQuality === "480p" &&
+        selectedVideoModel === "seedance_2_mini"
       ) {
         window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
         return;
@@ -472,6 +477,7 @@ export default function MotionClonePage() {
       selectedVideoId,
       selectedSize,
       selectedVideoQuality,
+      selectedVideoModel,
     };
     try {
       window.sessionStorage.setItem(
@@ -488,6 +494,7 @@ export default function MotionClonePage() {
     selectedVideoId,
     selectedSize,
     selectedVideoQuality,
+    selectedVideoModel,
   ]);
 
   const watchedProjectId = editingProjectId || activeProject?.id || null;
@@ -550,33 +557,21 @@ export default function MotionClonePage() {
     };
   }, [supabase, watchedProjectId]);
 
-  const buildDefaultPrompt = (
-    avatarName?: string | null,
-    productName?: string | null,
-  ) => {
-    if (!avatarName && !productName) {
+  const buildDefaultPrompt = (avatarName?: string | null) => {
+    if (!avatarName) {
       return DEFAULT_IMAGE_PROMPT_TEMPLATE;
     }
     const avatarToken = avatarName
       ? buildMentionToken({ type: "character", label: avatarName })
       : null;
-    const productToken = productName
-      ? buildMentionToken({ type: "product", label: productName })
-      : null;
     return buildMotionClonePreviewPrompt({
       hasAvatar: Boolean(avatarToken),
-      hasProduct: Boolean(productToken),
       avatarLabel: avatarToken,
-      productLabel: productToken,
     });
   };
 
-  const buildDefaultVideoPrompt = (
-    avatarName?: string | null,
-    productName?: string | null,
-  ) => buildMotionCloneVideoPrompt({
+  const buildDefaultVideoPrompt = (avatarName?: string | null) => buildMotionCloneVideoPrompt({
     hasAvatar: Boolean(avatarName?.trim()),
-    hasProduct: Boolean(productName?.trim()),
   });
 
   const isNewPendingProject = (project: MotionCloneProject) =>
@@ -594,13 +589,11 @@ export default function MotionClonePage() {
       setSelectedVideoId(targetProject.creator_source_video_id);
     }
     setSelectedVideoQuality(normalizeMotionCloneQuality(targetProject.mode));
+    setSelectedVideoModel(normalizeMotionCloneVideoModel(targetProject.video_model));
     const avatarName =
       avatars.find((avatar) => avatar.id === targetProject.avatar_id)
         ?.avatar_name || null;
-    const productName =
-      products.find((product) => product.id === targetProject.product_id)
-        ?.product_name || null;
-    const defaultPrompt = buildDefaultPrompt(avatarName, productName);
+    const defaultPrompt = buildDefaultPrompt(avatarName);
     const draft = promptDrafts[targetProject.id];
     const initialPhotoPrompt = draft
       ? draft.photoPrompt
@@ -610,7 +603,7 @@ export default function MotionClonePage() {
       ? draft.videoPrompt
       : targetProject.video_prompt ||
         (isNewPendingProject(targetProject)
-          ? buildDefaultVideoPrompt(avatarName, productName)
+          ? buildDefaultVideoPrompt(avatarName)
           : "");
 
     setEditPhotoPrompt(initialPhotoPrompt);
@@ -624,7 +617,7 @@ export default function MotionClonePage() {
       feature: "motion_clone",
       surface: "motion_clone_page",
       aspect_ratio: selectedSize,
-      video_model: "kling_3",
+      video_model: selectedVideoModel,
       download_type: selectedVideoQuality,
     });
 
@@ -677,7 +670,7 @@ export default function MotionClonePage() {
     ? null
     : editFirstFrameUrl;
   const isSubmittingEdit = editAction !== null;
-  const hasSwapTarget = Boolean(editAvatarId || editProductId);
+  const hasSwapTarget = Boolean(editAvatarId);
   const isEditableMotionCloneStatus = projectInEditor
     ? EDITABLE_MOTION_CLONE_STATUSES.includes(
         projectInEditor.status as (typeof EDITABLE_MOTION_CLONE_STATUSES)[number],
@@ -701,12 +694,6 @@ export default function MotionClonePage() {
       isEditableMotionCloneStatus,
   );
 
-  const productDisplayName = useMemo(() => {
-    if (!projectInEditor?.product_id) return null;
-    const product = productById.get(projectInEditor.product_id);
-    return product?.product_name || null;
-  }, [productById, projectInEditor?.product_id]);
-
   const projectVideo = useMemo(() => {
     if (!projectInEditor?.creator_source_video_id) return null;
     return (
@@ -729,6 +716,7 @@ export default function MotionClonePage() {
       : getMotionCloneGenerationCost(
           displayDurationSeconds,
           projectInEditor?.mode || selectedVideoQuality,
+          normalizeMotionCloneVideoModel(projectInEditor?.video_model || selectedVideoModel),
         ) || null;
 
   const displayedGenerations = useMemo<Generation[]>(() => {
@@ -765,6 +753,7 @@ export default function MotionClonePage() {
           : getMotionCloneGenerationCost(
               durationSeconds,
               item.mode || selectedVideoQuality,
+              normalizeMotionCloneVideoModel(item.video_model || selectedVideoModel),
             ) || undefined;
 
       return {
@@ -778,9 +767,7 @@ export default function MotionClonePage() {
         coverUrl:
           item.preview_image_url ||
           undefined,
-        product: item.product_id
-          ? productById.get(item.product_id)?.product_name || undefined
-          : undefined,
+        product: undefined,
         downloaded: Boolean(item.downloaded),
         isDownloading: downloadStates[item.id] === "processing",
         videoAspectRatio: selectedSize,
@@ -791,12 +778,12 @@ export default function MotionClonePage() {
   }, [
     projects,
     videoById,
-    productById,
     activeProject?.id,
     downloadStates,
     selectedVideo?.duration_seconds,
     selectedSize,
     selectedVideoQuality,
+    selectedVideoModel,
   ]);
 
   const emptyStateSteps = useMemo(
@@ -812,7 +799,7 @@ export default function MotionClonePage() {
       },
       {
         number: 3,
-        description: "Use @ to select the character or product in Edit",
+        description: "Use @ to select the character in Edit",
       },
       {
         number: 4,
@@ -838,7 +825,7 @@ export default function MotionClonePage() {
     }
     if (!hasSwapTarget) {
       showError(
-        "Use @character or @product in the image or video prompt to select a swap target.",
+        "Use @character in the image or video prompt to select a swap target.",
       );
       return;
     }
@@ -854,10 +841,10 @@ export default function MotionClonePage() {
           body: JSON.stringify({
             reference_video_id: selectedVideoId,
             avatar_id: editAvatarId,
-            product_id: editProductId,
             photo_prompt: editPhotoPrompt,
             video_prompt: editVideoPrompt,
             mode: selectedVideoQuality,
+            video_model: selectedVideoModel,
             action: action,
           }),
         },
@@ -1125,15 +1112,17 @@ export default function MotionClonePage() {
             <ConfigPopover
               videoDuration="8"
               onDurationChange={() => {}}
-              selectedModel="kling_3"
-              onModelChange={() => {}}
+              selectedModel={selectedVideoModel}
+              onModelChange={(model) => {
+                setSelectedVideoModel(model);
+                setSelectedVideoQuality(normalizeMotionCloneQuality(selectedVideoQuality));
+              }}
               userCredits={userCredits || 0}
               selectedVideoQuality={selectedVideoQuality}
               onVideoQualityChange={(value) =>
                 setSelectedVideoQuality(normalizeMotionCloneQuality(value))
               }
-              videoQualityOptions={MOTION_CLONE_QUALITY_OPTIONS}
-              hideModelSelector
+              videoQualityOptions={getMotionCloneQualityOptions(selectedVideoModel)}
               hideLanguageSelector
               hideDurationSelector
               format={selectedSize}
@@ -1229,7 +1218,6 @@ export default function MotionClonePage() {
                       videoPrompt={editVideoPrompt}
                       onVideoPromptChange={setEditVideoPrompt}
                       avatars={avatars}
-                      products={products}
                       onGenerateImage={() => handleStartEditPreview("image")}
                       onGenerateVideo={() => handleStartEditPreview("video")}
                       canGenerateImage={canGenerateImage}

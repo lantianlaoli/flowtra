@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { MOTION_CLONE_MODE } from '@/lib/motion-clone-workflow';
+import { MOTION_CLONE_DEFAULT_VIDEO_MODEL, MOTION_CLONE_MODE } from '@/lib/motion-clone-workflow';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
 import { verifyInternalUserRequest } from '@/lib/security/internal-request';
@@ -39,7 +39,8 @@ export async function POST(request: NextRequest) {
     progress_percentage: 10,
         credits_cost: 0,
         generation_credits_used: 0,
-        mode: MOTION_CLONE_MODE
+        mode: MOTION_CLONE_MODE,
+        video_model: MOTION_CLONE_DEFAULT_VIDEO_MODEL
       })
       .select()
       .single();
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
         surface: 'motion_clone_create_api',
         project_id: project.id,
         workflow: MOTION_CLONE_MODE,
+        video_model: project.video_model,
         credits_cost: project.credits_cost,
       }
     });

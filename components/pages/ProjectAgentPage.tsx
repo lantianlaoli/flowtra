@@ -698,8 +698,9 @@ export default function ProjectAgentPage() {
         const maintenanceBlocked = Boolean(node.runtime?.maintenanceBlocked);
         const canStart = missingInputs.length === 0 && !blockedReason && !maintenanceBlocked;
         const executionState = node.runtime?.executionState;
+        const hasTrackableProject = typeof node.runtime?.projectId === 'string' && node.runtime.projectId.length > 0;
         const preservedState = (
-          isProjectAgentRuntimeActive(node.runtime) ||
+          (hasTrackableProject && isProjectAgentRuntimeActive(node.runtime)) ||
           executionState === 'failed'
         );
         const preservedExecutionState = executionState ?? 'running';
@@ -709,23 +710,53 @@ export default function ProjectAgentPage() {
           : maintenanceBlocked
             ? 'Maintenance'
             : blockedReason || `Need ${formatMissingFeatureInputsLabel(featureType, missingInputs)}`;
-        const runtime = {
-          ...(node.runtime || {}),
-          missingInputs,
-          canStart,
-          blockedReason,
-          maintenanceBlocked,
-          executionState: preservedState ? preservedExecutionState : nextState,
-          statusLabel: preservedState ? node.runtime?.statusLabel : nextStatusLabel,
-        };
-        if (
-          node.runtime?.executionState === runtime.executionState &&
-          node.runtime?.statusLabel === runtime.statusLabel &&
-          JSON.stringify(node.runtime?.missingInputs || []) === JSON.stringify(missingInputs) &&
-          node.runtime?.canStart === canStart &&
-          node.runtime?.blockedReason === blockedReason &&
-          Boolean(node.runtime?.maintenanceBlocked) === maintenanceBlocked
-        ) {
+        const runtime = preservedState
+          ? {
+              ...(node.runtime || {}),
+              missingInputs,
+              canStart,
+              blockedReason,
+              maintenanceBlocked,
+              executionState: preservedExecutionState,
+              statusLabel: node.runtime?.statusLabel,
+            }
+          : {
+              missingInputs,
+              canStart,
+              blockedReason,
+              maintenanceBlocked,
+              executionState: nextState,
+              statusLabel: nextStatusLabel,
+              projectId: null,
+              phase: 'idle',
+              progress: 0,
+              outputUrl: null,
+              previewUrl: null,
+              error: null,
+              userFacingError: null,
+              retryable: false,
+              milestones: null,
+              currentMilestoneKey: null,
+            };
+        const runtimeChanged = (
+          node.runtime?.executionState !== runtime.executionState ||
+          node.runtime?.statusLabel !== runtime.statusLabel ||
+          node.runtime?.projectId !== runtime.projectId ||
+          node.runtime?.phase !== runtime.phase ||
+          node.runtime?.progress !== runtime.progress ||
+          node.runtime?.outputUrl !== runtime.outputUrl ||
+          node.runtime?.previewUrl !== runtime.previewUrl ||
+          node.runtime?.error !== runtime.error ||
+          node.runtime?.userFacingError !== runtime.userFacingError ||
+          Boolean(node.runtime?.retryable) !== Boolean(runtime.retryable) ||
+          JSON.stringify(node.runtime?.missingInputs || []) !== JSON.stringify(missingInputs) ||
+          node.runtime?.canStart !== canStart ||
+          node.runtime?.blockedReason !== blockedReason ||
+          Boolean(node.runtime?.maintenanceBlocked) !== maintenanceBlocked ||
+          JSON.stringify(node.runtime?.milestones || null) !== JSON.stringify(runtime.milestones || null) ||
+          node.runtime?.currentMilestoneKey !== runtime.currentMilestoneKey
+        );
+        if (!runtimeChanged) {
           return node;
         }
         changed = true;
@@ -940,6 +971,36 @@ export default function ProjectAgentPage() {
       }
     });
   }, [canvas.nodes, fetchNodeStatus, supabase]);
+
+  useEffect(() => {
+    const activeTargets = canvas.nodes.flatMap((node) => {
+      if (
+        !isProjectAgentFeatureNode(node.type) ||
+        !node.runtime?.projectId ||
+        !isProjectAgentRuntimeActive(node.runtime)
+      ) {
+        return [];
+      }
+
+      return [{
+        nodeId: node.id,
+        nodeType: node.type as ProjectAgentFeatureNodeType,
+        projectId: node.runtime.projectId,
+      }];
+    });
+
+    if (activeTargets.length === 0) return;
+
+    const refreshActiveTargets = () => {
+      activeTargets.forEach((target) => {
+        void fetchNodeStatus(target.nodeId, target.nodeType, target.projectId);
+      });
+    };
+
+    refreshActiveTargets();
+    const intervalId = window.setInterval(refreshActiveTargets, 15000);
+    return () => window.clearInterval(intervalId);
+  }, [canvas.nodes, fetchNodeStatus]);
 
   useEffect(() => {
     const subscriptions = subscriptionsRef.current;

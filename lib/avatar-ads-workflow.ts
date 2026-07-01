@@ -1,9 +1,8 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import {
   GENERATION_COSTS,
-  KLING_MAX_TASK_DURATION_SECONDS,
-  GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL,
   SEEDANCE_MAX_TASK_DURATION_SECONDS,
+  GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL,
   SEEDANCE_MIN_TASK_DURATION_SECONDS,
   getGenerationCost,
   getLanguagePromptName,
@@ -263,10 +262,9 @@ const AVATAR_PROMPT_RESPONSE_FORMAT = {
 } as const;
 
 export const resolveAvatarAdsVideoModel = (project: Pick<AvatarAdsProject, 'video_model'>) => {
-  if (project.video_model === 'wan_27') return 'wan_27';
-  if (project.video_model === 'kling_3') return 'kling_3';
   if (project.video_model === 'seedance_2') return 'seedance_2';
   if (project.video_model === 'seedance_2_mini') return 'seedance_2_mini';
+  if (project.video_model === 'seedance_2_fast') return 'seedance_2_fast';
   return DEFAULT_VIDEO_MODEL;
 };
 
@@ -275,10 +273,6 @@ const getSeedanceKieVideoModelId = (model: 'seedance_2_fast' | 'seedance_2' | 's
   if (model === 'seedance_2_mini') return 'bytedance/seedance-2-mini';
   return 'bytedance/seedance-2-fast';
 };
-
-const isAvatarAdsKlingProject = (project: Pick<AvatarAdsProject, 'video_model'>) => (
-  resolveAvatarAdsVideoModel(project) === 'kling_3'
-);
 
 export const compileAvatarAdsMentionText = (value: string) => {
   if (!value) return value;
@@ -307,37 +301,15 @@ export const buildSeedanceAvatarAdsVideoInput = (input: {
   web_search: false,
 });
 
-export const buildWanAvatarAdsVideoInput = (input: {
-  prompt: string;
-  referenceImageUrls: string[];
-  durationSeconds: number;
-  resolution: PersistedVideoQuality;
-  aspectRatio: '16:9' | '9:16';
-}) => ({
-  prompt: input.prompt,
-  reference_image: input.referenceImageUrls.filter(
-    (url) => typeof url === 'string' && url.trim().length > 0
-  ),
-  resolution: input.resolution,
-  aspect_ratio: input.aspectRatio,
-  duration: input.durationSeconds,
-  prompt_extend: true,
-  watermark: false,
-});
-
 const getAvatarAdsModelSceneDurationRule = (
   model: AvatarAdsVideoModel
 ) => {
-  if (model === 'kling_3') return 'between 3 and 15 seconds';
-  if (model === 'wan_27') return 'between 2 and 15 seconds';
   return 'between 4 and 15 seconds';
 };
 
 const getAvatarAdsTargetSceneDuration = (
   model: AvatarAdsVideoModel
 ) => {
-  if (model === 'wan_27') return 15;
-  if (model === 'kling_3') return KLING_MAX_TASK_DURATION_SECONDS;
   return SEEDANCE_MAX_TASK_DURATION_SECONDS;
 };
 
@@ -367,36 +339,6 @@ export const getAvatarSceneDurationSeconds = (
     language?: string | null;
   }
 ) => {
-  if (model === 'kling_3') {
-    return normalizeAvatarPromptDuration(prompt?.duration_seconds, 'kling_3');
-  }
-
-  if (model === 'wan_27') {
-    const explicitDuration = Number(prompt?.duration_seconds);
-    if (Number.isFinite(explicitDuration) && explicitDuration > 0) {
-      return Math.max(2, Math.min(15, Math.round(explicitDuration)));
-    }
-    const plannedDuration = Number(options?.plannedDurationSeconds);
-    if (Number.isFinite(plannedDuration) && plannedDuration > 0) {
-      return Math.max(2, Math.min(15, Math.round(plannedDuration)));
-    }
-    const dialog = typeof prompt?.dialog === 'string' ? prompt.dialog.trim() : '';
-    if (dialog) {
-      const estimated = estimateAvatarAdsDialogueSeconds(
-        dialog,
-        model,
-        options?.language || 'en'
-      );
-      if (Number.isFinite(estimated) && estimated > 0) {
-        if ((options?.totalScenes ?? 1) <= 1 && estimated <= 7.5) {
-          return Math.max(2, Math.min(7, Math.ceil(estimated)));
-        }
-        return Math.max(2, Math.min(15, Math.ceil(estimated + 0.4)));
-      }
-    }
-    return 5;
-  }
-
   const explicitDuration = Number(prompt?.duration_seconds);
   if (Number.isFinite(explicitDuration) && explicitDuration > 0) {
     return Math.max(SEEDANCE_MIN_TASK_DURATION_SECONDS, Math.min(SEEDANCE_MAX_TASK_DURATION_SECONDS, Math.round(explicitDuration)));
@@ -1156,14 +1098,12 @@ async function _generatePromptsInternal(
   });
   const languageName = getLanguagePromptName(languageCode);
   const isTalkingHeadMode = options?.talkingHeadMode ?? false;
-  const resolvedModel = options?.model === 'kling_3'
-    ? 'kling_3'
-    : options?.model === 'seedance_2'
+  const resolvedModel = options?.model === 'seedance_2'
       ? 'seedance_2'
       : options?.model === 'seedance_2_mini'
         ? 'seedance_2_mini'
-        : options?.model === 'wan_27'
-          ? 'wan_27'
+        : options?.model === 'seedance_2_fast'
+          ? 'seedance_2_fast'
           : DEFAULT_VIDEO_MODEL;
   const estimatedDialogueDurationSeconds = userDialogue
     ? estimateAvatarAdsDialogueSeconds(userDialogue, resolvedModel, languageCode)
@@ -1606,14 +1546,12 @@ export async function generateVideoWithKIE(
     throw new Error(`Invalid prompt format: ${typeof prompt}`);
   }
 
-  const resolvedModel = options?.model === 'kling_3'
-    ? 'kling_3'
-    : options?.model === 'seedance_2'
+  const resolvedModel = options?.model === 'seedance_2'
       ? 'seedance_2'
       : options?.model === 'seedance_2_mini'
         ? 'seedance_2_mini'
-        : options?.model === 'wan_27'
-          ? 'wan_27'
+        : options?.model === 'seedance_2_fast'
+          ? 'seedance_2_fast'
           : DEFAULT_VIDEO_MODEL;
   const basePrompt = videoPromptText.trim();
   const promptLanguage = language || (
@@ -1645,21 +1583,9 @@ export async function generateVideoWithKIE(
   const durationSeconds = (() => {
     const inputDuration = options?.durationSeconds && options.durationSeconds > 0
       ? options.durationSeconds
-      : (resolvedModel === 'kling_3'
-          ? KLING_MAX_TASK_DURATION_SECONDS
-          : resolvedModel === 'wan_27'
-            ? 5
-            : SEEDANCE_MAX_TASK_DURATION_SECONDS);
-    const minDuration = resolvedModel === 'kling_3'
-      ? 3
-      : resolvedModel === 'wan_27'
-        ? 2
-        : SEEDANCE_MIN_TASK_DURATION_SECONDS;
-    const maxDuration = resolvedModel === 'kling_3'
-      ? KLING_MAX_TASK_DURATION_SECONDS
-      : resolvedModel === 'wan_27'
-        ? 15
-        : SEEDANCE_MAX_TASK_DURATION_SECONDS;
+      : SEEDANCE_MAX_TASK_DURATION_SECONDS;
+    const minDuration = SEEDANCE_MIN_TASK_DURATION_SECONDS;
+    const maxDuration = SEEDANCE_MAX_TASK_DURATION_SECONDS;
     return Math.max(minDuration, Math.min(maxDuration, Math.round(inputDuration)));
   })();
   const validReferenceUrls = referenceImageUrls.filter(
@@ -1675,49 +1601,6 @@ export async function generateVideoWithKIE(
   const lastFrameUrl = !isFinalScene && candidateLastFrameUrl ? candidateLastFrameUrl : undefined;
 
   const requestBody = (() => {
-    if (resolvedModel === 'kling_3') {
-      return {
-        model: 'kling-3.0/video',
-        ...(callBackUrl ? { callBackUrl } : {}),
-        input: {
-          mode: 'std',
-          image_urls: selectedReferenceImages,
-          prompt: finalPrompt,
-          sound: true,
-          duration: String(durationSeconds),
-          aspect_ratio: '9:16',
-          multi_shots: false
-        }
-      };
-    }
-    if (resolvedModel === 'wan_27' && options?.referenceWorkflow) {
-      return {
-        model: 'wan/2-7-r2v',
-        ...(callBackUrl ? { callBackUrl } : {}),
-        input: buildWanAvatarAdsVideoInput({
-          prompt: finalPrompt,
-          referenceImageUrls: selectedReferenceImages,
-          resolution: normalizeCloneVideoQualityForModel('wan_27', options.videoQuality),
-          durationSeconds: Math.min(durationSeconds, 10),
-          aspectRatio: videoAspectRatio || '9:16',
-        }),
-      };
-    }
-    if (resolvedModel === 'wan_27') {
-      return {
-        model: 'wan/2-7-image-to-video',
-        ...(callBackUrl ? { callBackUrl } : {}),
-        input: {
-          prompt: finalPrompt,
-          ...(firstFrameUrl ? { first_frame_url: firstFrameUrl } : {}),
-          ...(lastFrameUrl ? { last_frame_url: lastFrameUrl } : {}),
-          resolution: normalizeCloneVideoQualityForModel('wan_27', options?.videoQuality),
-          duration: durationSeconds,
-          prompt_extend: true,
-          watermark: false,
-        }
-      };
-    }
     return {
       model: getSeedanceKieVideoModelId(resolvedModel),
       ...(callBackUrl ? { callBackUrl } : {}),
@@ -1733,9 +1616,7 @@ export async function generateVideoWithKIE(
     };
   })();
 
-  const promptInBody = resolvedModel === 'kling_3'
-    ? ((requestBody as { input?: { prompt?: string } }).input?.prompt)
-    : ((requestBody as { input?: { prompt?: string } }).input?.prompt);
+  const promptInBody = ((requestBody as { input?: { prompt?: string } }).input?.prompt);
 
   if (!promptInBody || typeof promptInBody !== 'string' || promptInBody.trim() === '' || promptInBody === '{}') {
     console.error('❌❌❌ CRITICAL: Attempting to call KIE API with empty/invalid prompt!');

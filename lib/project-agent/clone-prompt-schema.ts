@@ -1,7 +1,7 @@
 import { formatTimelineRange } from '@/lib/segment-shot-timeline';
-import { KLING_MIN_TASK_DURATION_SECONDS } from '@/lib/constants';
+import { SEEDANCE_MIN_TASK_DURATION_SECONDS } from '@/lib/constants';
 
-export const PROJECT_AGENT_DEFAULT_SHOT_TIME_RANGE = formatTimelineRange(0, KLING_MIN_TASK_DURATION_SECONDS);
+export const PROJECT_AGENT_DEFAULT_SHOT_TIME_RANGE = formatTimelineRange(0, SEEDANCE_MIN_TASK_DURATION_SECONDS);
 
 export type ProjectAgentCloneShot = {
   id: number;

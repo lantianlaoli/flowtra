@@ -1,4 +1,4 @@
-import { KLING_MIN_TASK_DURATION_SECONDS } from '@/lib/constants';
+import { SEEDANCE_MIN_TASK_DURATION_SECONDS } from '@/lib/constants';
 import type { SegmentPrompt } from '@/lib/video-clone-workflow';
 import { parseTimelineRange } from '@/lib/segment-shot-timeline';
 import {
@@ -69,8 +69,8 @@ export function getProjectAgentSegmentPromptDurationSeconds(
     : [];
 
   if (endTimes.length === 0) {
-    return KLING_MIN_TASK_DURATION_SECONDS;
+    return SEEDANCE_MIN_TASK_DURATION_SECONDS;
   }
 
-  return Math.max(KLING_MIN_TASK_DURATION_SECONDS, Math.round(Math.max(...endTimes)));
+  return Math.max(SEEDANCE_MIN_TASK_DURATION_SECONDS, Math.round(Math.max(...endTimes)));
 }

@@ -181,7 +181,6 @@ export default function CreditsPage() {
     'seedance_2_fast': 'Seedance 2 Fast',
     'seedance_2': 'Seedance 2',
     'seedance_2_mini': 'Seedance 2 Mini',
-    'kling_3': 'Kling 3.0',
     'nano-banana-2': 'GPT Image 2',
     'gpt-image-2-image-to-image': 'GPT Image 2',
     'gpt-image-2-text-to-image': 'GPT Image 2',

@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { FaTiktok } from 'react-icons/fa6';
-import { Kling } from '@lobehub/icons';
+import { ByteDance } from '@lobehub/icons';
 
 interface FounderCardProps {
   variant?: 'compact' | 'hero' | 'featured';
@@ -95,9 +95,9 @@ export default function FounderCard({
             transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
             className="inline-flex"
           >
-            <Kling className="w-3.5 h-3.5 text-[#37352f]" />
+            <ByteDance className="w-3.5 h-3.5 text-[#37352f]" />
           </motion.span>
-          <span className="text-xs font-semibold text-[#37352f]">Kling 3.0 supported</span>
+          <span className="text-xs font-semibold text-[#37352f]">Seedance series supported</span>
         </motion.div>
       </motion.div>
     );

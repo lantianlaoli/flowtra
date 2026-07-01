@@ -53,7 +53,7 @@ test('Avatar Ads talking-head text remains custom dialogue', () => {
       content: 'Read this exact talking-head script.',
     },
     config: {
-      videoModel: 'kling_3',
+      videoModel: 'seedance_2_mini',
       videoQuality: '720p',
       videoDuration: '16',
       aspectRatio: '9:16',
@@ -111,8 +111,7 @@ test('Avatar Ads Seedance storyboard mode applies to every Seedance 2 model', ()
   assert.equal(isAvatarAdsSeedanceStoryboardModel('seedance_2_fast'), true);
   assert.equal(isAvatarAdsSeedanceStoryboardModel('seedance_2'), true);
   assert.equal(isAvatarAdsSeedanceStoryboardModel('seedance_2_mini'), true);
-  assert.equal(isAvatarAdsSeedanceStoryboardModel('kling_3'), false);
-  assert.equal(isAvatarAdsSeedanceStoryboardModel('wan_27'), false);
+  assert.equal(isAvatarAdsSeedanceStoryboardModel('seedance_2_mini'), true);
 });
 
 test('Avatar Ads storyboard image is the only Seedance reference image', () => {

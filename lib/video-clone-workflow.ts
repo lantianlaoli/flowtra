@@ -11,11 +11,7 @@ import {
   getSegmentCountFromDuration,
   getSegmentDurationForModel,
   getReplicaPhotoCredits,
-  KLING_MAX_TASK_DURATION_SECONDS,
-  KLING_MAX_PROJECT_DURATION_SECONDS,
-  KLING_MIN_TASK_DURATION_SECONDS,
   SEEDANCE_MIN_TASK_DURATION_SECONDS,
-  mapCloneQualityToKlingMode,
   mapCloneQualityToSeedanceResolution,
   normalizeCloneVideoQualityForModel,
   snapDurationToModel,
@@ -44,18 +40,6 @@ import { getAvatarPhotoUrls, SYSTEM_AVATARS } from '@/lib/default-avatars';
 import { getSystemProductPhotoUrls, isSystemProductId, SYSTEM_PRODUCTS } from '@/lib/default-products';
 import { getSystemReferenceVideoById, isSystemReferenceVideoId } from '@/lib/default-reference-videos';
 import { compilePromptForExecution } from '@/lib/video-clone-prompt-compiler';
-import {
-  KLING_PROMPT_MAX_CHARS,
-  KLING_PROMPT_SOFT_TARGET,
-  buildKlingPromptSections,
-  fitKlingPromptWithinLimit
-} from '@/lib/kling-prompt-budget';
-import { KLING_MAX_MULTI_SHOT_ITEMS } from '@/lib/kling-shot-limits';
-import {
-  MENTION_TOKEN_REGEX as SHARED_MENTION_TOKEN_REGEX,
-  normalizeMentionLabel,
-  parseMentionToken
-} from '@/lib/prompt-mention-tokens';
 import { normalizeAnalysisToV2 } from '@/lib/video-analysis-schema';
 import {
   removeOriginalAvatarReferences,
@@ -737,11 +721,8 @@ const buildStoryboardSheetPrompt = (input: {
   ].join('\n'), 3800);
 };
 
-export type CloneReferenceSourceType = 'reference_video' | 'creator_source_video';
-
 export type CloneModeResolution = {
   isCloneMode: boolean;
-  sourceType: CloneReferenceSourceType | null;
   mediaType: 'video' | null;
   sourceId: string | null;
 };
@@ -766,13 +747,6 @@ const normalizeSelectedIds = (
   return normalized;
 };
 
-const normalizeReferenceSourceType = (value: unknown): CloneReferenceSourceType | null => {
-  if (value === 'reference_video' || value === 'creator_source_video') {
-    return value;
-  }
-  return null;
-};
-
 const normalizeReferenceMediaType = (value: unknown): 'video' | null => {
   return value === 'video' ? 'video' : null;
 };
@@ -790,7 +764,6 @@ export function resolveCloneModeFromProject(project: SingleVideoProject | Record
       ? projectRecord.selected_inputs as VideoCloneSelectedInputs
       : null;
 
-  const sourceType = normalizeReferenceSourceType(selectedInputs?.referenceSourceType);
   const mediaType = normalizeReferenceMediaType(selectedInputs?.referenceSourceMediaType);
   const sourceId = normalizeReferenceSourceId(selectedInputs?.referenceSourceId);
   const isCloneFlag = selectedInputs?.isCloneMode === true;
@@ -798,7 +771,6 @@ export function resolveCloneModeFromProject(project: SingleVideoProject | Record
   if (isCloneFlag || mediaType === 'video') {
     return {
       isCloneMode: true,
-      sourceType,
       mediaType: 'video',
       sourceId
     };
@@ -812,7 +784,6 @@ export function resolveCloneModeFromProject(project: SingleVideoProject | Record
   if (legacyReferenceVideoId) {
     return {
       isCloneMode: true,
-      sourceType: sourceType || 'reference_video',
       mediaType: 'video',
       sourceId: sourceId || legacyReferenceVideoId
     };
@@ -820,7 +791,6 @@ export function resolveCloneModeFromProject(project: SingleVideoProject | Record
 
   return {
     isCloneMode: false,
-    sourceType,
     mediaType,
     sourceId
   };
@@ -1537,7 +1507,6 @@ export function isSegmentedVideoRequest(
   model: VideoModel,
   videoDuration?: string | null
 ): boolean {
-  if (model === 'kling_3') return true;
   const duration = Number(videoDuration);
   if (!Number.isFinite(duration)) return false;
   return duration > getSegmentDurationForModel(model);
@@ -1557,10 +1526,6 @@ function resolvePerSegmentDurationSeconds(
   }
 
   const equalized = Math.ceil(totalSeconds / normalizedSegmentCount);
-  if (model === 'kling_3') {
-    return Math.max(KLING_MIN_TASK_DURATION_SECONDS, Math.min(KLING_MAX_TASK_DURATION_SECONDS, equalized));
-  }
-
   return Math.max(1, equalized);
 }
 
@@ -1571,249 +1536,7 @@ function normalizeRequestedDuration(
   if (!rawDuration) return undefined;
   const seconds = Number(rawDuration);
   if (!Number.isFinite(seconds) || seconds <= 0) return undefined;
-  if (model === 'kling_3') {
-    return snapDurationToModel(model, Math.min(seconds, KLING_MAX_PROJECT_DURATION_SECONDS));
-  }
   return snapDurationToModel(model, Math.min(seconds, 64));
-}
-
-type PlannedKlingShotPart = {
-  shot: ReferenceVideoShot;
-  durationSeconds: number;
-};
-
-type PlannedKlingSegment = {
-  durationSeconds: number;
-  shotParts: PlannedKlingShotPart[];
-};
-
-function splitDurationForKlingSegments(totalSeconds: number): number[] {
-  const safeTotal = Math.max(KLING_MIN_TASK_DURATION_SECONDS, Math.round(totalSeconds));
-  const chunks: number[] = [];
-  let remaining = safeTotal;
-
-  while (remaining > KLING_MAX_TASK_DURATION_SECONDS) {
-    chunks.push(KLING_MAX_TASK_DURATION_SECONDS);
-    remaining -= KLING_MAX_TASK_DURATION_SECONDS;
-  }
-
-  if (remaining > 0) {
-    chunks.push(remaining);
-  }
-
-  if (chunks.length >= 2) {
-    const lastIndex = chunks.length - 1;
-    while (chunks[lastIndex] < KLING_MIN_TASK_DURATION_SECONDS) {
-      const donorIndex = chunks.findIndex((value, index) => index < lastIndex && value > KLING_MIN_TASK_DURATION_SECONDS);
-      if (donorIndex === -1) {
-        break;
-      }
-      chunks[donorIndex] -= 1;
-      chunks[lastIndex] += 1;
-    }
-  }
-
-  return chunks.filter(chunk => chunk > 0);
-}
-
-function normalizeKlingTimelineShots(shots: ReferenceVideoShot[], targetTotalSeconds: number): PlannedKlingShotPart[] {
-  if (!shots.length) return [];
-
-  const sourceDurations = shots.map(shot => Math.max(1, Math.round(shot.durationSeconds || 1)));
-  const sourceTotal = sourceDurations.reduce((sum, value) => sum + value, 0);
-
-  if (sourceTotal <= 0) {
-    return shots.map(shot => ({ shot, durationSeconds: 1 }));
-  }
-
-  const scaled = sourceDurations.map(value => Math.max(1, Math.floor((value / sourceTotal) * targetTotalSeconds)));
-  let allocated = scaled.reduce((sum, value) => sum + value, 0);
-  let cursor = 0;
-
-  while (allocated < targetTotalSeconds) {
-    scaled[cursor % scaled.length] += 1;
-    allocated += 1;
-    cursor += 1;
-  }
-
-  while (allocated > targetTotalSeconds) {
-    const index = scaled.findIndex(value => value > 1);
-    if (index === -1) break;
-    scaled[index] -= 1;
-    allocated -= 1;
-  }
-
-  return shots.map((shot, index) => ({
-    shot,
-    durationSeconds: scaled[index]
-  }));
-}
-
-function planKlingSegmentsFromShots(
-  shots: ReferenceVideoShot[],
-  totalDurationSeconds: number
-): PlannedKlingSegment[] {
-  const boundedTotal = Math.max(
-    KLING_MIN_TASK_DURATION_SECONDS,
-    Math.min(KLING_MAX_PROJECT_DURATION_SECONDS, Math.round(totalDurationSeconds))
-  );
-
-  if (!shots.length) {
-    return splitDurationForKlingSegments(boundedTotal).map(durationSeconds => ({
-      durationSeconds,
-      shotParts: []
-    }));
-  }
-
-  const normalizedParts = normalizeKlingTimelineShots(shots, boundedTotal);
-  const plannedSegments: PlannedKlingSegment[] = [];
-  let currentParts: PlannedKlingShotPart[] = [];
-  let currentDuration = 0;
-
-  const flushCurrent = () => {
-    if (!currentParts.length) return;
-    plannedSegments.push({
-      durationSeconds: currentDuration,
-      shotParts: [...currentParts]
-    });
-    currentParts = [];
-    currentDuration = 0;
-  };
-
-  normalizedParts.forEach(part => {
-    const splitDurations = part.durationSeconds > KLING_MAX_TASK_DURATION_SECONDS
-      ? splitDurationForKlingSegments(part.durationSeconds)
-      : [part.durationSeconds];
-
-    splitDurations.forEach(duration => {
-      const forcedSingle = splitDurations.length > 1;
-      if (forcedSingle) {
-        flushCurrent();
-        plannedSegments.push({
-          durationSeconds: duration,
-          shotParts: [{ shot: part.shot, durationSeconds: duration }]
-        });
-        return;
-      }
-
-      if (currentDuration + duration <= KLING_MAX_TASK_DURATION_SECONDS) {
-        currentParts.push({ shot: part.shot, durationSeconds: duration });
-        currentDuration += duration;
-      } else {
-        flushCurrent();
-        currentParts.push({ shot: part.shot, durationSeconds: duration });
-        currentDuration = duration;
-      }
-    });
-  });
-
-  flushCurrent();
-
-  if (!plannedSegments.length) {
-    return [{
-      durationSeconds: boundedTotal,
-      shotParts: []
-    }];
-  }
-
-  if (plannedSegments.length > 1) {
-    const lastIndex = plannedSegments.length - 1;
-    while (plannedSegments[lastIndex].durationSeconds < KLING_MIN_TASK_DURATION_SECONDS) {
-      const donorIndex = plannedSegments.findIndex((segment, index) =>
-        index < lastIndex && segment.durationSeconds > KLING_MIN_TASK_DURATION_SECONDS
-      );
-      if (donorIndex === -1) break;
-      plannedSegments[donorIndex].durationSeconds -= 1;
-      plannedSegments[lastIndex].durationSeconds += 1;
-      if (plannedSegments[donorIndex].shotParts.length > 0) {
-        plannedSegments[donorIndex].shotParts[plannedSegments[donorIndex].shotParts.length - 1].durationSeconds =
-          Math.max(1, plannedSegments[donorIndex].shotParts[plannedSegments[donorIndex].shotParts.length - 1].durationSeconds - 1);
-      }
-      if (plannedSegments[lastIndex].shotParts.length > 0) {
-        plannedSegments[lastIndex].shotParts[0].durationSeconds += 1;
-      }
-    }
-  }
-
-  return plannedSegments;
-}
-
-function buildSegmentPlanFromKlingSegments(
-  plannedSegments: PlannedKlingSegment[],
-  defaultLanguage: string
-): SegmentPrompt[] {
-  return plannedSegments.map((segment, segmentIndex) => {
-    let offset = 0;
-    const shotParts = segment.shotParts.length > 0
-      ? segment.shotParts
-      : [
-          {
-            shot: {
-              id: 1,
-              startTime: '00:00',
-              endTime: formatTimecode(segment.durationSeconds),
-              durationSeconds: segment.durationSeconds,
-              firstFrameDescription: '',
-              subject: '',
-              contextEnvironment: '',
-              action: '',
-              style: '',
-              cameraMotionPositioning: '',
-              composition: '',
-              ambianceColourLighting: '',
-              audio: '',
-              startTimeSeconds: 0,
-              endTimeSeconds: segment.durationSeconds
-            },
-            durationSeconds: segment.durationSeconds
-          }
-        ];
-
-    const shots: SegmentShot[] = shotParts.map((part, shotIndex) => {
-      const start = offset;
-      const end = Math.min(segment.durationSeconds, start + part.durationSeconds);
-      offset = end;
-
-      return {
-        id: shotIndex + 1,
-        time_range: `${formatTimecode(start)} - ${formatTimecode(end)}`,
-        start_seconds: start,
-        end_seconds: end,
-        duration_seconds: Math.max(1, end - start),
-        audio: part.shot.audio || '',
-        sfx: part.shot.sfx || '',
-        ambient: part.shot.ambient || '',
-        style: part.shot.style || '',
-        action: part.shot.action || '',
-        subject: part.shot.subject || '',
-        dialogue: part.shot.dialogue || '',
-        language: defaultLanguage,
-        composition: part.shot.composition || '',
-        context_environment: part.shot.contextEnvironment || '',
-        ambiance_colour_lighting: part.shot.ambianceColourLighting || '',
-        camera_motion_positioning: part.shot.cameraMotionPositioning || ''
-      };
-    });
-
-    const primaryShot = shotParts[0]?.shot;
-    return {
-      audio: primaryShot?.audio || '',
-      style: primaryShot?.style || '',
-      action: primaryShot?.action || '',
-      subject: primaryShot?.subject || '',
-      composition: primaryShot?.composition || '',
-      context_environment: primaryShot?.contextEnvironment || '',
-      first_frame_description: primaryShot?.firstFrameDescription || '',
-      ambiance_colour_lighting: primaryShot?.ambianceColourLighting || '',
-      camera_motion_positioning: primaryShot?.cameraMotionPositioning || '',
-      dialogue: primaryShot?.dialogue || '',
-      language: defaultLanguage,
-      index: segmentIndex + 1,
-      first_frame_image_size: undefined,
-      is_continuation_from_prev: segmentIndex > 0,
-      shots
-    };
-  });
 }
 
 export function buildManualCloneSeedPrompts(options: {
@@ -1837,18 +1560,6 @@ export function buildManualCloneSeedPrompts(options: {
     return [];
   }
 
-  if (videoModel === 'kling_3') {
-    const klingTargetDuration = Number(videoDuration || referenceTotalDurationSeconds || 0);
-    if (!Number.isFinite(klingTargetDuration) || klingTargetDuration <= 0) {
-      throw new Error('Kling segment planning requires a video duration.');
-    }
-    const plannedKlingSegments = planKlingSegmentsFromShots(referenceVideoShots, klingTargetDuration);
-    return buildSegmentPlanFromKlingSegments(
-      plannedKlingSegments,
-      language || 'en'
-    );
-  }
-
   if (referenceVideoShots.length > 0) {
     return buildSegmentPlanFromReferenceVideoShots(segmentCount, referenceVideoShots);
   }
@@ -1859,84 +1570,6 @@ export function buildManualCloneSeedPrompts(options: {
     undefined,
     resolvePerSegmentDurationSeconds(videoModel, videoDuration, segmentCount)
   );
-}
-
-function alignKlingPromptsToPlan(
-  prompts: Record<string, unknown>,
-  plannedSegments: PlannedKlingSegment[],
-  defaultLanguage: string
-): SegmentPrompt[] {
-  const plannedBase = buildSegmentPlanFromKlingSegments(plannedSegments, defaultLanguage);
-  const aiBase = normalizeSegmentPrompts(
-    prompts,
-    plannedSegments.length,
-    undefined,
-    plannedSegments[0]?.durationSeconds
-  );
-
-  return plannedBase.map((plannedSegment, segmentIndex) => {
-    const aiSegment = aiBase[segmentIndex] || aiBase[aiBase.length - 1];
-    const plannedShots = Array.isArray(plannedSegment.shots) && plannedSegment.shots.length > 0
-      ? plannedSegment.shots
-      : [buildFallbackShot(1, defaultLanguage, plannedSegment, plannedSegments[segmentIndex]?.durationSeconds || 0)];
-    const targetDuration = plannedSegments[segmentIndex]?.durationSeconds || plannedShots[0]?.duration_seconds || 0;
-    if (targetDuration <= 0) {
-      throw new Error('Kling segment plan is missing duration.');
-    }
-    const targetShotCount = Math.max(1, plannedShots.length);
-    const aiShots = Array.isArray(aiSegment?.shots) ? aiSegment.shots : [];
-    const perShotDuration = targetDuration / targetShotCount;
-
-    const shots: SegmentShot[] = Array.from({ length: targetShotCount }, (_, shotIndex) => {
-      const plannerShot = plannedShots[shotIndex] || plannedShots[plannedShots.length - 1];
-      const aiShot = aiShots[shotIndex] || aiShots[aiShots.length - 1];
-      const fallbackStart = Math.round(shotIndex * perShotDuration);
-      const { display, start, end, duration } = normalizeShotTimeRange(
-        undefined,
-        fallbackStart,
-        perShotDuration
-      );
-
-      return {
-        id: shotIndex + 1,
-        time_range: display,
-        start_seconds: start,
-        end_seconds: end,
-        duration_seconds: duration,
-        audio: cleanSegmentText(aiShot?.audio) || plannerShot?.audio || '',
-        style: cleanSegmentText(aiShot?.style) || plannerShot?.style || '',
-        action: cleanSegmentText(aiShot?.action) || plannerShot?.action || '',
-        subject: cleanSegmentText(aiShot?.subject) || plannerShot?.subject || '',
-        dialogue: cleanSegmentText(aiShot?.dialogue) || '',
-        language: cleanSegmentText(aiShot?.language) || cleanSegmentText(aiSegment?.language) || defaultLanguage,
-        composition: cleanSegmentText(aiShot?.composition) || plannerShot?.composition || '',
-        context_environment: cleanSegmentText(aiShot?.context_environment) || plannerShot?.context_environment || '',
-        ambiance_colour_lighting: cleanSegmentText(aiShot?.ambiance_colour_lighting) || plannerShot?.ambiance_colour_lighting || '',
-        camera_motion_positioning: cleanSegmentText(aiShot?.camera_motion_positioning) || plannerShot?.camera_motion_positioning || ''
-      };
-    });
-
-    const firstShot = shots[0];
-    return {
-      ...plannedSegment,
-      first_frame_description:
-        cleanSegmentText(aiSegment?.first_frame_description) ||
-        cleanSegmentText(plannedSegment.first_frame_description) ||
-        '',
-      is_continuation_from_prev: segmentIndex > 0,
-      audio: cleanSegmentText(aiSegment?.audio) || firstShot.audio || '',
-      style: cleanSegmentText(aiSegment?.style) || firstShot.style || '',
-      action: cleanSegmentText(aiSegment?.action) || firstShot.action || '',
-      subject: cleanSegmentText(aiSegment?.subject) || firstShot.subject || '',
-      composition: cleanSegmentText(aiSegment?.composition) || firstShot.composition || '',
-      context_environment: cleanSegmentText(aiSegment?.context_environment) || firstShot.context_environment || '',
-      ambiance_colour_lighting: cleanSegmentText(aiSegment?.ambiance_colour_lighting) || firstShot.ambiance_colour_lighting || '',
-      camera_motion_positioning: cleanSegmentText(aiSegment?.camera_motion_positioning) || firstShot.camera_motion_positioning || '',
-      dialogue: cleanSegmentText(aiSegment?.dialogue) || '',
-      language: cleanSegmentText(aiSegment?.language) || firstShot.language || defaultLanguage,
-      shots
-    };
-  });
 }
 
 
@@ -2028,14 +1661,15 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       }
     }
 
-    if (!referenceVideoContext && request.creatorSourceVideoId) {
-      console.log(`🎯 Loading reference video analysis: ${request.creatorSourceVideoId}`);
+    const creatorLookupId = request.creatorSourceVideoId || (!referenceVideoContext ? request.referenceVideoId : null);
+    if (!referenceVideoContext && creatorLookupId) {
+      console.log(`🎯 Loading reference video analysis: ${creatorLookupId}`);
       const fetchReferenceVideo = async () => {
         // Schema verified via Supabase MCP (2026-01-28): creator_source_videos includes analysis_result, analysis_language, duration_seconds
         const { data: referenceVideo, error: referenceError } = await supabase
           .from('creator_source_videos')
           .select('description, analysis_result, analysis_status, analysis_language, duration_seconds')
-          .eq('id', request.creatorSourceVideoId)
+          .eq('id', creatorLookupId)
           .eq('user_id', request.userId)
           .single();
         if (referenceError) throw referenceError;
@@ -2045,7 +1679,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       try {
         const referenceVideo = await retryAsync(fetchReferenceVideo, { maxAttempts: 3, baseDelayMs: 500, label: 'Reference video fetch' });
         referenceVideoContext = {
-          id: request.creatorSourceVideoId,
+          id: creatorLookupId,
           reference_name: referenceVideo.description || 'Reference video',
           existing_analysis: referenceVideo.analysis_result,
           analysis_status: referenceVideo.analysis_status as 'pending' | 'analyzing' | 'completed' | 'failed' | undefined,
@@ -2070,18 +1704,6 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     if (projectAgentCloneSourceDuration) {
       request.videoDuration = String(projectAgentCloneSourceDuration) as VideoDuration;
     }
-    if (
-      actualVideoModel === 'kling_3' &&
-      Number.isFinite(referenceDurationSeconds) &&
-      referenceDurationSeconds > KLING_MAX_PROJECT_DURATION_SECONDS
-    ) {
-      return {
-        success: false,
-        error: 'Kling duration limit exceeded',
-        details: 'Kling 3.0 clone supports reference videos up to 60 seconds.'
-      };
-    }
-
     const shouldPreserveStoryboardCloneDuration =
       request.executionMode === 'clone_storyboard_reference' ||
       (request.requestSource === 'project_agent_clone' && isSeedanceCloneModel(actualVideoModel));
@@ -2155,7 +1777,6 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       }
     }
     let referenceVideoShotTimeline: { shots: ReferenceVideoShot[]; totalDurationSeconds: number } | null = null;
-    let plannedKlingSegments: PlannedKlingSegment[] | null = null;
 
     if (referenceVideoContext?.existing_analysis) {
       const timeline = parseReferenceVideoTimeline(
@@ -2244,9 +1865,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       console.log(`🎬 Storyboard clone plan prepared: ${storyboardPlan.segments.length} Seedance task(s), ${storyboardPlan.durationSeconds}s total`);
     }
 
-    const segmentedByDuration = actualVideoModel === 'kling_3'
-      ? true
-      : isSegmentedVideoRequest(actualVideoModel, request.videoDuration);
+    const segmentedByDuration = isSegmentedVideoRequest(actualVideoModel, request.videoDuration);
     const isSegmented = segmentedByDuration;
 
     // Smart segment count calculation
@@ -2269,17 +1888,6 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     if (storyboardPlan) {
       segmentCount = storyboardPlan.segments.length;
       console.log(`✅ Seedance storyboard segmentation planned: ${segmentCount} segments`);
-    } else if (actualVideoModel === 'kling_3') {
-      const klingTargetDuration = Number(request.videoDuration || referenceVideoShotTimeline?.totalDurationSeconds || 0);
-      if (!Number.isFinite(klingTargetDuration) || klingTargetDuration <= 0) {
-        throw new Error('Kling clone requires a video duration.');
-      }
-      plannedKlingSegments = planKlingSegmentsFromShots(
-        referenceVideoShotTimeline?.shots || [],
-        klingTargetDuration
-      );
-      segmentCount = plannedKlingSegments.length;
-      console.log(`✅ Kling 3.0 shot-aware segmentation planned: ${segmentCount} segments`);
     } else if (referenceVideoShotCount > 0 && userSegmentCount === referenceVideoShotCount) {
       segmentCount = referenceVideoShotCount;
       console.log(`✅ Perfect match: ${referenceVideoShotCount} reference shots = ${userSegmentCount} segments (1:1 mapping)`);
@@ -2306,16 +1914,6 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
     if (storyboardPlan) {
       precomputedSegmentPlan = storyboardPlan.segments;
       shotPlanForSegments = undefined;
-    } else if (segmentCount > 0 && actualVideoModel === 'kling_3') {
-      precomputedSegmentPlan = buildManualCloneSeedPrompts({
-        videoModel: actualVideoModel,
-        segmentCount,
-        videoDuration: request.videoDuration,
-        language: request.language || referenceVideoContext?.language || 'en',
-        referenceVideoShots: referenceVideoShotTimeline?.shots || [],
-        referenceTotalDurationSeconds: referenceVideoShotTimeline?.totalDurationSeconds
-      });
-      console.log(`📐 Prepared Kling segment plan (${precomputedSegmentPlan.length} segments)`);
     } else if (segmentCount > 0 && referenceVideoShotTimeline?.shots.length) {
       if (referenceVideoShotTimeline.shots.length === segmentCount) {
         shotPlanForSegments = referenceVideoShotTimeline.shots;
@@ -2429,9 +2027,7 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
       console.log(`💳 [CREDITS DEBUG] Generation cost calculated:`, {
         model: actualVideoModel,
         duration,
-        units: actualVideoModel === 'kling_3'
-          ? `${Math.ceil(Number(duration || '0') || 0)}s`
-          : `${Math.ceil(Number(duration || '0') / getSegmentDurationForModel(actualVideoModel))} segments`,
+        units: `${Math.ceil(Number(duration || '0') / getSegmentDurationForModel(actualVideoModel))} segments`,
         unitCost: GENERATION_COSTS[actualVideoModel],
         totalCost: generationCost
       });
@@ -2531,14 +2127,12 @@ export async function startWorkflowProcess(request: StartWorkflowRequest): Promi
 
     const cloneReferenceSource = request.referenceVideoId
       ? {
-          referenceSourceType: 'reference_video' as const,
           referenceSourceMediaType: 'video' as const,
           referenceSourceId: request.referenceVideoId,
           isCloneMode: true
         }
       : request.creatorSourceVideoId
         ? {
-            referenceSourceType: 'creator_source_video' as const,
             referenceSourceMediaType: 'video' as const,
             referenceSourceId: request.creatorSourceVideoId,
             isCloneMode: true
@@ -2901,37 +2495,19 @@ async function startAIWorkflow(
       }
     }
 
-    const referenceDurationSeconds = Number(referenceVideoContext?.video_duration_seconds || 0);
-    if (
-      request.resolvedVideoModel === 'kling_3' &&
-      Number.isFinite(referenceDurationSeconds) &&
-      referenceDurationSeconds > KLING_MAX_PROJECT_DURATION_SECONDS
-    ) {
-      throw new Error('Kling 3.0 clone supports reference videos up to 60 seconds.');
-    }
-
     let referenceVideoTimelineShots: ReferenceVideoShot[] | undefined;
-    let plannedKlingSegments: PlannedKlingSegment[] | null = null;
     if (referenceVideoDescription) {
       const parsedTimeline = parseReferenceVideoTimeline(
         referenceVideoDescription as Record<string, unknown>,
         referenceVideoContext?.video_duration_seconds
       );
       referenceVideoTimelineShots = parsedTimeline.shots;
-      if (request.resolvedVideoModel === 'kling_3') {
-        const klingTargetDuration = Number(request.videoDuration || parsedTimeline.videoDurationSeconds || 0);
-        if (!Number.isFinite(klingTargetDuration) || klingTargetDuration <= 0) {
-          throw new Error('Kling clone requires a video duration.');
-        }
-        plannedKlingSegments = planKlingSegmentsFromShots(parsedTimeline.shots, klingTargetDuration);
-      }
 
       if (
         parsedTimeline.videoDurationSeconds &&
         (request.resolvedVideoModel === 'seedance_2' ||
           request.resolvedVideoModel === 'seedance_2_fast' ||
-          request.resolvedVideoModel === 'seedance_2_mini' ||
-          request.resolvedVideoModel === 'kling_3')
+          request.resolvedVideoModel === 'seedance_2_mini')
       ) {
         const snappedDuration = snapDurationToModel(request.resolvedVideoModel, parsedTimeline.videoDurationSeconds);
         if (snappedDuration && request.videoDuration !== snappedDuration) {
@@ -2941,25 +2517,13 @@ async function startAIWorkflow(
       }
     }
 
-    if (request.resolvedVideoModel === 'kling_3' && !plannedKlingSegments) {
-      const klingTargetDuration = Number(request.videoDuration || 0);
-      if (!Number.isFinite(klingTargetDuration) || klingTargetDuration <= 0) {
-        throw new Error('Kling clone requires a video duration.');
-      }
-      plannedKlingSegments = planKlingSegmentsFromShots([], klingTargetDuration);
-    }
-
     const overrideSegmentCount = hasSegmentPromptOverrides ? request.segmentPrompts!.length : 0;
     const overrideTotalDurationSeconds = hasSegmentPromptOverrides
       ? request.segmentPrompts!.reduce((total, segment) => (
           total + getPromptSegmentDurationSeconds(segment)
         ), 0)
       : 0;
-    if (
-      hasSegmentPromptOverrides &&
-      request.resolvedVideoModel === 'kling_3' &&
-      overrideTotalDurationSeconds >= KLING_MIN_TASK_DURATION_SECONDS
-    ) {
+    if (hasSegmentPromptOverrides && overrideTotalDurationSeconds >= SEEDANCE_MIN_TASK_DURATION_SECONDS) {
       request.videoDuration = String(overrideTotalDurationSeconds) as VideoDuration;
     }
     const totalDurationSeconds = parseInt(
@@ -2969,16 +2533,12 @@ async function startAIWorkflow(
     if (!Number.isFinite(totalDurationSeconds) || totalDurationSeconds <= 0) {
       throw new Error('Video duration is required before starting generation.');
     }
-    const segmentedFlow = request.resolvedVideoModel === 'kling_3'
-      ? true
-      : isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
-    const calculatedSegmentCount = request.resolvedVideoModel === 'kling_3'
-      ? (plannedKlingSegments?.length || 1)
-      : (segmentedFlow
-        ? getSegmentCountFromDuration(request.videoDuration, request.resolvedVideoModel)
-        : 1);
+    const segmentedFlow = isSegmentedVideoRequest(request.resolvedVideoModel, request.videoDuration);
+    const calculatedSegmentCount = segmentedFlow
+      ? getSegmentCountFromDuration(request.videoDuration, request.resolvedVideoModel)
+      : 1;
     const segmentCount = hasSegmentPromptOverrides ? overrideSegmentCount : calculatedSegmentCount;
-    const effectiveSegmentedFlow = segmentCount > 1 || request.resolvedVideoModel === 'kling_3';
+    const effectiveSegmentedFlow = segmentCount > 1;
     const resolvedSegmentDurationSeconds = resolvePerSegmentDurationSeconds(
       request.resolvedVideoModel,
       request.videoDuration,
@@ -3046,7 +2606,7 @@ async function startAIWorkflow(
 
     console.log('🎯 Generated creative prompts:', prompts);
 
-    if (request.resolvedVideoModel !== 'kling_3' && !shotPlanForSegments && segmentedFlow && referenceVideoTimelineShots && referenceVideoTimelineShots.length > 0) {
+    if (!shotPlanForSegments && segmentedFlow && referenceVideoTimelineShots && referenceVideoTimelineShots.length > 0) {
       if (referenceVideoTimelineShots.length === segmentCount) {
         shotPlanForSegments = referenceVideoTimelineShots;
         console.log(`✅ Using 1:1 shot-to-segment mapping (${segmentCount} shots)`);
@@ -3066,10 +2626,7 @@ async function startAIWorkflow(
       prompts,
       segmentCount,
       referenceVideoDescription,
-      request.resolvedVideoModel === 'kling_3'
-        ? undefined
-        : shotPlanForSegments,
-      plannedKlingSegments,
+      shotPlanForSegments,
       collectDistinctUrls([
         ...(request.imageUrl ? [request.imageUrl] : []),
         ...(cloneReferenceAssets?.productImageUrls || []),
@@ -3570,13 +3127,13 @@ async function generateImageBasedPrompts(
   if (duration <= 0) {
     throw new Error('Video duration is required to generate image-based prompts.');
   }
-  const minDurationForModel = videoModel === 'kling_3' ? KLING_MIN_TASK_DURATION_SECONDS : SEEDANCE_MIN_TASK_DURATION_SECONDS;
-  const maxDurationForModel = videoModel === 'kling_3' ? KLING_MAX_TASK_DURATION_SECONDS : 64;
+  const minDurationForModel = SEEDANCE_MIN_TASK_DURATION_SECONDS;
+  const maxDurationForModel = 64;
   const perSegmentDuration = Math.max(
     minDurationForModel,
     Math.min(maxDurationForModel, Math.round(duration / Math.max(1, segmentCount)))
   );
-  const minShotsPerSegment = videoModel === 'kling_3' ? 1 : 2;
+  const minShotsPerSegment = 2;
   const dialogueWordLimit = Math.max(12, Math.round(perSegmentDuration * 2.2));
 
   const shotProperties = {
@@ -4059,7 +3616,6 @@ async function startSegmentedWorkflow(
   segmentCount: number,
   referenceVideoDescription?: Record<string, unknown>, // Reference video analysis
   referenceVideoShots?: ReferenceVideoShot[],
-  klingPlannedSegments?: PlannedKlingSegment[] | null,
   productImageUrls?: string[] | null, // UPDATED: Multiple product image URLs for product shots
   productContext?: { product_name?: string },
   referenceVideoType?: 'video' | null, // Reference videos are video-only (null means no clone source)
@@ -4074,11 +3630,8 @@ async function startSegmentedWorkflow(
     request.videoDuration,
     segmentCount
   );
-  const klingSegments = request.resolvedVideoModel === 'kling_3' && klingPlannedSegments?.length
-    ? alignKlingPromptsToPlan(prompts, klingPlannedSegments, request.language || 'en')
-    : null;
   const normalizedSegments = removeOriginalReferenceEntitiesFromSegments(
-    (klingSegments || normalizeSegmentPrompts(prompts, segmentCount, referenceVideoShots, perSegmentDurationSeconds)).map(segment => ({
+    normalizeSegmentPrompts(prompts, segmentCount, referenceVideoShots, perSegmentDurationSeconds).map(segment => ({
       ...segment,
       first_frame_image_size: segment.first_frame_image_size || defaultFrameSize
     })),
@@ -4857,7 +4410,6 @@ export async function createSmartSegmentFrame(
       segmentIndex,
       frameType,
       isCloneMode: isReferenceCloneMode,
-      referenceSourceType: isReferenceCloneMode ? 'video' : null,
       usesContinuationReference,
       imageInputCount: imageInput.length,
       usePromptAsIs: true
@@ -4940,7 +4492,6 @@ export async function createSmartSegmentFrame(
       segmentIndex,
       frameType,
       isCloneMode: true,
-      referenceSourceType: 'video',
       usesContinuationReference,
       imageInputCount: imageInput.length
     });
@@ -5016,7 +4567,6 @@ export async function createSmartSegmentFrame(
     segmentIndex,
     frameType,
     isCloneMode: false,
-    referenceSourceType: null,
     usesContinuationReference: shouldUseContinuationReference,
     imageInputCount: combinedReferenceImages.length
   });
@@ -5062,9 +4612,9 @@ export async function startSegmentVideoTask(
     compile_mode: promptCompilation.compileMode
   });
 
-  const supportedSegmentModels: VideoModel[] = ['seedance_2_fast', 'seedance_2', 'seedance_2_mini', 'kling_3'];
+  const supportedSegmentModels: VideoModel[] = ['seedance_2_mini', 'seedance_2_fast', 'seedance_2'];
   if (!supportedSegmentModels.includes(videoModel)) {
-    throw new Error(`Segmented workflow only supports Seedance 2 Fast, Seedance 2, Seedance 2 Mini, or Kling 3.0. Received ${videoModel}`);
+    throw new Error(`Segmented workflow only supports Seedance 2 Mini, Seedance 2 Fast, or Seedance 2. Received ${videoModel}`);
   }
   await assertKieCreditsAvailable();
 
@@ -5093,35 +4643,15 @@ export async function startSegmentVideoTask(
     music
   );
 
-  if (videoModel === 'seedance_2_fast' || videoModel === 'seedance_2' || videoModel === 'seedance_2_mini') {
-    return await startSegmentVideoTaskSeedance(
-      project,
-      compiledSegmentPrompt,
-      firstFrameUrl,
-      closingFrameUrl,
-      segmentIndex,
-      totalSegments,
-      videoModel
-    );
-  }
-
-  if (videoModel === 'kling_3') {
-    if (!firstFrameUrl) {
-      throw new Error('Kling video generation requires a first frame.');
-    }
-    return await startSegmentVideoTaskKling(
-      project,
-      compiledSegmentPrompt,
-      normalizedShots,
-      firstFrameUrl,
-      closingFrameUrl,
-      segmentIndex,
-      totalSegments,
-      perSegmentDuration
-    );
-  }
-
-  throw new Error(`Unsupported video model: ${videoModel}`);
+  return await startSegmentVideoTaskSeedance(
+    project,
+    compiledSegmentPrompt,
+    firstFrameUrl,
+    closingFrameUrl,
+    segmentIndex,
+    totalSegments,
+    videoModel
+  );
 }
 
 type NormalizedVideoShot = {
@@ -5138,32 +4668,22 @@ type NormalizedVideoShot = {
   camera_motion_positioning: string;
 };
 
-type KlingMentionType = 'character' | 'product' | 'unknown';
-
-type KlingMention = {
-  type: KlingMentionType;
-  name: string;
-  key: string;
-};
-
-type KlingElement = {
-  name: string;
-  description: string;
-  element_input_urls: string[];
-};
-
-const MENTION_REGEX = SHARED_MENTION_TOKEN_REGEX;
-const KLING_SHOT_MIN_DURATION_SECONDS = 1;
-const KLING_SHOT_MAX_DURATION_SECONDS = 12;
-
 function parseTimeRangeEndSeconds(value: string): number | null {
   const parts = String(value || '').split('-').map((part) => part.trim());
   if (parts.length !== 2) return null;
-  const [minutesPart, secondsPart] = parts[1].split(':');
-  const minutes = Number(minutesPart);
-  const seconds = Number(secondsPart);
-  if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
-  return (minutes * 60) + seconds;
+  const parsed = parseTimecode(parts[1]);
+  return typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : null;
+}
+
+function getTimeRangeDurationSeconds(value: string): number {
+  const parts = String(value || '').split('-').map((part) => part.trim());
+  if (parts.length !== 2) return 0;
+  const start = parseTimecode(parts[0]);
+  const end = parseTimecode(parts[1]);
+  if (typeof start !== 'number' || typeof end !== 'number' || end <= start) {
+    return 0;
+  }
+  return Math.max(1, Math.round(end - start));
 }
 
 function getPromptSegmentDurationSeconds(
@@ -5192,13 +4712,6 @@ function resolveTaskDurationSeconds(
   totalSegments: number,
   segmentPrompt?: SegmentPrompt
 ): number {
-  if (model === 'kling_3' && Array.isArray(segmentPrompt?.shots) && segmentPrompt.shots.length > 0) {
-    return Math.max(
-      KLING_MIN_TASK_DURATION_SECONDS,
-      Math.min(KLING_MAX_TASK_DURATION_SECONDS, getPromptSegmentDurationSeconds(segmentPrompt))
-    );
-  }
-
   if (isSeedanceStoryboardReferenceProject(project) && Array.isArray(segmentPrompt?.shots) && segmentPrompt.shots.length > 0) {
     return Math.max(
       SEEDANCE_MIN_TASK_DURATION_SECONDS,
@@ -5219,11 +4732,6 @@ function resolveTaskDurationSeconds(
   const base = Math.floor(totalDuration / safeTotalSegments);
   const remainder = totalDuration % safeTotalSegments;
   const distributed = base + (segmentIndex < remainder ? 1 : 0);
-
-  if (model === 'kling_3') {
-    return Math.max(KLING_MIN_TASK_DURATION_SECONDS, Math.min(KLING_MAX_TASK_DURATION_SECONDS, distributed));
-  }
-
   return Math.max(1, distributed);
 }
 
@@ -5237,700 +4745,20 @@ function buildNormalizedShots(
 ): NormalizedVideoShot[] {
   return (segmentPrompt.shots && segmentPrompt.shots.length > 0
     ? segmentPrompt.shots
-    : [
-        {
-          id: 1,
-          time_range: `00:00 - ${formatTimecode(perSegmentDuration)}`,
-          audio: music,
-          style: segmentPrompt.style || '',
-          action: action,
-          subject: segmentPrompt.subject || '',
-          dialogue: dialogueContent,
-          language: segmentPrompt.language || languageCode,
-          composition: segmentPrompt.composition || '',
-          context_environment: segmentPrompt.context_environment || '',
-          ambiance_colour_lighting: segmentPrompt.ambiance_colour_lighting || '',
-          camera_motion_positioning: segmentPrompt.camera_motion_positioning || ''
-        }
-      ]
-  ).map(shot => ({
+    : [buildFallbackShot(1, languageCode, segmentPrompt, perSegmentDuration)]
+  ).map((shot, index) => ({
     time_range: shot.time_range || `00:00 - ${formatTimecode(perSegmentDuration)}`,
     audio: cleanSegmentText(shot.audio) || music,
-    style: cleanSegmentText(shot.style) || segmentPrompt.style || '',
+    style: cleanSegmentText(shot.style) || cleanSegmentText(segmentPrompt.style) || '',
     action: cleanSegmentText(shot.action) || action,
-    subject: cleanSegmentText(shot.subject) || segmentPrompt.subject || '',
+    subject: cleanSegmentText(shot.subject) || cleanSegmentText(segmentPrompt.subject) || '',
     dialogue: cleanSegmentText(shot.dialogue) || dialogueContent,
-    language: cleanSegmentText(shot.language) || languageCode,
-    composition: cleanSegmentText(shot.composition) || segmentPrompt.composition || '',
-    context_environment: cleanSegmentText(shot.context_environment) || segmentPrompt.context_environment || '',
-    ambiance_colour_lighting: cleanSegmentText(shot.ambiance_colour_lighting) || segmentPrompt.ambiance_colour_lighting || '',
-    camera_motion_positioning: cleanSegmentText(shot.camera_motion_positioning) || segmentPrompt.camera_motion_positioning || ''
+    language: cleanSegmentText(shot.language) || cleanSegmentText(segmentPrompt.language) || languageCode,
+    composition: cleanSegmentText(shot.composition) || cleanSegmentText(segmentPrompt.composition) || '',
+    context_environment: cleanSegmentText(shot.context_environment) || cleanSegmentText(segmentPrompt.context_environment) || '',
+    ambiance_colour_lighting: cleanSegmentText(shot.ambiance_colour_lighting) || cleanSegmentText(segmentPrompt.ambiance_colour_lighting) || '',
+    camera_motion_positioning: cleanSegmentText(shot.camera_motion_positioning) || cleanSegmentText(segmentPrompt.camera_motion_positioning) || '',
   }));
-}
-
-function collectKlingMentions(texts: string[]): KlingMention[] {
-  const map = new Map<string, KlingMention>();
-  texts.forEach(text => {
-    if (!text) return;
-    for (const match of text.matchAll(MENTION_REGEX)) {
-      const parsed = parseMentionToken(match[0]);
-      const type = parsed?.type as KlingMentionType | undefined;
-      const keyName = parsed?.key || normalizeMentionLabel(parsed?.label || '');
-      if (!type || !keyName) continue;
-      const key = `${type}:${keyName}`;
-      if (!map.has(key)) {
-        map.set(key, { type, name: keyName, key });
-      }
-    }
-  });
-  return Array.from(map.values());
-}
-
-function buildKlingElementName(rawName: string, _mentionKey?: string, _usedNames?: Set<string>): string {
-  return normalizeMentionLabel(rawName) || 'asset';
-}
-
-function extractUnresolvedKlingReferences(text: string): string[] {
-  const references = new Set<string>();
-
-  for (const match of text.matchAll(MENTION_REGEX)) {
-    references.add(match[0]);
-  }
-
-  const shorthandMatches = text.match(/@(character|product|c|p)\b/g) || [];
-  shorthandMatches.forEach(match => references.add(match));
-
-  return Array.from(references);
-}
-
-function replacePromptMentions(
-  text: string,
-  tokenMap: Record<string, string>,
-  _plainTokenMap: Record<string, string>
-): string {
-  if (!text) return text;
-  return text.replace(MENTION_REGEX, (match) => {
-    const parsed = parseMentionToken(match);
-    if (!parsed) return match;
-    const keyName = parsed.key || normalizeMentionLabel(String(parsed.label || ''));
-    if (!keyName) {
-      return parsed.syntax !== 'plain' ? String(parsed.label || '').trim() : match;
-    }
-    const key = `${parsed.type}:${keyName}`;
-    const mapped = tokenMap[key];
-    if (mapped) {
-      return `@${mapped}`;
-    }
-    return parsed.syntax !== 'plain' ? `@${keyName}` : match;
-  });
-}
-
-function collectElementKeysFromText(
-  text: string,
-  tokenMap: Record<string, string>,
-  plainTokenMap: Record<string, string>
-): string[] {
-  if (!text) return [];
-  const tags: string[] = [];
-  for (const match of text.matchAll(MENTION_REGEX)) {
-    const parsed = parseMentionToken(match[0]);
-    const type = parsed?.type;
-    const keyName = parsed?.key || normalizeMentionLabel(parsed?.label || '');
-    if (!type || !keyName) continue;
-    const mapped = tokenMap[`${type}:${keyName}`];
-    if (mapped) {
-      tags.push(`@${mapped}`);
-    }
-  }
-  return tags;
-}
-
-function collectElementTagsFromTexts(
-  texts: string[],
-  tokenMap: Record<string, string>,
-  plainTokenMap: Record<string, string>
-): string[] {
-  const seen = new Set<string>();
-  const ordered: string[] = [];
-  for (const text of texts) {
-    const tags = collectElementKeysFromText(text, tokenMap, plainTokenMap);
-    for (const tag of tags) {
-      if (!seen.has(tag)) {
-        seen.add(tag);
-        ordered.push(tag);
-      }
-    }
-  }
-  return ordered;
-}
-
-async function buildKlingElementsFromMentions(
-  userId: string,
-  mentions: KlingMention[]
-): Promise<{ elements: KlingElement[]; tokenMap: Record<string, string>; plainTokenMap: Record<string, string>; skippedMentions: KlingMention[] }> {
-  if (!mentions.length) {
-    return { elements: [], tokenMap: {}, plainTokenMap: {}, skippedMentions: [] };
-  }
-
-  const mentionNames = Array.from(new Set(mentions.map(mention => mention.name)));
-  const supabase = getSupabaseAdmin();
-  const productPromise = supabase
-    .from('user_products')
-    .select('id,product_name,user_product_photos(photo_url,is_primary)')
-    .eq('user_id', userId);
-
-  const fetchAvatars = async () => {
-    const photoSetQuery = await supabase
-      .from('user_avatars')
-      .select('id,avatar_name,photo_url,photo_set_json')
-      .eq('user_id', userId);
-
-    if (!photoSetQuery.error) {
-      return photoSetQuery;
-    }
-
-    if ((photoSetQuery.error as { code?: string } | null)?.code === '42703') {
-      console.warn('[Kling Elements] Falling back to minimal avatar query without photo_set_json:', photoSetQuery.error.message);
-      return supabase
-        .from('user_avatars')
-        .select('id,avatar_name,photo_url')
-        .eq('user_id', userId);
-    }
-
-    return photoSetQuery;
-  };
-
-  const [productResult, avatarResult] = await Promise.all([
-    productPromise,
-    fetchAvatars()
-  ]);
-
-  if (productResult.error) {
-    console.error('[Kling Elements] Failed to fetch products:', productResult.error);
-  }
-  if (avatarResult.error) {
-    console.error('[Kling Elements] Failed to fetch avatars:', avatarResult.error);
-  }
-
-  const userProducts = (productResult.data || []).filter(product =>
-    mentionNames.includes(normalizeMentionLabel(product.product_name || ''))
-  );
-  const systemProducts = SYSTEM_PRODUCTS
-    .filter((product) => mentionNames.includes(normalizeMentionLabel(product.product_name || '')))
-    .map((product) => ({
-      id: product.id,
-      product_name: product.product_name,
-      user_product_photos: product.user_product_photos.map((photo) => ({
-        photo_url: photo.photo_url,
-        is_primary: photo.is_primary
-      }))
-    }));
-  const products = [...systemProducts, ...userProducts];
-  const userAvatars = (avatarResult.data || []).filter(avatar =>
-    mentionNames.includes(normalizeMentionLabel(avatar.avatar_name || ''))
-  );
-  const systemAvatars = SYSTEM_AVATARS.filter(avatar =>
-    mentionNames.includes(normalizeMentionLabel(avatar.avatar_name || ''))
-  );
-  const avatars = [...systemAvatars, ...userAvatars];
-
-  const productsByName = new Map(
-    products.map(product => [normalizeMentionLabel(product.product_name || ''), product])
-  );
-  const avatarsByName = new Map(
-    avatars.map(avatar => [normalizeMentionLabel(avatar.avatar_name || ''), avatar])
-  );
-
-  const collectAvatarUrls = (avatar: Record<string, unknown> | undefined): string[] => (
-    getAvatarPhotoUrls(avatar as Parameters<typeof getAvatarPhotoUrls>[0])
-  );
-
-  const tokenMap: Record<string, string> = {};
-  const plainTokenMap: Record<string, string> = {};
-  const elements: KlingElement[] = [];
-  const skippedMentions: KlingMention[] = [];
-
-  mentions.forEach((mention) => {
-    const mentionNameKey = mention.name;
-    const product = mention.type === 'character'
-      ? undefined
-      : productsByName.get(mentionNameKey);
-    const avatar = mention.type === 'product'
-      ? undefined
-      : avatarsByName.get(mentionNameKey);
-
-    if (mention.type === 'unknown' && product && avatar) {
-      throw new Error(`Ambiguous mention @${mention.name}: matches both an avatar and a product. Rename one asset or use a unique name.`);
-    }
-
-    const productUrls = product?.user_product_photos
-      ? [
-          ...product.user_product_photos
-            .sort((a, b) => Number(Boolean(b.is_primary)) - Number(Boolean(a.is_primary)))
-            .map(photo => photo.photo_url)
-        ]
-      : [];
-    const avatarUrls = collectAvatarUrls(avatar as Record<string, unknown> | undefined);
-    const urls = Array.from(new Set([...(mention.type === 'product' ? productUrls : avatarUrls)].filter(Boolean) as string[])).slice(0, 4);
-
-    if (urls.length < 2) {
-      console.warn('[Kling Elements] Skipping mention without minimum 2 images:', {
-        mention,
-        imageCount: urls.length
-      });
-      skippedMentions.push(mention);
-      return;
-    }
-
-    const elementName = mention.name;
-    tokenMap[mention.key] = elementName;
-    plainTokenMap[mentionNameKey] = elementName;
-
-    elements.push({
-      name: elementName,
-      description:
-        mention.type === 'product'
-          ? (product?.product_name || mention.name)
-          : (avatar?.avatar_name || mention.name),
-      element_input_urls: urls
-    });
-  });
-
-  return { elements, tokenMap, plainTokenMap, skippedMentions };
-}
-
-type KlingPromptBuildResult = {
-  prompt: string;
-  originalLength: number;
-  finalLength: number;
-  wasCompressed: boolean;
-  tagCount: number;
-};
-
-function buildKlingShotPrompt(
-  segmentPrompt: SegmentPrompt,
-  shot: NormalizedVideoShot,
-  shotIndex: number,
-  tokenMap: Record<string, string>,
-  plainTokenMap: Record<string, string>,
-  replaceMention: (text: string) => string
-): KlingPromptBuildResult {
-  const trailingTags = collectElementTagsFromTexts([
-    shot.action,
-    shot.subject,
-    shot.dialogue,
-    shot.context_environment,
-    shot.composition,
-    shot.style,
-    shot.ambiance_colour_lighting,
-    shot.camera_motion_positioning,
-    shot.audio
-  ].filter(Boolean) as string[], tokenMap, plainTokenMap);
-
-  const sections = buildKlingPromptSections({
-    shot
-  });
-
-  const fitted = fitKlingPromptWithinLimit({
-    sections,
-    tags: trailingTags,
-    replaceMention,
-    maxChars: KLING_PROMPT_MAX_CHARS,
-    softTarget: KLING_PROMPT_SOFT_TARGET
-  });
-
-  return {
-    prompt: fitted.finalPrompt,
-    originalLength: fitted.originalLength,
-    finalLength: fitted.finalLength,
-    wasCompressed: fitted.wasCompressed,
-    tagCount: fitted.tagCount
-  };
-}
-
-function buildKlingSinglePrompt(
-  segmentPrompt: SegmentPrompt,
-  shot: NormalizedVideoShot,
-  tokenMap: Record<string, string>,
-  plainTokenMap: Record<string, string>,
-  replaceMention: (text: string) => string
-): KlingPromptBuildResult {
-  const trailingTags = collectElementTagsFromTexts([
-    shot.subject,
-    shot.action,
-    shot.dialogue,
-    shot.context_environment,
-    shot.composition,
-    shot.style,
-    shot.ambiance_colour_lighting,
-    shot.camera_motion_positioning,
-    shot.audio
-  ].filter(Boolean) as string[], tokenMap, plainTokenMap);
-
-  const sections = buildKlingPromptSections({
-    shot
-  });
-
-  const fitted = fitKlingPromptWithinLimit({
-    sections,
-    tags: trailingTags,
-    replaceMention,
-    maxChars: KLING_PROMPT_MAX_CHARS,
-    softTarget: KLING_PROMPT_SOFT_TARGET
-  });
-
-  return {
-    prompt: fitted.finalPrompt,
-    originalLength: fitted.originalLength,
-    finalLength: fitted.finalLength,
-    wasCompressed: fitted.wasCompressed,
-    tagCount: fitted.tagCount
-  };
-}
-
-function allocateKlingShotDurations(totalDuration: number, shotCount: number): number[] {
-  const safeShotCount = Math.max(1, Math.min(totalDuration, shotCount));
-  const durations = new Array<number>(safeShotCount).fill(KLING_SHOT_MIN_DURATION_SECONDS);
-  let remaining = totalDuration - safeShotCount * KLING_SHOT_MIN_DURATION_SECONDS;
-
-  let cursor = 0;
-  while (remaining > 0) {
-    const room = KLING_SHOT_MAX_DURATION_SECONDS - durations[cursor];
-    if (room > 0) {
-      durations[cursor] += 1;
-      remaining -= 1;
-    }
-    cursor = (cursor + 1) % safeShotCount;
-  }
-
-  return durations;
-}
-
-function getTimeRangeDurationSeconds(value: string): number | null {
-  const parts = String(value || '').split('-').map((part) => part.trim());
-  if (parts.length !== 2) return null;
-
-  const [startMinutesPart, startSecondsPart] = parts[0].split(':');
-  const [endMinutesPart, endSecondsPart] = parts[1].split(':');
-  const startMinutes = Number(startMinutesPart);
-  const startSeconds = Number(startSecondsPart);
-  const endMinutes = Number(endMinutesPart);
-  const endSeconds = Number(endSecondsPart);
-
-  if (
-    !Number.isFinite(startMinutes) ||
-    !Number.isFinite(startSeconds) ||
-    !Number.isFinite(endMinutes) ||
-    !Number.isFinite(endSeconds)
-  ) {
-    return null;
-  }
-
-  const start = (startMinutes * 60) + startSeconds;
-  const end = (endMinutes * 60) + endSeconds;
-  if (end <= start) return null;
-
-  return end - start;
-}
-
-function deriveKlingShotDurationsFromSourceShots(
-  sourceShots: NormalizedVideoShot[],
-  desiredShotCount: number,
-  totalDuration: number
-): number[] | null {
-  if (sourceShots.length < desiredShotCount) {
-    return null;
-  }
-
-  const parsedDurations = sourceShots
-    .map((shot) => getTimeRangeDurationSeconds(shot.time_range))
-    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
-
-  if (parsedDurations.length !== sourceShots.length) {
-    return null;
-  }
-
-  const nextDurations = sourceShots.length > desiredShotCount
-    ? [
-        ...parsedDurations.slice(0, desiredShotCount - 1),
-        parsedDurations.slice(desiredShotCount - 1).reduce((sum, value) => sum + value, 0)
-      ]
-    : parsedDurations.slice(0, desiredShotCount);
-
-  if (nextDurations.length !== desiredShotCount) {
-    return null;
-  }
-
-  if (nextDurations.some((duration) => duration < KLING_SHOT_MIN_DURATION_SECONDS || duration > KLING_SHOT_MAX_DURATION_SECONDS)) {
-    return null;
-  }
-
-  const totalFromShots = nextDurations.reduce((sum, value) => sum + value, 0);
-  const diff = totalDuration - totalFromShots;
-  if (diff === 0) {
-    return nextDurations;
-  }
-
-  const lastIndex = nextDurations.length - 1;
-  const adjustedLast = nextDurations[lastIndex] + diff;
-  if (adjustedLast < KLING_SHOT_MIN_DURATION_SECONDS || adjustedLast > KLING_SHOT_MAX_DURATION_SECONDS) {
-    return null;
-  }
-
-  nextDurations[lastIndex] = adjustedLast;
-  return nextDurations;
-}
-
-function buildKlingMultiPrompt(
-  segmentPrompt: SegmentPrompt,
-  normalizedShots: NormalizedVideoShot[],
-  tokenMap: Record<string, string>,
-  plainTokenMap: Record<string, string>,
-  replaceMention: (text: string) => string,
-  totalDuration: number
-): Array<{ prompt: string; duration: number; originalLength: number; finalLength: number; wasCompressed: boolean; tagCount: number }> {
-  const sourceShots = normalizedShots.length > 0 ? normalizedShots : [
-    {
-      time_range: `00:00 - ${formatTimecode(totalDuration)}`,
-      audio: '',
-      style: segmentPrompt.style || '',
-      action: segmentPrompt.action || '',
-      subject: segmentPrompt.subject || '',
-      dialogue: segmentPrompt.dialogue || '',
-      language: segmentPrompt.language || 'en',
-      composition: segmentPrompt.composition || '',
-      context_environment: segmentPrompt.context_environment || '',
-      ambiance_colour_lighting: segmentPrompt.ambiance_colour_lighting || '',
-      camera_motion_positioning: segmentPrompt.camera_motion_positioning || ''
-    }
-  ];
-
-  const minShotCount = Math.ceil(totalDuration / KLING_SHOT_MAX_DURATION_SECONDS);
-  const desiredShotCount = Math.min(
-    KLING_MAX_MULTI_SHOT_ITEMS,
-    Math.max(minShotCount, Math.min(totalDuration, sourceShots.length))
-  );
-  const mergedShots: NormalizedVideoShot[] = sourceShots.slice(0, desiredShotCount);
-
-  if (sourceShots.length > desiredShotCount) {
-    const overflowShots = sourceShots.slice(desiredShotCount - 1);
-    const mergedLastAction = overflowShots
-      .map(shot => shot.action)
-      .filter(Boolean)
-      .join(' Then ');
-    mergedShots[desiredShotCount - 1] = {
-      ...mergedShots[desiredShotCount - 1],
-      action: mergedLastAction || mergedShots[desiredShotCount - 1].action
-    };
-  }
-
-  while (mergedShots.length < desiredShotCount) {
-    mergedShots.push({ ...mergedShots[mergedShots.length - 1] });
-  }
-
-  const shotDurations = deriveKlingShotDurationsFromSourceShots(sourceShots, desiredShotCount, totalDuration)
-    ?? allocateKlingShotDurations(totalDuration, desiredShotCount);
-  return mergedShots.map((shot, index) => ({
-    ...buildKlingShotPrompt(segmentPrompt, shot, index, tokenMap, plainTokenMap, replaceMention),
-    duration: shotDurations[index]
-  }));
-}
-
-async function startSegmentVideoTaskKling(
-  project: SingleVideoProject,
-  segmentPrompt: SegmentPrompt,
-  normalizedShots: NormalizedVideoShot[],
-  firstFrameUrl: string,
-  closingFrameUrl: string | null | undefined,
-  segmentIndex: number,
-  totalSegments: number,
-  taskDuration: number
-): Promise<string> {
-  const boundedDuration = Math.max(KLING_MIN_TASK_DURATION_SECONDS, Math.min(KLING_MAX_TASK_DURATION_SECONDS, taskDuration));
-  const mentionSourceTexts = [
-    segmentPrompt.action,
-    segmentPrompt.subject,
-    segmentPrompt.dialogue,
-    segmentPrompt.context_environment,
-    segmentPrompt.composition,
-    segmentPrompt.style,
-    segmentPrompt.ambiance_colour_lighting,
-    segmentPrompt.camera_motion_positioning,
-    ...normalizedShots.flatMap(shot => [
-      shot.action,
-      shot.subject,
-      shot.dialogue,
-      shot.context_environment,
-      shot.composition,
-      shot.style,
-      shot.ambiance_colour_lighting,
-      shot.camera_motion_positioning,
-      shot.audio
-    ])
-  ].filter(Boolean) as string[];
-
-  const mentions = collectKlingMentions(mentionSourceTexts);
-  const { elements, tokenMap, plainTokenMap, skippedMentions } = await buildKlingElementsFromMentions(project.user_id, mentions);
-  const replaceMention = (text: string) => replacePromptMentions(text, tokenMap, plainTokenMap);
-  const hasMultipleShots = normalizedShots.length > 1;
-  const primaryShot = normalizedShots[0] || {
-    time_range: `00:00 - ${formatTimecode(boundedDuration)}`,
-    audio: '',
-    style: segmentPrompt.style || '',
-    action: segmentPrompt.action || '',
-    subject: segmentPrompt.subject || '',
-    dialogue: segmentPrompt.dialogue || '',
-    language: segmentPrompt.language || 'en',
-    composition: segmentPrompt.composition || '',
-    context_environment: segmentPrompt.context_environment || '',
-    ambiance_colour_lighting: segmentPrompt.ambiance_colour_lighting || '',
-    camera_motion_positioning: segmentPrompt.camera_motion_positioning || ''
-  };
-  const multiPrompt = hasMultipleShots
-    ? buildKlingMultiPrompt(segmentPrompt, normalizedShots, tokenMap, plainTokenMap, replaceMention, boundedDuration)
-    : [];
-  const singlePrompt = hasMultipleShots
-    ? null
-    : buildKlingSinglePrompt(segmentPrompt, primaryShot, tokenMap, plainTokenMap, replaceMention);
-  const hasClosingFrame = Boolean(closingFrameUrl && closingFrameUrl !== firstFrameUrl);
-  const imageUrls = hasMultipleShots
-    ? [firstFrameUrl]
-    : (hasClosingFrame ? [firstFrameUrl, closingFrameUrl as string] : [firstFrameUrl]);
-
-  const unresolvedPromptReferences = hasMultipleShots
-    ? multiPrompt.flatMap(item => extractUnresolvedKlingReferences(item.prompt))
-    : extractUnresolvedKlingReferences(singlePrompt?.prompt || '');
-
-  if (unresolvedPromptReferences.length > 0) {
-    console.error('[Kling Prompt] Unresolved mention references before API call:', {
-      segmentIndex,
-      unresolvedPromptReferences,
-      multiShots: hasMultipleShots,
-      promptPreview: hasMultipleShots
-        ? multiPrompt.map((item, index) => ({
-            shotIndex: index,
-            preview: item.prompt.slice(0, 220)
-          }))
-        : (singlePrompt?.prompt || '').slice(0, 220)
-    });
-    throw new Error(`Kling prompt still contains unresolved references: ${unresolvedPromptReferences.join(', ')}`);
-  }
-
-  const requestBody = buildKlingVideoRequestBody({
-    projectId: project.id,
-    segmentIndex,
-    aspectRatio: project.video_aspect_ratio === '9:16' ? '9:16' : '16:9',
-    quality: project.video_quality,
-    imageUrls,
-    boundedDuration,
-    hasMultipleShots,
-    multiPrompt: multiPrompt.map(({ prompt, duration }) => ({ prompt, duration })),
-    prompt: singlePrompt?.prompt || '',
-    elements
-  });
-  const moderationPrompt = hasMultipleShots
-    ? multiPrompt.map((item, index) => `Shot ${index + 1}: ${item.prompt}`).join('\n\n')
-    : (singlePrompt?.prompt || '');
-
-  await moderatePromptBeforeGeneration(moderationPrompt, {
-    externalId: `user_${project.user_id}:video_clone_${project.id}:segment_${segmentIndex}:video`,
-  });
-
-  console.log(`🎬 Kling Segment ${segmentIndex + 1}/${totalSegments}:`, {
-    mode: (requestBody.input as Record<string, unknown>).mode,
-    duration: boundedDuration,
-    multiShots: hasMultipleShots,
-    shotCount: normalizedShots.length,
-    imageCount: imageUrls.length,
-    multiPromptCount: multiPrompt.length,
-    mentionsCount: mentions.length,
-    elementsCount: elements.length,
-    skippedMentionsCount: skippedMentions.length,
-    trailingTagMode: 'shot-only',
-    inlineAndTrailing: true,
-    promptLimit: KLING_PROMPT_MAX_CHARS,
-    softTarget: KLING_PROMPT_SOFT_TARGET,
-    promptMetrics: hasMultipleShots
-      ? multiPrompt.map((item, index) => ({
-          shotIndex: index,
-          originalLength: item.originalLength,
-          finalLength: item.finalLength,
-          wasCompressed: item.wasCompressed,
-          tagCount: item.tagCount
-        }))
-      : [{
-          shotIndex: 0,
-          originalLength: singlePrompt?.originalLength || 0,
-          finalLength: singlePrompt?.finalLength || 0,
-          wasCompressed: singlePrompt?.wasCompressed || false,
-          tagCount: singlePrompt?.tagCount || 0
-        }],
-    trailingTagCounts: hasMultipleShots
-      ? multiPrompt.map(item => (item.prompt.match(/@[a-z0-9_]+/g) || []).length)
-      : [((singlePrompt?.prompt || '').match(/@[a-z0-9_]+/g) || []).length]
-  });
-
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${process.env.KIE_API_KEY}`
-    },
-    body: JSON.stringify(requestBody)
-  }, 5, 30000);
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Kling API error: ${response.status} - ${errorText}`);
-  }
-
-  const result = await response.json();
-  if (result.code !== 200 || !result.data?.taskId) {
-    throw new Error(`Kling API failed: ${result.msg || 'Unknown error'}`);
-  }
-
-  return result.data.taskId;
-}
-
-function buildKlingVideoRequestBody(input: {
-  projectId: string;
-  segmentIndex: number;
-  aspectRatio: '16:9' | '9:16';
-  quality?: PersistedVideoQuality | null;
-  imageUrls: string[];
-  boundedDuration: number;
-  hasMultipleShots: boolean;
-  multiPrompt: Array<{ prompt: string; duration: number }>;
-  prompt: string;
-  elements: KlingElement[];
-}) {
-  const requestBody: Record<string, unknown> = {
-    model: 'kling-3.0/video',
-    callBackUrl: buildSegmentVideoWebhookUrl(input.projectId, input.segmentIndex),
-    input: {
-      mode: mapCloneQualityToKlingMode(input.quality),
-      image_urls: input.imageUrls,
-      sound: true,
-      duration: String(input.boundedDuration),
-      aspect_ratio: input.aspectRatio,
-      multi_shots: input.hasMultipleShots
-    }
-  };
-
-  if (input.hasMultipleShots) {
-    if (input.multiPrompt.length > KLING_MAX_MULTI_SHOT_ITEMS) {
-      throw new Error(`Kling 3.0 scenes support at most ${KLING_MAX_MULTI_SHOT_ITEMS} shots per generation.`);
-    }
-    (requestBody.input as Record<string, unknown>).multi_prompt = input.multiPrompt;
-  } else {
-    (requestBody.input as Record<string, unknown>).prompt = input.prompt;
-  }
-
-  if (input.elements.length > 0) {
-    (requestBody.input as Record<string, unknown>).kling_elements = input.elements;
-  }
-
-  return requestBody;
 }
 
 function buildSeedanceVideoRequestBody(input: {
@@ -6013,29 +4841,6 @@ function buildSeedanceEditVideoRequestBody(input: {
   };
 }
 
-function buildWanEditVideoRequestBody(input: {
-  projectId: string;
-  prompt: string;
-  videoUrl: string;
-  aspectRatio: '16:9' | '9:16';
-  resolution: '720p' | '1080p';
-  duration: number;
-}) {
-  return {
-    model: 'wan/2-7-videoedit',
-    input: {
-      prompt: input.prompt,
-      video_url: input.videoUrl,
-      resolution: input.resolution,
-      aspect_ratio: input.aspectRatio,
-      duration: input.duration,
-      prompt_extend: true,
-      watermark: false,
-    },
-    callBackUrl: buildSegmentVideoWebhookUrl(input.projectId, 0),
-  };
-}
-
 async function startEditVideoTaskSeedance(input: {
   projectId: string;
   userId: string;
@@ -6075,48 +4880,6 @@ async function startEditVideoTaskSeedance(input: {
   const result = await response.json();
   if (result.code !== 200 || !result.data?.taskId) {
     throw new Error(`Seedance 2 API failed: ${result.msg || 'Unknown error'}`);
-  }
-
-  return result.data.taskId as string;
-}
-
-async function startEditVideoTaskWan(input: {
-  projectId: string;
-  userId: string;
-  prompt: string;
-  videoUrl: string;
-  aspectRatio: '16:9' | '9:16';
-  resolution: '720p' | '1080p';
-  duration: number;
-}) {
-  const apiKey = process.env.KIE_API_KEY;
-  if (!apiKey) {
-    throw new Error('KIE_API_KEY environment variable is not configured');
-  }
-
-  await moderatePromptBeforeGeneration(input.prompt, {
-    externalId: `user_${input.userId}:video_clone_${input.projectId}:edit_video`,
-  });
-  await assertKieCreditsAvailable();
-
-  const requestBody = buildWanEditVideoRequestBody(input);
-  const response = await fetchWithRetry('https://api.kie.ai/api/v1/jobs/createTask', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(requestBody),
-  }, 5, 30000);
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Wan 2.7 API error: ${response.status} - ${errorText}`);
-  }
-
-  const result = await response.json();
-  if (result.code !== 200 || !result.data?.taskId) {
-    throw new Error(`Wan 2.7 API failed: ${result.msg || 'Unknown error'}`);
   }
 
   return result.data.taskId as string;
@@ -6214,7 +4977,6 @@ async function startDirectReferenceCloneWorkflow(input: {
     executionMode: 'clone_direct_reference',
     referenceSourceVideoUrl,
     supplementalText: normalizeSupplementalText(request.supplementalText),
-    referenceSourceType: request.referenceVideoId ? 'reference_video' : 'creator_source_video',
     referenceSourceMediaType: 'video',
     referenceSourceId: request.referenceVideoId || request.creatorSourceVideoId || null,
     isCloneMode: true,
@@ -6435,15 +5197,15 @@ async function startEditVideoWorkflow(request: StartWorkflowRequest): Promise<Wo
     };
   }
 
-  if (model !== 'seedance_2' && model !== 'seedance_2_fast' && model !== 'seedance_2_mini' && model !== 'wan_27') {
+  if (model !== 'seedance_2' && model !== 'seedance_2_fast' && model !== 'seedance_2_mini') {
     return {
       success: false,
       error: 'Invalid edit-video model',
-      details: 'Edit-video mode supports Seedance 2 models and Wan 2.7 only.',
+      details: 'Edit-video mode supports Seedance 2 models only.',
     };
   }
 
-  const maxEditVideoDuration = model === 'wan_27' ? 10 : 15;
+  const maxEditVideoDuration = 15;
   if (!Number.isFinite(duration) || duration < 2 || duration > maxEditVideoDuration) {
     return {
       success: false,
@@ -6561,26 +5323,16 @@ async function startEditVideoWorkflow(request: StartWorkflowRequest): Promise<Wo
   }
 
   try {
-    const taskId = model === 'wan_27'
-      ? await startEditVideoTaskWan({
-          projectId: project.id,
-          userId: request.userId,
-          prompt,
-          videoUrl: sourceUrl,
-          aspectRatio: request.videoAspectRatio === '16:9' ? '16:9' : '9:16',
-          resolution: quality === '1080p' ? '1080p' : '720p',
-          duration,
-        })
-      : await startEditVideoTaskSeedance({
-          projectId: project.id,
-          userId: request.userId,
-          model,
-          prompt,
-          referenceVideoUrl: sourceUrl,
-          aspectRatio: request.videoAspectRatio === '16:9' ? '16:9' : '9:16',
-          resolution: mapCloneQualityToSeedanceResolution(quality),
-          duration,
-        });
+    const taskId = await startEditVideoTaskSeedance({
+      projectId: project.id,
+      userId: request.userId,
+      model,
+      prompt,
+      referenceVideoUrl: sourceUrl,
+      aspectRatio: request.videoAspectRatio === '16:9' ? '16:9' : '9:16',
+      resolution: mapCloneQualityToSeedanceResolution(quality),
+      duration,
+    });
 
     await supabase
       .from('video_clone_segments')
@@ -6794,14 +5546,10 @@ export const __test__ = {
   buildProjectAgentFramePrompt,
   shouldWaitForContinuationFrame,
   buildStructuredVideoPromptPayload,
-  buildKlingVideoRequestBody,
   buildSeedanceVideoRequestBody,
   buildSeedanceEditVideoRequestBody,
-  buildWanEditVideoRequestBody,
-  buildKlingElementName,
   getPromptSegmentDurationSeconds,
   getTimeRangeDurationSeconds,
-  deriveKlingShotDurationsFromSourceShots,
   isProjectAgentSeedanceReferenceImageMode,
   isProjectAgentSeedanceReferenceImageProject,
   isSeedanceStoryboardReferenceProject,

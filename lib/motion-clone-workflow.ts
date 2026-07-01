@@ -1,6 +1,6 @@
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { buildKieGptImageTaskPayload, createKieGptImageTask } from '@/lib/kie-image-generation';
-import type { KlingElement } from '@/lib/kling-elements';
+import type { VideoModel } from '@/lib/constants';
 import {
   buildMotionClonePreviewPrompt,
   buildMotionCloneVideoPrompt,
@@ -15,10 +15,10 @@ const KIE_CREATE_TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const KIE_FILE_URL_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-url-upload';
 
 export const MOTION_CLONE_MODE = '720p' as const;
+export const MOTION_CLONE_DEFAULT_VIDEO_MODEL = 'seedance_2_mini' as const satisfies VideoModel;
 
 export interface MotionClonePreviewInput {
   avatarUrl?: string | null;
-  productUrl?: string | null;
   aspectRatio?: string;
   prompt?: string;
   moderationExternalId?: string;
@@ -27,9 +27,10 @@ export interface MotionClonePreviewInput {
 export interface MotionCloneVideoInput {
   previewImageUrl: string;
   referenceVideoUrl: string;
-  mode?: '720p' | '1080p';
+  referenceDurationSeconds?: number | null;
+  videoModel?: VideoModel;
+  mode?: '480p' | '720p';
   prompt?: string;
-  elements?: KlingElement[];
   moderationExternalId?: string;
 }
 
@@ -95,9 +96,8 @@ export const createMotionClonePreviewTask = async (
 ): Promise<string> => {
   const prompt = input.prompt || buildMotionClonePreviewPrompt({
     hasAvatar: Boolean(input.avatarUrl),
-    hasProduct: Boolean(input.productUrl)
   });
-  const referenceImageUrls = [input.avatarUrl, input.productUrl].filter(Boolean) as string[];
+  const referenceImageUrls = [input.avatarUrl].filter(Boolean) as string[];
   const requestBody = buildKieGptImageTaskPayload({
     prompt,
     referenceImageUrls,
@@ -136,9 +136,10 @@ export const createMotionCloneVideoTask = async (
   const requestBody = buildMotionCloneVideoRequestBody({
     previewImageUrl,
     referenceVideoUrl,
+    referenceDurationSeconds: input.referenceDurationSeconds,
+    videoModel: input.videoModel,
     mode: input.mode,
     prompt: input.prompt,
-    elements: input.elements,
     callbackUrl
   });
   const { moderatePromptBeforeGeneration } = await import('@/lib/creem-moderation');
@@ -171,38 +172,47 @@ export const createMotionCloneVideoTask = async (
 export const buildMotionCloneVideoRequestBody = ({
   previewImageUrl,
   referenceVideoUrl,
+  referenceDurationSeconds,
+  videoModel,
   mode,
   prompt,
-  elements,
   callbackUrl
 }: {
   previewImageUrl: string;
   referenceVideoUrl: string;
-  mode?: '720p' | '1080p';
+  referenceDurationSeconds?: number | null;
+  videoModel?: VideoModel;
+  mode?: '480p' | '720p';
   prompt?: string;
-  elements?: KlingElement[];
   callbackUrl: string;
 }) => {
-  const requestBody: Record<string, unknown> = {
-    model: 'kling-3.0/motion-control',
+  const duration = Number(referenceDurationSeconds);
+  const outputDuration = Number.isFinite(duration)
+    ? Math.max(4, Math.min(15, Math.ceil(duration)))
+    : 15;
+  const resolvedModel = videoModel || MOTION_CLONE_DEFAULT_VIDEO_MODEL;
+  const modelId = resolvedModel === 'seedance_2'
+    ? 'bytedance/seedance-2'
+    : resolvedModel === 'seedance_2_fast'
+      ? 'bytedance/seedance-2-fast'
+      : 'bytedance/seedance-2-mini';
+
+  return {
+    model: modelId,
     input: {
       prompt: prompt || buildMotionCloneVideoPrompt(),
-      input_urls: [previewImageUrl],
-      video_urls: [referenceVideoUrl],
-      character_orientation: 'video',
-      mode: mode || MOTION_CLONE_MODE
+      reference_image_urls: [previewImageUrl],
+      reference_video_urls: [referenceVideoUrl],
+      reference_audio_urls: [],
+      generate_audio: false,
+      resolution: mode || MOTION_CLONE_MODE,
+      aspect_ratio: '9:16',
+      duration: outputDuration,
+      web_search: false,
+      nsfw_checker: true
     },
     callBackUrl: callbackUrl
   };
-
-  // Motion control shares the same Kling elements capability used by clone video.
-  // KIE's motion-control doc does not list the field explicitly, so we follow the
-  // repository's existing Kling 3 integration contract when mentions are present.
-  if (Array.isArray(elements) && elements.length > 0) {
-    (requestBody.input as Record<string, unknown>).kling_elements = elements;
-  }
-
-  return requestBody;
 };
 
 export const __test__ = {

@@ -134,7 +134,7 @@ export default function StructuredData() {
       'Avatar Ads: Character-based advertisement generation',
       'Dual-Mode Workflow: Viral cloning + original video generation',
       'Multi-Platform Support: TikTok, Instagram Reels, YouTube Shorts',
-      'Multiple AI Models: Seedance 2 Fast, Seedance 2, Seedance 2 Mini, Kling 3.0',
+      'Multiple AI Models: Seedance 2 Mini, Seedance 2 Fast, Seedance 2',
       'Multi-Language Support: English, Chinese, Spanish, and 10+ languages',
       'Generation-Time Billing: Pay only for generated videos',
       'No Editing Skills Required: AI handles creative structure replication'

@@ -87,7 +87,6 @@ const normalizeSessionPatchState = (state: Record<string, unknown>) => {
       cloneReferenceVideo: state.cloneReferenceVideo as {
         id: string;
         name?: string | null;
-        sourceType?: 'creator' | 'reference_video';
         videoUrl?: string | null;
         cdnUrl?: string | null;
         analysisLanguage?: string | null;
@@ -106,7 +105,7 @@ const normalizeSessionPatchState = (state: Record<string, unknown>) => {
     motionClone,
     videoModel: normalizeProjectAgentVideoModel(
       state.videoModel,
-      intent === 'video_clone' ? 'seedance_2' : 'kling_3',
+      'seedance_2_mini',
       intent
     )
   };

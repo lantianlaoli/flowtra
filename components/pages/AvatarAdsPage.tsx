@@ -48,7 +48,7 @@ const isMaintenanceModeError = (payload: unknown) => (
 );
 
 
-const DEFAULT_VIDEO_MODEL = 'seedance_2_fast' as const;
+const DEFAULT_VIDEO_MODEL = 'seedance_2_mini' as const;
 const SESSION_STORAGE_KEY = 'flowtra_avatar_ads_generations';
 const AVATAR_ADS_TUTORIAL_EMBED_URL = 'https://www.youtube.com/embed/B_UjnFsbitk?rel=0';
 

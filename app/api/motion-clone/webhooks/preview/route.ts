@@ -2,15 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createMotionCloneVideoTask } from '@/lib/motion-clone-workflow';
 import { refundCredits } from '@/lib/credits';
-import { normalizeMotionCloneQuality } from '@/lib/constants';
-import {
-  buildKlingElementsFromMentions,
-  collectKlingMentions,
-  replacePromptMentionsWithKlingElements,
-} from '@/lib/kling-elements';
+import { SEEDANCE_VIDEO_MODELS, normalizeMotionCloneQuality, type VideoModel } from '@/lib/constants';
+import { replaceMentionsForPlainText } from '@/lib/video-clone-prompt-compiler';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+const normalizeMotionCloneVideoModel = (value: unknown): VideoModel => (
+  typeof value === 'string' && SEEDANCE_VIDEO_MODELS.includes(value as VideoModel)
+    ? value as VideoModel
+    : 'seedance_2_mini'
+);
 
 interface KieWebhookPayload {
   code: number;
@@ -113,24 +115,18 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const mentions = collectKlingMentions([project.video_prompt || '']);
-        const { elements, tokenMap, plainTokenMap } =
-          await buildKlingElementsFromMentions(project.user_id, mentions);
         const compiledVideoPrompt = project.video_prompt
-          ? replacePromptMentionsWithKlingElements(
-              project.video_prompt,
-              tokenMap,
-              plainTokenMap,
-            )
+          ? replaceMentionsForPlainText(project.video_prompt)
           : undefined;
 
         const callbackUrl = new URL('/api/motion-clone/webhooks/video', baseUrl).toString();
         const videoTaskId = await createMotionCloneVideoTask({
           previewImageUrl: previewUrl,
           referenceVideoUrl,
+          referenceDurationSeconds: project.reference_duration_seconds,
+          videoModel: normalizeMotionCloneVideoModel(project.video_model),
           mode: normalizeMotionCloneQuality(project.mode),
           prompt: compiledVideoPrompt,
-          elements: elements.length > 0 ? elements : undefined,
           moderationExternalId: `user_${project.user_id}:motion_clone_${project.id}:video`,
         }, callbackUrl);
 

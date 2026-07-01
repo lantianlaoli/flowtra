@@ -39,6 +39,7 @@ import {
   getProjectAgentVideoCloneMode,
 } from '@/lib/project-agent/video-clone-mode';
 import { getProjectAgentCloneGenerationCost } from '@/lib/video-clone-billing';
+import { getSystemReferenceVideoById } from '@/lib/default-reference-videos';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -67,6 +68,8 @@ const normalizeRunCount = (value: unknown) => {
   if (parsed === 2 || parsed === 3) return parsed;
   return 1;
 };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const buildInternalHeaders = (userId: string) => {
   const timestamp = String(Date.now());
@@ -256,15 +259,7 @@ const assertAvatarCredits = async (userId: string, body: CanvasRunRequestBody, r
     resolvedSpokenLanguage,
   });
 
-  const plannedDurationSeconds = payload.videoModel === 'kling_3' && payload.customDialogue
-    ? buildAvatarGeneratedPrompts({
-        imagePrompt: null,
-        scriptSource: payload.customDialogue,
-        language: payload.resolvedSpokenLanguage,
-        avatarName: avatar.name,
-        productName: product?.name || null,
-      }).totalDurationSeconds
-    : payload.videoDurationSeconds;
+  const plannedDurationSeconds = payload.videoDurationSeconds;
 
   const credits = await ensureEnoughCredits(
     userId,
@@ -315,51 +310,77 @@ const assertVideoCloneCredits = async (userId: string, body: CanvasRunRequestBod
 
 const assertMotionCloneCredits = async (userId: string, body: CanvasRunRequestBody, runCount = 1) => {
   const avatar = body.connectedAssets?.avatar || null;
-  const product = body.connectedAssets?.product || null;
   const video = ensureAsset(body.connectedAssets?.video, 'Video');
 
-  if (!avatar && !product) {
-    throw new Error('Motion Clone requires an avatar or product.');
+  if (!avatar) {
+    throw new Error('Motion Clone requires an avatar.');
   }
 
   const payload = buildMotionCloneStartPayload({
     avatar,
-    product,
     video,
     config: body.config,
   });
 
-  // Schema verified via existing Motion Clone usage (2026-03-25):
-  // creator_source_videos.duration_seconds is used by app/api/motion-clone/[id]/start/route.ts
-  // to calculate generation cost for preview/video creation.
-  const supabase = getSupabaseAdmin();
-  const { data: referenceVideo, error } = await supabase
-    .from('creator_source_videos')
-    .select('duration_seconds')
-    .eq('id', payload.referenceVideoId)
-    .eq('user_id', userId)
-    .maybeSingle();
+  // Schema verified via Supabase MCP (2026-06-30):
+  // creator_source_videos has duration_seconds; reference_videos has video_duration_seconds.
+  let durationSeconds = getSystemReferenceVideoById(payload.referenceVideoId)?.video_duration_seconds ?? null;
 
-  if (error || !referenceVideo) {
+  if (durationSeconds === null && !UUID_RE.test(payload.referenceVideoId)) {
+    throw new Error('Reference video not found.');
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (durationSeconds === null) {
+    const { data: creatorVideo, error: creatorError } = await supabase
+      .from('creator_source_videos')
+      .select('duration_seconds')
+      .eq('id', payload.referenceVideoId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (creatorError) {
+      throw new Error('Reference video not found.');
+    }
+
+    durationSeconds = creatorVideo?.duration_seconds ?? null;
+  }
+
+  if (durationSeconds === null) {
+    const { data: referenceVideo, error: referenceError } = await supabase
+      .from('reference_videos')
+      .select('video_duration_seconds')
+      .eq('id', payload.referenceVideoId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (referenceError) {
+      throw new Error('Reference video not found.');
+    }
+
+    durationSeconds = referenceVideo?.video_duration_seconds ?? null;
+  }
+
+  if (durationSeconds === null) {
     throw new Error('Reference video not found.');
   }
 
   if (
-    typeof referenceVideo.duration_seconds !== 'number' ||
-    !Number.isFinite(referenceVideo.duration_seconds) ||
-    referenceVideo.duration_seconds <= 0
+    typeof durationSeconds !== 'number' ||
+    !Number.isFinite(durationSeconds) ||
+    durationSeconds <= 0
   ) {
     throw new Error('Reference video duration is missing.');
   }
 
-  if (referenceVideo.duration_seconds < 3 || referenceVideo.duration_seconds > 30) {
+  if (durationSeconds < 3 || durationSeconds > 15) {
     throw new Error(
-      `Reference video must be 3-30s. Current: ${Math.round(referenceVideo.duration_seconds)}s.`
+      `Reference video must be 3-15s. Current: ${Math.round(durationSeconds)}s.`
     );
   }
 
   const requiredCredits = getMotionCloneGenerationCost(
-    referenceVideo.duration_seconds,
+    durationSeconds,
     payload.mode
   );
 
@@ -604,14 +625,10 @@ const startVideoClone = async (origin: string, userId: string, body: CanvasRunRe
 
 export const startMotionClone = async (origin: string, userId: string, body: CanvasRunRequestBody) => {
   const avatar = body.connectedAssets?.avatar || null;
-  const product = body.connectedAssets?.product || null;
   const video = ensureAsset(body.connectedAssets?.video, 'Video');
-  if (video.sourceType === 'reference_video') {
-    throw new Error('Motion Clone requires a creator video, not a reference video.');
-  }
 
-  if (!avatar && !product) {
-    throw new Error('Motion Clone requires an avatar or product.');
+  if (!avatar) {
+    throw new Error('Motion Clone requires an avatar.');
   }
 
   const internalHeaders = buildInternalHeaders(userId);
@@ -627,7 +644,6 @@ export const startMotionClone = async (origin: string, userId: string, body: Can
 
   const payload = buildMotionCloneStartPayload({
     avatar,
-    product,
     video,
     config: body.config,
   });
@@ -641,9 +657,9 @@ export const startMotionClone = async (origin: string, userId: string, body: Can
     body: JSON.stringify({
       reference_video_id: payload.referenceVideoId,
       avatar_id: payload.avatarId,
-      product_id: payload.productId,
       action: payload.action,
       mode: payload.mode,
+      video_model: payload.videoModel,
     }),
   });
 
@@ -1055,7 +1071,6 @@ const retryMotionClone = async (
     : {};
 
   const fallbackAvatarId = body.connectedAssets?.avatar?.id || null;
-  const fallbackProductId = body.connectedAssets?.product?.id || null;
   const fallbackVideoId = body.connectedAssets?.video?.id || null;
 
   await fetchJson(`${origin}/api/motion-clone/${projectId}/start`, {
@@ -1067,7 +1082,6 @@ const retryMotionClone = async (
     body: JSON.stringify({
       reference_video_id: project.creator_source_video_id || fallbackVideoId,
       avatar_id: project.avatar_id || fallbackAvatarId,
-      product_id: project.product_id || fallbackProductId,
       action: 'video',
       mode: typeof project.mode === 'string' ? project.mode : body.config?.videoQuality || '720p',
     }),

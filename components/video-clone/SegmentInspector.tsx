@@ -12,7 +12,6 @@ import type { SystemAvatar } from '@/lib/default-avatars';
 import { MODEL_PROCESSING_TIMES, getSegmentDurationForModel, type CloneVideoQuality, type VideoModel } from '@/lib/constants';
 import { getSegmentPromptVideoGenerationCost } from '@/lib/video-clone-segment-billing';
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
-import { estimateKlingPromptUsage, KLING_PROMPT_MAX_CHARS } from '@/lib/kling-prompt-budget';
 import SegmentTimelineRuler from '@/components/video-clone/SegmentTimelineRuler';
 import { MENTION_TOKEN_REGEX, normalizeMentionLabel, parseMentionToken } from '@/lib/prompt-mention-tokens';
 import { formatTimelineRange } from '@/lib/segment-shot-timeline';
@@ -491,13 +490,7 @@ export default function SegmentInspector({
       : 0;
     return (character.photo_url ? 1 : 0) + referenceCount;
   };
-  const enforceKlingElementPhotoCount = videoModel === 'kling_3';
-  const klingShotEstimates = useMemo(() => {
-    if (videoModel !== 'kling_3') return [];
-    return shots.map((shot, index) => estimateKlingPromptUsage({
-      shot
-    }));
-  }, [shots, videoModel]);
+  const enforceReferencePhotoCount = false;
 
   useEffect(() => {
     if (firstFrameUrl && firstFrameUrl !== lastFirstFrameUrlRef.current) {
@@ -682,7 +675,7 @@ export default function SegmentInspector({
                   imageUrl: getProductPhotoUrl(product),
                   photoCount: getProductPhotoCount(product)
                 }))}
-                enforcePhotoCount={enforceKlingElementPhotoCount}
+                enforcePhotoCount={enforceReferencePhotoCount}
                 minRequiredPhotos={2}
                 insufficientPhotosLabel="Need 2 photos"
               />
@@ -763,9 +756,7 @@ export default function SegmentInspector({
                 }}
               />
               <div className="space-y-3">
-                {shots.map((shot, index) => {
-                  const klingEstimate = klingShotEstimates[index];
-                  const likelyOverKlingLimit = Boolean(klingEstimate && klingEstimate.originalLength > KLING_PROMPT_MAX_CHARS);
+                {shots.map((shot) => {
                   const expanded = shotExpansion[shot.id] ?? false;
                   const summaryText = shot.subject?.trim() || shot.action?.trim() || shot.dialogue?.trim() || 'Add more shot detail.';
                   const toggleCard = () => toggleShotExpansion(shot.id);
@@ -788,14 +779,6 @@ export default function SegmentInspector({
                             <div className="text-sm font-semibold text-gray-900">Shot {shot.id}</div>
                             <span className="text-[11px] font-medium text-gray-500">{shot.time_range || '00:00 - 00:02'}</span>
                           </div>
-                          {klingEstimate && (
-                            <p className={clsx(
-                              'mt-1 text-[11px]',
-                              likelyOverKlingLimit ? 'text-amber-600' : 'text-gray-500'
-                            )}>
-                              Estimated prompt: {klingEstimate.originalLength}/{KLING_PROMPT_MAX_CHARS} characters
-                            </p>
-                          )}
                           {!expanded && (
                             <p className="mt-1 text-xs text-gray-500 line-clamp-2">{summaryText}</p>
                           )}
@@ -834,11 +817,6 @@ export default function SegmentInspector({
                           expanded ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'
                         )}
                       >
-                          {likelyOverKlingLimit && (
-                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                              This shot is likely over Kling&apos;s 500-character limit and will be shortened during generation.
-                            </div>
-                          )}
                           <div className="space-y-4 pt-1">
                             <div className="space-y-3">
                               <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
@@ -870,7 +848,7 @@ export default function SegmentInspector({
                                       imageUrl: getProductPhotoUrl(product),
                                       photoCount: getProductPhotoCount(product)
                                     }))}
-                                    enforcePhotoCount={enforceKlingElementPhotoCount}
+                                    enforcePhotoCount={enforceReferencePhotoCount}
                                     minRequiredPhotos={2}
                                     insufficientPhotosLabel="Need 2 photos"
                                   />
@@ -899,7 +877,7 @@ export default function SegmentInspector({
                                       imageUrl: getProductPhotoUrl(product),
                                       photoCount: getProductPhotoCount(product)
                                     }))}
-                                    enforcePhotoCount={enforceKlingElementPhotoCount}
+                                    enforcePhotoCount={enforceReferencePhotoCount}
                                     minRequiredPhotos={2}
                                     insufficientPhotosLabel="Need 2 photos"
                                   />

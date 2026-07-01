@@ -13,7 +13,6 @@ interface VideoAsset {
   duration_seconds?: number | null;
   source_id?: string | null;
   source_name?: string | null;
-  source_type?: "creator" | "reference_video";
   analysis_status?: string | null;
   analysis_result?: Record<string, unknown> | null;
   analysis_error?: string | null;

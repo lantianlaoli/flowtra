@@ -245,7 +245,6 @@ export const toVideoAssetLike = (
   created_at: systemVideo.created_at,
   updated_at: systemVideo.updated_at,
   source_name: 'Default',
-  source_type: 'reference_video',
   reference_video_id: systemVideo.id,
   isSystem: true,
 });

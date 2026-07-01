@@ -24,7 +24,6 @@ export interface CommonAnalyticsProperties extends AnalyticsProperties {
   status?: string;
   error_code?: string;
   error_message?: string;
-  source_type?: string;
   reference_type?: string;
   download_type?: string;
   is_first_download?: boolean;

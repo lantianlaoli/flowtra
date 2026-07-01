@@ -104,7 +104,7 @@ export interface SingleVideoProject {
   video_url?: string
   video_prompts?: Record<string, unknown>
   image_prompt?: Record<string, unknown> // JSONB field containing the prompt used for cover generation
-  video_model: 'seedance_2_fast' | 'seedance_2' | 'seedance_2_mini' | 'kling_3' | 'wan_27'
+  video_model: 'seedance_2_mini' | 'seedance_2_fast' | 'seedance_2'
   credits_cost: number
   status: 'processing' | 'completed' | 'failed' | 'upload_complete' | 'description_complete' | 'prompts_complete' | 'cover_complete'
   error_message?: string
@@ -149,7 +149,6 @@ export interface VideoCloneSelectedInputs {
   petIds?: string[]
   workflowSource?: 'project_agent_clone' | 'default' | string
   mergePolicy?: 'manual_confirm' | 'auto' | string
-  referenceSourceType?: 'reference_video' | 'creator_source_video' | null
   referenceSourceMediaType?: 'video' | null
   referenceSourceId?: string | null
   isCloneMode?: boolean
@@ -363,6 +362,7 @@ export interface MotionCloneProject {
   reference_duration_seconds?: number | null
   photo_prompt?: string | null
   video_prompt?: string | null
+  video_model?: 'seedance_2_mini' | 'seedance_2_fast' | 'seedance_2' | null
   preview_task_id?: string | null
   preview_image_url?: string | null
   preview_webhook_received_at?: string | null
@@ -373,7 +373,7 @@ export interface MotionCloneProject {
   progress_percentage?: number | null
   credits_cost: number
   generation_credits_used: number
-  mode: '720p' | '1080p'
+  mode: '480p' | '720p'
   auto_generate_video: boolean
   error_message?: string | null
   downloaded?: boolean | null

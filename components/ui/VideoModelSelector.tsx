@@ -3,13 +3,12 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Check, Coins, Video, AlertTriangle } from 'lucide-react';
-import { ByteDance, Kling, Qwen } from '@lobehub/icons';
+import { ByteDance } from '@lobehub/icons';
 import { cn } from '@/lib/utils';
 import {
   GENERATION_COSTS,
   SEEDANCE_2_MINI_QUALITY_COSTS,
   SEEDANCE_2_QUALITY_COSTS,
-  WAN_27_QUALITY_COSTS,
   getProcessingTime,
   getModelCostByConfig,
   getVideoModelDisplayName,
@@ -82,12 +81,6 @@ export default function VideoModelSelector({
           ? SEEDANCE_2_MINI_QUALITY_COSTS['480p']
           : SEEDANCE_2_MINI_QUALITY_COSTS['720p'];
       }
-      if (model === 'wan_27') {
-        const quality = normalizeCloneVideoQualityForModel(model, videoQuality);
-        return quality === '720p'
-          ? WAN_27_QUALITY_COSTS['720p']
-          : WAN_27_QUALITY_COSTS['1080p'];
-      }
       return GENERATION_COSTS[model] || 0;
     };
 
@@ -117,6 +110,18 @@ export default function VideoModelSelector({
       return locale === 'zh'
       ? [
       {
+        value: 'seedance_2_mini' as const,
+        label: getVideoModelDisplayName('seedance_2_mini'),
+        description: '更省积分的字节跳动生成',
+        icon: ByteDance,
+        cost: calculateDurationCost('seedance_2_mini'),
+        creditsPerSecond: getCreditsPerSecond('seedance_2_mini'),
+        processingTime: getProcessingTime('seedance_2_mini'),
+        features: '480p 或 720p，4-15 秒',
+        supported: isModelSupported('seedance_2_mini'),
+        badge: '经济'
+      },
+      {
         value: 'seedance_2_fast' as const,
         label: getVideoModelDisplayName('seedance_2_fast'),
         description: '更快的字节跳动原生音频生成',
@@ -139,45 +144,21 @@ export default function VideoModelSelector({
         features: '720p 或 1080p，动作更丰富',
         supported: isModelSupported('seedance_2'),
         badge: '专业'
-      },
+      }
+    ]
+      : [
       {
         value: 'seedance_2_mini' as const,
         label: getVideoModelDisplayName('seedance_2_mini'),
-        description: '更省积分的字节跳动生成',
+        description: 'Lower-cost ByteDance generation',
         icon: ByteDance,
         cost: calculateDurationCost('seedance_2_mini'),
         creditsPerSecond: getCreditsPerSecond('seedance_2_mini'),
         processingTime: getProcessingTime('seedance_2_mini'),
-        features: '480p 或 720p，4-15 秒',
+        features: '480p or 720p, 4-15s',
         supported: isModelSupported('seedance_2_mini'),
-        badge: '经济'
+        badge: 'Value'
       },
-      {
-        value: 'kling_3' as const,
-        label: getVideoModelDisplayName('kling_3'),
-        description: '按分辨率计费的音频生成',
-        icon: Kling,
-        cost: calculateDurationCost('kling_3'),
-        creditsPerSecond: GENERATION_COSTS['kling_3'],
-        processingTime: getProcessingTime('kling_3'),
-        features: '720p 标准或 1080p 专业',
-        supported: isModelSupported('kling_3'),
-        badge: '新'
-      },
-      {
-        value: 'wan_27' as const,
-        label: getVideoModelDisplayName('wan_27'),
-        description: '高保真动态生成',
-        icon: Qwen,
-        cost: calculateDurationCost('wan_27'),
-        creditsPerSecond: getCreditsPerSecond('wan_27'),
-        processingTime: getProcessingTime('wan_27'),
-        features: '720p 或 1080p，2-15 秒',
-        supported: isModelSupported('wan_27'),
-        badge: '新'
-      }
-    ]
-      : [
       {
         value: 'seedance_2_fast' as const,
         label: getVideoModelDisplayName('seedance_2_fast'),
@@ -201,42 +182,6 @@ export default function VideoModelSelector({
         features: '720p or 1080p, richer motion',
         supported: isModelSupported('seedance_2'),
         badge: 'Pro'
-      },
-      {
-        value: 'seedance_2_mini' as const,
-        label: getVideoModelDisplayName('seedance_2_mini'),
-        description: 'Lower-cost ByteDance generation',
-        icon: ByteDance,
-        cost: calculateDurationCost('seedance_2_mini'),
-        creditsPerSecond: getCreditsPerSecond('seedance_2_mini'),
-        processingTime: getProcessingTime('seedance_2_mini'),
-        features: '480p or 720p, 4-15s',
-        supported: isModelSupported('seedance_2_mini'),
-        badge: 'Value'
-      },
-      {
-        value: 'kling_3' as const,
-        label: getVideoModelDisplayName('kling_3'),
-        description: 'Resolution-aware audio generation',
-        icon: Kling,
-        cost: calculateDurationCost('kling_3'),
-        creditsPerSecond: GENERATION_COSTS['kling_3'],
-        processingTime: getProcessingTime('kling_3'),
-        features: '720p std or 1080p pro',
-        supported: isModelSupported('kling_3'),
-        badge: 'New'
-      },
-      {
-        value: 'wan_27' as const,
-        label: getVideoModelDisplayName('wan_27'),
-        description: 'High-fidelity generation with rich motion',
-        icon: Qwen,
-        cost: calculateDurationCost('wan_27'),
-        creditsPerSecond: getCreditsPerSecond('wan_27'),
-        processingTime: getProcessingTime('wan_27'),
-        features: '720p or 1080p, 2-15s',
-        supported: isModelSupported('wan_27'),
-        badge: 'New'
       }
     ];
   }, [videoDurationSeconds, videoQuality, videoDuration, disabledModels, locale]);

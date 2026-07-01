@@ -1,13 +1,13 @@
-import type { VideoModel } from '@/lib/constants';
+import { SEEDANCE_VIDEO_MODELS, type VideoModel } from '@/lib/constants';
 import {
   getProjectAgentVideoCloneAllowedModels,
   type ProjectAgentVideoCloneMode,
 } from '@/lib/project-agent/video-clone-mode';
 
 export type ProjectAgentIntent = 'avatar_ads' | 'video_clone' | 'motion_clone';
-export type ProjectAgentVideoModel = 'seedance_2_fast' | 'seedance_2' | 'seedance_2_mini' | 'kling_3' | 'wan_27';
+export type ProjectAgentVideoModel = VideoModel;
 
-export const PROJECT_AGENT_VIDEO_MODELS: ProjectAgentVideoModel[] = ['seedance_2', 'seedance_2_mini', 'kling_3', 'seedance_2_fast'];
+export const PROJECT_AGENT_VIDEO_MODELS: ProjectAgentVideoModel[] = [...SEEDANCE_VIDEO_MODELS];
 
 export function getProjectAgentVideoModels(
   intent?: ProjectAgentIntent,
@@ -17,12 +17,12 @@ export function getProjectAgentVideoModels(
     return getProjectAgentVideoCloneAllowedModels(cloneMode);
   }
   if (intent === 'avatar_ads') {
-    return ['seedance_2_fast', 'seedance_2_mini', 'seedance_2'];
+    return [...SEEDANCE_VIDEO_MODELS];
   }
   if (intent === 'motion_clone') {
-    return ['kling_3'];
+    return [...SEEDANCE_VIDEO_MODELS];
   }
-  return ['kling_3'];
+  return [...SEEDANCE_VIDEO_MODELS];
 }
 
 export function isProjectAgentVideoModel(
@@ -35,7 +35,7 @@ export function isProjectAgentVideoModel(
 
 export function normalizeProjectAgentVideoModel(
   value: unknown,
-  fallback: ProjectAgentVideoModel = 'kling_3',
+  fallback: ProjectAgentVideoModel = 'seedance_2_mini',
   intent?: ProjectAgentIntent,
   cloneMode?: ProjectAgentVideoCloneMode
 ): ProjectAgentVideoModel {
@@ -44,7 +44,7 @@ export function normalizeProjectAgentVideoModel(
   }
   return isProjectAgentVideoModel(fallback, intent, cloneMode)
     ? fallback
-    : getProjectAgentVideoModels(intent, cloneMode)[0] || 'kling_3';
+    : getProjectAgentVideoModels(intent, cloneMode)[0] || 'seedance_2_mini';
 }
 
 export function getEffectiveProjectAgentVideoModel(
@@ -53,12 +53,12 @@ export function getEffectiveProjectAgentVideoModel(
   cloneMode?: ProjectAgentVideoCloneMode
 ): ProjectAgentVideoModel {
   if (intent === 'avatar_ads') {
-    return normalizeProjectAgentVideoModel(preferredModel, 'seedance_2_fast', intent);
+    return normalizeProjectAgentVideoModel(preferredModel, 'seedance_2_mini', intent);
   }
   if (intent === 'video_clone') {
-    return normalizeProjectAgentVideoModel(preferredModel, 'seedance_2', intent, cloneMode);
+    return normalizeProjectAgentVideoModel(preferredModel, 'seedance_2_mini', intent, cloneMode);
   }
-  return normalizeProjectAgentVideoModel(preferredModel, 'kling_3', intent);
+  return normalizeProjectAgentVideoModel(preferredModel, 'seedance_2_mini', intent);
 }
 
 export function isProjectAgentModelDisabledForIntent(

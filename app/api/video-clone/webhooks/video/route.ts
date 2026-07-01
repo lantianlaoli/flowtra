@@ -530,7 +530,7 @@ export async function POST(request: NextRequest) {
             .update({
               status: 'failed',
               error_message: isKlingPromptValidationError(retryError)
-                ? (retryError instanceof Error ? retryError.message : 'Kling 3.0 prompt validation failed during retry.')
+                ? (retryError instanceof Error ? retryError.message : 'Prompt validation failed during retry.')
                 : `Retry failed: ${retryError instanceof Error ? retryError.message : 'Unknown error'}`,
               video_webhook_received_at: new Date().toISOString()
             })

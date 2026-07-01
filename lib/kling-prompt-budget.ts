@@ -102,7 +102,7 @@ const COMPACT_SEPARATOR = '. ';
 export class KlingPromptValidationError extends Error {
   readonly code = 'KLING_PROMPT_VALIDATION';
 
-  constructor(message = 'Kling 3.0 prompt exceeds the provider limit after compression. Shorten dialogue or shot details.') {
+  constructor(message = 'Video prompt exceeds the provider limit after compression. Shorten dialogue or shot details.') {
     super(message);
     this.name = 'KlingPromptValidationError';
   }

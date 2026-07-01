@@ -5,7 +5,6 @@ import {
 import type { ProjectAgentCanvasAssetRef, ProjectAgentCanvasState } from '@/lib/project-agent/canvas-state';
 import type { ProjectAgentMotionCloneExecution } from '@/lib/project-agent/motion-clone-execution';
 import { SYSTEM_AVATARS } from '@/lib/default-avatars';
-import { isSystemProductId } from '@/lib/default-products';
 import { isSystemReferenceVideoId } from '@/lib/default-reference-videos';
 
 const isSystemAvatarId = (avatarId: string | null | undefined) => (
@@ -19,7 +18,6 @@ const toVideoAsset = (
   name: referenceVideo.description?.trim() || 'Reference video',
   imageUrl: referenceVideo.coverUrl || null,
   durationSeconds: referenceVideo.durationSeconds ?? null,
-  sourceType: 'creator',
   videoUrl: referenceVideo.videoUrl || null,
   videoCdnUrl: referenceVideo.videoCdnUrl || null,
   analysisLanguage: referenceVideo.analysisLanguage || null,
@@ -34,16 +32,6 @@ const toAvatarAsset = (
   imageUrl: selectedAvatar.photoUrl || null,
   photos: selectedAvatar.photoUrl ? [selectedAvatar.photoUrl] : [],
   isSystem: selectedAvatar.isSystem === true || isSystemAvatarId(selectedAvatar.id),
-});
-
-const toProductAsset = (
-  selectedProduct: NonNullable<ProjectAgentMotionCloneExecution['selectedProduct']>
-): ProjectAgentCanvasAssetRef => ({
-  id: selectedProduct.id,
-  name: selectedProduct.name,
-  imageUrl: selectedProduct.photoUrl || null,
-  photos: selectedProduct.photoUrl ? [selectedProduct.photoUrl] : [],
-  isSystem: selectedProduct.isSystem === true || isSystemProductId(selectedProduct.id),
 });
 
 export const syncMotionCloneCanvasState = (
@@ -75,19 +63,6 @@ export const syncMotionCloneCanvasState = (
         alias: 'avatarAsset',
         assetType: 'avatar',
         asset: toAvatarAsset(motionClone.selectedAvatar),
-        reuseExisting: true,
-      },
-    });
-  }
-
-  if (motionClone.selectedProduct?.id) {
-    actions.push({
-      kind: 'canvas_mutation',
-      mutation: {
-        type: 'add_asset_node',
-        alias: 'productAsset',
-        assetType: 'product',
-        asset: toProductAsset(motionClone.selectedProduct),
         reuseExisting: true,
       },
     });
@@ -128,18 +103,6 @@ export const syncMotionCloneCanvasState = (
           source: { kind: 'alias', alias: 'avatarAsset' },
           target: { kind: 'alias', alias: 'featureNode' },
           targetHandle: 'avatar',
-        },
-      });
-    }
-
-    if (motionClone.selectedProduct?.id) {
-      actions.push({
-        kind: 'canvas_mutation',
-        mutation: {
-          type: 'connect_nodes',
-          source: { kind: 'alias', alias: 'productAsset' },
-          target: { kind: 'alias', alias: 'featureNode' },
-          targetHandle: 'product',
         },
       });
     }

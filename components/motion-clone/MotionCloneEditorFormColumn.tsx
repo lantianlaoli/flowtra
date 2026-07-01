@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { Image as ImageIcon, Video as VideoIcon, Sparkles, Loader2 } from 'lucide-react';
 import PromptMentionTextarea from '@/components/ui/PromptMentionTextarea';
-import type { UserAvatar, UserProduct } from '@/lib/supabase';
+import type { UserAvatar } from '@/lib/supabase';
 
 interface MotionCloneEditorFormColumnProps {
   photoPrompt: string;
@@ -12,7 +12,6 @@ interface MotionCloneEditorFormColumnProps {
   videoPrompt: string;
   onVideoPromptChange: (value: string) => void;
   avatars: UserAvatar[];
-  products: UserProduct[];
   onGenerateImage: () => void;
   onGenerateVideo: () => void;
   canGenerateImage: boolean;
@@ -30,7 +29,6 @@ export default function MotionCloneEditorFormColumn({
   videoPrompt,
   onVideoPromptChange,
   avatars,
-  products,
   onGenerateImage,
   onGenerateVideo,
   canGenerateImage,
@@ -49,18 +47,6 @@ export default function MotionCloneEditorFormColumn({
     }))
   ), [avatars]);
 
-  const productMentions = useMemo(() => (
-    products.map(product => {
-      const photos = product.user_product_photos || [];
-      const primary = photos.find(photo => photo.is_primary);
-      return {
-        id: product.id,
-        label: product.product_name,
-        imageUrl: primary?.photo_url || photos[0]?.photo_url || null
-      };
-    })
-  ), [products]);
-
   return (
     <div className="motion-clone-editor-form flex h-full flex-col bg-white">
       {/* Header */}
@@ -70,7 +56,7 @@ export default function MotionCloneEditorFormColumn({
           <h2 className="motion-clone-editor-form-title text-sm font-semibold text-black">Prompts</h2>
         </div>
         <p className="text-right text-[11px] font-medium text-[#666666]">
-          Use @ in both prompts for characters or products.
+          Use @ in both prompts for characters.
         </p>
       </div>
 
@@ -89,7 +75,6 @@ export default function MotionCloneEditorFormColumn({
                 rows={4}
                 placeholder="Describe the subject swap you want while keeping the same scene..."
                 characterMentions={characterMentions}
-                productMentions={productMentions}
                 className="h-full min-h-[170px]"
                 preventHorizontalScroll
               />
@@ -110,7 +95,6 @@ export default function MotionCloneEditorFormColumn({
                 rows={5}
                 placeholder="Describe how the video should behave..."
                 characterMentions={characterMentions}
-                productMentions={productMentions}
                 preventHorizontalScroll
                 className="h-full min-h-[190px]"
               />

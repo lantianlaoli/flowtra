@@ -85,8 +85,7 @@ export async function GET() {
       (source.creator_source_videos || []).map((video: Record<string, any>) => ({
         ...video,
         source_id: source.id,
-        source_name: source.source_name,
-        source_type: 'creator'
+        source_name: source.source_name
       }))
     ));
 
@@ -126,7 +125,6 @@ export async function GET() {
       created_at: ad.created_at,
       updated_at: ad.updated_at,
       source_name: 'Legacy',
-      source_type: 'reference_video',
       reference_video_id: ad.id
     }));
 

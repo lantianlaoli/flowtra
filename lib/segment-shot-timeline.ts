@@ -1,4 +1,4 @@
-import { KLING_MAX_TASK_DURATION_SECONDS, KLING_MIN_TASK_DURATION_SECONDS } from '@/lib/constants';
+import { SEEDANCE_MAX_TASK_DURATION_SECONDS, SEEDANCE_MIN_TASK_DURATION_SECONDS } from '@/lib/constants';
 
 export type TimelineShotLike = {
   id: number;
@@ -11,9 +11,9 @@ export type TimelineRange = {
   endSec: number;
 };
 
-export const DEFAULT_SEGMENT_TIMELINE_DURATION_SECONDS = KLING_MAX_TASK_DURATION_SECONDS;
+export const DEFAULT_SEGMENT_TIMELINE_DURATION_SECONDS = SEEDANCE_MAX_TASK_DURATION_SECONDS;
 export const DEFAULT_MIN_SHOT_DURATION_SECONDS = 1;
-export const FIRST_SHOT_MIN_DURATION_SECONDS = KLING_MIN_TASK_DURATION_SECONDS;
+export const FIRST_SHOT_MIN_DURATION_SECONDS = SEEDANCE_MIN_TASK_DURATION_SECONDS;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));

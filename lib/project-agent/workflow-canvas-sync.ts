@@ -22,7 +22,6 @@ type AvatarDraftLike = {
 type CloneReferenceVideoLike = {
   id: string;
   name?: string | null;
-  sourceType?: 'creator' | 'reference_video';
   videoUrl?: string | null;
   cdnUrl?: string | null;
   analysisLanguage?: string | null;
@@ -59,7 +58,6 @@ const toProductAsset = (product: { id: string; name: string; photoUrl?: string |
 const toCloneVideoAsset = (video: NonNullable<CloneReferenceVideoLike>): ProjectAgentCanvasAssetRef => ({
   id: video.id,
   name: video.name?.trim() || 'Reference video',
-  sourceType: video.sourceType || 'creator',
   videoUrl: video.videoUrl || null,
   videoCdnUrl: video.cdnUrl || null,
   analysisLanguage: video.analysisLanguage || null,

@@ -7,6 +7,10 @@ export function getProjectAgentAllowedVideoQualities(
   intent: ProjectAgentIntent,
   model: VideoModel,
 ): ProjectAgentVideoQuality[] {
+  if (intent === 'motion_clone') {
+    return ['480p', '720p'];
+  }
+
   if (model === 'seedance_2_fast') {
     return ['480p', '720p'];
   }
@@ -17,18 +21,6 @@ export function getProjectAgentAllowedVideoQualities(
 
   if (model === 'seedance_2') {
     return ['480p', '720p', '1080p'];
-  }
-
-  if (model === 'kling_3') {
-    return ['720p', '1080p'];
-  }
-
-  if (model === 'wan_27') {
-    return ['720p', '1080p'];
-  }
-
-  if (intent === 'motion_clone') {
-    return ['720p', '1080p'];
   }
 
   return ['720p'];

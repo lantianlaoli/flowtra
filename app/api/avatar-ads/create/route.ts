@@ -4,9 +4,8 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { uploadImageToStorage } from '@/lib/supabase';
 import {
   GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL,
+  SEEDANCE_VIDEO_MODELS,
   getGenerationCost,
-  KLING_MAX_PROJECT_DURATION_SECONDS,
-  KLING_MIN_TASK_DURATION_SECONDS,
   normalizeCloneVideoQualityForModel,
   SEEDANCE_MAX_PROJECT_DURATION_SECONDS,
   SEEDANCE_MIN_TASK_DURATION_SECONDS,
@@ -26,7 +25,7 @@ import { normalizeAvatarAdsStoryboardDurationSeconds } from '@/lib/avatar-ads-st
 
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const AVATAR_ADS_PERSISTED_IMAGE_MODEL = GPT_IMAGE_2_IMAGE_TO_IMAGE_MODEL;
-const PUBLIC_AVATAR_ADS_VIDEO_MODELS: VideoModel[] = ['seedance_2_fast', 'seedance_2', 'seedance_2_mini', 'kling_3', 'wan_27'];
+const PUBLIC_AVATAR_ADS_VIDEO_MODELS: VideoModel[] = [...SEEDANCE_VIDEO_MODELS];
 
 export async function POST(request: NextRequest) {
   try {
@@ -143,16 +142,8 @@ export async function POST(request: NextRequest) {
     }
 
     const requestedVideoModel = videoModel as VideoModel;
-    const projectMaxDuration = requestedVideoModel === 'kling_3'
-      ? KLING_MAX_PROJECT_DURATION_SECONDS
-      : requestedVideoModel === 'wan_27'
-        ? 15
-        : SEEDANCE_MAX_PROJECT_DURATION_SECONDS;
-    const projectMinDuration = requestedVideoModel === 'kling_3'
-      ? KLING_MIN_TASK_DURATION_SECONDS
-      : requestedVideoModel === 'wan_27'
-        ? 2
-        : SEEDANCE_MIN_TASK_DURATION_SECONDS;
+    const projectMaxDuration = SEEDANCE_MAX_PROJECT_DURATION_SECONDS;
+    const projectMinDuration = SEEDANCE_MIN_TASK_DURATION_SECONDS;
 
     if (
       !Number.isFinite(videoDurationSeconds) ||

@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { auth } from '@clerk/nextjs/server';
 import { createServerUserSupabaseClient } from '@/lib/supabase/server-user';
-import type { VideoModel } from '@/lib/constants';
+import { SEEDANCE_VIDEO_MODELS, type VideoModel } from '@/lib/constants';
 
 interface VideoCloneItem {
   id: string;
@@ -116,13 +116,13 @@ const resolveCoverAspectRatio = (ratio?: string | null): SupportedAspectRatio | 
   return normalizeAspectRatio(ratio);
 };
 
-const ALLOWED_VIDEO_CLONE_MODELS: VideoModel[] = ['seedance_2_fast', 'seedance_2', 'seedance_2_mini', 'kling_3'];
+const ALLOWED_VIDEO_CLONE_MODELS: VideoModel[] = [...SEEDANCE_VIDEO_MODELS];
 
 const normalizeVideoCloneModel = (model?: string | null): VideoModel => {
   if (ALLOWED_VIDEO_CLONE_MODELS.includes(model as VideoModel)) {
     return model as VideoModel;
   }
-  return 'seedance_2_fast'; // Default for invalid/null models
+  return 'seedance_2_mini'; // Default for invalid/null or legacy models
 };
 
 export async function GET() {
@@ -256,9 +256,9 @@ export async function GET() {
         }
         const storedVideoModel = item.video_model as CharacterAdsItem['videoModel'];
         const resolvedVideoModel: VideoModel =
-          storedVideoModel === 'seedance_2' || storedVideoModel === 'seedance_2_fast' || storedVideoModel === 'seedance_2_mini' || storedVideoModel === 'kling_3'
+          storedVideoModel === 'seedance_2' || storedVideoModel === 'seedance_2_fast' || storedVideoModel === 'seedance_2_mini'
             ? storedVideoModel
-            : 'seedance_2_fast';
+            : 'seedance_2_mini';
 
         // For completed items, ensure we have the correct video URL
         let videoUrl: string | undefined;
@@ -306,7 +306,7 @@ export async function GET() {
         downloaded: item.downloaded || false,
         downloadCreditsUsed: 0,
         generationCreditsUsed: item.generation_credits_used || 0,
-        videoModel: 'kling_3',
+        videoModel: normalizeVideoCloneModel(item.video_model),
         creditsUsed: item.credits_cost || 0,
         status: mappedStatus,
         createdAt: item.created_at,
