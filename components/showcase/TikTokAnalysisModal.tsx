@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { X, CheckCircle, AlertCircle, Loader2, Sparkles, Film, Volume2, Maximize, Download } from 'lucide-react';
 import type { VideoAnalysisResult, ReferenceVideoShot } from '@/hooks/useVideoAnalysis';
@@ -32,6 +33,7 @@ export function TikTokAnalysisModal({
   tiktokUrl,
   onComplete
 }: TikTokAnalysisModalProps) {
+  const router = useRouter();
   const { isSignedIn } = useUser();
   const [status, setStatus] = useState<AnalysisState>('idle');
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -399,7 +401,8 @@ export function TikTokAnalysisModal({
         creatorSourceVideoId,
         videoId: creatorSourceVideoId,
       }));
-      window.location.href = '/dashboard/video-clone';
+      onClose?.();
+      router.push('/dashboard/video-clone');
     } catch (cloneError) {
       console.error('[TikTokAnalysisModal] Clone setup failed:', cloneError);
       setCloneReadyStatus('error');

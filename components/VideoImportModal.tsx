@@ -208,6 +208,8 @@ export default function VideoImportModal({
   const videoNameAutoSaveTimerRef = useRef<number | null>(null);
   const previousProcessingVideoIdRef = useRef<string | null>(null);
   const previousVideoDescriptionRef = useRef('');
+  const previousIsOpenRef = useRef(isOpen);
+  const hasEnteredProcessingRef = useRef(false);
   const isProcessingStep = step === 'processing' || step === 'processing-batch';
   const canContinueInAgentFeatures = Boolean(
     onContinueInAgentFeatures &&
@@ -216,7 +218,16 @@ export default function VideoImportModal({
   );
 
   useEffect(() => {
-    if (!isOpen) return;
+    const wasOpen = previousIsOpenRef.current;
+    previousIsOpenRef.current = isOpen;
+    if (!isOpen) {
+      hasEnteredProcessingRef.current = false;
+      return;
+    }
+    if (wasOpen) return;
+    if (hasEnteredProcessingRef.current) {
+      return;
+    }
     setStep('choose');
     setError(null);
     setIsSubmitting(false);
@@ -254,12 +265,6 @@ export default function VideoImportModal({
   const isAnalysisPending = step === 'processing' &&
     processingVideo?.analysis_status !== 'failed' &&
     !processingVideo?.analysis_result;
-
-  useEffect(() => {
-    if (!isAnalysisPending) {
-      return;
-    }
-  }, [isAnalysisPending]);
 
   useEffect(() => {
     const videoId = processingVideo?.id;
@@ -485,6 +490,7 @@ export default function VideoImportModal({
     }
 
     setStep('processing');
+    hasEnteredProcessingRef.current = true;
     setIsSubmitting(true);
     setError(null);
     setProcessingMessage('Importing video and running analysis...');
@@ -542,6 +548,7 @@ export default function VideoImportModal({
     }
 
     setStep('processing');
+    hasEnteredProcessingRef.current = true;
     setIsSubmitting(true);
     setError(null);
     setProcessingMessage('Uploading video and running analysis...');
@@ -666,6 +673,7 @@ export default function VideoImportModal({
     }
 
     setStep('processing-batch');
+    hasEnteredProcessingRef.current = true;
     setIsSubmitting(true);
     setError(null);
     setProcessingMessage('Processing selected videos. This may take a few minutes.');

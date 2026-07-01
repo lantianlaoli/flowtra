@@ -276,7 +276,7 @@ export default async function RootLayout({
             }}
           />
         </head>
-        <body className="font-sans antialiased">
+        <body className="font-sans antialiased" suppressHydrationWarning>
           <I18nProvider initialLocale={initialLocale}>
             <CookieConsentProvider>
               <ToastProvider>

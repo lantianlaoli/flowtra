@@ -284,8 +284,8 @@ export default function VideoAssetDetailsModal({
               </div>
             </div>
 
-            <div className={`assets-modal-body grid min-h-0 grid-cols-1 items-start gap-6 overflow-y-auto ${embedded ? "p-5" : "p-6"} ${isCompact ? "lg:grid-cols-[max-content_minmax(0,1fr)]" : "lg:grid-cols-[max-content_minmax(0,1fr)]"} lg:items-end`}>
-              <div className="min-h-0 min-w-0 overflow-hidden flex items-end justify-center">
+            <div className={`assets-modal-body grid min-h-0 grid-cols-1 items-start gap-6 overflow-y-auto ${embedded ? "p-5" : "p-6"} ${isCompact ? "lg:grid-cols-[max-content_minmax(0,1fr)]" : "lg:grid-cols-[max-content_minmax(0,1fr)]"}`}>
+              <div className="min-h-0 min-w-0 overflow-hidden flex items-start justify-center lg:sticky lg:top-0">
                 <div className="min-h-0 flex items-stretch justify-center">
                   <div
                     className={`assets-video-details-preview bg-black/95 ${previewCardClassName}`}
@@ -312,7 +312,7 @@ export default function VideoAssetDetailsModal({
               </div>
 
               <div
-                className="assets-video-details-panel min-h-0 flex flex-col gap-4 self-stretch"
+                className="assets-video-details-panel min-h-0 flex flex-col gap-4"
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
