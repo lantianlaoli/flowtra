@@ -99,6 +99,23 @@ export type ReplicaPhotoResolution = keyof typeof REPLICA_PHOTO_CREDITS;
 export const PACKAGES = {
   lite: {
     name: 'Lite',
+    price: 19,
+    priceSymbol: '$',
+    credits: 1250,
+    description: 'Starter Creator Pack',
+    features: [
+      '1,250 credits',
+      '≈ 38s of Seedance 2 Fast video',
+      'or ≈ 30s of Seedance 2 video',
+      'AI-powered video generation'
+    ],
+    videoEstimates: {
+      seedance_2_fast: 38,
+      seedance_2: 30
+    }
+  },
+  plus: {
+    name: 'Plus',
     price: 29,
     priceSymbol: '$',
     credits: 1930,
@@ -115,7 +132,7 @@ export const PACKAGES = {
     }
   },
   basic: {
-    name: 'Basic',
+    name: 'Pro',
     price: 59,
     priceSymbol: '$',
     credits: 3930,
@@ -132,7 +149,7 @@ export const PACKAGES = {
     }
   },
   pro: {
-    name: 'Pro',
+    name: 'Ultra',
     price: 99,
     priceSymbol: '$',
     credits: 6600,
@@ -152,7 +169,7 @@ export const PACKAGES = {
 } as const
 
 // Get package details by name
-export function getPackageByName(packageName: 'lite' | 'basic' | 'pro') {
+export function getPackageByName(packageName: 'lite' | 'plus' | 'basic' | 'pro') {
   return PACKAGES[packageName]
 }
 
@@ -256,29 +273,33 @@ export function canAffordModel(userCredits: number, model: VideoModel): boolean 
 
 // Map product_id to credits and package info
 export function getCreditsFromProductId(productId: string): { credits: number; packageName: string } | null {
-  // Get environment-specific product IDs
-  const liteDevId = process.env.LITE_PACK_CREEM_DEV_ID
-  const liteProdId = process.env.LITE_PACK_CREEM_PROD_ID
-  const basicDevId = process.env.BASIC_PACK_CREEM_DEV_ID
-  const basicProdId = process.env.BASIC_PACK_CREEM_PROD_ID
-  const proDevId = process.env.PRO_PACK_CREEM_DEV_ID
-  const proProdId = process.env.PRO_PACK_CREEM_PROD_ID
+  const liteId = process.env.LITE_PACK_CREEM_ID
+  const plusId = process.env.PLUS_PACK_CREEM_ID
+  const proId = process.env.PRO_PACK_CREEM_ID
+  const ultraId = process.env.ULTRA_PACK_CREEM_ID
 
-  if (productId === liteDevId || productId === liteProdId) {
+  if (productId === liteId) {
     return {
       credits: PACKAGES.lite.credits,
       packageName: 'lite'
     }
   }
 
-  if (productId === basicDevId || productId === basicProdId) {
+  if (productId === plusId) {
+    return {
+      credits: PACKAGES.plus.credits,
+      packageName: 'plus'
+    }
+  }
+
+  if (productId === proId) {
     return {
       credits: PACKAGES.basic.credits,
       packageName: 'basic'
     }
   }
-  
-  if (productId === proDevId || productId === proProdId) {
+
+  if (productId === ultraId) {
     return {
       credits: PACKAGES.pro.credits,
       packageName: 'pro'

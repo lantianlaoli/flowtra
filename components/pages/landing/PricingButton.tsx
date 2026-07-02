@@ -7,7 +7,7 @@ import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { trackEvent } from '@/lib/analytics/client';
 import { useI18n } from '@/providers/I18nProvider';
 
-type PackageName = 'lite' | 'basic' | 'pro';
+type PackageName = 'lite' | 'plus' | 'basic' | 'pro';
 
 interface PricingButtonProps {
   packageName: PackageName;
@@ -51,7 +51,7 @@ export function PricingButton({ packageName, label }: PricingButtonProps) {
     checkSubscription();
   }, [user]);
 
-  const purchaseButtonClass = packageName === 'basic'
+  const purchaseButtonClass = packageName === 'basic' || packageName === 'plus'
     ? 'landing-press-button landing-press-button--wide text-[15px] font-semibold'
     : 'landing-press-button landing-press-button--secondary landing-press-button--wide text-[15px] font-semibold';
 

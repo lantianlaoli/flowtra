@@ -40,6 +40,8 @@ const PLAN_FEATURE_ICONS: readonly LucideIcon[] = [
   Activity,
 ];
 
+type PackageKey = 'lite' | 'plus' | 'basic' | 'pro';
+
 export default function PricingSection({
   showTitle = true,
 }: {
@@ -47,15 +49,16 @@ export default function PricingSection({
 }) {
   const { messages } = useI18n();
   const pricingMessages = messages.landing.pricing;
-  const LITE_PRICE = 29;
+  const LITE_PRICE = 19;
+  const PLUS_PRICE = 29;
   const BASIC_PRICE = 59;
   const PRO_PRICE = 99;
 
-  const litePricing = LITE_PRICE;
-  const basicPricing = BASIC_PRICE;
-  const proPricing = PRO_PRICE;
   const liteSeedance2Mini = pricingMessages.modelBenchmarkLine(
     getPackageSeedance2Mini15sVideoCount("lite")
+  );
+  const plusSeedance2Mini = pricingMessages.modelBenchmarkLine(
+    getPackageSeedance2Mini15sVideoCount("plus")
   );
   const basicSeedance2Mini = pricingMessages.modelBenchmarkLine(
     getPackageSeedance2Mini15sVideoCount("basic")
@@ -63,8 +66,9 @@ export default function PricingSection({
   const proSeedance2Mini = pricingMessages.modelBenchmarkLine(
     getPackageSeedance2Mini15sVideoCount("pro")
   );
-  const planFeatureItems: Record<"lite" | "basic" | "pro", PlanFeatureItem[]> = {
+  const planFeatureItems: Record<PackageKey, PlanFeatureItem[]> = {
     lite: pricingMessages.planFeatureItems.lite.map((label) => ({ label, bold: true })),
+    plus: pricingMessages.planFeatureItems.plus.map((label) => ({ label, bold: true })),
     basic: pricingMessages.planFeatureItems.basic.map((label) => ({ label, bold: true })),
     pro: pricingMessages.planFeatureItems.pro.map((label) => ({ label, bold: true })),
   };
@@ -82,7 +86,7 @@ export default function PricingSection({
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 lg:grid-cols-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5 max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Explore Card (no plan, jump into dashboard preview) */}
 
         <Link
@@ -127,8 +131,8 @@ export default function PricingSection({
 
           <div className="mb-8">
             <div className="text-[40px] font-bold text-black leading-none">
-              <data itemProp="price" value={litePricing}>
-                ${litePricing}
+              <data itemProp="price" value={LITE_PRICE}>
+                ${LITE_PRICE}
               </data>
 
               <span className="text-[16px] font-medium text-[#666666] ml-1">
@@ -163,7 +167,7 @@ export default function PricingSection({
           <PricingButton packageName="lite" />
         </article>
 
-        {/* Basic Plan (Recommended) */}
+        {/* Plus Plan (Recommended) */}
 
         <article
           className="landing-plan-card landing-plan-card--featured relative flex flex-col rounded-[24px] border-2 border-black bg-white p-5 shadow-[0_20px_40px_rgba(0,0,0,0.1)] sm:p-6"
@@ -179,6 +183,61 @@ export default function PricingSection({
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="w-5 h-5 text-black flex-shrink-0" />
             <h3 className="text-[20px] font-bold text-black" itemProp="name">
+              {pricingMessages.plans.plus.name}
+            </h3>
+          </div>
+
+          <p className="text-[14px] text-[#666666] mb-6">
+            {pricingMessages.plans.plus.description}
+          </p>
+
+          <div className="mb-8">
+            <div className="text-[40px] font-bold text-black leading-none">
+              <data itemProp="price" value={PLUS_PRICE}>
+                ${PLUS_PRICE}
+              </data>
+
+              <span className="text-[16px] font-medium text-[#666666] ml-1">
+                {pricingMessages.perMonth}
+              </span>
+            </div>
+          </div>
+
+          <ul className="space-y-3 mb-8 flex-grow">
+            {planFeatureItems.plus.map((item, idx) => {
+              const FeatureIcon = PLAN_FEATURE_ICONS[idx] ?? Sparkles;
+              return (
+                <li
+                  key={idx}
+                  className="flex items-center gap-3 text-[14px] font-bold text-black"
+                >
+                  <FeatureIcon className="w-4 h-4 text-black flex-shrink-0" />
+                  <span className="font-bold text-black">{item.label}</span>
+                </li>
+              );
+            })}
+            <li className="flex items-center gap-3 text-[14px] font-bold text-black">
+              <Sparkles className="w-4 h-4 text-black flex-shrink-0" />
+              <span className="font-bold text-black">
+                <span className="underline">{plusSeedance2Mini.count}</span>
+                {` ${plusSeedance2Mini.suffix}`}
+              </span>
+            </li>
+          </ul>
+
+          <PricingButton packageName="plus" />
+        </article>
+
+        {/* Pro Plan */}
+
+        <article
+          className="landing-plan-card flex flex-col rounded-[24px] border border-[#E5E5E5] bg-white p-5 sm:p-6"
+          itemScope
+          itemType="https://schema.org/Offer"
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <Crown className="w-5 h-5 text-black flex-shrink-0" />
+            <h3 className="text-[20px] font-bold text-black" itemProp="name">
               {pricingMessages.plans.basic.name}
             </h3>
           </div>
@@ -189,8 +248,8 @@ export default function PricingSection({
 
           <div className="mb-8">
             <div className="text-[40px] font-bold text-black leading-none">
-              <data itemProp="price" value={basicPricing}>
-                ${basicPricing}
+              <data itemProp="price" value={BASIC_PRICE}>
+                ${BASIC_PRICE}
               </data>
 
               <span className="text-[16px] font-medium text-[#666666] ml-1">
@@ -224,7 +283,7 @@ export default function PricingSection({
           <PricingButton packageName="basic" />
         </article>
 
-        {/* Pro Plan */}
+        {/* Ultra Plan */}
 
         <article
           className="landing-plan-card flex flex-col rounded-[24px] border border-[#E5E5E5] bg-white p-5 sm:p-6"
@@ -244,8 +303,8 @@ export default function PricingSection({
 
           <div className="mb-8">
             <div className="text-[40px] font-bold text-black leading-none">
-              <data itemProp="price" value={proPricing}>
-                ${proPricing}
+              <data itemProp="price" value={PRO_PRICE}>
+                ${PRO_PRICE}
               </data>
 
               <span className="text-[16px] font-medium text-[#666666] ml-1">

@@ -9,38 +9,26 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check environment configuration
-    const isDevMode = process.env.CREEM_ENVIRONMENT === 'development'
-
-    // Get all environment variables (without exposing sensitive values)
+    // Single Creem environment (no dev/prod switching)
     const config = {
-      environment: process.env.CREEM_ENVIRONMENT,
-      isDevMode,
-      apiUrls: {
-        dev: process.env.CREEM_API_URL_DEV,
-        prod: process.env.CREEM_API_URL_PROD,
-        current: isDevMode ? process.env.CREEM_API_URL_DEV : process.env.CREEM_API_URL_PROD
+      apiUrl: {
+        current: process.env.CREEM_API_URL ? 'CONFIGURED' : 'MISSING'
       },
-      apiKeys: {
-        dev: process.env.CREEM_API_KEY_DEV ? 'CONFIGURED' : 'MISSING',
-        prod: process.env.CREEM_API_KEY_PROD ? 'CONFIGURED' : 'MISSING',
-        current: (isDevMode ? process.env.CREEM_API_KEY_DEV : process.env.CREEM_API_KEY_PROD) ? 'CONFIGURED' : 'MISSING'
+      apiKey: {
+        current: process.env.CREEM_API_KEY ? 'CONFIGURED' : 'MISSING'
       },
       productIds: {
         lite: {
-          dev: process.env.LITE_PACK_CREEM_DEV_ID ? 'CONFIGURED' : 'MISSING',
-          prod: process.env.LITE_PACK_CREEM_PROD_ID ? 'CONFIGURED' : 'MISSING',
-          current: (isDevMode ? process.env.LITE_PACK_CREEM_DEV_ID : process.env.LITE_PACK_CREEM_PROD_ID) ? 'CONFIGURED' : 'MISSING'
+          current: process.env.LITE_PACK_CREEM_ID ? 'CONFIGURED' : 'MISSING'
         },
-        basic: {
-          dev: process.env.BASIC_PACK_CREEM_DEV_ID ? 'CONFIGURED' : 'MISSING',
-          prod: process.env.BASIC_PACK_CREEM_PROD_ID ? 'CONFIGURED' : 'MISSING',
-          current: (isDevMode ? process.env.BASIC_PACK_CREEM_DEV_ID : process.env.BASIC_PACK_CREEM_PROD_ID) ? 'CONFIGURED' : 'MISSING'
+        plus: {
+          current: process.env.PLUS_PACK_CREEM_ID ? 'CONFIGURED' : 'MISSING'
         },
         pro: {
-          dev: process.env.PRO_PACK_CREEM_DEV_ID ? 'CONFIGURED' : 'MISSING',
-          prod: process.env.PRO_PACK_CREEM_PROD_ID ? 'CONFIGURED' : 'MISSING',
-          current: (isDevMode ? process.env.PRO_PACK_CREEM_DEV_ID : process.env.PRO_PACK_CREEM_PROD_ID) ? 'CONFIGURED' : 'MISSING'
+          current: process.env.PRO_PACK_CREEM_ID ? 'CONFIGURED' : 'MISSING'
+        },
+        ultra: {
+          current: process.env.ULTRA_PACK_CREEM_ID ? 'CONFIGURED' : 'MISSING'
         }
       }
     }
@@ -48,17 +36,17 @@ export async function GET() {
     // Check for missing configurations
     const issues = []
 
-    if (!config.apiUrls.current) {
-      issues.push(`Missing API URL for ${isDevMode ? 'development' : 'production'} environment`)
+    if (config.apiUrl.current === 'MISSING') {
+      issues.push('Missing CREEM_API_URL')
     }
 
-    if (config.apiKeys.current === 'MISSING') {
-      issues.push(`Missing API Key for ${isDevMode ? 'development' : 'production'} environment`)
+    if (config.apiKey.current === 'MISSING') {
+      issues.push('Missing CREEM_API_KEY')
     }
 
     Object.entries(config.productIds).forEach(([packageName, ids]) => {
       if (ids.current === 'MISSING') {
-        issues.push(`Missing Product ID for ${packageName} package in ${isDevMode ? 'development' : 'production'} environment`)
+        issues.push(`Missing Product ID for ${packageName} package`)
       }
     })
 

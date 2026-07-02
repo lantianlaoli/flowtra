@@ -59,7 +59,7 @@ type TikTokConnection = {
 };
 
 type Subscription = {
-  tier: 'lite' | 'basic' | 'pro';
+  tier: 'lite' | 'plus' | 'basic' | 'pro';
   status: string;
   monthly_credits: number;
   credits_used_this_cycle: number;

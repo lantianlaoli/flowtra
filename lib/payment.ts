@@ -1,5 +1,5 @@
 export interface PaymentOptions {
-  packageName: 'lite' | 'basic' | 'pro';
+  packageName: 'lite' | 'plus' | 'basic' | 'pro';
   userEmail: string;
   isSubscription?: boolean; // Whether to create a subscription checkout (default: false)
   onLoading?: (isLoading: boolean) => void;

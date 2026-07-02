@@ -152,6 +152,10 @@ export type LandingMessages = {
         name: string;
         description: string;
       };
+      plus: {
+        name: string;
+        description: string;
+      };
       basic: {
         name: string;
         description: string;
@@ -161,7 +165,7 @@ export type LandingMessages = {
         description: string;
       };
     };
-    planFeatureItems: Record<'lite' | 'basic' | 'pro', string[]>;
+    planFeatureItems: Record<'lite' | 'plus' | 'basic' | 'pro', string[]>;
     buttons: {
       loading: string;
       getStarted: string;
@@ -257,6 +261,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/image-clone', title: 'Image Clone' },
         { href: '/tools/ecommerce-listing-studio', title: 'Ecommerce Listing Studio' },
         { href: '/tools/social-cover-generator', title: 'Social Cover Generator' },
+        { href: '/tools/openai-quota-reset-alerts', title: 'OpenAI Quota Reset Alerts' },
         { href: '#feedback', title: 'Suggest a new tool' },
       ],
     },
@@ -459,19 +464,30 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       plans: {
         lite: {
           name: 'Lite',
+          description: 'The cheapest way to try Flowtra before scaling up.',
+        },
+        plus: {
+          name: 'Plus',
           description: 'For TikTok dropshippers who need test ads today, not next week.',
         },
         basic: {
-          name: 'Basic',
+          name: 'Pro',
           description: 'When one ad wins, clone it across every product you sell.',
         },
         pro: {
-          name: 'Pro',
+          name: 'Ultra',
           description: 'Full TikTok ad pipeline: analysis, generation, and iteration at scale.',
         },
       },
       planFeatureItems: {
         lite: [
+          '1,250 Credits',
+          'AI Agent',
+          'Avatar Ads',
+          'Clone viral videos',
+          'Motion Clone',
+        ],
+        plus: [
           '1,930 Credits',
           'AI Agent',
           'Avatar Ads',
@@ -491,6 +507,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
           'Avatar Ads',
           'Clone viral videos',
           'Motion Clone',
+          'Priority processing',
         ],
       },
       buttons: {
@@ -575,6 +592,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/image-clone', label: 'Image Clone' },
         { href: '/tools/ecommerce-listing-studio', label: 'Ecommerce Listing Studio' },
         { href: '/tools/social-cover-generator', label: 'Social Cover Generator' },
+        { href: '/tools/openai-quota-reset-alerts', label: 'OpenAI Quota Reset Alerts' },
       ],
     },
   },
@@ -610,6 +628,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
         { href: '/tools/image-clone', title: '图片复刻' },
         { href: '/tools/ecommerce-listing-studio', title: 'Ecommerce Listing Studio' },
         { href: '/tools/social-cover-generator', title: 'Social Cover Generator' },
+        { href: '/tools/openai-quota-reset-alerts', title: 'OpenAI Quota Reset Alerts' },
         { href: '#feedback', title: '建议新工具' },
       ],
     },
@@ -812,19 +831,30 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
       plans: {
         lite: {
           name: 'Lite',
+          description: '最低成本体验 Flowtra 的入门档。',
+        },
+        plus: {
+          name: 'Plus',
           description: '刚开始在 TikTok Shop 卖货的独立卖家。',
         },
         basic: {
-          name: 'Basic',
+          name: 'Pro',
           description: '一条素材跑赢，铺到所有产品。',
         },
         pro: {
-          name: 'Pro',
+          name: 'Ultra',
           description: '完整的 TikTok 广告生产线。',
         },
       },
       planFeatureItems: {
         lite: [
+          '1,250 积分',
+          'AI 智能体',
+          '数字人广告',
+          '爆款视频复刻',
+          '动作复刻',
+        ],
+        plus: [
           '1,930 积分',
           'AI 智能体',
           '数字人广告',
@@ -844,6 +874,7 @@ export const landingMessages: Record<SiteLocale, LandingMessages> = {
           '数字人广告',
           '爆款视频复刻',
           '动作复刻',
+          '优先处理',
         ],
       },
       buttons: {

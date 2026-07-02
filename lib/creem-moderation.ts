@@ -40,13 +40,8 @@ function normalizeCreemApiBaseUrl(value: string): string {
 }
 
 export function getCreemModerationConfig(): { apiUrl: string; apiKey: string } {
-  const isDevMode = process.env.CREEM_ENVIRONMENT === 'development';
-  const configuredUrl = isDevMode
-    ? process.env.CREEM_API_URL_DEV
-    : process.env.CREEM_API_URL_PROD;
-  const configuredKey = isDevMode
-    ? process.env.CREEM_API_KEY_DEV
-    : process.env.CREEM_API_KEY_PROD;
+  const configuredUrl = process.env.CREEM_API_URL
+  const configuredKey = process.env.CREEM_API_KEY
 
   if (!configuredUrl || !configuredKey) {
     throw new CreemModerationError('creem_moderation_config_missing', undefined, 503);

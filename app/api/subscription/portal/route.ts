@@ -31,14 +31,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Determine environment
-    const isDevMode = process.env.CREEM_ENVIRONMENT === 'development'
-    const creemApiUrl = isDevMode
-      ? process.env.CREEM_API_URL_DEV
-      : process.env.CREEM_API_URL_PROD
-    const creemApiKey = isDevMode
-      ? process.env.CREEM_API_KEY_DEV
-      : process.env.CREEM_API_KEY_PROD
+    // Single Creem environment (no dev/prod switching)
+    const creemApiUrl = process.env.CREEM_API_URL
+    const creemApiKey = process.env.CREEM_API_KEY
 
     if (!creemApiUrl || !creemApiKey) {
       console.error('Creem API configuration missing')
@@ -65,7 +60,6 @@ export async function POST(request: NextRequest) {
 
     console.log(`📨 Creating customer portal link for customer: ${subscription.creem_customer_id}`)
     console.log('🔍 Debug Info:', {
-      environment: isDevMode ? 'development' : 'production',
       baseApiUrl: creemApiUrl,
       portalApiUrl,
       customerId: subscription.creem_customer_id,
@@ -79,11 +73,10 @@ export async function POST(request: NextRequest) {
     // Validate environment consistency
     // Dev customer IDs typically start with 'cust_test_' or similar
     // Prod customer IDs typically start with 'cust_'
-    if (subscription.creem_customer_id?.includes('test') && !isDevMode) {
-      console.warn('⚠️ Warning: Test customer ID detected in production mode')
-    }
-    if (!subscription.creem_customer_id?.includes('test') && isDevMode) {
-      console.warn('⚠️ Warning: Production customer ID detected in development mode')
+    // Single Creem environment: log a warning if customer ID doesn't follow the test_* pattern,
+    // since the configured Creem workspace determines whether IDs are test or live.
+    if (!subscription.creem_customer_id?.includes('test')) {
+      console.info('ℹ️ Non-test customer ID — Creem workspace appears to be live.')
     }
 
     const requestBody = {
@@ -125,7 +118,6 @@ export async function POST(request: NextRequest) {
         body: errorText,
         requestUrl: portalApiUrl,
         customerId: subscription.creem_customer_id,
-        environment: isDevMode ? 'development' : 'production',
         apiKeyPrefix: creemApiKey?.substring(0, 10) + '...'
       })
 

@@ -10,7 +10,7 @@ interface Subscription {
   creem_subscription_id: string | null
   creem_customer_id: string | null
   creem_product_id: string | null
-  tier: 'lite' | 'basic' | 'pro'
+  tier: 'lite' | 'plus' | 'basic' | 'pro'
   status: string
   monthly_credits: number
   credits_used_this_cycle: number
@@ -26,7 +26,7 @@ interface Subscription {
 export async function grantSubscriptionAccess(
   userId: string,
   monthlyCredits: number,
-  tier?: 'lite' | 'basic' | 'pro'
+  tier?: 'lite' | 'plus' | 'basic' | 'pro'
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = getSupabaseAdmin()
 
@@ -330,22 +330,21 @@ export async function isEventProcessed(creemEventId: string): Promise<boolean> {
 }
 
 // Helper: Get tier from product ID
-function getTierFromProductId(productId: string): 'lite' | 'basic' | 'pro' | null {
-  // Check against subscription product IDs (using PACK env vars)
-  const isDevMode = process.env.CREEM_ENVIRONMENT === 'development'
-
-  const liteId = isDevMode ? process.env.LITE_PACK_CREEM_DEV_ID : process.env.LITE_PACK_CREEM_PROD_ID
-  const basicId = isDevMode ? process.env.BASIC_PACK_CREEM_DEV_ID : process.env.BASIC_PACK_CREEM_PROD_ID
-  const proId = isDevMode ? process.env.PRO_PACK_CREEM_DEV_ID : process.env.PRO_PACK_CREEM_PROD_ID
+function getTierFromProductId(productId: string): 'lite' | 'plus' | 'basic' | 'pro' | null {
+  const liteId = process.env.LITE_PACK_CREEM_ID
+  const plusId = process.env.PLUS_PACK_CREEM_ID
+  const proId = process.env.PRO_PACK_CREEM_ID
+  const ultraId = process.env.ULTRA_PACK_CREEM_ID
 
   if (productId === liteId) return 'lite'
-  if (productId === basicId) return 'basic'
-  if (productId === proId) return 'pro'
+  if (productId === plusId) return 'plus'
+  if (productId === proId) return 'basic'
+  if (productId === ultraId) return 'pro'
 
   return null
 }
 
 // Helper: Get monthly credits for a tier
-export async function getMonthlyCreditsForTier(tier: 'lite' | 'basic' | 'pro'): Promise<number> {
+export async function getMonthlyCreditsForTier(tier: 'lite' | 'plus' | 'basic' | 'pro'): Promise<number> {
   return PACKAGES[tier].credits
 }

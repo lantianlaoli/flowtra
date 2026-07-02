@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get package details
-    const packageData = getPackageByName(packageName as 'lite' | 'basic' | 'pro')
+    const packageData = getPackageByName(packageName as 'lite' | 'plus' | 'basic' | 'pro')
     if (!packageData) {
       console.log(`❌ Invalid package name: ${packageName}`)
       return NextResponse.json(
@@ -54,28 +54,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check environment configuration
-    const isDevMode = process.env.CREEM_ENVIRONMENT === 'development'
-    console.log(`🌍 Environment: ${isDevMode ? 'DEVELOPMENT' : 'PRODUCTION'}`)
-    console.log(`📋 CREEM_ENVIRONMENT value: ${process.env.CREEM_ENVIRONMENT}`)
-
-    // Get subscription product ID based on environment and package
-    // Note: Using PACK env vars as they contain subscription product IDs
-    let productId: string | undefined
-
+    // Resolve Creem product ID for the requested tier
     console.log('💳 Creating SUBSCRIPTION checkout')
+    let productId: string | undefined
     if (packageName === 'lite') {
-      productId = isDevMode ? process.env.LITE_PACK_CREEM_DEV_ID : process.env.LITE_PACK_CREEM_PROD_ID
+      productId = process.env.LITE_PACK_CREEM_ID
+    } else if (packageName === 'plus') {
+      productId = process.env.PLUS_PACK_CREEM_ID
     } else if (packageName === 'basic') {
-      productId = isDevMode ? process.env.BASIC_PACK_CREEM_DEV_ID : process.env.BASIC_PACK_CREEM_PROD_ID
+      productId = process.env.PRO_PACK_CREEM_ID
     } else if (packageName === 'pro') {
-      productId = isDevMode ? process.env.PRO_PACK_CREEM_DEV_ID : process.env.PRO_PACK_CREEM_PROD_ID
+      productId = process.env.ULTRA_PACK_CREEM_ID
     }
 
     console.log(`🎯 Product ID for ${packageName} subscription: ${productId}`)
 
     if (!productId) {
-      const error = `Package does not have a ${isDevMode ? 'development' : 'production'} subscription product ID configured`
+      const error = `Package does not have a Creem product ID configured`
       console.log(`❌ ${error}`)
       return NextResponse.json(
         { success: false, error },
@@ -83,15 +78,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Select API configuration based on environment
-    const apiUrl = isDevMode ? process.env.CREEM_API_URL_DEV : process.env.CREEM_API_URL_PROD
-    const apiKey = isDevMode ? process.env.CREEM_API_KEY_DEV : process.env.CREEM_API_KEY_PROD
+    // Single Creem environment (no dev/prod switching)
+    const apiUrl = process.env.CREEM_API_URL
+    const apiKey = process.env.CREEM_API_KEY
 
     console.log(`🔗 API URL: ${apiUrl}`)
     console.log(`🔑 API Key present: ${apiKey ? 'YES' : 'NO'}`)
 
     if (!apiUrl || !apiKey) {
-      const error = `${isDevMode ? 'Development' : 'Production'} Creem API configuration is missing`
+      const error = `Creem API configuration is missing`
       console.log(`❌ ${error}`)
       return NextResponse.json(
         { success: false, error },
@@ -114,7 +109,6 @@ export async function POST(request: NextRequest) {
       metadata: {
         userId: userId,
         packageName: packageName,
-        environment: isDevMode ? 'development' : 'production'
       }
     }
 
