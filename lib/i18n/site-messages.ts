@@ -637,6 +637,11 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
             title: 'Social Cover Generator',
             description: 'Generate bilingual social media covers from a portrait and product or logo reference.',
           },
+          {
+            href: '/tools/codex-quota-reset-alerts',
+            title: 'Codex Quota Reset Alerts',
+            description: 'Unofficial Codex / OpenAI quota and reset notices curated from public X posts and refreshed hourly.',
+          },
         ],
       },
       aiAngleGenerator: {
@@ -1166,6 +1171,11 @@ export const siteMessages: Record<SiteLocale, SiteMessages> = {
             href: '/tools/social-cover-generator',
             title: 'Social Cover Generator',
             description: '从人物图和产品或 Logo 参考图生成中英文社媒封面。',
+          },
+          {
+            href: '/tools/codex-quota-reset-alerts',
+            title: 'Codex Quota Reset Alerts',
+            description: 'Unofficial Codex / OpenAI quota and reset notices curated from public X posts and refreshed hourly.',
           },
         ],
       },

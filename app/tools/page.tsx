@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  BellRing,
   Calculator,
   Presentation,
   Rotate3D,
@@ -23,6 +24,7 @@ const TOOL_ICON_BY_HREF: Record<string, LucideIcon> = {
   "/tools/image-clone": ScanSearch,
   "/tools/ecommerce-listing-studio": Store,
   "/tools/social-cover-generator": Presentation,
+  "/tools/codex-quota-reset-alerts": BellRing,
 };
 const FREE_TOOL_HREFS = new Set(["/tools/upload-assets", "/tools/roas-calculator"]);
 

@@ -10,6 +10,7 @@ import {
   ChevronDownIcon,
 } from "@heroicons/react/24/outline";
 import {
+  BellRing,
   Bot,
   UserCircle,
   Copy,
@@ -52,6 +53,7 @@ const TOOL_ICON_BY_HREF: Record<string, LucideIcon> = {
   "/tools/image-clone": ScanSearch,
   "/tools/ecommerce-listing-studio": Store,
   "/tools/social-cover-generator": Presentation,
+  "/tools/codex-quota-reset-alerts": BellRing,
   "#feedback": MessageSquarePlus,
 };
 const FREE_TOOL_HREFS = new Set(["/tools/upload-assets", "/tools/roas-calculator"]);

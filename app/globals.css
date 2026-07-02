@@ -5404,3 +5404,26 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes codex-toast-in-out {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(0.96);
+  }
+  10% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(0.98);
+  }
+}
+
+.codex-toast {
+  animation: codex-toast-in-out 2.4s ease-in-out forwards;
+}

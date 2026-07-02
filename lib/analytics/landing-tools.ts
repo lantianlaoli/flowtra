@@ -16,6 +16,7 @@ const TOOL_FEATURE_BY_HREF: Record<string, string> = {
   '/tools/image-clone': 'image_clone',
   '/tools/ecommerce-listing-studio': 'ecommerce_listing_studio',
   '/tools/social-cover-generator': 'social_cover_generator',
+  '/tools/codex-quota-reset-alerts': 'codex_quota_reset_alerts',
 };
 
 export function trackLandingToolClick(
